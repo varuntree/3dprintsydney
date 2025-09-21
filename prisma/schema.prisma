@@ -1,0 +1,363 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum QuoteStatus {
+  DRAFT
+  PENDING
+  ACCEPTED
+  DECLINED
+  CONVERTED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+enum DiscountType {
+  NONE
+  PERCENT
+  FIXED
+}
+
+enum PricingType {
+  FIXED
+  CALCULATED
+}
+
+enum PaymentMethod {
+  STRIPE
+  BANK_TRANSFER
+  CASH
+  OTHER
+}
+
+enum JobStatus {
+  QUEUED
+  PRINTING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum JobPriority {
+  NORMAL
+  FAST_TRACK
+  URGENT
+}
+
+enum PrinterStatus {
+  ACTIVE
+  MAINTENANCE
+  OFFLINE
+}
+
+enum JobCreationPolicy {
+  ON_PAYMENT
+  ON_INVOICE
+}
+
+model Settings {
+  id                     Int               @id @default(1)
+  businessName           String            @default("")
+  businessEmail          String?
+  businessPhone          String?
+  businessAddress        String?
+  abn                    String?
+  taxRate                Decimal?
+  numberingQuotePrefix   String            @default("QT-")
+  numberingInvoicePrefix String            @default("INV-")
+  defaultPaymentTerms    String?           @default("Due on receipt")
+  bankDetails            String?
+  shippingOptions        Json?
+  calculatorConfig       Json?
+  defaultCurrency        String            @default("AUD")
+  jobCreationPolicy      JobCreationPolicy @default(ON_PAYMENT)
+  // Operational automation toggles
+  autoDetachJobOnComplete           Boolean @default(true)
+  autoArchiveCompletedJobsAfterDays Int     @default(7)
+  preventAssignToOffline            Boolean @default(true)
+  preventAssignToMaintenance        Boolean @default(true)
+  maxActivePrintingPerPrinter       Int     @default(1)
+  overdueDays                       Int     @default(0)
+  reminderCadenceDays               Int     @default(7)
+  enableEmailSend                   Boolean @default(false)
+  stripeSecretKey        String?
+  stripePublishableKey   String?
+  stripeWebhookSecret    String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
+
+model NumberSequence {
+  id        Int      @id @default(autoincrement())
+  kind      String   @unique
+  prefix    String
+  current   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Client {
+  id           Int           @id @default(autoincrement())
+  name         String
+  company      String?
+  abn          String?
+  email        String?
+  phone        String?
+  address      Json?
+  tags         Json?
+  paymentTerms String?
+  notes        String?
+  quotes       Quote[]
+  invoices     Invoice[]
+  jobs         Job[]
+  activities   ActivityLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Material {
+  id          Int               @id @default(autoincrement())
+  name        String
+  color       String?
+  category    String?
+  costPerGram Decimal
+  notes       String?
+  templates   ProductTemplate[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model ProductTemplate {
+  id               Int           @id @default(autoincrement())
+  name             String
+  description      String?
+  unit             String?       @default("unit")
+  pricingType      PricingType   @default(FIXED)
+  basePrice        Decimal?
+  calculatorConfig Json?
+  materialId       Int?
+  material         Material?     @relation(fields: [materialId], references: [id])
+  quoteItems       QuoteItem[]
+  invoiceItems     InvoiceItem[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Quote {
+  id                 Int           @id @default(autoincrement())
+  number             String        @unique
+  clientId           Int
+  client             Client        @relation(fields: [clientId], references: [id])
+  status             QuoteStatus   @default(DRAFT)
+  issueDate          DateTime      @default(now())
+  expiryDate         DateTime?
+  // Proposal lifecycle
+  sentAt             DateTime?
+  acceptedAt         DateTime?
+  declinedAt         DateTime?
+  expiresAt          DateTime?
+  decisionNote       String?
+  taxRate            Decimal?
+  discountType       DiscountType  @default(NONE)
+  discountValue      Decimal?
+  shippingCost       Decimal?
+  shippingLabel      String?
+  subtotal           Decimal
+  taxTotal           Decimal
+  total              Decimal
+  notes              String?
+  terms              String?
+  calculatorSnapshot Json?
+  sourceData         Json?
+  convertedInvoiceId Int?          @unique
+  convertedInvoice   Invoice?      @relation("QuoteConvertedInvoice", fields: [convertedInvoiceId], references: [id])
+  invoices           Invoice[]     @relation("QuoteInvoices")
+  items              QuoteItem[]
+  activities         ActivityLog[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model QuoteItem {
+  id                  Int              @id @default(autoincrement())
+  quoteId             Int
+  quote               Quote            @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productTemplateId   Int?
+  productTemplate     ProductTemplate? @relation(fields: [productTemplateId], references: [id])
+  name                String
+  description         String?
+  quantity            Decimal
+  unit                String?
+  unitPrice           Decimal
+  discountType        DiscountType     @default(NONE)
+  discountValue       Decimal?
+  total               Decimal
+  orderIndex          Int              @default(0)
+  calculatorBreakdown Json?
+}
+
+model Invoice {
+  id                 Int           @id @default(autoincrement())
+  number             String        @unique
+  clientId           Int
+  client             Client        @relation(fields: [clientId], references: [id])
+  sourceQuoteId      Int?
+  sourceQuote        Quote?        @relation("QuoteInvoices", fields: [sourceQuoteId], references: [id])
+  status             InvoiceStatus @default(PENDING)
+  issueDate          DateTime      @default(now())
+  dueDate            DateTime?
+  // Lifecycle markers
+  voidedAt           DateTime?
+  voidReason         String?
+  writtenOffAt       DateTime?
+  writeOffReason     String?
+  overdueNotifiedAt  DateTime?
+  taxRate            Decimal?
+  discountType       DiscountType  @default(NONE)
+  discountValue      Decimal?
+  shippingCost       Decimal?
+  shippingLabel      String?
+  subtotal           Decimal
+  taxTotal           Decimal
+  total              Decimal
+  balanceDue         Decimal
+  notes              String?
+  terms              String?
+  internalNotes      String?
+  paidAt             DateTime?
+  calculatorSnapshot Json?
+  convertedFromQuote Quote?        @relation("QuoteConvertedInvoice")
+  jobs               Job[]
+  payments           Payment[]
+  items              InvoiceItem[]
+  attachments        Attachment[]
+  activities         ActivityLog[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([status, dueDate])
+  @@index([paidAt])
+}
+
+model InvoiceItem {
+  id                  Int              @id @default(autoincrement())
+  invoiceId           Int
+  invoice             Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productTemplateId   Int?
+  productTemplate     ProductTemplate? @relation(fields: [productTemplateId], references: [id])
+  name                String
+  description         String?
+  quantity            Decimal
+  unit                String?
+  unitPrice           Decimal
+  discountType        DiscountType     @default(NONE)
+  discountValue       Decimal?
+  total               Decimal
+  orderIndex          Int              @default(0)
+  calculatorBreakdown Json?
+}
+
+model Payment {
+  id          Int           @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice       @relation(fields: [invoiceId], references: [id])
+  method      PaymentMethod @default(OTHER)
+  amount      Decimal
+  currency    String        @default("AUD")
+  reference   String?
+  processor   String?
+  processorId String?       @unique
+  notes       String?
+  paidAt      DateTime
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([paidAt])
+}
+
+model Printer {
+  id          Int           @id @default(autoincrement())
+  name        String
+  model       String?
+  buildVolume String?
+  status      PrinterStatus @default(ACTIVE)
+  notes       String?
+  lastMaintenanceAt DateTime?
+  maintenanceNote   String?
+  jobs        Job[]
+  activities  ActivityLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Job {
+  id             Int           @id @default(autoincrement())
+  invoiceId      Int
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id])
+  clientId       Int
+  client         Client        @relation(fields: [clientId], references: [id])
+  printerId      Int?
+  printer        Printer?      @relation(fields: [printerId], references: [id])
+  title          String
+  description    String?
+  status         JobStatus     @default(QUEUED)
+  priority       JobPriority   @default(NORMAL)
+  queuePosition  Int           @default(0)
+  estimatedHours Float?
+  actualHours    Float?
+  startedAt      DateTime?
+  pausedAt       DateTime?
+  completedAt    DateTime?
+  lastRunStartedAt DateTime?
+  notes          String?
+  archivedAt     DateTime?
+  archivedReason String?
+  completedBy    String?
+  activities     ActivityLog[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([printerId, status, queuePosition])
+  @@index([status, completedAt])
+  @@index([archivedAt])
+}
+
+model Attachment {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  filename   String
+  filepath   String
+  filetype   String?
+  size       Int
+  metadata   Json?
+  uploadedAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  clientId  Int?
+  client    Client?  @relation(fields: [clientId], references: [id])
+  quoteId   Int?
+  quote     Quote?   @relation(fields: [quoteId], references: [id])
+  invoiceId Int?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  jobId     Int?
+  job       Job?     @relation(fields: [jobId], references: [id])
+  printerId Int?
+  printer   Printer? @relation(fields: [printerId], references: [id])
+  action    String
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

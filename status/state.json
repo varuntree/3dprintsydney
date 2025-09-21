@@ -1,0 +1,23 @@
+{
+  "phase": "ready-for-handoff",
+  "currentSlice": "complete",
+  "pending": [],
+  "done": [
+    "Prisma schema & migration",
+    "Seed defaults",
+    "App shell layout",
+    "Providers configured",
+    "Utility helpers",
+    "Route placeholders",
+    "Settings slice",
+    "Catalog slice",
+    "Clients slice",
+    "Quotes slice core",
+    "Invoice editor/payments/attachments initial",
+    "Jobs slice (services, auto-creation, queue board)",
+    "Dashboard snapshot & reporting exports",
+    "Stripe checkout/webhook & invoice quick actions",
+    "Finalize README/README_RUN with Stripe + data folder guidance",
+    "Smoke test core flows (quotes → invoices → payments → jobs → exports)"
+  ]
+}
