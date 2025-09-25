@@ -12,12 +12,15 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
-    const { buffer, filename } = await generateInvoicePdf(id);
+    const url = new URL(request.url);
+    const style = url.searchParams.get("style") || "classic";
+
+    const { buffer, filename } = await generateInvoicePdf(id, style);
     return new NextResponse(buffer as unknown as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",

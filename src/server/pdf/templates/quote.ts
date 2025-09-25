@@ -1,8 +1,18 @@
 import type { QuoteDetail } from "@/server/services/quotes";
-import { formatCurrency } from "@/lib/currency";
-import { formatDate } from "@/lib/datetime";
-import { baseStyles } from "@/server/pdf/templates/shared/styles";
-import { escapeHtml, formatMultiline, discountLabel } from "@/server/pdf/templates/shared/utils";
+import { generateEnhancedPDFHtml } from "@/server/pdf/templates/shared/styles";
+import { formatMultiline } from "@/server/pdf/templates/shared/utils";
+import {
+  renderHeader,
+  renderClientInfo,
+  renderLineItemsTable,
+  renderFinancialSummary,
+  renderTermsAndConditions,
+  renderPageFooter,
+  type BusinessInfo,
+  type DocumentMeta,
+  type LineItem
+} from "@/server/pdf/templates/shared/components";
+import { paginateLineItems as paginateItems, DEFAULT_PAGINATION_CONFIG, willFitOnSinglePage } from "@/server/pdf/templates/shared/pagination";
 
 type QuoteTemplateOptions = {
   logoDataUrl?: string;
@@ -14,165 +24,307 @@ type QuoteTemplateOptions = {
   bankDetails?: string;
 };
 
-function formatPaymentTerms(quote: QuoteDetail) {
-  if (!quote.paymentTerms) return "Payment terms unavailable";
-  if (quote.paymentTerms.days === 0) {
-    return `${quote.paymentTerms.label} — due on acceptance`;
-  }
-  return `${quote.paymentTerms.label} — ${quote.paymentTerms.days}-day terms`;
+function mapQuoteToLineItems(quote: QuoteDetail): LineItem[] {
+  return quote.lines.map((line) => ({
+    id: line.id,
+    name: line.name,
+    description: line.description || "",
+    quantity: line.quantity,
+    unit: line.unit || "",
+    unitPrice: line.unitPrice,
+    total: line.total,
+    discountType: line.discountType,
+    discountValue: line.discountValue
+  }));
 }
 
-function bankDetailsLines(raw?: string) {
-  if (!raw) return [] as string[];
-  return raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
+function renderQuoteIntroSection(quote: QuoteDetail): string {
+  const paymentTermsText = quote.paymentTerms
+    ? quote.paymentTerms.days === 0
+      ? `${quote.paymentTerms.label} — due on acceptance`
+      : `${quote.paymentTerms.label} — ${quote.paymentTerms.days}-day terms`
+    : "Payment terms unavailable";
 
-
-export function renderQuoteHtml(quote: QuoteDetail, options?: QuoteTemplateOptions) {
-  const issued = formatDate(quote.issueDate.toISOString());
-  const expires = quote.expiryDate ? formatDate(quote.expiryDate.toISOString()) : "—";
-  const paymentTermsLine = formatPaymentTerms(quote);
-  const notes = escapeHtml(quote.notes ?? "").replace(/\n/g, "<br />");
-  const terms = escapeHtml(quote.terms ?? "").replace(/\n/g, "<br />");
-  const bankLines = bankDetailsLines(options?.bankDetails).map(escapeHtml);
-
-  const rows = quote.lines
-    .map((line) => {
-      const quantity = Number.isInteger(line.quantity)
-        ? line.quantity
-        : Number(line.quantity).toFixed(2);
-      const description = escapeHtml(line.description ?? "").replace(/\n/g, "<br />");
-      return `
-        <tr>
-          <td class="item-name">${escapeHtml(line.name)}</td>
-          <td class="item-description">${description || "&nbsp;"}</td>
-          <td class="numeric">${quantity}</td>
-          <td class="unit">${escapeHtml(line.unit ?? "")}</td>
-          <td class="numeric">${formatCurrency(line.unitPrice)}</td>
-          <td class="numeric">${discountLabel(line.discountType, line.discountValue)}</td>
-          <td class="numeric">${formatCurrency(line.total)}</td>
-        </tr>
-      `;
-    })
-    .join("");
+  const expiryText = quote.expiryDate
+    ? `Valid until ${new Date(quote.expiryDate).toLocaleDateString('en-AU')}`
+    : "No expiry date set";
 
   return `
-  <html>
-    <head>
-      <meta charset="utf-8" />
-      <style>${baseStyles}</style>
-    </head>
-    <body>
-      <main class="document">
-        <header class="header avoid-break">
-          <div class="identity">
-            ${options?.logoDataUrl ? `<img class="logo" src="${options.logoDataUrl}" alt="Business logo" />` : ""}
-            <div class="details">
-              <strong>${escapeHtml(options?.businessName ?? "3D Print Sydney")}</strong><br />
-              ${options?.abn ? `ABN: ${escapeHtml(options.abn)}<br />` : ""}
-              ${formatMultiline(options?.businessAddress)}
-              ${options?.businessPhone ? `<br />Phone: ${escapeHtml(options.businessPhone)}` : ""}
-              ${options?.businessEmail ? `<br />Email: ${escapeHtml(options.businessEmail)}` : ""}
+    <div class="quote-intro-section page-break-inside-avoid">
+      <div class="section-card">
+        <h2 class="card-title">Quote Summary</h2>
+        <div class="quote-summary-grid">
+          <div class="summary-item">
+            <span class="summary-label">Items:</span>
+            <span class="summary-value">${quote.lines.length} item${quote.lines.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Validity:</span>
+            <span class="summary-value">${expiryText}</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Payment:</span>
+            <span class="summary-value">${paymentTermsText}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      .quote-intro-section {
+        margin-bottom: 20px;
+      }
+
+      .quote-summary-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .summary-item {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        padding: 4px 0;
+      }
+
+      .summary-label {
+        color: var(--color-text-muted);
+        font-weight: 500;
+      }
+
+      .summary-value {
+        color: var(--color-text);
+        font-weight: 500;
+      }
+    </style>
+  `;
+}
+
+function renderQuoteNextStepsSection(bankDetails?: string): string {
+  const nextStepsInfo = [
+    "Review the items and pricing in this quote carefully",
+    "Contact us if you have any questions or need modifications",
+    "When ready to proceed, approve this quote to begin production",
+    "Payment will be required before work commences"
+  ];
+
+  const bankLines = bankDetails
+    ? bankDetails.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+    : [];
+
+  return `
+    <div class="next-steps-section page-break-inside-avoid">
+      <div class="section-card">
+        <h2 class="card-title">Next Steps</h2>
+        <div class="steps-content">
+          <div class="steps-list">
+            ${nextStepsInfo.map((step, index) =>
+              `<div class="step-item">
+                <span class="step-number">${index + 1}.</span>
+                <span class="step-text">${step}</span>
+              </div>`
+            ).join('')}
+          </div>
+
+          ${bankLines.length > 0 ? `
+            <div class="contact-info">
+              <h3>Contact Information</h3>
+              ${bankLines.map(line => `<div class="contact-line">${formatMultiline(line)}</div>`).join('')}
             </div>
-          </div>
-          <div class="meta">
-            <span class="doc-chip">Quote</span>
-            <h1>Quote</h1>
-            <table>
-              <tr><td class="key">Quote #</td><td>${escapeHtml(quote.number)}</td></tr>
-              <tr><td class="key">Issued</td><td>${issued}</td></tr>
-              <tr><td class="key">Valid until</td><td>${expires}</td></tr>
-              <tr><td class="key">Payment terms</td><td>${escapeHtml(paymentTermsLine)}</td></tr>
-              <tr><td class="key">Total</td><td>${formatCurrency(quote.total)}</td></tr>
-            </table>
-          </div>
-        </header>
+          ` : ''}
+        </div>
+      </div>
+    </div>
 
-        <section class="overview section avoid-break">
-          <div class="card">
-            <h2>Prepared for</h2>
-            <div class="metric"><strong>${escapeHtml(quote.client.name)}</strong></div>
-            <div class="metric muted">Items: ${quote.lines.length}</div>
-            <div class="metric muted">Total on approval: ${formatCurrency(quote.total)}</div>
-          </div>
-          <div class="card">
-            <h2>Summary</h2>
-            <div>${escapeHtml(paymentTermsLine)}</div>
-            <div>Quote valid until ${expires}</div>
-          </div>
-        </section>
+    <style>
+      .next-steps-section {
+        margin-bottom: 30px;
+      }
 
-        <section class="section">
-          <table class="items">
-            <colgroup>
-              <col class="col-name" />
-              <col class="col-desc" />
-              <col class="col-qty" />
-              <col class="col-unit" />
-              <col class="col-uprice" />
-              <col class="col-disc" />
-              <col class="col-total" />
-            </colgroup>
-            <thead class="items-head">
-              <tr>
-                <th>Item</th>
-                <th>Description</th>
-                <th class="numeric">Qty</th>
-                <th>Unit</th>
-                <th class="numeric">Unit price</th>
-                <th class="numeric">Discount</th>
-                <th class="numeric">Line total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-            </tbody>
-            <tfoot class="items-foot"><tr><td colspan="7"></td></tr></tfoot>
-          </table>
-        </section>
+      .steps-content {
+        margin-top: 12px;
+      }
 
-        <section class="totals-grid section">
-          <div></div>
-          <div>
-            <div class="totals card">
-              <table>
-                <tbody>
-                  <tr><td>Subtotal</td><td class="numeric">${formatCurrency(quote.subtotal)}</td></tr>
-                  <tr><td>Shipping</td><td class="numeric">${formatCurrency(quote.shippingCost)}</td></tr>
-                  <tr><td>Tax</td><td class="numeric">${formatCurrency(quote.taxTotal)}</td></tr>
-                  <tr><td>Total</td><td class="numeric">${formatCurrency(quote.total)}</td></tr>
-                </tbody>
-              </table>
+      .steps-list {
+        margin-bottom: 16px;
+      }
+
+      .step-item {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 8px;
+        font-size: 11px;
+        line-height: 1.4;
+      }
+
+      .step-number {
+        color: var(--color-primary);
+        font-weight: 600;
+        margin-right: 8px;
+        min-width: 16px;
+      }
+
+      .step-text {
+        color: var(--color-text);
+        flex: 1;
+      }
+
+      .contact-info h3 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-text);
+        margin: 0 0 8px 0;
+        padding-top: 16px;
+        border-top: 1px solid var(--color-border);
+      }
+
+      .contact-line {
+        font-size: 11px;
+        color: var(--color-text-muted);
+        margin-bottom: 2px;
+      }
+    </style>
+  `;
+}
+
+export function renderQuoteHtml(quote: QuoteDetail, options?: QuoteTemplateOptions) {
+  const businessInfo: BusinessInfo = {
+    logoDataUrl: options?.logoDataUrl,
+    businessName: options?.businessName,
+    businessAddress: options?.businessAddress,
+    businessPhone: options?.businessPhone,
+    businessEmail: options?.businessEmail,
+    abn: options?.abn,
+    bankDetails: options?.bankDetails
+  };
+
+  const documentMeta: DocumentMeta = {
+    number: quote.number,
+    type: 'QUOTE',
+    issueDate: quote.issueDate,
+    expiryDate: quote.expiryDate,
+    status: quote.status,
+    total: quote.total
+  };
+
+  const lineItems = mapQuoteToLineItems(quote);
+  const isSinglePage = willFitOnSinglePage(lineItems.length, true, false, true);
+
+  let content: string;
+
+  if (isSinglePage) {
+    // Single page layout
+    content = `
+      ${renderHeader(businessInfo, documentMeta)}
+      ${renderClientInfo(quote.client, documentMeta)}
+      ${renderQuoteIntroSection(quote)}
+      ${renderLineItemsTable(lineItems, 1, 1)}
+      ${renderFinancialSummary({
+        subtotal: quote.subtotal,
+        shipping: quote.shippingCost,
+        tax: quote.taxTotal,
+        total: quote.total
+      })}
+      ${renderQuoteNextStepsSection(options?.bankDetails)}
+      ${quote.notes || quote.terms ? `
+        <div class="notes-section">
+          ${quote.notes ? `
+            <div class="section-card">
+              <h2 class="card-title">Notes</h2>
+              <div class="notes-content">${formatMultiline(quote.notes)}</div>
             </div>
-          </div>
-        </section>
+          ` : ''}
+          ${quote.terms ? `
+            <div class="section-card">
+              <h2 class="card-title">Custom Terms</h2>
+              <div class="terms-content">${formatMultiline(quote.terms)}</div>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+      ${renderTermsAndConditions()}
+      ${renderPageFooter(quote.number, quote.total)}
+    `;
+  } else {
+    // Multi-page layout with pagination
+    const paginatedItems = paginateItems(lineItems, DEFAULT_PAGINATION_CONFIG);
+    const pages = paginatedItems.map((page, index) => {
+      let pageContent = '';
 
-        <section class="section card next avoid-break">
-          <h2>Next steps</h2>
-          <p>Review this quote. When you’re ready to proceed, approve it so we can issue the invoice and begin production.</p>
-          ${bankLines.length ? `<ul>${bankLines.map((line) => `<li>${line}</li>`).join("")}</ul>` : ""}
-        </section>
+      // First page gets header and client info
+      if (index === 0) {
+        pageContent += renderHeader(businessInfo, documentMeta);
+        pageContent += renderClientInfo(quote.client, documentMeta);
+        pageContent += renderQuoteIntroSection(quote);
+      }
 
-        ${
-          quote.notes || quote.terms
-            ? `<section class="notes-grid section">
-                ${quote.notes ? `<div class="card"><h2>Notes</h2><p>${notes || "—"}</p></div>` : ""}
-                ${quote.terms ? `<div class="card"><h2>Terms</h2><p>${terms || "—"}</p></div>` : ""}
-              </section>`
-            : ""
+      // Add line items for this page
+      pageContent += renderLineItemsTable(page.items, page.pageNumber, page.totalPages);
+
+      // Last page gets financial summary and other sections
+      if (page.isLastPage) {
+        pageContent += renderFinancialSummary({
+          subtotal: quote.subtotal,
+          shipping: quote.shippingCost,
+          tax: quote.taxTotal,
+          total: quote.total
+        });
+        pageContent += renderQuoteNextStepsSection(options?.bankDetails);
+
+        if (quote.notes || quote.terms) {
+          pageContent += `
+            <div class="notes-section">
+              ${quote.notes ? `
+                <div class="section-card">
+                  <h2 class="card-title">Notes</h2>
+                  <div class="notes-content">${formatMultiline(quote.notes)}</div>
+                </div>
+              ` : ''}
+              ${quote.terms ? `
+                <div class="section-card">
+                  <h2 class="card-title">Custom Terms</h2>
+                  <div class="terms-content">${formatMultiline(quote.terms)}</div>
+                </div>
+              ` : ''}
+            </div>
+          `;
         }
 
-        <footer class="section">
-          <strong>Terms &amp; Conditions</strong><br />
-          Quote valid until the listed expiry date. Prices include GST.<br />
-          Production commences after acceptance and payment. Ensure supplied files are production ready.<br />
-          Tolerances and finishes may vary depending on material and printer selection.
-        </footer>
-      </main>
-    </body>
-  </html>
+        pageContent += renderTermsAndConditions();
+      }
+
+      pageContent += renderPageFooter(quote.number, quote.total, page.pageNumber, page.totalPages);
+
+      return pageContent;
+    }).join('<div class="page-break-before"></div>');
+
+    content = pages;
+  }
+
+  const additionalStyles = `
+    .notes-section {
+      margin-bottom: 30px;
+    }
+
+    .notes-section .section-card {
+      margin-bottom: 16px;
+    }
+
+    .notes-content,
+    .terms-content {
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--color-text);
+      margin-top: 8px;
+    }
   `;
+
+  const contentWithStyles = `
+    <style>
+      ${additionalStyles}
+    </style>
+    ${content}
+  `;
+
+  return generateEnhancedPDFHtml(contentWithStyles, `Quote ${quote.number} - ${quote.client.name}`);
 }

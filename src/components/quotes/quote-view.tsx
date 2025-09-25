@@ -29,6 +29,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
 
 type QuoteStatusValue = "DRAFT" | "PENDING" | "ACCEPTED" | "DECLINED" | "CONVERTED";
 
@@ -149,22 +150,6 @@ export function QuoteView({ quote }: QuoteViewProps) {
     },
   });
 
-  const downloadPdf = async () => {
-    try {
-      const response = await fetch(`/api/quotes/${quote.id}/pdf`);
-      if (!response.ok) throw new Error("Failed to generate PDF");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `quote-${quote.number}.pdf`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      toast.success("Quote PDF generated");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to download PDF");
-    }
-  };
 
   const issueDate = useMemo(() => new Date(quote.issueDate), [quote.issueDate]);
   const expiryDate = useMemo(
@@ -212,7 +197,11 @@ export function QuoteView({ quote }: QuoteViewProps) {
           <Button variant="outline" onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending}>
             {duplicateMutation.isPending ? "Duplicating…" : "Duplicate"}
           </Button>
-          <Button variant="outline" onClick={downloadPdf}>PDF</Button>
+          <PDFStyleDropdown
+            documentType="quote"
+            documentId={quote.id}
+            documentNumber={quote.number}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost">Change status</Button>

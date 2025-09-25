@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
 
 export type InvoiceStatusValue = "PENDING" | "PAID" | "OVERDUE";
 
@@ -158,22 +159,6 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
   const isOverdue = invoice.status === "OVERDUE";
   const hasStripeLink = Boolean(invoice.stripeCheckoutUrl);
 
-  const downloadPdf = async () => {
-    try {
-      const response = await fetch(`/api/invoices/${invoice.id}/pdf`);
-      if (!response.ok) throw new Error("Failed to generate PDF");
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `invoice-${invoice.number}.pdf`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      toast.success("Invoice PDF generated");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to download PDF");
-    }
-  };
 
   function refreshInvoice() {
     queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
@@ -204,7 +189,11 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
           <Button asChild variant="outline">
             <Link href={`/invoices/${invoice.id}?mode=edit`}>Edit</Link>
           </Button>
-          <Button variant="outline" onClick={downloadPdf}>PDF</Button>
+          <PDFStyleDropdown
+            documentType="invoice"
+            documentId={invoice.id}
+            documentNumber={invoice.number}
+          />
           <Button
             variant="outline"
             onClick={() => stripeMutation.mutate(false)}
