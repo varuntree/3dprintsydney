@@ -21,6 +21,19 @@ export const calculatorConfigSchema = z.object({
     .default(() => ({ medium: 1 })),
 });
 
+export const paymentTermSchema = z.object({
+  code: z.string().min(1, "Code is required"),
+  label: z.string().min(1, "Label is required"),
+  days: z.number().int().min(0, "Days must be zero or positive"),
+});
+
+export const DEFAULT_PAYMENT_TERMS = [
+  { code: "COD", label: "COD", days: 0 },
+  { code: "7_days", label: "7 days", days: 7 },
+  { code: "14_days", label: "14 days", days: 14 },
+  { code: "30_days", label: "30 days", days: 30 },
+] as const;
+
 export const settingsInputSchema = z.object({
   businessName: z.string().min(1),
   businessEmail: z.string().email().optional().or(z.literal("")),
@@ -34,6 +47,9 @@ export const settingsInputSchema = z.object({
   bankDetails: z.string().optional().or(z.literal("")),
   jobCreationPolicy: z.enum(jobCreationPolicyValues),
   shippingOptions: z.array(shippingOptionSchema).default(() => []),
+  paymentTerms: z
+    .array(paymentTermSchema)
+    .default(() => DEFAULT_PAYMENT_TERMS.map((term) => ({ ...term }))),
   calculatorConfig: calculatorConfigSchema.default(() => ({
     hourlyRate: 0,
     setupFee: 0,
@@ -42,9 +58,6 @@ export const settingsInputSchema = z.object({
     infillMultipliers: { medium: 1 },
   })),
   defaultCurrency: z.string().min(3).max(3).default("AUD"),
-  stripeSecretKey: z.string().optional().or(z.literal("")),
-  stripePublishableKey: z.string().optional().or(z.literal("")),
-  stripeWebhookSecret: z.string().optional().or(z.literal("")),
   // Operational automation toggles
   autoDetachJobOnComplete: z.boolean().default(true),
   autoArchiveCompletedJobsAfterDays: z.number().int().min(0).default(7),
@@ -54,6 +67,39 @@ export const settingsInputSchema = z.object({
   overdueDays: z.number().int().min(0).default(0),
   reminderCadenceDays: z.number().int().min(1).default(7),
   enableEmailSend: z.boolean().default(false),
+}).superRefine((data, ctx) => {
+  const codes = new Set<string>();
+  data.paymentTerms.forEach((term, index) => {
+    const normalized = term.code.trim();
+    if (codes.has(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["paymentTerms", index, "code"],
+        message: "Codes must be unique",
+      });
+    }
+    codes.add(normalized);
+  });
+
+  if (data.paymentTerms.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["paymentTerms"],
+      message: "At least one payment term is required",
+    });
+  }
+
+  const defaultTerm = data.paymentTerms.find(
+    (term) => term.code === data.defaultPaymentTerms,
+  );
+
+  if (!defaultTerm) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["defaultPaymentTerms"],
+      message: "Default must reference a defined payment term",
+    });
+  }
 });
 
 export type SettingsInput = z.infer<typeof settingsInputSchema>;

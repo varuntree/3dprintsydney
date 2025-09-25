@@ -11,12 +11,14 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const invoiceId = await parseId(context.params);
-    const session = await createStripeCheckoutSession(invoiceId);
+    const url = new URL(request.url);
+    const refresh = url.searchParams.get("refresh") === "true";
+    const session = await createStripeCheckoutSession(invoiceId, { refresh });
     return ok(session);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {

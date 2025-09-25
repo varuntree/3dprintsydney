@@ -41,6 +41,8 @@ import {
   calculatorConfigSchema,
   settingsInputSchema,
   shippingOptionSchema,
+  paymentTermSchema,
+  DEFAULT_PAYMENT_TERMS,
   type SettingsInput,
   jobCreationPolicyValues,
 } from "@/lib/schemas/settings";
@@ -60,7 +62,7 @@ const resolver: Resolver<SettingsInput> = zodResolver(
 ) as Resolver<SettingsInput>;
 
 function normalizeSettings(payload: SettingsPayload): SettingsInput {
-  const shippingOptions = (payload.shippingOptions ?? []).map((option) => {
+  const shippingOptions = (payload.shippingOptions ?? []).map((option, index) => {
     const base = {
       code: option.code ?? "",
       label: option.label ?? "",
@@ -73,12 +75,39 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     if (parsed.success) {
       return parsed.data;
     }
-    return {
-      code: base.code,
-      label: base.label,
-      amount: base.amount,
-    } as SettingsInput["shippingOptions"][number];
+    console.warn("Invalid shipping option recovered in settings payload", {
+      index,
+      issues: parsed.error.issues,
+    });
+    return base as SettingsInput["shippingOptions"][number];
   });
+
+  const paymentTermsInput = (payload.paymentTerms ?? DEFAULT_PAYMENT_TERMS).map(
+    (term, index) => {
+      const base = {
+        code: term.code ?? "",
+        label: term.label ?? "",
+        days:
+          typeof term.days === "number"
+            ? term.days
+            : Number(term.days ?? 0),
+      };
+      const parsed = paymentTermSchema.safeParse(base);
+      if (parsed.success) {
+        return parsed.data;
+      }
+      console.warn("Invalid payment term recovered in settings payload", {
+        index,
+        issues: parsed.error.issues,
+      });
+      return base as SettingsInput["paymentTerms"][number];
+    },
+  );
+
+  const paymentTerms =
+    paymentTermsInput.length > 0
+      ? paymentTermsInput
+      : DEFAULT_PAYMENT_TERMS.map((term) => ({ ...term }));
 
   const calculator = calculatorConfigSchema.parse(
     payload.calculatorConfig ?? {},
@@ -90,6 +119,12 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     ? (payload.jobCreationPolicy as SettingsInput["jobCreationPolicy"])
     : jobCreationPolicyValues[0];
 
+  const defaultPaymentTermCode = paymentTerms.some(
+    (term) => term.code === (payload.defaultPaymentTerms ?? ""),
+  )
+    ? payload.defaultPaymentTerms ?? paymentTerms[0]?.code ?? ""
+    : paymentTerms[0]?.code ?? "";
+
   return {
     businessName: payload.businessName ?? "",
     businessEmail: payload.businessEmail ?? "",
@@ -99,15 +134,13 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     taxRate: payload.taxRate ?? 10,
     numberingQuotePrefix: payload.numberingQuotePrefix ?? "QT-",
     numberingInvoicePrefix: payload.numberingInvoicePrefix ?? "INV-",
-    defaultPaymentTerms: payload.defaultPaymentTerms ?? "Due on receipt",
+    defaultPaymentTerms: defaultPaymentTermCode,
+    paymentTerms,
     bankDetails: payload.bankDetails ?? "",
     jobCreationPolicy: jobPolicy,
     shippingOptions,
     calculatorConfig: calculator,
     defaultCurrency: payload.defaultCurrency ?? "AUD",
-    stripeSecretKey: payload.stripeSecretKey ?? "",
-    stripePublishableKey: payload.stripePublishableKey ?? "",
-    stripeWebhookSecret: payload.stripeWebhookSecret ?? "",
     autoDetachJobOnComplete: payload.autoDetachJobOnComplete ?? true,
     autoArchiveCompletedJobsAfterDays:
       payload.autoArchiveCompletedJobsAfterDays ?? 7,
@@ -119,6 +152,7 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     enableEmailSend: payload.enableEmailSend ?? false,
   };
 }
+
 
 export function SettingsForm({ initial }: SettingsFormProps) {
   const queryClient = useQueryClient();
@@ -148,6 +182,13 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     name: "shippingOptions",
   });
 
+  const paymentTermsArray = useFieldArray({
+    control: form.control,
+    name: "paymentTerms",
+  });
+
+  const paymentTerms = form.watch("paymentTerms");
+
   const policyOptions = useMemo(
     () => [
       { value: jobCreationPolicyValues[0], label: "When invoice is paid" },
@@ -166,15 +207,6 @@ export function SettingsForm({ initial }: SettingsFormProps) {
       queryClient.setQueryData(queryKey, payload);
       toast.success("Settings saved");
       form.reset(normalizeSettings(payload));
-      const hasStripe = Boolean(
-        (payload.stripePublishableKey ?? "").trim() &&
-          (payload.stripeSecretKey ?? "").trim(),
-      );
-      if (!hasStripe) {
-        toast.info(
-          "Stripe checkout remains disabled. Add publishable and secret keys in Integrations to enable it.",
-        );
-      }
     },
     onError: (error: unknown) => {
       toast.error(
@@ -194,7 +226,6 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     { value: "shipping", label: "Shipping" },
     { value: "calculator", label: "Calculator" },
     { value: "jobs", label: "Jobs" },
-    { value: "integrations", label: "Integrations" },
   ] as const;
 
   return (
@@ -351,9 +382,35 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Default payment terms</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Due on receipt" {...field} />
-                    </FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select payment terms" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {paymentTerms.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Add payment terms below
+                          </div>
+                        ) : (
+                          paymentTerms.map((term, index) => (
+                            <SelectItem
+                              key={`${term.code}-${index}`}
+                              value={term.code}
+                            >
+                              {term.label}{' '}
+                              {term.days === 0
+                                ? '(due immediately)'
+                                : `(${term.days} days)`}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Applied to new clients and invoices unless overridden.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -364,25 +421,120 @@ export function SettingsForm({ initial }: SettingsFormProps) {
           <TabsContent value="payments">
             <SettingsCard
               title="Payments"
-              description="Bank transfer details and payment defaults."
+              description="Manage payment terms and bank transfer details used across documents."
             >
-              <FormField
-                control={form.control}
-                name="bankDetails"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bank transfer instructions</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        rows={4}
-                        placeholder="BSB, Account number, Reference notes"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-zinc-900">Payment terms</h3>
+                      <p className="text-sm text-zinc-500">Define the options available when creating clients. Codes should be unique.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        paymentTermsArray.append({
+                          code: "",
+                          label: "",
+                          days: 0,
+                        } as SettingsInput["paymentTerms"][number])
+                      }
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" /> Add term
+                    </Button>
+                  </div>
+
+                  {paymentTermsArray.fields.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-zinc-200/70 bg-white/60 p-4 text-sm text-zinc-500">
+                      No payment terms configured yet. Add your first option to enable selection on clients.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {paymentTermsArray.fields.map((field, index) => (
+                        <div
+                          key={field.id}
+                          className="grid gap-3 rounded-xl border border-zinc-200/70 bg-white/80 p-4 backdrop-blur-sm md:grid-cols-[minmax(160px,1fr)_minmax(120px,160px)_minmax(120px,160px)_auto]"
+                        >
+                          <FormField
+                            control={form.control}
+                            name={`paymentTerms.${index}.label` as const}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Label</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="COD" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`paymentTerms.${index}.code` as const}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Code</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="COD" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`paymentTerms.${index}.days` as const}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Days</FormLabel>
+                                <FormControl>
+                                  <Input type="number" min={0} step={1} {...field} />
+                                </FormControl>
+                                <FormDescription>0 for COD</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <div className="flex items-end justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => paymentTermsArray.remove(index)}
+                              className="text-zinc-400 hover:text-red-500"
+                              aria-label="Remove payment term"
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <FormField
+                  control={form.control}
+                  name="bankDetails"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bank transfer instructions</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={4}
+                          placeholder="BSB, Account number, Reference notes"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </SettingsCard>
           </TabsContent>
 
@@ -627,6 +779,13 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormDescription>
+                      Choose when jobs are pushed to the production board. Use
+                      <strong className="mx-1 text-zinc-700">When invoice is created</strong>
+                      to queue work as soon as terms are agreed, or
+                      <strong className="mx-1 text-zinc-700">When invoice is paid</strong>
+                      to hold jobs until payment clears.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -758,7 +917,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                     </FormItem>
                   )}
                 />
-                <FormField
+              <FormField
                   control={form.control}
                   name="enableEmailSend"
                   render={({ field }) => (
@@ -772,74 +931,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                   )}
                 />
               </div>
-            </SettingsCard>
-          </TabsContent>
-
-          <TabsContent value="integrations">
-            <SettingsCard
-              title="Stripe"
-              description="Optional keys for online payments."
-            >
-              <FormField
-                control={form.control}
-                name="stripePublishableKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Publishable key</FormLabel>
-                    <FormControl>
-                      <Input placeholder="pk_live_..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="stripeSecretKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Secret key</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="sk_live_..."
-                        type="password"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="stripeWebhookSecret"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Webhook secret</FormLabel>
-                    <FormControl>
-                      <Input placeholder="whsec_..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="mt-4 flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/api/stripe/test", { method: "POST" });
-                      const json = await res.json();
-                      if (res.ok && json?.ok) toast.success("Stripe keys look OK");
-                      else toast.error(json?.error?.message ?? "Stripe test failed");
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Stripe test failed");
-                    }
-                  }}
-                >
-                  Test Stripe
-                </Button>
+              <div className="mt-6 flex justify-end">
                 <Button
                   type="button"
                   variant="outline"

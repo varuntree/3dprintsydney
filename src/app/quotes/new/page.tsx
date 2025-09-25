@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { QuoteEditor } from "@/components/quotes/quote-editor";
 import { listClients } from "@/server/services/clients";
 import { listProductTemplates } from "@/server/services/product-templates";
+import { listMaterials } from "@/server/services/materials";
 import { getSettings } from "@/server/services/settings";
 import { quoteInputSchema } from "@/lib/schemas/quotes";
 import type { z } from "zod";
@@ -9,10 +10,11 @@ import type { z } from "zod";
 type QuoteFormValues = z.infer<typeof quoteInputSchema>;
 
 export default async function NewQuotePage() {
-  const [clients, templates, settings] = await Promise.all([
+  const [clients, templates, settings, materials] = await Promise.all([
     listClients(),
     listProductTemplates(),
     getSettings(),
+    listMaterials(),
   ]);
 
   if (!settings) {
@@ -28,7 +30,7 @@ export default async function NewQuotePage() {
     shippingCost: 0,
     shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
     notes: "",
-    terms: settings.defaultPaymentTerms ?? "",
+    terms: "",
     lines: [
       {
         name: "Line item",
@@ -55,6 +57,12 @@ export default async function NewQuotePage() {
         }))}
         templates={templates}
         settings={settings}
+        materials={materials.map((material) => ({
+          id: material.id,
+          name: material.name,
+          costPerGram: material.costPerGram,
+          color: material.color ?? null,
+        }))}
       />
     </div>
   );

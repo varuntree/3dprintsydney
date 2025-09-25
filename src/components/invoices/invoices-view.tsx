@@ -28,6 +28,7 @@ export type InvoiceSummaryRecord = {
   balanceDue: number;
   issueDate: string;
   dueDate: string | null;
+  hasStripeLink: boolean;
 };
 
 interface InvoicesViewProps {
@@ -113,12 +114,22 @@ export function InvoicesView({ initial }: InvoicesViewProps) {
                     filtered.map((invoice) => (
                       <TableRow key={invoice.id} className="hover:bg-white/80">
                         <TableCell>
-                          <Link
-                            href={`/invoices/${invoice.id}`}
-                            className="font-medium text-zinc-900 hover:underline"
-                          >
-                            {invoice.number}
-                          </Link>
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/invoices/${invoice.id}`}
+                              className="font-medium text-zinc-900 hover:underline"
+                            >
+                              {invoice.number}
+                            </Link>
+                            {invoice.hasStripeLink ? (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-200/70 bg-emerald-50 text-xs uppercase tracking-wide text-emerald-700"
+                              >
+                                Stripe
+                              </Badge>
+                            ) : null}
+                          </div>
                         </TableCell>
                         <TableCell>{invoice.clientName}</TableCell>
                         <TableCell>

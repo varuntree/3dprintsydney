@@ -12,6 +12,7 @@ import {
   calculateLineTotal,
   calculateDocumentTotals,
 } from "@/lib/calculations";
+import { addDays } from "date-fns";
 import {
   invoiceInputSchema,
   paymentInputSchema,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/schemas/invoices";
 import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
+import { resolvePaymentTermsOptions } from "@/server/services/settings";
 import {
   ensureStorage,
   saveInvoiceFile,
@@ -71,6 +73,69 @@ function computeTotals(payload: InvoiceInput) {
   };
 }
 
+type ResolvedPaymentTerm = {
+  code: string;
+  label: string;
+  days: number;
+  source: "client" | "default";
+};
+
+async function resolveClientPaymentTerm(
+  tx: Prisma.TransactionClient,
+  clientId: number,
+): Promise<ResolvedPaymentTerm> {
+  const client = await tx.client.findUnique({
+    where: { id: clientId },
+    select: { paymentTerms: true },
+  });
+
+  if (!client) {
+    throw new Error("Client not found");
+  }
+
+  const { paymentTerms, defaultPaymentTerms } = await resolvePaymentTermsOptions(tx);
+  if (paymentTerms.length === 0) {
+    return {
+      code: defaultPaymentTerms,
+      label: defaultPaymentTerms,
+      days: 0,
+      source: "default",
+    };
+  }
+
+  const candidateCode = client.paymentTerms?.trim() || defaultPaymentTerms;
+  const match = paymentTerms.find((term) => term.code === candidateCode);
+  if (match) {
+    return { ...match, source: client.paymentTerms ? "client" : "default" };
+  }
+
+  const fallback = paymentTerms.find(
+    (term) => term.code === defaultPaymentTerms,
+  );
+  if (fallback) {
+    return { ...fallback, source: "default" };
+  }
+
+  const [first] = paymentTerms;
+  return { ...first, source: "default" };
+}
+
+function deriveDueDate(
+  issueDate: Date,
+  term: ResolvedPaymentTerm,
+  explicit?: Date | null,
+) {
+  if (explicit) {
+    return explicit;
+  }
+
+  if (!term || term.days <= 0) {
+    return issueDate;
+  }
+
+  return addDays(issueDate, term.days);
+}
+
 export async function listInvoices(options?: {
   q?: string;
   statuses?: ("PENDING" | "PAID" | "OVERDUE")[];
@@ -109,6 +174,7 @@ export async function listInvoices(options?: {
     balanceDue: Number(invoice.balanceDue),
     issueDate: invoice.issueDate,
     dueDate: invoice.dueDate,
+    hasStripeLink: Boolean(invoice.stripeCheckoutUrl),
   }));
 }
 
@@ -146,6 +212,28 @@ function decimalToNumber(value: unknown) {
 
 export async function getInvoiceDetail(id: number) {
   const invoice = await getInvoice(id);
+  const { paymentTerms: termOptions, defaultPaymentTerms } =
+    await resolvePaymentTermsOptions(prisma);
+  const resolvedTerm = (() => {
+    const explicitCode = invoice.client.paymentTerms?.trim();
+    const candidates = termOptions;
+    if (explicitCode) {
+      const match = candidates.find((option) => option.code === explicitCode);
+      if (match) {
+        return { ...match, source: "client" as const };
+      }
+    }
+    const defaultMatch = candidates.find(
+      (option) => option.code === defaultPaymentTerms,
+    );
+    if (defaultMatch) {
+      return { ...defaultMatch, source: "default" as const };
+    }
+    if (candidates.length > 0) {
+      return { ...candidates[0], source: "default" as const };
+    }
+    return null;
+  })();
 
   return {
     id: invoice.id,
@@ -155,6 +243,7 @@ export async function getInvoiceDetail(id: number) {
       id: invoice.clientId,
       name: invoice.client.name,
     },
+    paymentTerms: resolvedTerm,
     issueDate: invoice.issueDate,
     dueDate: invoice.dueDate,
     taxRate: invoice.taxRate ? decimalToNumber(invoice.taxRate) : 0,
@@ -203,6 +292,7 @@ export async function getInvoiceDetail(id: number) {
       size: attachment.size,
       uploadedAt: attachment.uploadedAt,
     })),
+    stripeCheckoutUrl: invoice.stripeCheckoutUrl ?? null,
   };
 }
 
@@ -214,14 +304,18 @@ export async function createInvoice(payload: unknown) {
 
   const invoice = await prisma.$transaction(async (tx) => {
     const number = await nextDocumentNumber("invoice", tx);
+    const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
+    const explicitDueDate = parsed.dueDate ? new Date(parsed.dueDate) : null;
+    const paymentTerm = await resolveClientPaymentTerm(tx, parsed.clientId);
+    const dueDate = deriveDueDate(issueDate, paymentTerm, explicitDueDate);
 
     const created = await tx.invoice.create({
       data: {
         number,
         clientId: parsed.clientId,
         status: InvoiceStatus.PENDING,
-        issueDate: parsed.issueDate ? new Date(parsed.issueDate) : new Date(),
-        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
+        issueDate,
+        dueDate,
         taxRate: toDecimal(parsed.taxRate) ?? "0",
         discountType: mapDiscount(parsed.discountType),
         discountValue: toDecimal(parsed.discountValue) ?? "0",
@@ -233,6 +327,8 @@ export async function createInvoice(payload: unknown) {
         total: String(totals.total),
         taxTotal: String(totals.taxTotal),
         balanceDue: String(totals.total),
+        stripeSessionId: null,
+        stripeCheckoutUrl: null,
         items: {
           create: parsed.lines.map((line, index) => ({
             productTemplateId: line.productTemplateId ?? undefined,
@@ -284,12 +380,32 @@ export async function updateInvoice(id: number, payload: unknown) {
   const totals = computeTotals(parsed);
 
   const invoice = await prisma.$transaction(async (tx) => {
+    const existing = await tx.invoice.findUnique({
+      where: { id },
+      select: {
+        issueDate: true,
+        dueDate: true,
+        clientId: true,
+      },
+    });
+
+    if (!existing) {
+      throw new Error("Invoice not found");
+    }
+
+    const issueDate = parsed.issueDate
+      ? new Date(parsed.issueDate)
+      : existing.issueDate;
+    const explicitDueDate = parsed.dueDate ? new Date(parsed.dueDate) : null;
+    const paymentTerm = await resolveClientPaymentTerm(tx, parsed.clientId);
+    const dueDate = deriveDueDate(issueDate, paymentTerm, explicitDueDate);
+
     const updated = await tx.invoice.update({
       where: { id },
       data: {
         clientId: parsed.clientId,
-        issueDate: parsed.issueDate ? new Date(parsed.issueDate) : undefined,
-        dueDate: parsed.dueDate ? new Date(parsed.dueDate) : null,
+        issueDate,
+        dueDate,
         taxRate: toDecimal(parsed.taxRate) ?? "0",
         discountType: mapDiscount(parsed.discountType),
         discountValue: toDecimal(parsed.discountValue) ?? "0",
@@ -301,6 +417,8 @@ export async function updateInvoice(id: number, payload: unknown) {
         total: String(totals.total),
         taxTotal: String(totals.taxTotal),
         balanceDue: String(totals.total),
+        stripeSessionId: null,
+        stripeCheckoutUrl: null,
         items: {
           deleteMany: {},
           create: parsed.lines.map((line, index) => ({

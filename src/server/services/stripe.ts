@@ -1,38 +1,61 @@
 import Stripe from "stripe";
-import { PaymentMethod } from "@prisma/client";
+import { InvoiceStatus, PaymentMethod } from "@prisma/client";
 import { prisma } from "@/server/db/client";
-import { getSettings } from "@/server/services/settings";
 import { getInvoiceDetail, markInvoicePaid } from "@/server/services/invoices";
 import { logger } from "@/lib/logger";
-const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+import {
+  LEGACY_STRIPE_SECRET_KEY,
+  LEGACY_STRIPE_CANCEL_URL,
+  LEGACY_STRIPE_SUCCESS_URL,
+  LEGACY_STRIPE_CURRENCY,
+  assertLegacyStripeConfigured,
+} from "@/server/config/stripe-legacy";
+
+assertLegacyStripeConfigured();
+
+const stripeClient = new Stripe(LEGACY_STRIPE_SECRET_KEY);
 
 export type StripeEnvironment = {
   stripe: Stripe;
-  publishableKey: string;
-  webhookSecret: string | null;
   currency: string;
 };
 
-export async function getStripeEnvironment(): Promise<StripeEnvironment | null> {
-  const settings = await getSettings();
-  const secretKey = settings?.stripeSecretKey?.trim();
-  const publishableKey = settings?.stripePublishableKey?.trim();
-  if (!secretKey || !publishableKey) {
-    return null;
-  }
-  const stripe = new Stripe(secretKey);
+export async function getStripeEnvironment(): Promise<StripeEnvironment> {
   return {
-    stripe,
-    publishableKey,
-    webhookSecret: settings?.stripeWebhookSecret?.trim() || null,
-    currency: settings?.defaultCurrency ?? "AUD",
+    stripe: stripeClient,
+    currency: LEGACY_STRIPE_CURRENCY,
   };
 }
 
-export async function createStripeCheckoutSession(invoiceId: number) {
+export async function createStripeCheckoutSession(
+  invoiceId: number,
+  options?: { refresh?: boolean },
+) {
   const env = await getStripeEnvironment();
-  if (!env) {
-    throw new Error("Stripe is not configured");
+
+  const invoiceRecord = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    select: {
+      id: true,
+      status: true,
+      stripeSessionId: true,
+      stripeCheckoutUrl: true,
+    },
+  });
+
+  if (!invoiceRecord) {
+    throw new Error("Invoice not found");
+  }
+
+  if (invoiceRecord.status === InvoiceStatus.PAID) {
+    throw new Error("Invoice is already paid");
+  }
+
+  if (!options?.refresh && invoiceRecord.stripeCheckoutUrl) {
+    return {
+      url: invoiceRecord.stripeCheckoutUrl,
+      sessionId: invoiceRecord.stripeSessionId ?? null,
+    };
   }
 
   const detail = await getInvoiceDetail(invoiceId);
@@ -45,9 +68,6 @@ export async function createStripeCheckoutSession(invoiceId: number) {
   if (amountInMinor <= 0) {
     throw new Error("Invalid amount for checkout");
   }
-
-  const successUrl = `${APP_URL}/invoices/${invoiceId}?checkout=success`;
-  const cancelUrl = `${APP_URL}/invoices/${invoiceId}?checkout=cancel`;
 
   const session = await env.stripe.checkout.sessions.create({
     mode: "payment",
@@ -69,18 +89,32 @@ export async function createStripeCheckoutSession(invoiceId: number) {
       invoiceId: String(invoiceId),
       invoiceNumber: detail.number,
     },
-    success_url: successUrl,
-    cancel_url: cancelUrl,
+    success_url: LEGACY_STRIPE_SUCCESS_URL,
+    cancel_url: LEGACY_STRIPE_CANCEL_URL,
   });
 
-  await prisma.activityLog.create({
-    data: {
-      invoiceId,
-      clientId: detail.client.id,
-      action: "STRIPE_CHECKOUT_CREATED",
-      message: `Stripe checkout session created for invoice ${detail.number}`,
-      metadata: { sessionId: session.id, amount: balanceDue },
-    },
+  if (!session.url) {
+    throw new Error("Stripe checkout session missing URL");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        stripeSessionId: session.id,
+        stripeCheckoutUrl: session.url ?? null,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: {
+        invoiceId,
+        clientId: detail.client.id,
+        action: "STRIPE_CHECKOUT_CREATED",
+        message: `Stripe checkout session created for invoice ${detail.number}`,
+        metadata: { sessionId: session.id, amount: balanceDue },
+      },
+    });
   });
 
   logger.info({
@@ -91,9 +125,10 @@ export async function createStripeCheckoutSession(invoiceId: number) {
   return {
     url: session.url,
     sessionId: session.id,
-    publishableKey: env.publishableKey,
   };
 }
+
+
 
 export async function handleStripeEvent(event: Stripe.Event) {
   if (event.type === "checkout.session.completed") {
@@ -122,6 +157,14 @@ export async function handleStripeEvent(event: Stripe.Event) {
           : session.id,
       reference: session.id,
       note: "Stripe Checkout payment",
+    });
+
+    await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        stripeSessionId: null,
+        stripeCheckoutUrl: null,
+      },
     });
 
     await prisma.activityLog.create({

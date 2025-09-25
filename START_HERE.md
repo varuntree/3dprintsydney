@@ -33,9 +33,7 @@ That’s it. Open your browser to http://localhost:3000.
   npm run db:seed
   ```
 
-- Stripe online payments (optional):
-  - In Settings → Integrations, paste your Stripe keys
-  - Use “Test Stripe” to confirm
+- Stripe online payments: follow the legacy behaviour. Keys live in `src/server/config/stripe-legacy.ts`; edit that file if you need different credentials.
 
 ## Where Things Live
 
@@ -46,6 +44,7 @@ That’s it. Open your browser to http://localhost:3000.
 ## Everyday Flows
 
 - Quotes → Invoices → Payments → Jobs (auto‑creation can be configured in Settings → Job automation)
+- Quotes & Invoices open in a summary view with top actions; use **Edit** to modify, and look for the Stripe badge on the invoice list when a payment link is ready.
 - Jobs board: drag between printers, start/pause/complete, select multiple and archive
 - Dashboard: switch range (Today/7d/30d/YTD), paginate Recent Activity
 - Reports: export Invoices/Payments/Jobs, plus AR Aging, Material Usage, Printer Utilization
@@ -77,4 +76,3 @@ npm run start
 ## Need help?
 
 If anything fails, copy the exact error and share it. The system writes clear logs for activity and errors.
-

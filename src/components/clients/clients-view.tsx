@@ -25,6 +25,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
   Form,
@@ -33,10 +41,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { mutateJson, getJson } from "@/lib/http";
 import { clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
+import type { SettingsPayload } from "@/components/settings/settings-form";
 import { UserPlus } from "lucide-react";
 
 export type ClientSummaryRecord = {
@@ -45,6 +55,7 @@ export type ClientSummaryRecord = {
   company: string;
   email: string;
   phone: string;
+  paymentTerms?: string | null;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
@@ -67,6 +78,8 @@ type ClientFormValues = {
   notes?: string;
   tags?: string[];
 };
+
+const PAYMENT_TERMS_INHERIT_VALUE = "__inherit_payment_terms__";
 
 const queryKey = ["clients"] as const;
 const clientResolver = zodResolver(
@@ -104,6 +117,12 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
     staleTime: 1000 * 60,
   });
 
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => getJson<SettingsPayload>("/api/settings"),
+    staleTime: 1000 * 60,
+  });
+
   const mutation = useMutation({
     mutationFn: (values: ClientFormValues) =>
       mutateJson<ClientSummaryRecord>("/api/clients", {
@@ -121,6 +140,16 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
       );
     },
   });
+
+  useEffect(() => {
+    const defaultTerm = settingsQuery.data?.defaultPaymentTerms ?? "";
+    const currentTerm = form.getValues("paymentTerms");
+    if (defaultTerm && !currentTerm) {
+      form.setValue("paymentTerms", defaultTerm, { shouldDirty: false });
+    }
+  }, [settingsQuery.data, form]);
+
+  const paymentTermOptions = settingsQuery.data?.paymentTerms ?? [];
 
   useEffect(() => {
     if (startOpen && !hasAppliedStartOpen.current) {
@@ -377,9 +406,40 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Payment terms</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Due on receipt" {...field} />
-                    </FormControl>
+                    <Select
+                      value={
+                        field.value && field.value.trim().length > 0
+                          ? field.value
+                          : PAYMENT_TERMS_INHERIT_VALUE
+                      }
+                      onValueChange={(value) =>
+                        field.onChange(
+                          value === PAYMENT_TERMS_INHERIT_VALUE ? "" : value,
+                        )
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select payment terms" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={PAYMENT_TERMS_INHERIT_VALUE}>
+                          Use settings default
+                        </SelectItem>
+                        {paymentTermOptions.map((term) => (
+                          <SelectItem key={term.code} value={term.code}>
+                            {term.label}{" "}
+                            {term.days === 0
+                              ? "(due immediately)"
+                              : `(${term.days} days)`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Manage options in Settings → Payments.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

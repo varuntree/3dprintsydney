@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { logger } from "@/lib/logger";
 import { clientInputSchema, clientNoteSchema } from "@/lib/schemas/clients";
+import { resolvePaymentTermsOptions } from "@/server/services/settings";
 
 export type ClientSummaryDTO = {
   id: number;
@@ -9,11 +10,30 @@ export type ClientSummaryDTO = {
   company: string;
   email: string;
   phone: string;
+  paymentTerms: string | null;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
   createdAt: Date;
 };
+
+async function normalizePaymentTermsCode(
+  tx: Prisma.TransactionClient,
+  term: string | null | undefined,
+) {
+  const trimmed = term?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const { paymentTerms } = await resolvePaymentTermsOptions(tx);
+  const isValid = paymentTerms.some((option) => option.code === trimmed);
+  if (!isValid) {
+    throw new Error("Invalid payment terms selection");
+  }
+
+  return trimmed;
+}
 
 export async function listClients(options?: {
   q?: string;
@@ -51,6 +71,7 @@ export async function listClients(options?: {
       company: client.company ?? "",
       email: client.email ?? "",
       phone: client.phone ?? "",
+      paymentTerms: client.paymentTerms ?? null,
       outstandingBalance: outstanding,
       totalInvoices: client._count.invoices,
       totalQuotes: client._count.quotes,
@@ -62,6 +83,11 @@ export async function listClients(options?: {
 export async function createClient(payload: unknown) {
   const parsed = clientInputSchema.parse(payload);
   const client = await prisma.$transaction(async (tx) => {
+    const paymentTermsCode = await normalizePaymentTermsCode(
+      tx,
+      parsed.paymentTerms ?? null,
+    );
+
     const created = await tx.client.create({
       data: {
         name: parsed.name,
@@ -70,7 +96,7 @@ export async function createClient(payload: unknown) {
         email: parsed.email || null,
         phone: parsed.phone || null,
         address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
-        paymentTerms: parsed.paymentTerms || null,
+        paymentTerms: paymentTermsCode,
         notes: parsed.notes || null,
         tags: parsed.tags ?? [],
       },
@@ -95,6 +121,11 @@ export async function createClient(payload: unknown) {
 export async function updateClient(id: number, payload: unknown) {
   const parsed = clientInputSchema.parse(payload);
   const client = await prisma.$transaction(async (tx) => {
+    const paymentTermsCode = await normalizePaymentTermsCode(
+      tx,
+      parsed.paymentTerms ?? null,
+    );
+
     const updated = await tx.client.update({
       where: { id },
       data: {
@@ -104,7 +135,7 @@ export async function updateClient(id: number, payload: unknown) {
         email: parsed.email || null,
         phone: parsed.phone || null,
         address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
-        paymentTerms: parsed.paymentTerms || null,
+        paymentTerms: paymentTermsCode,
         notes: parsed.notes || null,
         tags: parsed.tags ?? [],
       },

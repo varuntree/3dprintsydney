@@ -74,9 +74,10 @@ model Settings {
   taxRate                Decimal?
   numberingQuotePrefix   String            @default("QT-")
   numberingInvoicePrefix String            @default("INV-")
-  defaultPaymentTerms    String?           @default("Due on receipt")
+  defaultPaymentTerms    String?           @default("COD")
   bankDetails            String?
   shippingOptions        Json?
+  paymentTerms           Json?
   calculatorConfig       Json?
   defaultCurrency        String            @default("AUD")
   jobCreationPolicy      JobCreationPolicy @default(ON_PAYMENT)
@@ -89,9 +90,6 @@ model Settings {
   overdueDays                       Int     @default(0)
   reminderCadenceDays               Int     @default(7)
   enableEmailSend                   Boolean @default(false)
-  stripeSecretKey        String?
-  stripePublishableKey   String?
-  stripeWebhookSecret    String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 }
@@ -230,6 +228,8 @@ model Invoice {
   taxTotal           Decimal
   total              Decimal
   balanceDue         Decimal
+  stripeSessionId    String?
+  stripeCheckoutUrl  String?
   notes              String?
   terms              String?
   internalNotes      String?

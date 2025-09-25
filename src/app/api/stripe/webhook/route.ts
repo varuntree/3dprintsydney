@@ -7,31 +7,9 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    const env = await getStripeEnvironment();
+    await getStripeEnvironment();
     const bodyBuffer = Buffer.from(await request.arrayBuffer());
-    const signature = request.headers.get("stripe-signature");
-
-    let eventPayload: unknown;
-
-    if (env?.webhookSecret && signature) {
-      try {
-        eventPayload = env.stripe.webhooks.constructEvent(
-          bodyBuffer,
-          signature,
-          env.webhookSecret,
-        );
-      } catch (error) {
-        logger.error({ scope: "stripe.webhook.verify", error });
-        return NextResponse.json(
-          { error: { message: "Invalid Stripe signature" } },
-          { status: 400 },
-        );
-      }
-    } else {
-      eventPayload = JSON.parse(bodyBuffer.toString("utf8"));
-    }
-
-    const event = eventPayload as Stripe.Event;
+    const event = JSON.parse(bodyBuffer.toString("utf8")) as Stripe.Event;
     await handleStripeEvent(event);
 
     return NextResponse.json({ received: true });

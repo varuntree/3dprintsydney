@@ -2,6 +2,13 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const defaultPaymentTerms = [
+  { code: "COD", label: "COD", days: 0 },
+  { code: "7_days", label: "7 days", days: 7 },
+  { code: "14_days", label: "14 days", days: 14 },
+  { code: "30_days", label: "30 days", days: 30 },
+];
+
 async function main() {
   await prisma.settings.upsert({
     where: { id: 1 },
@@ -11,7 +18,8 @@ async function main() {
       businessEmail: "hello@3dprintsydney.local",
       businessPhone: "+61 400 000 000",
       businessAddress: "123 Maker Lane, Sydney NSW",
-      defaultPaymentTerms: "Due on receipt",
+      defaultPaymentTerms: "COD",
+      paymentTerms: defaultPaymentTerms,
       taxRate: "10",
       jobCreationPolicy: "ON_PAYMENT",
       calculatorConfig: {

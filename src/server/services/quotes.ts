@@ -18,6 +18,7 @@ import {
 } from "@/lib/schemas/quotes";
 import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
+import { resolvePaymentTermsOptions } from "@/server/services/settings";
 
 const decimalToNumber = (value: unknown) => {
   if (value === null || value === undefined) return 0;
@@ -110,6 +111,27 @@ export async function getQuote(id: number) {
 
 export async function getQuoteDetail(id: number) {
   const quote = await getQuote(id);
+  const { paymentTerms: termOptions, defaultPaymentTerms } =
+    await resolvePaymentTermsOptions(prisma);
+  const resolvedTerm = (() => {
+    const explicitCode = quote.client.paymentTerms?.trim();
+    if (explicitCode) {
+      const match = termOptions.find((option) => option.code === explicitCode);
+      if (match) {
+        return { ...match, source: "client" as const };
+      }
+    }
+    const defaultMatch = termOptions.find(
+      (option) => option.code === defaultPaymentTerms,
+    );
+    if (defaultMatch) {
+      return { ...defaultMatch, source: "default" as const };
+    }
+    if (termOptions.length > 0) {
+      return { ...termOptions[0], source: "default" as const };
+    }
+    return null;
+  })();
 
   return {
     id: quote.id,
@@ -119,6 +141,7 @@ export async function getQuoteDetail(id: number) {
       name: quote.client.name,
     },
     status: quote.status,
+    paymentTerms: resolvedTerm,
     issueDate: quote.issueDate,
     expiryDate: quote.expiryDate,
     taxRate: decimalToNumber(quote.taxRate),

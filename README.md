@@ -6,12 +6,12 @@ Internal operations console for a boutique 3D printing business. The app streaml
 
 ### Completed
 
-- **Settings** – Business identity, numbering prefixes, tax rates, payment terms, shipping options, calculator defaults, simple Stripe config placeholders; activity logging included.
+- **Settings** – Business identity, numbering prefixes, tax rates, payment terms, shipping options, calculator defaults, plus job automation guidance (ON_INVOICE vs ON_PAYMENT) and activity logging. Stripe checkout keys now live in the hard-coded legacy config and are no longer edited here.
 - **Catalog** – Materials, product templates (fixed or calculated pricing), printers. Product templates integrate with the calculator and printers expose status & capacity notes.
 - **Clients** – Directory with search stats, detail view with activity timeline, notes, and linked quotes/invoices/jobs.
-- **Quotes** – Full CRUD, status lifecycle (draft/pending/accepted/declined/converted), duplicate, convert to invoice, PDF export, calculator-driven line items.
-- **Invoices** – Editor mirroring quote experience, manual payments (add/remove) with balance recalculation, attachments (upload/download/delete), PDF export, quick mark paid/unpaid, revert to quote.
-- **Stripe payments** – Checkout session creation, webhook handling, Stripe/manual toggles, activity logging.
+- **Quotes** – Full lifecycle (draft/pending/accepted/declined/converted) with a high-contrast read-only view, top-level actions (send/accept/decline/convert/duplicate/PDF), quick Edit toggle, and calculator-driven line items.
+- **Invoices** – Read-only view with status/due/payment-term chips, Stripe controls, list badge when a payment link exists, manual payments (add/remove) with balance recalculation, attachments (upload/download/delete), revert/void/write-off, and Edit mode on demand.
+- **Stripe payments** – Legacy checkout session flow restored with the hard-coded secret key, webhook handler kept permissive (no signature checks), list badges for linked invoices, and activity logging.
 - **Jobs & queue management** – Auto-create jobs from policy, printer board with drag/drop, status updates, activity logging.
 - **Dashboard & reporting** – KPI metrics, revenue trend, outstanding invoices, printer load, recent activity feed, CSV exports.
 - **File/PDF infrastructure** – Local storage under `data/`, Puppeteer-based PDF generator, attachment streaming endpoints.
@@ -52,21 +52,11 @@ Open [http://localhost:3000](http://localhost:3000) to explore the console.
 - `npm run audit` – npm security audit
 - `node --import tsx scripts/smoke.ts` – Headless smoke test (creates a client/quote/invoice, records payment, verifies job + CSV exports, and then cleans up)
 
-### Stripe setup (optional)
+### Stripe checkout (legacy flow)
 
-Stripe payments are disabled by default. To enable the end-to-end checkout flow while developing locally:
+The current build mirrors the original app: Stripe keys are hard-coded in `src/server/config/stripe-legacy.ts` and Checkout sessions are generated automatically when an invoice PDF is requested. No UI exists to change the keys, and the webhook endpoint accepts notifications without signature verification (matching the legacy behaviour). Update the config file locally if you need to swap in different credentials.
 
-1. Launch the app and open **Settings → Payments**.
-2. Enter your Stripe test keys (publishable + secret). The values are stored in the local database so you can swap between test and live credentials later.
-3. If you want webhooks to reconcile payments automatically, forward them with the Stripe CLI:
-
-   ```bash
-   stripe listen --forward-to http://localhost:3000/api/stripe/webhook
-   ```
-
-4. Set the `APP_URL` environment variable when running outside of `localhost` so success/cancel URLs resolve correctly.
-
-Invoices still support manual payments if Stripe is not configured.
+Invoices still support manual payments regardless of Stripe availability.
 
 ## Local Data Model
 

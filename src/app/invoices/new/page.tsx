@@ -5,12 +5,14 @@ import {
 import { listClients } from "@/server/services/clients";
 import { getSettings } from "@/server/services/settings";
 import { listProductTemplates } from "@/server/services/product-templates";
+import { listMaterials } from "@/server/services/materials";
 
 export default async function NewInvoicePage() {
-  const [clients, settings, templates] = await Promise.all([
+  const [clients, settings, templates, materials] = await Promise.all([
     listClients(),
     getSettings(),
     listProductTemplates(),
+    listMaterials(),
   ]);
 
   if (!settings) {
@@ -27,7 +29,7 @@ export default async function NewInvoicePage() {
     shippingCost: 0,
     shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
     notes: "",
-    terms: settings.defaultPaymentTerms ?? "",
+    terms: "",
     lines: [
       {
         name: "Line item",
@@ -54,6 +56,12 @@ export default async function NewInvoicePage() {
         }))}
         settings={settings}
         templates={templates}
+        materials={materials.map((material) => ({
+          id: material.id,
+          name: material.name,
+          costPerGram: material.costPerGram,
+          color: material.color ?? null,
+        }))}
       />
     </div>
   );

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { addDays } from "date-fns";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -21,6 +23,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,7 +45,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { ProductTemplateDTO } from "@/server/services/product-templates";
-import { CalculatorDialog } from "@/components/quotes/quote-editor";
+import { CalculatorDialog, type CalculatorMaterialOption } from "@/components/quotes/quote-editor";
 import {
   invoiceInputSchema,
   type InvoiceInput,
@@ -68,6 +71,7 @@ interface InvoiceEditorProps {
   clients: ClientSummaryRecord[];
   settings: SettingsInput;
   templates: ProductTemplateDTO[];
+  materials: CalculatorMaterialOption[];
 }
 
 export type InvoiceLineFormValue = {
@@ -103,6 +107,7 @@ export function InvoiceEditor({
   clients,
   settings,
   templates,
+  materials,
 }: InvoiceEditorProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -117,7 +122,7 @@ export function InvoiceEditor({
     shippingCost: 0,
     shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
     notes: "",
-    terms: settings.defaultPaymentTerms ?? "",
+    terms: "",
     lines: [
       {
         name: "Line item",
@@ -142,10 +147,89 @@ export function InvoiceEditor({
     mode: "onChange",
   });
 
+
+const [dueDateTouched, setDueDateTouched] = useState(
+  Boolean(initialValues?.dueDate),
+);
+
+const paymentTermOptions = useMemo(
+  () => settings.paymentTerms ?? [],
+  [settings.paymentTerms],
+);
+const defaultPaymentTermCode = settings.defaultPaymentTerms;
+const watchedClientId = form.watch("clientId");
+const watchedIssueDate = form.watch("issueDate");
+
+const selectedClient = useMemo(() => {
+  return clients.find((client) => client.id === watchedClientId) ?? null;
+}, [clients, watchedClientId]);
+
+const resolvedPaymentTerm = useMemo(() => {
+  if (paymentTermOptions.length === 0) {
+    return null;
+  }
+  const clientCode = selectedClient?.paymentTerms ?? null;
+  const targetCode =
+    clientCode && clientCode.trim().length > 0
+      ? clientCode
+      : defaultPaymentTermCode;
+  const match = paymentTermOptions.find((term) => term.code === targetCode);
+  if (match) {
+    return match;
+  }
+  const fallback = paymentTermOptions.find(
+    (term) => term.code === defaultPaymentTermCode,
+  );
+  return fallback ?? paymentTermOptions[0];
+}, [defaultPaymentTermCode, paymentTermOptions, selectedClient?.paymentTerms]);
+
+const computedDueDate = useMemo(() => {
+  if (!resolvedPaymentTerm) {
+    return null;
+  }
+  const baseDate = watchedIssueDate
+    ? new Date(`${watchedIssueDate}T12:00:00`)
+    : (() => {
+        const now = new Date();
+        return new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          12,
+          0,
+          0,
+          0,
+        );
+      })();
+  const computed =
+    resolvedPaymentTerm.days > 0
+      ? addDays(baseDate, resolvedPaymentTerm.days)
+      : baseDate;
+  return computed.toISOString().slice(0, 10);
+}, [resolvedPaymentTerm, watchedIssueDate]);
+
+const paymentTermDisplay = useMemo(() => {
+  if (!resolvedPaymentTerm) {
+    return "Payment terms unavailable";
+  }
+  const descriptor =
+    resolvedPaymentTerm.days === 0
+      ? "Due on issue date"
+      : `Due ${resolvedPaymentTerm.days} day${
+          resolvedPaymentTerm.days === 1 ? "" : "s"
+        } after issue`;
+  return `${resolvedPaymentTerm.label} · ${descriptor}`;
+}, [resolvedPaymentTerm]);
+
+const paymentTermSourceLabel = selectedClient?.paymentTerms
+  ? "Client default"
+  : "Settings default";
+
   useEffect(() => {
     if (initialValues) {
       form.reset({
         ...initialValues,
+        terms: initialValues.terms ?? "",
         discountValue: initialValues.discountValue ?? 0,
         shippingCost: initialValues.shippingCost ?? 0,
         lines: initialValues.lines.map((line) => ({
@@ -154,9 +238,21 @@ export function InvoiceEditor({
           productTemplateId: line.productTemplateId ?? null,
         })),
       });
+      setDueDateTouched(Boolean(initialValues.dueDate));
+    } else {
+      setDueDateTouched(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValues]);
+
+  useEffect(() => {
+    if (!dueDateTouched && computedDueDate) {
+      form.setValue("dueDate", computedDueDate, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  }, [computedDueDate, dueDateTouched, form]);
 
   const linesFieldArray = useFieldArray({
     name: "lines",
@@ -195,10 +291,11 @@ export function InvoiceEditor({
     onSuccess: (result) => {
       toast.success(`Invoice ${mode === "create" ? "created" : "updated"}`);
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      const targetId = invoiceId ?? result.id;
       if (invoiceId) {
         queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       }
-      router.push(`/invoices/${result.id}`);
+      router.replace(`/invoices/${targetId}`);
     },
     onError: (error) => {
       toast.error(
@@ -350,21 +447,65 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                   </FormItem>
                 )}
               />
+              <div className="col-span-full rounded-xl border border-zinc-200/80 bg-white/70 p-4 text-sm text-zinc-600">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                      Payment terms
+                    </p>
+                    <p className="text-sm text-zinc-600">{paymentTermDisplay}</p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="border-zinc-300/70 text-xs font-medium uppercase tracking-wide text-zinc-600"
+                  >
+                    {paymentTermSourceLabel}
+                  </Badge>
+                </div>
+              </div>
               <FormField
                 control={form.control}
                 name="dueDate"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Due date</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        value={field.value ?? ""}
-                        onChange={(event) =>
-                          field.onChange(event.target.value || undefined)
-                        }
-                      />
-                    </FormControl>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ?? ""}
+                          onChange={(event) => {
+                            setDueDateTouched(true);
+                            field.onChange(event.target.value || undefined);
+                          }}
+                          onBlur={() => {
+                            setDueDateTouched(true);
+                            field.onBlur();
+                          }}
+                        />
+                      </FormControl>
+                      {dueDateTouched && computedDueDate ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setDueDateTouched(false);
+                            form.setValue("dueDate", computedDueDate, {
+                              shouldDirty: false,
+                              shouldValidate: true,
+                            });
+                          }}
+                        >
+                          Reset
+                        </Button>
+                      ) : null}
+                    </div>
+                    <FormDescription>
+                      {dueDateTouched
+                        ? "Manually overridden. Reset to align with payment terms."
+                        : "Auto-calculated from payment terms."}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -815,6 +956,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
             templates.find((item) => item.id === calculator.templateId)!
           }
           settings={settings}
+          materials={materials}
           onApply={(result) => {
             form.setValue(`lines.${calculator.index}.unitPrice`, result.total);
             form.setValue(`lines.${calculator.index}.quantity`, 1);

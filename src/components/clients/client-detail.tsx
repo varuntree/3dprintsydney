@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,6 +28,7 @@ import {
 import { mutateJson, getJson } from "@/lib/http";
 import { clientNoteSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
+import type { SettingsPayload } from "@/components/settings/settings-form";
 
 export type ClientDetailRecord = {
   client: {
@@ -100,6 +101,37 @@ export function ClientDetail({ detail }: ClientDetailProps) {
 
   const current = data ?? detail;
 
+  const settingsQuery = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => getJson<SettingsPayload>("/api/settings"),
+    staleTime: 1000 * 60,
+  });
+
+  const paymentTermDisplay = useMemo(() => {
+    const settings = settingsQuery.data;
+    const terms = settings?.paymentTerms ?? [];
+    const resolveLabel = (code: string) => {
+      const term = terms.find((item) => item.code === code);
+      if (!term) {
+        return code || "—";
+      }
+      if (term.days === 0) {
+        return `${term.label} (due immediately)`;
+      }
+      return `${term.label} (${term.days} days)`;
+    };
+
+    if (current.client.paymentTerms) {
+      return resolveLabel(current.client.paymentTerms);
+    }
+
+    if (settings?.defaultPaymentTerms) {
+      return `${resolveLabel(settings.defaultPaymentTerms)} (default)`;
+    }
+
+    return "—";
+  }, [current.client.paymentTerms, settingsQuery.data]);
+
   const noteForm = useForm<NoteFormValues>({
     resolver: zodResolver(clientNoteSchema),
     defaultValues: { body: "" },
@@ -160,7 +192,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
                 Payment Terms
               </p>
-              <p>{current.client.paymentTerms || "Due on receipt"}</p>
+              <p>{paymentTermDisplay}</p>
             </div>
             {current.client.tags.length ? (
               <div className="flex flex-wrap gap-2">

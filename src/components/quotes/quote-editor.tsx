@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -102,6 +103,7 @@ interface QuoteEditorProps {
   clients: ClientSummaryRecord[];
   templates: ProductTemplateDTO[];
   settings: SettingsInput;
+  materials: CalculatorMaterialOption[];
 }
 
 type CalculatorState = {
@@ -116,6 +118,7 @@ export function QuoteEditor({
   clients,
   templates,
   settings,
+  materials,
 }: QuoteEditorProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -130,7 +133,7 @@ export function QuoteEditor({
     shippingCost: 0,
     shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
     notes: "",
-    terms: settings.defaultPaymentTerms ?? "",
+    terms: "",
     lines: [
       {
         name: "Line item",
@@ -154,10 +157,56 @@ export function QuoteEditor({
     mode: "onChange",
   });
 
+  const paymentTermOptions = useMemo(
+    () => settings.paymentTerms ?? [],
+    [settings.paymentTerms],
+  );
+  const defaultPaymentTermCode = settings.defaultPaymentTerms;
+  const watchedClientId = form.watch("clientId");
+
+  const selectedClient = useMemo(() => {
+    return clients.find((client) => client.id === watchedClientId) ?? null;
+  }, [clients, watchedClientId]);
+
+  const resolvedPaymentTerm = useMemo(() => {
+    if (!paymentTermOptions.length) {
+      return null;
+    }
+    const clientCode = selectedClient?.paymentTerms ?? null;
+    const targetCode =
+      clientCode && clientCode.trim().length > 0
+        ? clientCode
+        : defaultPaymentTermCode;
+    const match = paymentTermOptions.find((term) => term.code === targetCode);
+    if (match) {
+      return match;
+    }
+    const fallback = paymentTermOptions.find(
+      (term) => term.code === defaultPaymentTermCode,
+    );
+    return fallback ?? paymentTermOptions[0];
+  }, [defaultPaymentTermCode, paymentTermOptions, selectedClient?.paymentTerms]);
+
+  const paymentTermDisplay = useMemo(() => {
+    if (!resolvedPaymentTerm) {
+      return "Payment terms unavailable";
+    }
+    const descriptor =
+      resolvedPaymentTerm.days === 0
+        ? "Due on acceptance"
+        : `${resolvedPaymentTerm.days}-day terms`;
+    return `${resolvedPaymentTerm.label} · ${descriptor}`;
+  }, [resolvedPaymentTerm]);
+
+  const paymentTermSourceLabel = selectedClient?.paymentTerms
+    ? "Client default"
+    : "Settings default";
+
   useEffect(() => {
     if (initialValues) {
       form.reset({
         ...initialValues,
+        terms: initialValues.terms ?? "",
         discountValue: initialValues.discountValue ?? 0,
         shippingCost: initialValues.shippingCost ?? 0,
         lines: initialValues.lines.map((line, index) => ({
@@ -168,8 +217,7 @@ export function QuoteEditor({
         })),
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialValues]);
+  }, [form, initialValues]);
 
   const linesFieldArray = useFieldArray({
     name: "lines",
@@ -206,10 +254,11 @@ export function QuoteEditor({
     onSuccess: (result: { id: number }) => {
       toast.success(`Quote ${mode === "create" ? "created" : "updated"}`);
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      const targetId = quoteId ?? result.id;
       if (quoteId) {
         queryClient.invalidateQueries({ queryKey: ["quote", quoteId] });
       }
-      router.push(`/quotes/${result.id}`);
+      router.replace(`/quotes/${targetId}`);
     },
     onError: (error: unknown) => {
       toast.error(
@@ -234,8 +283,7 @@ export function QuoteEditor({
         form.setValue("shippingCost", match.amount);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shippingLabel]);
+  }, [form, settings.shippingOptions, shippingLabel]);
 
   function addLine() {
     linesFieldArray.append({
@@ -319,6 +367,20 @@ export function QuoteEditor({
                   </FormItem>
                 )}
               />
+              <div className="col-span-full rounded-xl border border-zinc-200/80 bg-white/70 p-4 text-sm text-zinc-600">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Payment terms</p>
+                    <p className="text-sm text-zinc-600">{paymentTermDisplay}</p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="border-zinc-300/70 text-xs font-medium uppercase tracking-wide text-zinc-600"
+                  >
+                    {paymentTermSourceLabel}
+                  </Badge>
+                </div>
+              </div>
               <FormField
                 control={form.control}
                 name="issueDate"
@@ -796,6 +858,7 @@ export function QuoteEditor({
             templates.find((item) => item.id === calculator.templateId)!
           }
           settings={settings}
+          materials={materials}
           onApply={(result) => {
             form.setValue(`lines.${calculator.index}.unitPrice`, result.total);
             form.setValue(`lines.${calculator.index}.quantity`, 1);
@@ -841,12 +904,20 @@ function useQuoteTotals(values: QuoteFormValues, settings: SettingsInput) {
   };
 }
 
+export type CalculatorMaterialOption = {
+  id: number;
+  name: string;
+  costPerGram: number;
+  color?: string | null;
+};
+
 export interface CalculatorDialogProps {
   open: boolean;
   onClose: () => void;
   lineIndex: number;
   template: ProductTemplateDTO;
   settings: SettingsInput;
+  materials: CalculatorMaterialOption[];
   onApply: (result: {
     total: number;
     breakdown: Record<string, unknown>;
@@ -858,6 +929,7 @@ export interface CalculatorFormValues {
   grams: number;
   quality: string;
   infill: string;
+  materialId: number | null;
 }
 
 export function CalculatorDialog({
@@ -865,21 +937,47 @@ export function CalculatorDialog({
   onClose,
   template,
   settings,
+  materials,
   onApply,
 }: CalculatorDialogProps) {
-  const defaults: CalculatorFormValues = {
+  const materialOptions = useMemo<CalculatorMaterialOption[]>(() => {
+    const map = new Map<number, CalculatorMaterialOption>();
+    materials.forEach((material) => {
+      map.set(material.id, material);
+    });
+
+    if (template.materialId) {
+      map.set(template.materialId, {
+        id: template.materialId,
+        name: template.materialName ?? "Template material",
+        costPerGram: template.materialCostPerGram ?? 0,
+        color: null,
+      });
+    }
+
+    return Array.from(map.values());
+  }, [materials, template.materialCostPerGram, template.materialId, template.materialName]);
+
+  const defaultValues = useMemo<CalculatorFormValues>(() => ({
     hours: template.calculatorConfig?.baseHours ?? 1,
     grams: template.calculatorConfig?.materialGrams ?? 0,
     quality: template.calculatorConfig?.quality ?? "standard",
     infill: template.calculatorConfig?.infill ?? "medium",
-  };
+    materialId: template.materialId ?? materialOptions[0]?.id ?? null,
+  }), [
+    materialOptions,
+    template.calculatorConfig?.baseHours,
+    template.calculatorConfig?.infill,
+    template.calculatorConfig?.materialGrams,
+    template.calculatorConfig?.quality,
+    template.materialId,
+  ]);
 
-  const [values, setValues] = useState(defaults);
+  const [values, setValues] = useState(defaultValues);
 
   useEffect(() => {
-    setValues(defaults);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template.id, open]);
+    setValues(defaultValues);
+  }, [defaultValues, open]);
 
   const qualityOptions = Object.keys(
     settings.calculatorConfig?.qualityMultipliers ?? {
@@ -892,7 +990,6 @@ export function CalculatorDialog({
     },
   );
 
-  const materialCost = template.materialCostPerGram ?? 0;
   const calculatorConfig = settings.calculatorConfig ?? {
     hourlyRate: 0,
     setupFee: 0,
@@ -903,16 +1000,44 @@ export function CalculatorDialog({
 
   const qualityMultiplier =
     calculatorConfig.qualityMultipliers?.[values.quality] ?? 1;
-  const infillMultiplier =
-    calculatorConfig.infillMultipliers?.[values.infill] ?? 1;
 
-  const labor = values.hours * (calculatorConfig.hourlyRate ?? 0);
-  const material = values.grams * materialCost;
-  const base =
-    (labor + (calculatorConfig.setupFee ?? 0) + material) *
-    qualityMultiplier *
-    infillMultiplier;
-  const total = Math.max(base, calculatorConfig.minimumPrice ?? 0);
+  const numericInfill = Number(values.infill);
+  const hasNumericInfill =
+    !Number.isNaN(numericInfill) && numericInfill >= 0 && numericInfill <= 100;
+
+  const infillMultiplier = hasNumericInfill
+    ? 0.3 + (numericInfill / 100) * 0.8
+    : calculatorConfig.infillMultipliers?.[values.infill] ?? 1;
+
+  const selectedMaterial =
+    values.materialId !== null
+      ? materialOptions.find((material) => material.id === values.materialId)
+      : undefined;
+
+  const materialCostPerGram =
+    selectedMaterial?.costPerGram ??
+    template.materialCostPerGram ??
+    0;
+
+  const appliedMaterialId =
+    selectedMaterial?.id ?? template.materialId ?? null;
+
+  const appliedMaterialName =
+    selectedMaterial?.name ?? template.materialName ?? "Material";
+
+  const baseHourlyRate = calculatorConfig.hourlyRate ?? 0;
+  const setupFee = calculatorConfig.setupFee ?? 0;
+  const baseLabor = values.hours * baseHourlyRate;
+  const labor = baseLabor * qualityMultiplier * infillMultiplier;
+  const material = values.grams * materialCostPerGram;
+  const minimumPrice = calculatorConfig.minimumPrice ?? 0;
+  const baseTotal = labor + setupFee + material;
+  const total = Math.max(baseTotal, minimumPrice);
+
+  const infillInputValue =
+    hasNumericInfill && !Number.isNaN(numericInfill)
+      ? String(numericInfill)
+      : "";
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
@@ -921,6 +1046,34 @@ export function CalculatorDialog({
           <DialogTitle>Pricing calculator</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm text-zinc-600">
+          <div className="grid gap-3">
+            <label className="space-y-1">
+              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                Material
+              </span>
+              <Select
+                value={values.materialId !== null ? String(values.materialId) : "none"}
+                onValueChange={(value) =>
+                  setValues((prev) => ({
+                    ...prev,
+                    materialId: value === "none" ? null : Number(value),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select material" />
+                </SelectTrigger>
+                <SelectContent>
+                  {materialOptions.map((material) => (
+                    <SelectItem key={material.id} value={String(material.id)}>
+                      {material.name} ({formatCurrency(material.costPerGram)}/g)
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="none">No material</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1">
               <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
@@ -991,7 +1144,7 @@ export function CalculatorDialog({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder={hasNumericInfill ? `${numericInfill}%` : undefined} />
                 </SelectTrigger>
                 <SelectContent>
                   {infillOptions.map((option) => (
@@ -1001,6 +1154,23 @@ export function CalculatorDialog({
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                className="mt-2"
+                type="number"
+                min={0}
+                max={100}
+                placeholder="Custom %"
+                value={infillInputValue}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setValues((prev) => ({
+                    ...prev,
+                    infill:
+                      value.trim().length === 0 ? defaultValues.infill : value,
+                  }));
+                }}
+              />
+              <p className="text-xs text-zinc-500">Leave blank to use a preset multiplier.</p>
             </label>
           </div>
           <div className="rounded-2xl border border-zinc-200/60 bg-white/70 p-4 backdrop-blur">
@@ -1010,11 +1180,20 @@ export function CalculatorDialog({
             <div className="mt-2 text-lg font-semibold text-zinc-900">
               {formatCurrency(total)}
             </div>
-            <p className="text-xs text-zinc-500">
-              Labor {formatCurrency(labor)} + Material{" "}
-              {formatCurrency(material)} + Setup
-              {formatCurrency(calculatorConfig.setupFee ?? 0)}
-            </p>
+            <ul className="mt-2 space-y-1 text-xs text-zinc-500">
+              <li>
+                Labor {formatCurrency(labor)} (rate {formatCurrency(baseHourlyRate)}/hr)
+              </li>
+              <li>
+                Material {formatCurrency(material)} at {formatCurrency(materialCostPerGram)}/g
+              </li>
+              <li>Setup {formatCurrency(setupFee)}</li>
+              <li>
+                Multipliers: quality ×{qualityMultiplier.toFixed(2)}, infill ×
+                {infillMultiplier.toFixed(2)}
+              </li>
+              <li>Minimum price {formatCurrency(minimumPrice)}</li>
+            </ul>
           </div>
         </div>
         <DialogFooter>
@@ -1031,8 +1210,15 @@ export function CalculatorDialog({
                   quality: values.quality,
                   infill: values.infill,
                   labor,
+                  laborBase: baseLabor,
                   material,
-                  setup: calculatorConfig.setupFee ?? 0,
+                  materialCostPerGram,
+                  materialId: appliedMaterialId,
+                  materialName: appliedMaterialName,
+                  setup: setupFee,
+                  qualityMultiplier,
+                  infillMultiplier,
+                  minimumPrice,
                 },
               })
             }
