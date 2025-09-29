@@ -60,6 +60,7 @@ import { formatCurrency } from "@/lib/currency";
 import type { SettingsInput } from "@/lib/schemas/settings";
 import type { ClientSummaryRecord } from "@/components/clients/clients-view";
 import { mutateJson } from "@/lib/http";
+import { useNavigation } from "@/hooks/useNavigation";
 
 const NO_SHIPPING_OPTION_VALUE = "__no_shipping__";
 const MANUAL_TEMPLATE_OPTION_VALUE = "__manual_entry__";
@@ -110,6 +111,7 @@ export function InvoiceEditor({
   materials,
 }: InvoiceEditorProps) {
   const router = useRouter();
+  const { navigate } = useNavigation();
   const queryClient = useQueryClient();
 
   const defaults: InvoiceFormValues = initialValues ?? {
@@ -288,14 +290,16 @@ const paymentTermSourceLabel = selectedClient?.paymentTerms
         body: JSON.stringify(payload),
       });
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       toast.success(`Invoice ${mode === "create" ? "created" : "updated"}`);
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
       const targetId = invoiceId ?? result.id;
-      if (invoiceId) {
-        queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
-      }
-      router.replace(`/invoices/${targetId}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+        invoiceId
+          ? queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] })
+          : Promise.resolve(),
+      ]);
+      await navigate(`/invoices/${targetId}`, { replace: true });
     },
     onError: (error) => {
       toast.error(

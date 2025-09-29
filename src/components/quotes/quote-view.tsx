@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useNavigation } from "@/hooks/useNavigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
@@ -30,6 +29,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
+import { ActionButtonGroup, ActionGroupContainer } from "@/components/ui/action-button-group";
+import { NavigationLink } from "@/components/ui/navigation-link";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingButton } from "@/components/ui/loading-button";
 
 type QuoteStatusValue = "DRAFT" | "PENDING" | "ACCEPTED" | "DECLINED" | "CONVERTED";
 
@@ -73,7 +77,7 @@ export interface QuoteViewProps {
 }
 
 export function QuoteView({ quote }: QuoteViewProps) {
-  const router = useRouter();
+  const { navigate } = useNavigation();
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState<"accept" | "decline" | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
@@ -126,10 +130,10 @@ export function QuoteView({ quote }: QuoteViewProps) {
 
   const convertMutation = useMutation<{ id: number }>({
     mutationFn: () => mutateJson<{ id: number }>(`/api/quotes/${quote.id}/convert`, { method: "POST" }),
-    onSuccess: (invoice) => {
+    onSuccess: async (invoice) => {
       toast.success("Quote converted to invoice");
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      router.push(`/invoices/${invoice.id}`);
+      await navigate(`/invoices/${invoice.id}`);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Failed to convert quote");
@@ -140,10 +144,10 @@ export function QuoteView({ quote }: QuoteViewProps) {
     mutationFn: () => mutateJson<{ id: number }>(`/api/quotes/${quote.id}/duplicate`, {
       method: "POST",
     }),
-    onSuccess: (duplicate) => {
+    onSuccess: async (duplicate) => {
       toast.success("Quote duplicated");
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      router.push(`/quotes/${duplicate.id}`);
+      await navigate(`/quotes/${duplicate.id}`);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Failed to duplicate quote");
@@ -166,62 +170,97 @@ export function QuoteView({ quote }: QuoteViewProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
+      <PageHeader
+        kicker={
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className={cn("capitalize", statusTone(quote.status))}>
-              {quote.status.toLowerCase()}
-            </Badge>
-            <span className="text-sm text-zinc-500">Quote {quote.number}</span>
+            <StatusBadge status={quote.status} />
+            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+              Quote {quote.number}
+            </span>
           </div>
-          <h1 className="text-2xl font-semibold text-zinc-900">{quote.client.name}</h1>
-          <p className="text-sm text-zinc-500">
+        }
+        title={quote.client.name}
+        description={
+          <span className="text-sm text-muted-foreground">
             Issued {format(issueDate, "dd MMM yyyy")} • Expires {expiryDate ? format(expiryDate, "dd MMM yyyy") : "—"}
-          </p>
-          <Badge variant="secondary" className="bg-zinc-100 text-zinc-700">
-            {paymentTermLabel}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/quotes/${quote.id}?mode=edit`}>Edit</Link>
-          </Button>
-          <Button variant="outline" onClick={() => sendMutation.mutate()} disabled={sendMutation.isPending}>
-            {sendMutation.isPending ? "Sending…" : "Send"}
-          </Button>
-          <Button variant="outline" onClick={() => setDecision("accept")}>Accept</Button>
-          <Button variant="outline" onClick={() => setDecision("decline")}>Decline</Button>
-          <Button variant="outline" onClick={() => convertMutation.mutate()} disabled={convertMutation.isPending}>
-            {convertMutation.isPending ? "Converting…" : "Convert to invoice"}
-          </Button>
-          <Button variant="outline" onClick={() => duplicateMutation.mutate()} disabled={duplicateMutation.isPending}>
-            {duplicateMutation.isPending ? "Duplicating…" : "Duplicate"}
-          </Button>
-          <PDFStyleDropdown
-            documentType="quote"
-            documentId={quote.id}
-            documentNumber={quote.number}
-          />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost">Change status</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Set status</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STATUS_OPTIONS.map((status) => (
-                <DropdownMenuItem
-                  key={status}
-                  onClick={() => statusMutation.mutate(status)}
-                  disabled={statusMutation.isPending || status === quote.status}
-                >
-                  {status.toLowerCase()}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+          </span>
+        }
+        meta={<Badge variant="secondary" className="bg-surface-subtle text-foreground">{paymentTermLabel}</Badge>}
+        actions={
+          <ActionGroupContainer>
+            <ActionButtonGroup title="Primary" variant="primary">
+              <NavigationLink
+                href={`/quotes/${quote.id}?mode=edit`}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Edit
+              </NavigationLink>
+              <PDFStyleDropdown
+                documentType="quote"
+                documentId={quote.id}
+                documentNumber={quote.number}
+              />
+              <LoadingButton
+                variant="outline"
+                onClick={() => sendMutation.mutate()}
+                loading={sendMutation.isPending}
+                loadingText="Sending…"
+              >
+                Send
+              </LoadingButton>
+            </ActionButtonGroup>
+
+            <ActionButtonGroup title="Actions" variant="secondary">
+              <Button variant="outline" onClick={() => setDecision("accept")}>
+                Accept
+              </Button>
+              <Button variant="outline" onClick={() => setDecision("decline")}>
+                Decline
+              </Button>
+              <LoadingButton
+                variant="outline"
+                onClick={() => convertMutation.mutate()}
+                loading={convertMutation.isPending}
+                loadingText="Converting…"
+              >
+                Convert to invoice
+              </LoadingButton>
+              <LoadingButton
+                variant="subtle"
+                size="sm"
+                onClick={() => duplicateMutation.mutate()}
+                loading={duplicateMutation.isPending}
+                loadingText="Duplicating…"
+              >
+                Duplicate
+              </LoadingButton>
+            </ActionButtonGroup>
+
+            <ActionButtonGroup title="Status" variant="secondary">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="subtle" size="sm">
+                    Change status
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Set status</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {STATUS_OPTIONS.map((status) => (
+                    <DropdownMenuItem
+                      key={status}
+                      onClick={() => statusMutation.mutate(status)}
+                      disabled={statusMutation.isPending || status === quote.status}
+                    >
+                      {status.toLowerCase()}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ActionButtonGroup>
+          </ActionGroupContainer>
+        }
+      />
 
       <Card className="border border-zinc-200/70 bg-white shadow-sm">
         <CardHeader>
@@ -317,20 +356,7 @@ function SummaryItem({ label, value, emphasize }: { label: string; value: string
   );
 }
 
-function statusTone(status: QuoteStatusValue) {
-  switch (status) {
-    case "ACCEPTED":
-      return "border-emerald-200/70 bg-emerald-50 text-emerald-700";
-    case "DECLINED":
-      return "border-rose-200/70 bg-rose-50 text-rose-700";
-    case "CONVERTED":
-      return "border-sky-200/70 bg-sky-50 text-sky-700";
-    case "PENDING":
-      return "border-amber-200/70 bg-amber-50 text-amber-700";
-    default:
-      return "border-zinc-200/70 bg-zinc-100 text-zinc-700";
-  }
-}
+// Status styling now handled by StatusBadge component using semantic tokens
 
 function formatQuantity(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2);

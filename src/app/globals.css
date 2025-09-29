@@ -24,7 +24,23 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-success-subtle: var(--success-subtle);
+  --color-info-subtle: var(--info-subtle);
   --color-destructive: var(--destructive);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-info-foreground: var(--info-foreground);
+  --color-info: var(--info);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -72,6 +88,12 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  --warning: oklch(0.729 0.148 83.087);
+  --warning-foreground: oklch(0.145 0 0);
+  --success: oklch(0.646 0.222 142.495);
+  --success-foreground: oklch(0.985 0 0);
+  --info: oklch(0.6 0.118 184.704);
+  --info-foreground: oklch(0.985 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -80,6 +102,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --surface-canvas: var(--background);
+  --surface-subtle: color-mix(in oklch, var(--background) 70%, white 30%);
+  --surface-elevated: color-mix(in oklch, var(--card) 90%, white 10%);
+  --surface-overlay: color-mix(in oklch, var(--card) 80%, white 20%);
+  --accent-strong: var(--primary);
+  --accent-soft: color-mix(in oklch, var(--primary) 12%, white 88%);
+  --danger-subtle: color-mix(in oklch, var(--destructive) 18%, white 82%);
+  --warning-subtle: color-mix(in oklch, var(--warning) 18%, white 82%);
+  --success-subtle: color-mix(in oklch, var(--success) 14%, white 86%);
+  --info-subtle: color-mix(in oklch, var(--info) 14%, white 86%);
 }
 
 .dark {
@@ -106,6 +138,12 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  --warning: oklch(0.796 0.175 70.893);
+  --warning-foreground: oklch(0.145 0 0);
+  --success: oklch(0.577 0.245 142.495);
+  --success-foreground: oklch(0.985 0 0);
+  --info: oklch(0.627 0.265 184.704);
+  --info-foreground: oklch(0.985 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -114,6 +152,16 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --surface-canvas: var(--background);
+  --surface-subtle: color-mix(in oklch, var(--background) 85%, black 15%);
+  --surface-elevated: color-mix(in oklch, var(--card) 94%, white 6%);
+  --surface-overlay: color-mix(in oklch, var(--card) 90%, white 10%);
+  --accent-strong: var(--primary);
+  --accent-soft: color-mix(in oklch, var(--primary) 22%, black 78%);
+  --danger-subtle: color-mix(in oklch, var(--destructive) 24%, var(--background) 76%);
+  --warning-subtle: color-mix(in oklch, var(--warning) 24%, var(--background) 76%);
+  --success-subtle: color-mix(in oklch, var(--success) 24%, var(--background) 76%);
+  --info-subtle: color-mix(in oklch, var(--info) 24%, var(--background) 76%);
 }
 
 @layer base {

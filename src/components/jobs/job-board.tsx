@@ -39,7 +39,9 @@ import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
@@ -48,6 +50,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { ActionRail } from "@/components/ui/action-rail";
 import {
   Form,
   FormControl,
@@ -690,59 +693,55 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   return (
     <TooltipProvider delayDuration={100}>
       <div className="space-y-6">
-        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="text-3xl font-semibold tracking-tight">Jobs & Queue</h2>
-            <p className="text-sm text-zinc-500">
-              Drag jobs between printers, adjust details, and update status as work progresses.
-            </p>
-          </div>
-        </header>
-
-        <div className="flex items-center gap-2">
-          {(
-            [
-              { key: "active", label: "Active" },
-              { key: "completed-today", label: "Completed Today" },
-              { key: "archived", label: "Archived" },
-              { key: "all", label: "All" },
-            ] as { key: ViewMode; label: string }[]
-          ).map((opt) => (
-            <Button
-              key={opt.key}
-              size="sm"
-              variant={view === opt.key ? "default" : "outline"}
-              onClick={() => setView(opt.key)}
-            >
-              {opt.label}
-            </Button>
-          ))}
-          <Button
-            size="sm"
-            variant={selectMode ? "default" : "outline"}
-            onClick={() => setSelectMode((v) => !v)}
-            className="ml-2"
-          >
-            {selectMode ? "Selecting…" : "Select"}
-          </Button>
-        </div>
-        {(selected.size > 0 || selectMode) && (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-200/70 bg-white/70 p-2 text-sm">
-            <span className="text-zinc-600">Selected: {selected.size}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => bulkArchiveMutation.mutate(Array.from(selected))}
-              disabled={bulkArchiveMutation.isPending}
-            >
-              {bulkArchiveMutation.isPending ? "Archiving…" : "Archive selected"}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-              Clear
-            </Button>
-          </div>
-        )}
-
+        <PageHeader
+          title="Jobs & Queue"
+          description="Drag jobs between printers, adjust details, and update status as work progresses."
+          meta={
+            <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+              <span>{board.summary.active} active</span>
+              <span>{board.summary.queued} queued</span>
+              <span>{board.summary.printersWithWork} printers busy</span>
+            </div>
+          }
+          actions={
+            <ActionRail align="start" wrap>
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex w-full overflow-hidden rounded-md border border-input bg-background text-xs font-medium shadow-sm sm:w-auto">
+                  {(
+                    [
+                      { key: "active", label: "Active" },
+                      { key: "completed-today", label: "Completed" },
+                      { key: "archived", label: "Archived" },
+                      { key: "all", label: "All" },
+                    ] as { key: ViewMode; label: string }[]
+                  ).map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setView(opt.key)}
+                      className={cn(
+                        "flex-1 px-3 py-1.5 transition",
+                        view === opt.key
+                          ? "bg-accent-soft text-foreground"
+                          : "text-muted-foreground hover:bg-surface-subtle",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <Button
+                  size="sm"
+                  variant={selectMode ? "default" : "outline"}
+                  onClick={() => setSelectMode((v) => !v)}
+                  className="sm:shrink-0"
+                >
+                  {selectMode ? "Selecting…" : "Select"}
+                </Button>
+              </div>
+            </ActionRail>
+          }
+        />
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Total Jobs" value={board.summary.totalJobs} tone="slate" />
           <MetricCard label="Queued" value={board.summary.queued} tone="slate" />
@@ -759,6 +758,25 @@ export function JobsBoard({ initial }: JobsBoardProps) {
           />
         </section>
 
+        {(selected.size > 0 || selectMode) && (
+          <div className="flex flex-col gap-2 rounded-lg border border-zinc-200/70 bg-white/70 p-3 text-sm sm:flex-row sm:items-center">
+            <span className="text-zinc-600">Selected: {selected.size}</span>
+            <div className="flex flex-wrap gap-2 sm:ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkArchiveMutation.mutate(Array.from(selected))}
+                disabled={bulkArchiveMutation.isPending}
+              >
+                {bulkArchiveMutation.isPending ? "Archiving…" : "Archive selected"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         <ScrollArea className="rounded-2xl border border-zinc-200/60 bg-white/70 p-4 shadow-sm backdrop-blur">
           <DndContext
             sensors={sensors}
@@ -766,7 +784,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex min-w-max gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:min-w-max">
               {board.columns.map((column) => (
                 <JobColumn
                   key={column.key}
@@ -792,7 +810,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
               ))}
             </div>
           </DndContext>
-          <ScrollBar orientation="horizontal" />
+          <ScrollBar orientation="horizontal" className="hidden md:flex" />
         </ScrollArea>
 
         <Sheet
@@ -1086,7 +1104,7 @@ function JobColumn({
   });
 
   return (
-    <div className="flex w-80 flex-col gap-4" ref={setNodeRef}>
+    <div className="flex w-full flex-col gap-4 md:w-80" ref={setNodeRef}>
       <Card className="border border-zinc-200/60 bg-white/75 shadow-sm backdrop-blur">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">

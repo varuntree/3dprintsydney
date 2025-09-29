@@ -28,7 +28,15 @@ import {
 import { mutateJson, getJson } from "@/lib/http";
 import { clientNoteSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
+import { formatDate } from "@/lib/datetime";
 import type { SettingsPayload } from "@/components/settings/settings-form";
+import { ActionButtonGroup, ActionGroupContainer } from "@/components/ui/action-button-group";
+import { NavigationLink } from "@/components/ui/navigation-link";
+import { useNavigation } from "@/hooks/useNavigation";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { Mail, Phone, Edit, FileText, Receipt } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type ClientDetailRecord = {
   client: {
@@ -100,6 +108,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
   });
 
   const current = data ?? detail;
+  const clientCode = current.client.id.toString().padStart(5, "0");
 
   const settingsQuery = useQuery({
     queryKey: ["settings"],
@@ -152,8 +161,86 @@ export function ClientDetail({ detail }: ClientDetailProps) {
     },
   });
 
+  const contactMeta = (
+    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+      {current.client.email ? (
+        <span className="flex items-center gap-1">
+          <Mail className="h-3 w-3" />
+          {current.client.email}
+        </span>
+      ) : null}
+      {current.client.phone ? (
+        <span className="flex items-center gap-1">
+          <Phone className="h-3 w-3" />
+          {current.client.phone}
+        </span>
+      ) : null}
+      <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
+        Outstanding {formatCurrency(current.totals.outstanding)}
+      </span>
+    </div>
+  );
+
+  const tagChips = current.client.tags.length ? (
+    <div className="flex flex-wrap gap-2">
+      {current.client.tags.map((tag) => (
+        <Badge key={tag} variant="outline" className="border-zinc-200 text-xs uppercase tracking-wide text-muted-foreground">
+          {tag}
+        </Badge>
+      ))}
+    </div>
+  ) : null;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <PageHeader
+        kicker={
+          <div className="flex items-center gap-2">
+            <StatusBadge status="active" size="sm" />
+            <Badge
+              variant="outline"
+              className="border-transparent bg-zinc-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/90"
+            >
+              {`Client ${clientCode}`}
+            </Badge>
+          </div>
+        }
+        title={current.client.name}
+        description={current.client.company ? (
+          <span className="text-sm text-muted-foreground">{current.client.company}</span>
+        ) : undefined}
+        meta={contactMeta}
+        actions={
+          <ActionGroupContainer>
+            <ActionButtonGroup title="Actions" variant="primary">
+              <NavigationLink
+                href={`/quotes/new?clientId=${current.client.id}`}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                New Quote
+              </NavigationLink>
+              <NavigationLink
+                href={`/invoices/new?clientId=${current.client.id}`}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Receipt className="mr-2 h-4 w-4" />
+                New Invoice
+              </NavigationLink>
+            </ActionButtonGroup>
+
+            <ActionButtonGroup title="Manage" variant="secondary">
+              <Button variant="ghost" size="sm" disabled>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Details
+              </Button>
+            </ActionButtonGroup>
+          </ActionGroupContainer>
+        }
+      >
+        {tagChips}
+      </PageHeader>
+
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
           <CardHeader>
@@ -237,76 +324,66 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               <DataTable
                 emptyMessage="No invoices yet."
                 columns={["Invoice", "Status", "Total", "Balance", "Issued"]}
-                rows={current.invoices.map((invoice) => [
-                  <span
-                    key={`inv-${invoice.id}`}
-                    className="font-medium text-zinc-900"
-                  >
-                    {invoice.number}
-                  </span>,
-                  <Badge
-                    key={`status-${invoice.id}`}
-                    variant="outline"
-                    className="border-zinc-300/70 text-zinc-600"
-                  >
-                    {invoice.status.toLowerCase()}
-                  </Badge>,
-                  formatCurrency(invoice.total),
-                  formatCurrency(invoice.balanceDue),
-                  new Date(invoice.issueDate).toLocaleDateString(),
-                ])}
+                rows={current.invoices.map((invoice) => ({
+                  key: `inv-${invoice.id}`,
+                  href: `/invoices/${invoice.id}`,
+                  cells: [
+                    <span key={`inv-code-${invoice.id}`} className="font-medium text-zinc-900">
+                      {invoice.number}
+                    </span>,
+                    <StatusBadge key={`inv-status-${invoice.id}`} status={invoice.status} size="sm" />,
+                    formatCurrency(invoice.total),
+                    formatCurrency(invoice.balanceDue),
+                    formatDate(invoice.issueDate),
+                  ],
+                }))}
               />
             </TabsContent>
             <TabsContent value="quotes">
               <DataTable
                 emptyMessage="No quotes recorded."
                 columns={["Quote", "Status", "Total", "Issued"]}
-                rows={current.quotes.map((quote) => [
-                  <span
-                    key={`quote-${quote.id}`}
-                    className="font-medium text-zinc-900"
-                  >
-                    {quote.number}
-                  </span>,
-                  <Badge
-                    key={`quote-status-${quote.id}`}
-                    variant="outline"
-                    className="border-zinc-300/70 text-zinc-600"
-                  >
-                    {quote.status.toLowerCase()}
-                  </Badge>,
-                  formatCurrency(quote.total),
-                  new Date(quote.issueDate).toLocaleDateString(),
-                ])}
+                rows={current.quotes.map((quote) => ({
+                  key: `quote-${quote.id}`,
+                  href: `/quotes/${quote.id}`,
+                  cells: [
+                    <span key={`quote-code-${quote.id}`} className="font-medium text-zinc-900">
+                      {quote.number}
+                    </span>,
+                    <StatusBadge key={`quote-status-${quote.id}`} status={quote.status} size="sm" />,
+                    formatCurrency(quote.total),
+                    formatDate(quote.issueDate),
+                  ],
+                }))}
               />
             </TabsContent>
             <TabsContent value="jobs">
               <DataTable
                 emptyMessage="No jobs scheduled."
                 columns={["Job", "Status", "Priority", "Created"]}
-                rows={current.jobs.map((job) => [
-                  <span
-                    key={`job-${job.id}`}
-                    className="font-medium text-zinc-900"
-                  >
-                    {job.title}
-                  </span>,
-                  <Badge
-                    key={`job-status-${job.id}`}
-                    variant="outline"
-                    className="border-zinc-300/70 text-zinc-600"
-                  >
-                    {job.status.toLowerCase()}
-                  </Badge>,
-                  <Badge
-                    key={`job-priority-${job.id}`}
-                    variant="outline"
-                    className="border-zinc-300/70 text-zinc-600"
-                  >
-                    {job.priority.toLowerCase()}
-                  </Badge>,
-                  new Date(job.createdAt).toLocaleString(),
-                ])}
+                rows={current.jobs.map((job) => ({
+                  key: `job-${job.id}`,
+                  cells: [
+                    <span key={`job-${job.id}`} className="font-medium text-zinc-900">
+                      {job.title}
+                    </span>,
+                    <Badge
+                      key={`job-status-${job.id}`}
+                      variant="outline"
+                      className="border-zinc-300/70 text-zinc-600"
+                    >
+                      {job.status.toLowerCase()}
+                    </Badge>,
+                    <Badge
+                      key={`job-priority-${job.id}`}
+                      variant="outline"
+                      className="border-zinc-300/70 text-zinc-600"
+                    >
+                      {job.priority.toLowerCase()}
+                    </Badge>,
+                    formatDate(job.createdAt, "d MMM yyyy HH:mm"),
+                  ],
+                }))}
               />
             </TabsContent>
             <TabsContent value="activity">
@@ -400,13 +477,26 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+interface DataTableRow {
+  key: string;
+  href?: string;
+  cells: (string | number | ReactNode)[];
+}
+
 interface DataTableProps {
   columns: string[];
-  rows: (string | number | ReactNode)[][];
+  rows: DataTableRow[];
   emptyMessage: string;
 }
 
 function DataTable({ columns, rows, emptyMessage }: DataTableProps) {
+  const { navigate } = useNavigation();
+
+  const handleRowClick = (href?: string) => {
+    if (!href) return;
+    void navigate(href);
+  };
+
   return (
     <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
       <CardContent className="p-0">
@@ -429,10 +519,25 @@ function DataTable({ columns, rows, emptyMessage }: DataTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row, index) => (
-                <TableRow key={index}>
-                  {row.map((cell, cellIndex) => (
-                    <TableCell key={`${index}-${cellIndex}`}>{cell}</TableCell>
+              rows.map((row) => (
+                <TableRow
+                  key={row.key}
+                  role={row.href ? "button" : undefined}
+                  tabIndex={row.href ? 0 : undefined}
+                  onClick={row.href ? () => handleRowClick(row.href) : undefined}
+                  onKeyDown={row.href ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleRowClick(row.href);
+                    }
+                  } : undefined}
+                  className={cn(
+                    row.href &&
+                      "cursor-pointer transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20",
+                  )}
+                >
+                  {row.cells.map((cell, cellIndex) => (
+                    <TableCell key={`${row.key}-${cellIndex}`}>{cell}</TableCell>
                   ))}
                 </TableRow>
               ))

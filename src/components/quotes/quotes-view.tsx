@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { NavigationLink } from "@/components/ui/navigation-link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -14,10 +13,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { getJson } from "@/lib/http";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/datetime";
+import { PageHeader } from "@/components/ui/page-header";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 
 export type QuoteSummaryRecord = {
   id: number;
@@ -43,7 +44,7 @@ const STATUS_TABS = [
 ];
 
 export function QuotesView({ initial }: QuotesViewProps) {
-  const { data } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ["quotes"],
     queryFn: () => getJson<QuoteSummaryRecord[]>("/api/quotes"),
     initialData: initial,
@@ -53,25 +54,50 @@ export function QuotesView({ initial }: QuotesViewProps) {
   const [tab, setTab] = useState<string>("all");
 
   const filtered = useMemo(() => {
-    if (!data) return [];
-    if (tab === "all") return data;
-    return data.filter((quote) => quote.status === tab);
+    const records = data ?? [];
+    if (tab === "all") return records;
+    return records.filter((quote) => quote.status === tab);
   }, [data, tab]);
+
+  if (!data && isFetching) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Quotes"
+          description="Prepare offers with consistent pricing and move accepted work into invoices."
+        />
+        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-zinc-500">Loading quotes…</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TableSkeleton columns={6} />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Quotes</h2>
-          <p className="text-sm text-zinc-500">
-            Prepare offers with consistent pricing and move accepted work into
-            invoices.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/quotes/new">New Quote</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Quotes"
+        description="Prepare offers with consistent pricing and move accepted work into invoices."
+        meta={
+          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+            <span>{data?.length ?? 0} total</span>
+            <span>{filtered.length} in view</span>
+          </div>
+        }
+        actions={
+          <NavigationLink
+            href="/quotes/new"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+          >
+            New Quote
+          </NavigationLink>
+        }
+      />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="bg-white/80 backdrop-blur">
@@ -114,21 +140,16 @@ export function QuotesView({ initial }: QuotesViewProps) {
                     filtered.map((quote) => (
                       <TableRow key={quote.id} className="hover:bg-white/80">
                         <TableCell>
-                          <Link
+                          <NavigationLink
                             href={`/quotes/${quote.id}`}
                             className="font-medium text-zinc-900 hover:underline"
                           >
                             {quote.number}
-                          </Link>
+                          </NavigationLink>
                         </TableCell>
                         <TableCell>{quote.clientName}</TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="border-zinc-300/70 capitalize text-zinc-600"
-                          >
-                            {quote.status.toLowerCase()}
-                          </Badge>
+                          <StatusBadge status={quote.status} size="sm" />
                         </TableCell>
                         <TableCell>{formatDate(quote.issueDate)}</TableCell>
                         <TableCell>

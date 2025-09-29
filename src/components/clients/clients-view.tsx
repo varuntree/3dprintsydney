@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavigationLink } from "@/components/ui/navigation-link";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,6 +48,7 @@ import { clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
 import type { SettingsPayload } from "@/components/settings/settings-form";
 import { UserPlus } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
 
 export type ClientSummaryRecord = {
   id: number;
@@ -181,19 +182,22 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
 
   return (
     <>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Clients</h2>
-          <p className="text-sm text-zinc-500">
-            Manage contact information, payment terms, and document history in
-            one place.
-          </p>
-        </div>
-        <Button onClick={openDialog} className="flex items-center gap-2">
-          <UserPlus className="h-4 w-4" />
-          New Client
-        </Button>
-      </div>
+      <PageHeader
+        title="Clients"
+        description="Manage contact information, payment terms, and document history in one place."
+        meta={
+          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+            <span>{clients.length} active</span>
+            <span>{formatCurrency(totalOutstanding)} outstanding</span>
+          </div>
+        }
+        actions={
+          <Button onClick={openDialog} className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            New Client
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
@@ -255,12 +259,12 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                   <TableRow key={client.id} className="hover:bg-white/80">
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <Link
+                        <NavigationLink
                           href={`/clients/${client.id}`}
                           className="font-medium text-zinc-900 hover:underline"
                         >
                           {client.name}
-                        </Link>
+                        </NavigationLink>
                         <span className="text-xs text-zinc-400">
                           Created{" "}
                           {new Date(client.createdAt).toLocaleDateString()}
@@ -301,7 +305,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl border border-zinc-200/70 bg-white/80 backdrop-blur">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add Client</DialogTitle>
           </DialogHeader>

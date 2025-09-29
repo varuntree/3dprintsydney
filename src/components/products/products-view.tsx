@@ -49,6 +49,8 @@ import {
 } from "@/lib/schemas/catalog";
 import { formatCurrency } from "@/lib/currency";
 import { Pencil, Trash2 } from "lucide-react";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export type TemplateRecord = {
   id: number;
@@ -247,17 +249,17 @@ export function ProductsView({
 
   return (
     <>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">
-            Product Templates
-          </h2>
-          <p className="text-sm text-zinc-500">
-            Speed up quoting with reusable fixed-price or calculated items.
-          </p>
-        </div>
-        <Button onClick={openCreate}>Add Template</Button>
-      </div>
+      <PageHeader
+        title="Product Templates"
+        description="Speed up quoting with reusable fixed-price or calculated items."
+        meta={
+          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+            <span>{templates.length} templates</span>
+            <span>{materials.length} materials</span>
+          </div>
+        }
+        actions={<Button onClick={openCreate}>Add Template</Button>}
+      />
 
       <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
         <CardHeader>
@@ -364,7 +366,7 @@ export function ProductsView({
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl border border-zinc-200/70 bg-white/80 backdrop-blur">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New template"}
@@ -603,13 +605,13 @@ export function ProductsView({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting
-                    ? "Saving…"
-                    : editing
-                      ? "Save changes"
-                      : "Create template"}
-                </Button>
+                <LoadingButton
+                  type="submit"
+                  loading={isSubmitting}
+                  loadingText="Saving…"
+                >
+                  {editing ? "Save changes" : "Create template"}
+                </LoadingButton>
               </DialogFooter>
             </form>
           </Form>

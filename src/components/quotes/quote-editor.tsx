@@ -62,6 +62,7 @@ import {
   calculateDocumentTotals,
 } from "@/lib/calculations";
 import { mutateJson } from "@/lib/http";
+import { useNavigation } from "@/hooks/useNavigation";
 import type { ProductTemplateDTO } from "@/server/services/product-templates";
 import type { SettingsInput } from "@/lib/schemas/settings";
 import type { ClientSummaryRecord } from "@/components/clients/clients-view";
@@ -121,6 +122,7 @@ export function QuoteEditor({
   materials,
 }: QuoteEditorProps) {
   const router = useRouter();
+  const { navigate } = useNavigation();
   const queryClient = useQueryClient();
 
   const defaultValues: QuoteFormValues = initialValues ?? {
@@ -251,14 +253,16 @@ export function QuoteEditor({
         body: JSON.stringify(payload),
       });
     },
-    onSuccess: (result: { id: number }) => {
+    onSuccess: async (result: { id: number }) => {
       toast.success(`Quote ${mode === "create" ? "created" : "updated"}`);
-      queryClient.invalidateQueries({ queryKey: ["quotes"] });
       const targetId = quoteId ?? result.id;
-      if (quoteId) {
-        queryClient.invalidateQueries({ queryKey: ["quote", quoteId] });
-      }
-      router.replace(`/quotes/${targetId}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["quotes"] }),
+        quoteId
+          ? queryClient.invalidateQueries({ queryKey: ["quote", quoteId] })
+          : Promise.resolve(),
+      ]);
+      await navigate(`/quotes/${targetId}`, { replace: true });
     },
     onError: (error: unknown) => {
       toast.error(
@@ -1041,7 +1045,7 @@ export function CalculatorDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent className="max-w-md border border-zinc-200/60 bg-white/80 backdrop-blur">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Pricing calculator</DialogTitle>
         </DialogHeader>

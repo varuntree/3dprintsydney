@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 type ExportKind = "invoices" | "payments" | "jobs" | "ar-aging" | "material-usage" | "printer-utilization";
 
@@ -58,19 +59,11 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight text-zinc-900">
-            Reports & Exports
-          </h2>
-          <p className="text-sm text-zinc-500">
-            Export invoices, payments, and jobs.
-          </p>
-        </div>
-        <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-          Range: {dateSummary}
-        </p>
-      </div>
+      <PageHeader
+        title="Reports & Exports"
+        description="Export invoices, payments, jobs, and utilization metrics for deeper analysis."
+        meta={<span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">Range: {dateSummary}</span>}
+      />
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
           <CardHeader>

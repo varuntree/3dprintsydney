@@ -12,6 +12,19 @@ function decimalToNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export type RecentActivityEntry = {
+  id: number;
+  action: string;
+  message: string;
+  createdAt: string;
+  context: string;
+};
+
+export type RecentActivityResult = {
+  items: RecentActivityEntry[];
+  nextOffset: number | null;
+};
+
 export type DashboardSnapshot = {
   metrics: {
     revenue30: number;
@@ -36,14 +49,38 @@ export type DashboardSnapshot = {
     dueDate: string | null;
     balanceDue: number;
   }[];
-  recentActivity: {
-    id: number;
-    action: string;
-    message: string;
-    createdAt: string;
-    context: string;
-  }[];
+  recentActivity: RecentActivityEntry[];
+  recentActivityNextOffset: number | null;
 };
+
+export async function getRecentActivity(options?: { limit?: number; offset?: number }): Promise<RecentActivityResult> {
+  const limit = Math.min(Math.max(options?.limit ?? 12, 1), 50);
+  const offset = Math.max(options?.offset ?? 0, 0);
+
+  const activities = await prisma.activityLog.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    skip: offset,
+    include: {
+      invoice: { select: { number: true } },
+      quote: { select: { number: true } },
+      job: { select: { title: true } },
+      client: { select: { name: true } },
+    },
+  });
+
+  const items = activities.map((entry) => ({
+    id: entry.id,
+    action: entry.action,
+    message: entry.message,
+    createdAt: entry.createdAt.toISOString(),
+    context: buildActivityContext(entry),
+  }));
+
+  const nextOffset = activities.length < limit ? null : offset + activities.length;
+
+  return { items, nextOffset };
+}
 
 export async function getDashboardSnapshot(options?: { range?: string; from?: string; to?: string; activityLimit?: number; activityOffset?: number }): Promise<DashboardSnapshot> {
   const now = new Date();
@@ -66,7 +103,7 @@ export async function getDashboardSnapshot(options?: { range?: string; from?: st
     trendStart = startOfMonth(subMonths(now, 11));
   }
 
-  const [paymentsLast60, outstandingInvoices, outstandingBalanceAgg, quoteGroups, jobGroups, printers, activities] =
+  const [paymentsLast60, outstandingInvoices, outstandingBalanceAgg, quoteGroups, jobGroups, printers, activityResult] =
     await Promise.all([
       prisma.payment.findMany({
         where: { paidAt: { gte: rangeStart60 } },
@@ -100,16 +137,9 @@ export async function getDashboardSnapshot(options?: { range?: string; from?: st
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
-      prisma.activityLog.findMany({
-        orderBy: { createdAt: "desc" },
-        take: options?.activityLimit ?? 12,
-        skip: options?.activityOffset ?? 0,
-        include: {
-          invoice: { select: { number: true } },
-          quote: { select: { number: true } },
-          job: { select: { title: true } },
-          client: { select: { name: true } },
-        },
+      getRecentActivity({
+        limit: options?.activityLimit,
+        offset: options?.activityOffset,
       }),
     ]);
 
@@ -159,13 +189,7 @@ export async function getDashboardSnapshot(options?: { range?: string; from?: st
     balanceDue: decimalToNumber(invoice.balanceDue),
   }));
 
-  const recentActivity = activities.map((entry) => ({
-    id: entry.id,
-    action: entry.action,
-    message: entry.message,
-    createdAt: entry.createdAt.toISOString(),
-    context: buildActivityContext(entry),
-  }));
+  const { items: recentActivity, nextOffset: recentActivityNextOffset } = activityResult;
 
   const quoteStatus = Object.values(QuoteStatus).map((status) => ({
     status,
@@ -186,6 +210,7 @@ export async function getDashboardSnapshot(options?: { range?: string; from?: st
     jobSummary,
     outstandingInvoices: outstanding,
     recentActivity,
+    recentActivityNextOffset,
   };
 }
 

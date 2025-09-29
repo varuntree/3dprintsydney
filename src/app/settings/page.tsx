@@ -3,6 +3,7 @@ import {
   type SettingsPayload,
 } from "@/components/settings/settings-form";
 import { getSettings } from "@/server/services/settings";
+import { PageHeader } from "@/components/ui/page-header";
 
 export default async function SettingsPage() {
   const settings = await getSettings();
@@ -10,14 +11,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Settings</h2>
-          <p className="text-sm text-zinc-500">
-            Configure business identity, numbering, payments, and job policies.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Configure business identity, numbering, payments, and job policies."
+      />
       <SettingsForm initial={initial} />
     </div>
   );

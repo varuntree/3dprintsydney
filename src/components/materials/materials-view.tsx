@@ -38,6 +38,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Pencil, Trash2 } from "lucide-react";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export type MaterialRecord = {
   id: number;
@@ -173,33 +175,42 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
     return materials;
   }, [data]);
 
+  const averageCost = useMemo(() => {
+    if (grouped.length === 0) return 0;
+    const total = grouped.reduce((sum, material) => sum + material.costPerGram, 0);
+    return total / grouped.length;
+  }, [grouped]);
+
   return (
     <>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Materials</h2>
-          <p className="text-sm text-zinc-500">
-            Maintain material costs and metadata for accurate pricing.
-          </p>
-        </div>
-        <Dialog
-          open={open}
-          onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
-        >
-          <DialogTrigger asChild>
-            <Button onClick={handleCreate}>Add Material</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg border border-zinc-200/70 bg-white/80 backdrop-blur">
-            <DialogHeader>
-              <DialogTitle>
-                {editing ? `Edit ${editing.name}` : "New material"}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
+      <PageHeader
+        title="Materials"
+        description="Maintain material costs and metadata for accurate pricing."
+        meta={
+          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+            <span>{grouped.length} tracked</span>
+            <span>{formatCurrency(averageCost)} avg $/g</span>
+          </div>
+        }
+        actions={
+          <Dialog
+            open={open}
+            onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
+          >
+            <DialogTrigger asChild>
+              <Button onClick={handleCreate}>Add Material</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>
+                  {editing ? `Edit ${editing.name}` : "New material"}
+                </DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-4"
+                >
                 <FormField
                   control={form.control}
                   name="name"
@@ -288,19 +299,20 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting
-                      ? "Saving…"
-                      : editing
-                        ? "Save changes"
-                        : "Create material"}
-                  </Button>
+                  <LoadingButton
+                    type="submit"
+                    loading={isSubmitting}
+                    loadingText="Saving…"
+                  >
+                    {editing ? "Save changes" : "Create material"}
+                  </LoadingButton>
                 </DialogFooter>
               </form>
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
         <CardHeader>

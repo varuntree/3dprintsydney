@@ -48,6 +48,8 @@ import {
   type PrinterStatusValue,
 } from "@/lib/schemas/catalog";
 import { Pencil, Trash2 } from "lucide-react";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export type PrinterRecord = {
   id: number;
@@ -204,18 +206,28 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const printers = data ?? [];
+  const statusTotals = printers.reduce(
+    (acc, printer) => {
+      acc[printer.status] += 1;
+      return acc;
+    },
+    { ACTIVE: 0, MAINTENANCE: 0, OFFLINE: 0 } as Record<PrinterStatusValue, number>,
+  );
 
   return (
     <>
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-3xl font-semibold tracking-tight">Printers</h2>
-          <p className="text-sm text-zinc-500">
-            Track printer availability, maintenance states, and key notes.
-          </p>
-        </div>
-        <Button onClick={openCreate}>Add Printer</Button>
-      </div>
+      <PageHeader
+        title="Printers"
+        description="Track printer availability, maintenance states, and key notes."
+        meta={
+          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+            <span>{printers.length} total</span>
+            <span>{statusTotals.ACTIVE} active</span>
+            <span>{statusTotals.MAINTENANCE} maintenance</span>
+          </div>
+        }
+        actions={<Button onClick={openCreate}>Add Printer</Button>}
+      />
 
       <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
         <CardHeader>
@@ -326,7 +338,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-xl border border-zinc-200/70 bg-white/80 backdrop-blur">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New printer"}
@@ -439,13 +451,13 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting
-                    ? "Saving…"
-                    : editing
-                      ? "Save changes"
-                      : "Create printer"}
-                </Button>
+                <LoadingButton
+                  type="submit"
+                  loading={isSubmitting}
+                  loadingText="Saving…"
+                >
+                  {editing ? "Save changes" : "Create printer"}
+                </LoadingButton>
               </DialogFooter>
             </form>
           </Form>

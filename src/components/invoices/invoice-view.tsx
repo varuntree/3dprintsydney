@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -9,11 +8,16 @@ import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
 import { formatCurrency } from "@/lib/currency";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
+import { ActionButtonGroup, ActionGroupContainer } from "@/components/ui/action-button-group";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { NavigationLink } from "@/components/ui/navigation-link";
+import { useNavigation } from "@/hooks/useNavigation";
+import { PageHeader } from "@/components/ui/page-header";
+import { LoadingButton } from "@/components/ui/loading-button";
 
 export type InvoiceStatusValue = "PENDING" | "PAID" | "OVERDUE";
 
@@ -57,6 +61,7 @@ interface InvoiceViewProps {
 export function InvoiceView({ invoice }: InvoiceViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { navigate, beginBusy, endBusy } = useNavigation();
 
   const markPaidMutation = useMutation({
     mutationFn: () =>
@@ -65,9 +70,9 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Invoice marked as paid");
-      refreshInvoice();
+      await refreshInvoice();
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Failed to mark as paid");
@@ -76,9 +81,9 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
 
   const markUnpaidMutation = useMutation({
     mutationFn: () => mutateJson(`/api/invoices/${invoice.id}/mark-unpaid`, { method: "POST" }),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Invoice marked as unpaid");
-      refreshInvoice();
+      await refreshInvoice();
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Failed to mark as unpaid");
@@ -91,14 +96,14 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
         `/api/invoices/${invoice.id}/stripe-session${refresh ? "?refresh=true" : ""}`,
         { method: "POST" },
       ),
-    onSuccess: (data, refreshFlag) => {
+    onSuccess: async (data, refreshFlag) => {
       if (data.url) {
         toast.success(refreshFlag ? "Payment link refreshed" : "Payment link generated");
         window.location.href = data.url;
       } else {
         toast.error("Stripe session did not return a redirect URL");
       }
-      refreshInvoice();
+      await refreshInvoice();
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Unable to create Stripe session");
@@ -107,10 +112,10 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
 
   const revertMutation = useMutation({
     mutationFn: () => mutateJson(`/api/invoices/${invoice.id}/revert`, { method: "POST" }),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Invoice reverted to quote");
-      router.push("/quotes");
-      router.refresh();
+      await queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      await navigate("/quotes");
     },
     onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Revert failed"),
   });
@@ -120,9 +125,9 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       method: "POST",
       body: JSON.stringify({ reason }),
     }),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Invoice voided");
-      refreshInvoice();
+      await refreshInvoice();
     },
     onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Void failed"),
   });
@@ -132,9 +137,9 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       method: "POST",
       body: JSON.stringify({ reason }),
     }),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Invoice written off");
-      refreshInvoice();
+      await refreshInvoice();
     },
     onError: (error: unknown) => toast.error(error instanceof Error ? error.message : "Write off failed"),
   });
@@ -160,114 +165,155 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
   const hasStripeLink = Boolean(invoice.stripeCheckoutUrl);
 
 
-  function refreshInvoice() {
-    queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    router.refresh();
+  async function refreshInvoice() {
+    beginBusy();
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] }),
+        queryClient.invalidateQueries({ queryKey: ["invoices"] }),
+      ]);
+      router.refresh();
+    } finally {
+      window.setTimeout(() => {
+        endBusy();
+      }, 120);
+    }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
+      <PageHeader
+        kicker={
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className={cn("uppercase tracking-wide", statusTone(invoice.status))}>
-              {invoice.status.toLowerCase()}
-            </Badge>
-            <span className="text-sm text-zinc-500">Invoice {invoice.number}</span>
+            <StatusBadge status={invoice.status} />
+            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+              Invoice {invoice.number}
+            </span>
           </div>
-          <h1 className="text-2xl font-semibold text-zinc-900">{invoice.clientName}</h1>
-          <p className="text-sm text-zinc-500">
-            Issued {format(issueDate, "dd MMM yyyy")} • Due {dueDate ? format(dueDate, "dd MMM yyyy") : "—"}
-            {isOverdue ? " (overdue)" : ""}
-          </p>
-          <Badge variant="secondary" className="bg-zinc-100 text-zinc-700">
-            {paymentTermsLabel}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/invoices/${invoice.id}?mode=edit`}>Edit</Link>
-          </Button>
-          <PDFStyleDropdown
-            documentType="invoice"
-            documentId={invoice.id}
-            documentNumber={invoice.number}
-          />
-          <Button
-            variant="outline"
-            onClick={() => stripeMutation.mutate(false)}
-            disabled={stripeMutation.isPending}
-          >
-            {stripeMutation.isPending ? "Opening…" : hasStripeLink ? "Open payment link" : "Generate payment link"}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => stripeMutation.mutate(true)}
-            disabled={!hasStripeLink || stripeMutation.isPending}
-            title={!hasStripeLink ? "No link to refresh" : undefined}
-          >
-            Refresh link
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (!invoice.stripeCheckoutUrl) return;
-              navigator.clipboard
-                .writeText(invoice.stripeCheckoutUrl)
-                .then(() => toast.success("Payment link copied"))
-                .catch(() => toast.error("Unable to copy link"));
-            }}
-            disabled={!hasStripeLink}
-          >
-            Copy link
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => markPaidMutation.mutate()}
-            disabled={markPaidMutation.isPending || invoice.balanceDue <= 0}
-          >
-            {markPaidMutation.isPending ? "Marking…" : "Mark paid"}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => markUnpaidMutation.mutate()}
-            disabled={markUnpaidMutation.isPending || invoice.status !== "PAID"}
-          >
-            {markUnpaidMutation.isPending ? "Reverting…" : "Mark unpaid"}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (!window.confirm("Revert invoice to quote? Payments will be cleared.")) return;
-              revertMutation.mutate();
-            }}
-            disabled={revertMutation.isPending || invoice.status === "PAID"}
-          >
-            {revertMutation.isPending ? "Reverting…" : "Revert"}
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              const reason = window.prompt("Enter void reason (optional)") ?? undefined;
-              voidMutation.mutate(reason);
-            }}
-            disabled={voidMutation.isPending || invoice.status === "PAID"}
-          >
-            {voidMutation.isPending ? "Voiding…" : "Void"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const reason = window.prompt("Enter write-off reason (optional)") ?? undefined;
-              writeOffMutation.mutate(reason);
-            }}
-            disabled={writeOffMutation.isPending || invoice.status === "PAID"}
-          >
-            {writeOffMutation.isPending ? "Writing off…" : "Write off"}
-          </Button>
-        </div>
-      </div>
+        }
+        title={invoice.clientName}
+        description={
+          <span className="text-sm text-muted-foreground">
+            Issued {format(issueDate, "dd MMM yyyy")} • Due {dueDate ? format(dueDate, "dd MMM yyyy") : "—"}{isOverdue ? " · overdue" : ""}
+          </span>
+        }
+        meta={<Badge variant="secondary" className="bg-surface-subtle text-foreground">{paymentTermsLabel}</Badge>}
+        actions={
+          <ActionGroupContainer>
+            <ActionButtonGroup title="Primary" variant="primary">
+              <NavigationLink
+                href={`/invoices/${invoice.id}?mode=edit`}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                Edit
+              </NavigationLink>
+              <PDFStyleDropdown
+                documentType="invoice"
+                documentId={invoice.id}
+                documentNumber={invoice.number}
+              />
+            </ActionButtonGroup>
+
+            <ActionButtonGroup title="Payment" variant="secondary">
+              <LoadingButton
+                variant="outline"
+                onClick={() => stripeMutation.mutate(false)}
+                loading={stripeMutation.isPending}
+                loadingText={hasStripeLink ? "Opening…" : "Generating…"}
+              >
+                {hasStripeLink ? "Open payment link" : "Generate payment link"}
+              </LoadingButton>
+              <LoadingButton
+                variant="subtle"
+                size="sm"
+                onClick={() => stripeMutation.mutate(true)}
+                disabled={!hasStripeLink}
+                loading={stripeMutation.isPending}
+                loadingText="Refreshing…"
+                title={!hasStripeLink ? "No link to refresh" : undefined}
+              >
+                Refresh link
+              </LoadingButton>
+              <LoadingButton
+                variant="subtle"
+                size="sm"
+                onClick={() => {
+                  if (!invoice.stripeCheckoutUrl) return;
+                  navigator.clipboard
+                    .writeText(invoice.stripeCheckoutUrl)
+                    .then(() => toast.success("Payment link copied"))
+                    .catch(() => toast.error("Unable to copy link"));
+                }}
+                disabled={!hasStripeLink}
+              >
+                Copy link
+              </LoadingButton>
+              <LoadingButton
+                variant="outline"
+                onClick={() => markPaidMutation.mutate()}
+                disabled={invoice.balanceDue <= 0}
+                loading={markPaidMutation.isPending}
+                loadingText="Marking…"
+              >
+                Mark paid
+              </LoadingButton>
+              <LoadingButton
+                variant="subtle"
+                size="sm"
+                onClick={() => markUnpaidMutation.mutate()}
+                disabled={invoice.status !== "PAID"}
+                loading={markUnpaidMutation.isPending}
+                loadingText="Reverting…"
+              >
+                Mark unpaid
+              </LoadingButton>
+            </ActionButtonGroup>
+
+            <ActionButtonGroup title="Administrative" variant="destructive">
+              <LoadingButton
+                variant="subtle"
+                size="sm"
+                className="border-rose-200/80 text-rose-700 hover:bg-rose-600 hover:text-white"
+                onClick={() => {
+                  if (!window.confirm("Revert invoice to quote? Payments will be cleared.")) return;
+                  revertMutation.mutate();
+                }}
+                disabled={invoice.status === "PAID"}
+                loading={revertMutation.isPending}
+                loadingText="Reverting…"
+              >
+                Revert
+              </LoadingButton>
+              <LoadingButton
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  const reason = window.prompt("Enter void reason (optional)") ?? undefined;
+                  voidMutation.mutate(reason);
+                }}
+                disabled={invoice.status === "PAID"}
+                loading={voidMutation.isPending}
+                loadingText="Voiding…"
+              >
+                Void
+              </LoadingButton>
+              <LoadingButton
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const reason = window.prompt("Enter write-off reason (optional)") ?? undefined;
+                  writeOffMutation.mutate(reason);
+                }}
+                disabled={invoice.status === "PAID"}
+                loading={writeOffMutation.isPending}
+                loadingText="Writing off…"
+              >
+                Write off
+              </LoadingButton>
+            </ActionButtonGroup>
+          </ActionGroupContainer>
+        }
+      />
 
       <Card className="border border-zinc-200/70 bg-white shadow-sm">
         <CardHeader>
@@ -357,16 +403,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
   );
 }
 
-function statusTone(status: InvoiceStatusValue) {
-  switch (status) {
-    case "PAID":
-      return "border-emerald-200/70 bg-emerald-50 text-emerald-700";
-    case "OVERDUE":
-      return "border-rose-200/70 bg-rose-50 text-rose-700";
-    default:
-      return "border-amber-200/70 bg-amber-50 text-amber-700";
-  }
-}
+// Status styling now handled by StatusBadge component using semantic tokens
 
 function formatQuantity(value: number) {
   return Number.isInteger(value) ? value.toString() : value.toFixed(2);

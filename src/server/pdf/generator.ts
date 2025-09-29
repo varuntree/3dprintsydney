@@ -6,67 +6,16 @@ import { getQuoteDetail } from "@/server/services/quotes";
 import { getInvoiceDetail } from "@/server/services/invoices";
 import { getSettings } from "@/server/services/settings";
 import { createStripeCheckoutSession } from "@/server/services/stripe";
-import { renderQuoteHtml } from "@/server/pdf/templates/quote";
-import { renderInvoiceHtml } from "@/server/pdf/templates/invoice";
-import { renderMinimalQuoteHtml, renderMinimalInvoiceHtml } from "@/server/pdf/templates/styles/minimal";
-import { renderCorporateQuoteHtml, renderCorporateInvoiceHtml } from "@/server/pdf/templates/styles/corporate";
-import { renderCompactQuoteHtml, renderCompactInvoiceHtml } from "@/server/pdf/templates/styles/compact";
-import { renderInvoiceFirstQuoteHtml, renderInvoiceFirstInvoiceHtml } from "@/server/pdf/templates/styles/invoicefirst";
-import { renderStripeQuoteHtml, renderStripeInvoiceHtml } from "@/server/pdf/templates/styles/stripe";
-import { renderBoldQuoteHtml, renderBoldInvoiceHtml } from "@/server/pdf/templates/styles/bold";
+import { renderProductionQuoteHtml, renderProductionInvoiceHtml } from "@/server/pdf/templates/production";
 import { logger } from "@/lib/logger";
 
-// Template routing functions
-function getQuoteTemplate(style: string) {
-  switch (style) {
-    case "classic":
-      return renderQuoteHtml;
-    case "minimal":
-      return renderMinimalQuoteHtml;
-    case "corporate":
-      return renderCorporateQuoteHtml;
-    case "compact":
-      return renderCompactQuoteHtml;
-    case "invoicefirst":
-      return renderInvoiceFirstQuoteHtml;
-    case "stripe":
-      return renderStripeQuoteHtml;
-    case "bold":
-      return renderBoldQuoteHtml;
-    case "lineart":
-    case "leftalign":
-    case "twocolumn":
-      // Fallback to classic for remaining templates
-      return renderQuoteHtml;
-    default:
-      return renderQuoteHtml;
-  }
+// Production template - single high-quality template
+function getQuoteTemplate(_style: string = "production") {
+  return renderProductionQuoteHtml;
 }
 
-function getInvoiceTemplate(style: string) {
-  switch (style) {
-    case "classic":
-      return renderInvoiceHtml;
-    case "minimal":
-      return renderMinimalInvoiceHtml;
-    case "corporate":
-      return renderCorporateInvoiceHtml;
-    case "compact":
-      return renderCompactInvoiceHtml;
-    case "invoicefirst":
-      return renderInvoiceFirstInvoiceHtml;
-    case "stripe":
-      return renderStripeInvoiceHtml;
-    case "bold":
-      return renderBoldInvoiceHtml;
-    case "lineart":
-    case "leftalign":
-    case "twocolumn":
-      // Fallback to classic for remaining templates
-      return renderInvoiceHtml;
-    default:
-      return renderInvoiceHtml;
-  }
+function getInvoiceTemplate(_style: string = "production") {
+  return renderProductionInvoiceHtml;
 }
 
 async function renderPdf(html: string, filename: string) {
@@ -170,7 +119,7 @@ async function renderPdf(html: string, filename: string) {
   return { buffer, path: resolvePdfPath(filename) };
 }
 
-export async function generateQuotePdf(id: number, style: string = "classic") {
+export async function generateQuotePdf(id: number, style: string = "production") {
   const quote = await getQuoteDetail(id);
   const settings = await getSettings().catch(() => null);
   const logoFile = join(process.cwd(), "public", "logo.png");
@@ -207,11 +156,11 @@ export async function generateQuotePdf(id: number, style: string = "classic") {
 
   // Route to appropriate template based on style
   const html = getQuoteTemplate(style)(quote, templateData);
-  const { buffer, path } = await renderPdf(html, `quote-${quote.number}-${style}.pdf`);
-  return { buffer, filename: `quote-${quote.number}-${style}.pdf`, path };
+  const { buffer, path } = await renderPdf(html, `quote-${quote.number}.pdf`);
+  return { buffer, filename: `quote-${quote.number}.pdf`, path };
 }
 
-export async function generateInvoicePdf(id: number, style: string = "classic") {
+export async function generateInvoicePdf(id: number, style: string = "production") {
   let invoice = await getInvoiceDetail(id);
   const settings = await getSettings().catch(() => null);
 
@@ -272,9 +221,6 @@ export async function generateInvoicePdf(id: number, style: string = "classic") 
 
   // Route to appropriate template based on style
   const html = getInvoiceTemplate(style)(invoice, templateData);
-  const { buffer, path } = await renderPdf(
-    html,
-    `invoice-${invoice.number}-${style}.pdf`,
-  );
-  return { buffer, filename: `invoice-${invoice.number}-${style}.pdf`, path };
+  const { buffer, path } = await renderPdf(html, `invoice-${invoice.number}.pdf`);
+  return { buffer, filename: `invoice-${invoice.number}.pdf`, path };
 }
