@@ -184,6 +184,7 @@ export type ClientDetailDTO = {
     phone: string;
     address: string;
     paymentTerms: string;
+    abn: string | null;
     notes: string;
     tags: string[];
     createdAt: Date;
@@ -323,6 +324,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       phone: client.phone ?? "",
       address: (client.address as { raw?: string } | null)?.raw ?? "",
       paymentTerms: client.paymentTerms ?? "",
+      abn: client.abn ?? null,
       notes: client.notes ?? "",
       tags: (client.tags as string[] | null) ?? [],
       createdAt: client.createdAt,

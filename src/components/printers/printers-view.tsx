@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -49,7 +48,9 @@ import {
 } from "@/lib/schemas/catalog";
 import { Pencil, Trash2 } from "lucide-react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { PageHeader } from "@/components/ui/page-header";
+import { DataCard } from "@/components/ui/data-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Printer, Settings, Zap } from "lucide-react";
 
 export type PrinterRecord = {
   id: number;
@@ -215,27 +216,81 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
   );
 
   return (
-    <>
-      <PageHeader
-        title="Printers"
-        description="Track printer availability, maintenance states, and key notes."
-        meta={
-          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-            <span>{printers.length} total</span>
-            <span>{statusTotals.ACTIVE} active</span>
-            <span>{statusTotals.MAINTENANCE} maintenance</span>
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Printers
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Track printer availability, maintenance states, and key notes.
+            </p>
           </div>
-        }
-        actions={<Button onClick={openCreate}>Add Printer</Button>}
-      />
+          <Button className="rounded-full" onClick={openCreate}>Add Printer</Button>
+        </div>
+        <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-200/70 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Active
+            </p>
+            <p className="mt-2 text-lg font-semibold text-emerald-700">{statusTotals.ACTIVE}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-200/70 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Maintenance
+            </p>
+            <p className="mt-2 text-lg font-semibold text-amber-800">{statusTotals.MAINTENANCE}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Offline
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{statusTotals.OFFLINE}</p>
+          </div>
+        </div>
+      </header>
 
-      <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">
+      {/* Metrics Section */}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DataCard
+          title="Total Printers"
+          value={printers.length}
+          description="Printers in fleet"
+          icon={<Printer className="h-5 w-5" />}
+          tone="slate"
+        />
+        <DataCard
+          title="Active"
+          value={statusTotals.ACTIVE}
+          description="Ready for production"
+          icon={<Zap className="h-5 w-5" />}
+          tone="emerald"
+        />
+        <DataCard
+          title="Maintenance"
+          value={statusTotals.MAINTENANCE}
+          description="Undergoing maintenance"
+          icon={<Settings className="h-5 w-5" />}
+          tone="amber"
+        />
+        <DataCard
+          title="Offline"
+          value={statusTotals.OFFLINE}
+          description="Currently offline"
+          tone="slate"
+        />
+      </section>
+
+      {/* Printers Table */}
+      <div className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+        <div className="rounded-3xl border border-border bg-surface-elevated/80 px-6 py-4 shadow-sm shadow-black/5 backdrop-blur">
+          <h2 className="text-sm font-medium text-muted-foreground">
             Printer Fleet
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h2>
+        </div>
+        <div className="p-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -249,11 +304,17 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
             <TableBody>
               {printers.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-sm text-zinc-500"
-                  >
-                    No printers registered yet. Add your primary machines here.
+                  <TableCell colSpan={5} className="p-0">
+                    <EmptyState
+                      title="No printers registered yet"
+                      description="Add your primary machines here."
+                      icon={<Printer className="h-8 w-8" />}
+                      actions={
+                        <Button className="rounded-full" onClick={openCreate}>
+                          Add Printer
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -294,6 +355,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                         <Button
                           variant="outline"
                           size="sm"
+                          className="rounded-full"
                           title="Unassign queued/paused jobs for this printer"
                           onClick={async () => {
                             if (!window.confirm("Unassign queued/paused jobs for this printer?")) return;
@@ -311,6 +373,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full"
                           onClick={() => openEdit(printer)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -318,9 +381,9 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full text-red-500 hover:text-red-600"
                           onClick={() => handleDelete(printer)}
                           disabled={deleteMutation.isPending}
-                          className="text-red-500 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -331,14 +394,14 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl rounded-3xl">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New printer"}
@@ -446,6 +509,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                 <Button
                   type="button"
                   variant="outline"
+                  className="rounded-full"
                   onClick={closeDialog}
                   disabled={isSubmitting}
                 >
@@ -453,6 +517,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                 </Button>
                 <LoadingButton
                   type="submit"
+                  className="rounded-full"
                   loading={isSubmitting}
                   loadingText="Saving…"
                 >
@@ -463,6 +528,6 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
           </Form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

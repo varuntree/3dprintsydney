@@ -15,3 +15,4 @@
 [12:05] Dashboard → Metrics API, charts, exports delivered → Next: Stripe checkout & invoice quick actions
 [12:26] Payments → Stripe checkout, webhook, invoice quick actions delivered → Next: Docs & QA
 [12:58] QA → Added scripted smoke test, ran lint/typecheck/build, refreshed README docs → Next: handoff
+[14:46] UI Refresh → Dashboard tokens applied across routes, invoices/quotes PDFs updated, Stripe status hook added → Next: docs + cleanup

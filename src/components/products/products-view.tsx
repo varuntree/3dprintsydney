@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -50,7 +49,9 @@ import {
 import { formatCurrency } from "@/lib/currency";
 import { Pencil, Trash2 } from "lucide-react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { PageHeader } from "@/components/ui/page-header";
+import { DataCard } from "@/components/ui/data-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Package, Zap } from "lucide-react";
 
 export type TemplateRecord = {
   id: number;
@@ -247,27 +248,85 @@ export function ProductsView({
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const templates = data ?? [];
 
-  return (
-    <>
-      <PageHeader
-        title="Product Templates"
-        description="Speed up quoting with reusable fixed-price or calculated items."
-        meta={
-          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-            <span>{templates.length} templates</span>
-            <span>{materials.length} materials</span>
-          </div>
-        }
-        actions={<Button onClick={openCreate}>Add Template</Button>}
-      />
+  const fixedPriceTemplates = templates.filter(t => t.pricingType === "FIXED");
+  const calculatedTemplates = templates.filter(t => t.pricingType === "CALCULATED");
+  const linkedMaterials = templates.filter(t => t.materialId).length;
 
-      <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Product Templates
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Speed up quoting with reusable fixed-price or calculated items.
+            </p>
+          </div>
+          <Button className="rounded-full" onClick={openCreate}>Add Template</Button>
+        </div>
+        <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Total Templates
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{templates.length}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Fixed Price
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{fixedPriceTemplates.length}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Calculated
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{calculatedTemplates.length}</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Metrics Section */}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DataCard
+          title="Total Templates"
+          value={templates.length}
+          description="Product templates in catalog"
+          icon={<Package className="h-5 w-5" />}
+          tone="slate"
+        />
+        <DataCard
+          title="Fixed Price"
+          value={fixedPriceTemplates.length}
+          description="Templates with fixed pricing"
+          tone="emerald"
+        />
+        <DataCard
+          title="Calculated"
+          value={calculatedTemplates.length}
+          description="Dynamic pricing templates"
+          icon={<Zap className="h-5 w-5" />}
+          tone="sky"
+        />
+        <DataCard
+          title="Linked Materials"
+          value={linkedMaterials}
+          description="Templates with material links"
+          tone="amber"
+        />
+      </section>
+
+      {/* Templates Table */}
+      <div className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+        <div className="rounded-3xl border border-border bg-surface-elevated/80 px-6 py-4 shadow-sm shadow-black/5 backdrop-blur">
+          <h2 className="text-sm font-medium text-muted-foreground">
             Templates
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h2>
+        </div>
+        <div className="p-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -280,11 +339,17 @@ export function ProductsView({
             <TableBody>
               {templates.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="h-24 text-center text-sm text-zinc-500"
-                  >
-                    No templates yet. Create one to standardize your quotes.
+                  <TableCell colSpan={4} className="p-0">
+                    <EmptyState
+                      title="No templates yet"
+                      description="Create one to standardize your quotes."
+                      icon={<Package className="h-8 w-8" />}
+                      actions={
+                        <Button className="rounded-full" onClick={openCreate}>
+                          Add Template
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -339,6 +404,7 @@ export function ProductsView({
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full"
                           onClick={() => openEdit(template)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -346,9 +412,9 @@ export function ProductsView({
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full text-red-500 hover:text-red-600"
                           onClick={() => handleDelete(template)}
                           disabled={deleteMutation.isPending}
-                          className="text-red-500 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -359,14 +425,14 @@ export function ProductsView({
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl rounded-3xl">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New template"}
@@ -600,6 +666,7 @@ export function ProductsView({
                 <Button
                   type="button"
                   variant="outline"
+                  className="rounded-full"
                   onClick={closeDialog}
                   disabled={isSubmitting}
                 >
@@ -607,6 +674,7 @@ export function ProductsView({
                 </Button>
                 <LoadingButton
                   type="submit"
+                  className="rounded-full"
                   loading={isSubmitting}
                   loadingText="Saving…"
                 >
@@ -617,6 +685,6 @@ export function ProductsView({
           </Form>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -39,9 +45,13 @@ import { formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PageHeader } from "@/components/ui/page-header";
+import { DataCard } from "@/components/ui/data-card";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { InlineLoader } from "@/components/ui/loader";
+import type { JobCreationPolicyValue } from "@/lib/schemas/settings";
+import type { SettingsPayload } from "@/components/settings/settings-form";
 import {
   Sheet,
   SheetContent,
@@ -76,7 +86,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   AlertCircle,
   Check,
@@ -152,9 +167,9 @@ const priorityLabels: Record<JobPriority, string> = {
 };
 
 const priorityStyles: Record<JobPriority, string> = {
-  NORMAL: "border-zinc-200 text-zinc-500",
-  FAST_TRACK: "border-amber-200 text-amber-600",
-  URGENT: "border-rose-300 text-rose-600",
+  NORMAL: "border-border bg-surface-overlay text-muted-foreground",
+  FAST_TRACK: "border-border bg-warning-subtle text-warning-foreground",
+  URGENT: "border-border bg-danger-subtle text-destructive",
 };
 
 const statusLabels: Record<JobStatus, string> = {
@@ -166,20 +181,27 @@ const statusLabels: Record<JobStatus, string> = {
 };
 
 const statusStyles: Record<JobStatus, string> = {
-  QUEUED: "bg-zinc-100 text-zinc-600",
-  PRINTING: "bg-emerald-100 text-emerald-700",
-  PAUSED: "bg-amber-100 text-amber-700",
-  COMPLETED: "bg-sky-100 text-sky-700",
-  CANCELLED: "bg-rose-100 text-rose-600",
+  QUEUED: "bg-surface-subtle text-muted-foreground",
+  PRINTING: "bg-success-subtle text-success-foreground",
+  PAUSED: "bg-warning-subtle text-warning-foreground",
+  COMPLETED: "bg-info-subtle text-info-foreground",
+  CANCELLED: "bg-danger-subtle text-destructive",
 };
 
-const metricTones = {
-  slate: "border-zinc-200/70",
-  emerald: "border-emerald-200/70",
-  sky: "border-sky-200/70",
-} as const;
 
-type MetricTone = keyof typeof metricTones;
+const jobPolicyMeta: Record<
+  JobCreationPolicyValue,
+  { badge: string; description: string }
+> = {
+  ON_PAYMENT: {
+    badge: "Jobs wait for payment",
+    description: "Jobs are created once the invoice is marked as paid.",
+  },
+  ON_INVOICE: {
+    badge: "Jobs create on invoice",
+    description: "Jobs are created immediately when the invoice is issued.",
+  },
+};
 
 function columnKeyFor(printerId: number | null) {
   return printerId === null ? "unassigned" : `printer-${printerId}`;
@@ -196,7 +218,9 @@ function cloneBoard(board: JobBoardClientSnapshot): JobBoardClientSnapshot {
   };
 }
 
-function recalcColumns(columns: JobBoardClientColumn[]): JobBoardClientColumn[] {
+function recalcColumns(
+  columns: JobBoardClientColumn[],
+): JobBoardClientColumn[] {
   return columns.map((column) => {
     const metrics = column.jobs.reduce(
       (acc, job) => {
@@ -272,9 +296,13 @@ function buildBoard(columns: JobBoardClientColumn[]): JobBoardClientSnapshot {
   };
 }
 
-function resolveOverColumnKey(over: DragEndEvent["over"] | DragOverEvent["over"]) {
+function resolveOverColumnKey(
+  over: DragEndEvent["over"] | DragOverEvent["over"],
+) {
   if (!over) return null;
-  const data = over.data.current as { type?: string; columnKey?: string } | undefined;
+  const data = over.data.current as
+    | { type?: string; columnKey?: string }
+    | undefined;
   if (!data) {
     const id = over.id;
     if (typeof id === "string" && id.startsWith("column:")) {
@@ -291,19 +319,18 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   const queryClient = useQueryClient();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
   const [board, setBoard] = useState<JobBoardClientSnapshot>(initial);
   const [activeId, setActiveId] = useState<number | null>(null);
   const boardRef = useRef(board);
   const [editingJob, setEditingJob] = useState<JobCardClient | null>(null);
-  const [statusPrompt, setStatusPrompt] = useState<
-    | {
-        job: JobCardClient;
-        status: JobStatus;
-      }
-    | null
-  >(null);
+  const [statusPrompt, setStatusPrompt] = useState<{
+    job: JobCardClient;
+    status: JobStatus;
+  } | null>(null);
   const [statusNote, setStatusNote] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -315,7 +342,12 @@ export function JobsBoard({ initial }: JobsBoardProps) {
     try {
       const url = new URL(window.location.href);
       const v = url.searchParams.get("view");
-      const allowed: ViewMode[] = ["active", "completed-today", "archived", "all"];
+      const allowed: ViewMode[] = [
+        "active",
+        "completed-today",
+        "archived",
+        "all",
+      ];
       if (v && (allowed as string[]).includes(v)) {
         setView(v as ViewMode);
         return;
@@ -339,7 +371,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   function buildJobsUrl(mode: ViewMode) {
     const params = new URLSearchParams();
     if (mode === "active") {
-      ["QUEUED", "PRINTING", "PAUSED"].forEach((s) => params.append("status", s));
+      ["QUEUED", "PRINTING", "PAUSED"].forEach((s) =>
+        params.append("status", s),
+      );
       params.set("archived", "false");
     } else if (mode === "completed-today") {
       params.append("status", "COMPLETED");
@@ -353,26 +387,41 @@ export function JobsBoard({ initial }: JobsBoardProps) {
     return qs ? `/api/jobs?${qs}` : "/api/jobs";
   }
 
-  const { data } = useQuery({
+  const boardQuery = useQuery({
     queryKey: ["jobs-board", view] as const,
     queryFn: () => getJson<JobBoardClientSnapshot>(buildJobsUrl(view)),
     initialData: initial,
     staleTime: 4_000,
   });
 
+  const settingsQuery = useQuery({
+    queryKey: ["settings"] as const,
+    queryFn: () => getJson<SettingsPayload>("/api/settings"),
+    staleTime: 60_000,
+  });
+
+  const jobPolicy: JobCreationPolicyValue =
+    settingsQuery.data?.jobCreationPolicy ?? "ON_PAYMENT";
+
   useEffect(() => {
-    if (data) {
-      setBoard(data);
-      boardRef.current = data;
+    if (boardQuery.data) {
+      setBoard(boardQuery.data);
+      boardRef.current = boardQuery.data;
     }
-  }, [data]);
+  }, [boardQuery.data]);
 
   useEffect(() => {
     boardRef.current = board;
   }, [board]);
 
   const reorderMutation = useMutation({
-    mutationFn: (entries: { id: number; queuePosition: number; printerId: number | null }[]) =>
+    mutationFn: (
+      entries: {
+        id: number;
+        queuePosition: number;
+        printerId: number | null;
+      }[],
+    ) =>
       mutateJson<{ success: boolean }>("/api/jobs/reorder", {
         method: "POST",
         body: JSON.stringify(entries),
@@ -396,7 +445,15 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status, note }: { id: number; status: JobStatus; note?: string }) =>
+    mutationFn: ({
+      id,
+      status,
+      note,
+    }: {
+      id: number;
+      status: JobStatus;
+      note?: string;
+    }) =>
       mutateJson(`/api/jobs/${id}/status`, {
         method: "POST",
         body: JSON.stringify({ status, note }),
@@ -443,7 +500,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       toast.success("Job updated");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to update job");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update job",
+      );
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -460,7 +519,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       toast.success("Job archived");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to archive job");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to archive job",
+      );
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -478,7 +539,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       setSelected(new Set());
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to archive jobs");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to archive jobs",
+      );
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey }),
   });
@@ -531,7 +594,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       }
 
       const sourceColumn = columns[sourceColumnIndex]!;
-      const sourceJobIndex = sourceColumn.jobs.findIndex((job) => job.id === id);
+      const sourceJobIndex = sourceColumn.jobs.findIndex(
+        (job) => job.id === id,
+      );
       if (sourceJobIndex === -1) {
         return prev;
       }
@@ -544,7 +609,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       const currentColumnKey = sourceColumn.key;
 
       if (targetColumnKey !== currentColumnKey) {
-        const destinationColumn = columns.find((column) => column.key === targetColumnKey);
+        const destinationColumn = columns.find(
+          (column) => column.key === targetColumnKey,
+        );
         if (destinationColumn) {
           const removed = sourceColumn.jobs.splice(sourceJobIndex, 1);
           const moving = removed[0];
@@ -579,7 +646,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
     if (!over) return;
     const activeId = Number(active.id);
     if (!Number.isFinite(activeId)) return;
-    const activeColumnKey = (active.data.current as { columnKey?: string } | undefined)?.columnKey;
+    const activeColumnKey = (
+      active.data.current as { columnKey?: string } | undefined
+    )?.columnKey;
     const overColumnKey = resolveOverColumnKey(over);
     if (!activeColumnKey || !overColumnKey) return;
     if (activeColumnKey === overColumnKey) return;
@@ -599,13 +668,20 @@ export function JobsBoard({ initial }: JobsBoardProps) {
     if (!Number.isFinite(activeId)) return;
 
     const overColumnKey = resolveOverColumnKey(over);
-    const activeColumnKey = (active.data.current as { columnKey?: string } | undefined)?.columnKey;
+    const activeColumnKey = (
+      active.data.current as { columnKey?: string } | undefined
+    )?.columnKey;
     if (!overColumnKey || !activeColumnKey) {
       setBoard(boardRef.current);
       return;
     }
 
-    const updated = simulateMove(boardRef.current, activeId, overColumnKey, over);
+    const updated = simulateMove(
+      boardRef.current,
+      activeId,
+      overColumnKey,
+      over,
+    );
     setBoard(updated);
     boardRef.current = updated;
 
@@ -632,14 +708,19 @@ export function JobsBoard({ initial }: JobsBoardProps) {
     const sourceColumn = columns.find((column) =>
       column.jobs.some((job) => job.id === jobId),
     );
-    const destinationColumn = columns.find((column) => column.key === targetColumnKey);
+    const destinationColumn = columns.find(
+      (column) => column.key === targetColumnKey,
+    );
     if (!sourceColumn || !destinationColumn) return snapshot;
 
     const sourceIndex = sourceColumn.jobs.findIndex((job) => job.id === jobId);
     if (sourceIndex === -1) return snapshot;
 
     const overData = over?.data.current as { type?: string } | undefined;
-    const overJobId = overData?.type === "job" && typeof over?.id === "number" ? Number(over.id) : null;
+    const overJobId =
+      overData?.type === "job" && typeof over?.id === "number"
+        ? Number(over.id)
+        : null;
 
     if (sourceColumn.key === destinationColumn.key) {
       const jobs = destinationColumn.jobs;
@@ -663,7 +744,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
 
     let insertAt = destinationColumn.jobs.length;
     if (overJobId !== null) {
-      const index = destinationColumn.jobs.findIndex((job) => job.id === overJobId);
+      const index = destinationColumn.jobs.findIndex(
+        (job) => job.id === overJobId,
+      );
       insertAt = index === -1 ? destinationColumn.jobs.length : index;
     }
     destinationColumn.jobs.splice(insertAt, 0, moving);
@@ -693,20 +776,41 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   return (
     <TooltipProvider delayDuration={100}>
       <div className="space-y-6">
-        <PageHeader
-          title="Jobs & Queue"
-          description="Drag jobs between printers, adjust details, and update status as work progresses."
-          meta={
-            <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-              <span>{board.summary.active} active</span>
-              <span>{board.summary.queued} queued</span>
-              <span>{board.summary.printersWithWork} printers busy</span>
+        <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                Jobs & Queue
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Drag jobs between printers, adjust details, and update status as work progresses.
+              </p>
+              <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80 mt-2">
+                <span>{board.summary.active} active</span>
+                <span>{board.summary.queued} queued</span>
+                <span>{board.summary.printersWithWork} printers busy</span>
+                {settingsQuery.isLoading ? (
+                  <InlineLoader label="Loading policy…" className="text-[10px]" />
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant="outline"
+                        className="border border-border bg-surface-overlay text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground"
+                      >
+                        {jobPolicyMeta[jobPolicy].badge}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {jobPolicyMeta[jobPolicy].description}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
             </div>
-          }
-          actions={
             <ActionRail align="start" wrap>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="flex w-full overflow-hidden rounded-md border border-input bg-background text-xs font-medium shadow-sm sm:w-auto">
+                <div className="flex w-full overflow-hidden rounded-full border border-input bg-background text-xs font-medium shadow-sm sm:w-auto">
                   {(
                     [
                       { key: "active", label: "Active" },
@@ -720,7 +824,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                       type="button"
                       onClick={() => setView(opt.key)}
                       className={cn(
-                        "flex-1 px-3 py-1.5 transition",
+                        "flex-1 px-3 py-1.5 transition rounded-full",
                         view === opt.key
                           ? "bg-accent-soft text-foreground"
                           : "text-muted-foreground hover:bg-surface-subtle",
@@ -734,50 +838,68 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                   size="sm"
                   variant={selectMode ? "default" : "outline"}
                   onClick={() => setSelectMode((v) => !v)}
-                  className="sm:shrink-0"
+                  className="sm:shrink-0 rounded-full"
                 >
                   {selectMode ? "Selecting…" : "Select"}
                 </Button>
               </div>
             </ActionRail>
-          }
-        />
+          </div>
+        </header>
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Total Jobs" value={board.summary.totalJobs} tone="slate" />
-          <MetricCard label="Queued" value={board.summary.queued} tone="slate" />
-          <MetricCard
-            label="Active"
+          <DataCard
+            title="Total Jobs"
+            value={board.summary.totalJobs}
+            tone="slate"
+          />
+          <DataCard
+            title="Queued"
+            value={board.summary.queued}
+            tone="slate"
+          />
+          <DataCard
+            title="Active"
             value={board.summary.active}
-            helper={`${board.summary.printersWithWork} printer${board.summary.printersWithWork === 1 ? "" : "s"}`}
+            description={`${board.summary.printersWithWork} printer${board.summary.printersWithWork === 1 ? "" : "s"}`}
             tone="emerald"
           />
-          <MetricCard
-            label="Est. Hours"
+          <DataCard
+            title="Est. Hours"
             value={board.summary.totalEstimatedHours.toFixed(1)}
             tone="sky"
           />
         </section>
 
         {(selected.size > 0 || selectMode) && (
-          <div className="flex flex-col gap-2 rounded-lg border border-zinc-200/70 bg-white/70 p-3 text-sm sm:flex-row sm:items-center">
-            <span className="text-zinc-600">Selected: {selected.size}</span>
+          <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground shadow-sm shadow-black/5 sm:flex-row sm:items-center">
+            <span className="font-medium text-foreground">
+              Selected: {selected.size}
+            </span>
             <div className="flex flex-wrap gap-2 sm:ml-auto">
-              <Button
+              <LoadingButton
                 size="sm"
                 variant="outline"
+                className="rounded-full"
+                loading={bulkArchiveMutation.isPending}
+                loadingText="Archiving…"
+                disabled={selected.size === 0 || bulkArchiveMutation.isPending}
                 onClick={() => bulkArchiveMutation.mutate(Array.from(selected))}
-                disabled={bulkArchiveMutation.isPending}
               >
-                {bulkArchiveMutation.isPending ? "Archiving…" : "Archive selected"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                Archive selected
+              </LoadingButton>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-full"
+                onClick={() => setSelected(new Set())}
+              >
                 Clear
               </Button>
             </div>
           </div>
         )}
 
-        <ScrollArea className="rounded-2xl border border-zinc-200/60 bg-white/70 p-4 shadow-sm backdrop-blur">
+        <ScrollArea className="rounded-3xl border border-border bg-surface-overlay p-4 shadow-sm">
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -821,13 +943,13 @@ export function JobsBoard({ initial }: JobsBoardProps) {
             }
           }}
         >
-          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl md:max-w-2xl">
-          <SheetHeader className="px-6 py-4">
-            <SheetTitle>Edit Job</SheetTitle>
-            <SheetDescription>
-              Update core job details, assignment, and production notes.
-            </SheetDescription>
-          </SheetHeader>
+          <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl md:max-w-2xl rounded-3xl shadow-sm shadow-black/5">
+            <SheetHeader className="px-6 py-4">
+              <SheetTitle>Edit Job</SheetTitle>
+              <SheetDescription>
+                Update core job details, assignment, and production notes.
+              </SheetDescription>
+            </SheetHeader>
             <div className="px-6 py-6">
               <Form {...form}>
                 <form
@@ -865,7 +987,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                             name={field.name}
                             ref={field.ref}
                             value={field.value ?? ""}
-                            onChange={(event) => field.onChange(event.target.value)}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
                             onBlur={field.onBlur}
                           />
                         </FormControl>
@@ -882,7 +1006,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                           <FormLabel>Priority</FormLabel>
                           <Select
                             value={field.value}
-                            onValueChange={(value) => field.onChange(value as JobPriority)}
+                            onValueChange={(value) =>
+                              field.onChange(value as JobPriority)
+                            }
                           >
                             <FormControl>
                               <SelectTrigger>
@@ -916,7 +1042,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                               value={field.value ?? ""}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                field.onChange(value === "" ? null : Number(value));
+                                field.onChange(
+                                  value === "" ? null : Number(value),
+                                );
                               }}
                             />
                           </FormControl>
@@ -932,7 +1060,11 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                       <FormItem>
                         <FormLabel>Printer assignment</FormLabel>
                         <Select
-                          value={field.value === null || field.value === undefined ? "unassigned" : String(field.value)}
+                          value={
+                            field.value === null || field.value === undefined
+                              ? "unassigned"
+                              : String(field.value)
+                          }
                           onValueChange={(value) => {
                             if (value === "unassigned") field.onChange(null);
                             else field.onChange(Number(value));
@@ -944,9 +1076,14 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            <SelectItem value="unassigned">
+                              Unassigned
+                            </SelectItem>
                             {printerOptions.map((printer) => (
-                              <SelectItem key={printer.id} value={String(printer.id)}>
+                              <SelectItem
+                                key={printer.id}
+                                value={String(printer.id)}
+                              >
                                 {printer.name}
                               </SelectItem>
                             ))}
@@ -969,7 +1106,9 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                             name={field.name}
                             ref={field.ref}
                             value={field.value ?? ""}
-                            onChange={(event) => field.onChange(event.target.value)}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
                             onBlur={field.onBlur}
                           />
                         </FormControl>
@@ -980,18 +1119,25 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                 </form>
               </Form>
             </div>
-            <SheetFooter className="sticky bottom-0 gap-2 border-t border-zinc-200 bg-white/85 px-6 pb-4 pt-4 backdrop-blur">
+            <SheetFooter className="sticky bottom-0 gap-2 border-t border-border bg-surface-overlay/90 px-6 pb-4 pt-4 backdrop-blur">
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-full"
                 onClick={() => setEditingJob(null)}
                 disabled={updateMutation.isPending}
               >
                 Cancel
               </Button>
-              <Button type="submit" form="job-edit-form" disabled={updateMutation.isPending}>
+              <LoadingButton
+                type="submit"
+                form="job-edit-form"
+                className="rounded-full"
+                loading={updateMutation.isPending}
+                loadingText="Saving…"
+              >
                 Save changes
-              </Button>
+              </LoadingButton>
             </SheetFooter>
           </SheetContent>
         </Sheet>
@@ -1005,7 +1151,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="rounded-3xl shadow-sm shadow-black/5">
             <DialogHeader>
               <DialogTitle>Update status</DialogTitle>
               <DialogDescription>
@@ -1024,6 +1170,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
               <Button
                 type="button"
                 variant="outline"
+                className="rounded-full"
                 onClick={() => {
                   setStatusPrompt(null);
                   setStatusNote("");
@@ -1033,6 +1180,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
               </Button>
               <Button
                 type="button"
+                className="rounded-full"
                 onClick={() => {
                   if (!statusPrompt) return;
                   statusMutation.mutate({
@@ -1055,29 +1203,6 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  helper,
-  tone,
-}: {
-  label: string;
-  value: string | number;
-  helper?: string;
-  tone: MetricTone;
-}) {
-  return (
-    <Card className={`border ${metricTones[tone]} bg-white/70 shadow-sm backdrop-blur`}>
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-sm font-medium text-zinc-500">{label}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-semibold tracking-tight text-zinc-900">{value}</div>
-        {helper ? <p className="mt-1 text-xs text-zinc-500">{helper}</p> : null}
-      </CardContent>
-    </Card>
-  );
-}
 
 function JobColumn({
   column,
@@ -1105,20 +1230,23 @@ function JobColumn({
 
   return (
     <div className="flex w-full flex-col gap-4 md:w-80" ref={setNodeRef}>
-      <Card className="border border-zinc-200/60 bg-white/75 shadow-sm backdrop-blur">
+      <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-base font-semibold text-zinc-800">
+              <CardTitle className="text-base font-semibold text-foreground">
                 {column.printerName}
               </CardTitle>
-              <p className="text-xs text-zinc-500">
+              <p className="text-sm text-muted-foreground">
                 {column.printerStatus === "UNASSIGNED"
                   ? "Awaiting assignment"
                   : `${column.metrics.queuedCount} queued · ${column.metrics.activeCount} running`}
               </p>
             </div>
-            <Badge variant="outline" className="border-zinc-200 text-xs text-zinc-500">
+            <Badge
+              variant="outline"
+              className="border-border bg-surface-subtle text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground"
+            >
               {column.jobs.length} jobs
             </Badge>
           </div>
@@ -1158,7 +1286,7 @@ function JobColumn({
 
 function EmptyColumn() {
   return (
-    <div className="flex h-28 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-white/40 text-center text-xs text-zinc-400">
+    <div className="flex h-28 flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-card/50 text-center text-xs text-muted-foreground shadow-sm shadow-black/5">
       <AlertCircle className="mb-2 h-4 w-4" />
       Drop jobs here
     </div>
@@ -1251,9 +1379,10 @@ function JobCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`group rounded-xl border border-zinc-200/70 bg-white/85 p-4 shadow-sm backdrop-blur transition focus:outline-none focus:ring-2 focus:ring-zinc-400/40 ${
-        isDragging || active ? "ring-2 ring-zinc-400/40" : ""
-      }`}
+      className={cn(
+        "group rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+        isDragging || active ? "ring-2 ring-primary/40" : "",
+      )}
       {...attributes}
       {...listeners}
     >
@@ -1269,18 +1398,31 @@ function JobCard({
             />
           ) : null}
           <div>
-            <h3 className="text-sm font-semibold text-zinc-800">{job.title}</h3>
-            <p className="text-xs text-zinc-500">
+            <h3 className="text-sm font-semibold text-foreground">
+              {job.title}
+            </h3>
+            <p className="text-xs text-muted-foreground">
               {job.clientName} · Invoice {job.invoiceNumber}
             </p>
           </div>
         </div>
-        <Badge variant="outline" className={`text-[10px] ${priorityStyles[job.priority]}`}>
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] font-medium uppercase tracking-[0.2em]",
+            priorityStyles[job.priority],
+          )}
+        >
           {priorityLabels[job.priority]}
         </Badge>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-        <Badge className={`${statusStyles[job.status]} border-none text-[10px] font-medium`}>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Badge
+          className={cn(
+            statusStyles[job.status],
+            "border-none text-[10px] font-medium uppercase tracking-[0.2em]",
+          )}
+        >
           {statusLabels[job.status]}
         </Badge>
         {typeof job.estimatedHours === "number" ? (
@@ -1291,7 +1433,8 @@ function JobCard({
         ) : null}
         {job.startedAt ? (
           <span>
-            Started {formatDistanceToNow(new Date(job.startedAt), { addSuffix: true })}
+            Started{" "}
+            {formatDistanceToNow(new Date(job.startedAt), { addSuffix: true })}
           </span>
         ) : null}
       </div>
@@ -1305,7 +1448,7 @@ function JobCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-full"
                     onClick={(event) => {
                       event.stopPropagation();
                       onRequestStatus(job, action.status);
@@ -1324,7 +1467,7 @@ function JobCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-8 w-8 rounded-full"
                   onClick={(event) => {
                     event.stopPropagation();
                     onArchive();
@@ -1342,7 +1485,7 @@ function JobCard({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full"
               onClick={(event) => {
                 event.stopPropagation();
                 onEdit();

@@ -1,12 +1,17 @@
 "use client";
 
 import { NavigationLink } from "@/components/ui/navigation-link";
+import { ActionButton } from "@/components/ui/action-button";
+import { usePaymentTerms } from "@/hooks/use-payment-terms";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { InlineLoader } from "@/components/ui/loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -46,9 +51,8 @@ import {
 import { mutateJson, getJson } from "@/lib/http";
 import { clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
-import type { SettingsPayload } from "@/components/settings/settings-form";
 import { UserPlus } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
+import { DataCard } from "@/components/ui/data-card";
 
 export type ClientSummaryRecord = {
   id: number;
@@ -105,6 +109,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(startOpen);
   const hasAppliedStartOpen = useRef(false);
+  const { terms: paymentTermOptions, defaultTermCode, isLoading: paymentTermsLoading } = usePaymentTerms();
 
   const form = useForm<ClientFormValues>({
     resolver: clientResolver,
@@ -118,11 +123,6 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
     staleTime: 1000 * 60,
   });
 
-  const settingsQuery = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => getJson<SettingsPayload>("/api/settings"),
-    staleTime: 1000 * 60,
-  });
 
   const mutation = useMutation({
     mutationFn: (values: ClientFormValues) =>
@@ -143,14 +143,12 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
   });
 
   useEffect(() => {
-    const defaultTerm = settingsQuery.data?.defaultPaymentTerms ?? "";
+    if (paymentTermsLoading) return;
     const currentTerm = form.getValues("paymentTerms");
-    if (defaultTerm && !currentTerm) {
-      form.setValue("paymentTerms", defaultTerm, { shouldDirty: false });
+    if (!currentTerm && defaultTermCode) {
+      form.setValue("paymentTerms", defaultTermCode, { shouldDirty: false });
     }
-  }, [settingsQuery.data, form]);
-
-  const paymentTermOptions = settingsQuery.data?.paymentTerms ?? [];
+  }, [paymentTermsLoading, defaultTermCode, form]);
 
   useEffect(() => {
     if (startOpen && !hasAppliedStartOpen.current) {
@@ -182,90 +180,84 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
 
   return (
     <>
-      <PageHeader
-        title="Clients"
-        description="Manage contact information, payment terms, and document history in one place."
-        meta={
-          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-            <span>{clients.length} active</span>
-            <span>{formatCurrency(totalOutstanding)} outstanding</span>
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Clients
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Manage contact information, payment terms, and document history in one place.
+            </p>
           </div>
-        }
-        actions={
-          <Button onClick={openDialog} className="flex items-center gap-2">
+          <ActionButton
+            onClick={openDialog}
+            className="w-full rounded-full sm:w-auto"
+          >
             <UserPlus className="h-4 w-4" />
-            New Client
-          </Button>
-        }
-      />
+            <span>New Client</span>
+          </ActionButton>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80 sm:mt-6">
+          <span>{clients.length} active</span>
+          <span>{formatCurrency(totalOutstanding)} outstanding</span>
+        </div>
+      </header>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-xs font-medium uppercase tracking-[0.3em] text-zinc-400">
-              Total Clients
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold text-zinc-900">
-              {clients.length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-          <CardHeader>
-            <CardTitle className="text-xs font-medium uppercase tracking-[0.3em] text-zinc-400">
-              Outstanding Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold text-zinc-900">
-              {formatCurrency(totalOutstanding)}
-            </div>
-          </CardContent>
-        </Card>
+        <DataCard
+          title="Total Clients"
+          value={clients.length}
+          tone="slate"
+        />
+        <DataCard
+          title="Outstanding Balance"
+          value={formatCurrency(totalOutstanding)}
+          tone={totalOutstanding > 0 ? "amber" : "emerald"}
+        />
       </div>
 
-      <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+      <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
             Client Directory
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Outstanding</TableHead>
-                <TableHead className="text-right">Docs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.length === 0 ? (
+          {clients.length === 0 ? (
+            <EmptyState
+              title="No clients yet"
+              description="Add a client to start sending quotes and invoices."
+              actions={
+                <Button onClick={openDialog} className="gap-2 rounded-full">
+                  <UserPlus className="h-4 w-4" /> Add client
+                </Button>
+              }
+              className="rounded-2xl border-border"
+            />
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-sm text-zinc-500"
-                  >
-                    No clients yet. Add your first client to begin quoting and
-                    invoicing.
-                  </TableCell>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Outstanding</TableHead>
+                  <TableHead className="text-right">Docs</TableHead>
                 </TableRow>
-              ) : (
-                clients.map((client) => (
-                  <TableRow key={client.id} className="hover:bg-white/80">
+              </TableHeader>
+              <TableBody>
+                {clients.map((client) => (
+                  <TableRow key={client.id} className="hover:bg-muted/40 transition-colors">
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <NavigationLink
                           href={`/clients/${client.id}`}
-                          className="font-medium text-zinc-900 hover:underline"
+                          className="font-medium text-foreground hover:underline"
                         >
                           {client.name}
                         </NavigationLink>
-                        <span className="text-xs text-zinc-400">
+                        <span className="text-xs text-muted-foreground/80">
                           Created{" "}
                           {new Date(client.createdAt).toLocaleDateString()}
                         </span>
@@ -273,12 +265,12 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                     </TableCell>
                     <TableCell>
                       {client.company || (
-                        <span className="text-xs text-zinc-400">—</span>
+                        <span className="text-xs text-muted-foreground/80">—</span>
                       )}
                     </TableCell>
                     <TableCell>
                       {client.email || (
-                        <span className="text-xs text-zinc-400">—</span>
+                        <span className="text-xs text-muted-foreground/80">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -287,17 +279,17 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                     <TableCell className="text-right">
                       <Badge
                         variant="outline"
-                        className="border-zinc-300/70 text-zinc-600"
+                        className="border-border text-muted-foreground"
                       >
                         {client.totalInvoices} invoices · {client.totalQuotes}{" "}
                         quotes
                       </Badge>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -305,7 +297,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5">
           <DialogHeader>
             <DialogTitle>Add Client</DialogTitle>
           </DialogHeader>
@@ -314,6 +306,11 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
               onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
               className="space-y-4"
             >
+              {mutation.isPending ? (
+                <div className="flex justify-start">
+                  <InlineLoader label="Creating client…" className="text-sm" />
+                </div>
+              ) : null}
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -441,6 +438,9 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                         ))}
                       </SelectContent>
                     </Select>
+                    {paymentTermsLoading ? (
+                      <InlineLoader label="Loading payment terms…" className="text-xs" />
+                    ) : null}
                     <FormDescription>
                       Manage options in Settings → Payments.
                     </FormDescription>
@@ -465,18 +465,24 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                   </FormItem>
                 )}
               />
-              <DialogFooter>
+              <DialogFooter className="gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={closeDialog}
                   disabled={mutation.isPending}
+                  className="gap-2 rounded-full"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={mutation.isPending}>
-                  {mutation.isPending ? "Saving…" : "Create client"}
-                </Button>
+                <LoadingButton
+                  type="submit"
+                  loading={mutation.isPending}
+                  loadingText="Creating client…"
+                  className="gap-2 rounded-full"
+                >
+                  Create client
+                </LoadingButton>
               </DialogFooter>
             </form>
           </Form>

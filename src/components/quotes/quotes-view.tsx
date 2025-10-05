@@ -1,9 +1,11 @@
 "use client";
 
 import { NavigationLink } from "@/components/ui/navigation-link";
+import { ActionButton } from "@/components/ui/action-button";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -17,8 +19,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { getJson } from "@/lib/http";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/datetime";
-import { PageHeader } from "@/components/ui/page-header";
+import { FileText } from "lucide-react";
+import { InlineLoader } from "@/components/ui/loader";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { DataCard } from "@/components/ui/data-card";
 
 export type QuoteSummaryRecord = {
   id: number;
@@ -59,48 +63,98 @@ export function QuotesView({ initial }: QuotesViewProps) {
     return records.filter((quote) => quote.status === tab);
   }, [data, tab]);
 
+  const quotes = data ?? [];
+
+  // Calculate metrics
+  const totalValue = quotes.reduce((sum, quote) => sum + quote.total, 0);
+  const pendingQuotes = quotes.filter(quote => quote.status === 'PENDING');
+  const pendingValue = pendingQuotes.reduce((sum, quote) => sum + quote.total, 0);
+  const acceptedQuotes = quotes.filter(quote => quote.status === 'ACCEPTED');
+  const acceptedValue = acceptedQuotes.reduce((sum, quote) => sum + quote.total, 0);
+
   if (!data && isFetching) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Quotes"
-          description="Prepare offers with consistent pricing and move accepted work into invoices."
-        />
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+      <>
+        <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+                Quotes
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Prepare offers with consistent pricing and move accepted work into invoices.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80 sm:mt-6">
+            <InlineLoader label="Loading…" className="text-[10px]" />
+          </div>
+        </header>
+
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-zinc-500">Loading quotes…</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Loading quotes…</CardTitle>
           </CardHeader>
           <CardContent>
             <TableSkeleton columns={6} />
           </CardContent>
         </Card>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Quotes"
-        description="Prepare offers with consistent pricing and move accepted work into invoices."
-        meta={
-          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-            <span>{data?.length ?? 0} total</span>
-            <span>{filtered.length} in view</span>
+    <>
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Quotes
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Prepare offers with consistent pricing and move accepted work into invoices.
+            </p>
           </div>
-        }
-        actions={
-          <NavigationLink
+          <ActionButton
             href="/quotes/new"
-            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            className="w-full rounded-full sm:w-auto"
           >
-            New Quote
-          </NavigationLink>
-        }
-      />
+            <FileText className="h-4 w-4" />
+            <span>New Quote</span>
+          </ActionButton>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80 sm:mt-6">
+          <span>{quotes.length} total</span>
+          <span>{filtered.length} in view</span>
+          {isFetching ? <InlineLoader label="Refreshing…" className="text-[10px]" /> : null}
+        </div>
+      </header>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <DataCard
+          title="Total Quotes"
+          value={quotes.length}
+          tone="slate"
+        />
+        <DataCard
+          title="Total Value"
+          value={formatCurrency(totalValue)}
+          tone="sky"
+        />
+        <DataCard
+          title="Pending Value"
+          value={formatCurrency(pendingValue)}
+          tone={pendingValue > 0 ? "amber" : "slate"}
+        />
+        <DataCard
+          title="Accepted Value"
+          value={formatCurrency(acceptedValue)}
+          tone={acceptedValue > 0 ? "emerald" : "slate"}
+        />
+      </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="bg-white/80 backdrop-blur">
+        <TabsList className="flex flex-wrap gap-2 rounded-3xl border border-border bg-surface-overlay p-1">
           {STATUS_TABS.map((status) => (
             <TabsTrigger key={status.value} value={status.value}>
               {status.label}
@@ -108,41 +162,47 @@ export function QuotesView({ initial }: QuotesViewProps) {
           ))}
         </TabsList>
         <TabsContent value={tab} className="space-y-4">
-          <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+          <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-zinc-500">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Quote Register
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Quote</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Issued</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.length === 0 ? (
+              {filtered.length === 0 ? (
+                <EmptyState
+                  title="No quotes in this view"
+                  description="Adjust filters or create a new quote to see it here."
+                  actions={
+                    <ActionButton
+                      href="/quotes/new"
+                      className="gap-2 rounded-full"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>New Quote</span>
+                    </ActionButton>
+                  }
+                  className="rounded-2xl border-border"
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell
-                        colSpan={6}
-                        className="h-24 text-center text-sm text-zinc-500"
-                      >
-                        No quotes in this view yet.
-                      </TableCell>
+                      <TableHead>Quote</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Issued</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
-                  ) : (
-                    filtered.map((quote) => (
-                      <TableRow key={quote.id} className="hover:bg-white/80">
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((quote) => (
+                      <TableRow key={quote.id} className="hover:bg-surface-elevated transition-colors">
                         <TableCell>
                           <NavigationLink
                             href={`/quotes/${quote.id}`}
-                            className="font-medium text-zinc-900 hover:underline"
+                            className="font-medium text-foreground hover:underline"
                           >
                             {quote.number}
                           </NavigationLink>
@@ -153,22 +213,20 @@ export function QuotesView({ initial }: QuotesViewProps) {
                         </TableCell>
                         <TableCell>{formatDate(quote.issueDate)}</TableCell>
                         <TableCell>
-                          {quote.expiryDate
-                            ? formatDate(quote.expiryDate)
-                            : "—"}
+                          {quote.expiryDate ? formatDate(quote.expiryDate) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(quote.total)}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 }

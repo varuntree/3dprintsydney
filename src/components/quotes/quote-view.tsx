@@ -25,17 +25,34 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
-import { ActionButtonGroup, ActionGroupContainer } from "@/components/ui/action-button-group";
-import { NavigationLink } from "@/components/ui/navigation-link";
+import {
+  ActionButtonGroup,
+  ActionGroupContainer,
+} from "@/components/ui/action-button-group";
+import { ActionButton } from "@/components/ui/action-button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingButton } from "@/components/ui/loading-button";
+import { InlineLoader } from "@/components/ui/loader";
 
-type QuoteStatusValue = "DRAFT" | "PENDING" | "ACCEPTED" | "DECLINED" | "CONVERTED";
+type QuoteStatusValue =
+  | "DRAFT"
+  | "PENDING"
+  | "ACCEPTED"
+  | "DECLINED"
+  | "CONVERTED";
 
 const STATUS_OPTIONS: QuoteStatusValue[] = [
   "DRAFT",
@@ -96,15 +113,9 @@ export function QuoteView({ quote }: QuoteViewProps) {
       ]);
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to update status");
-    },
-  });
-
-  const sendMutation = useMutation({
-    mutationFn: () => mutateJson(`/api/quotes/${quote.id}/send`, { method: "POST" }),
-    onSuccess: () => toast.success("Quote sent"),
-    onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to send quote");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update status",
+      );
     },
   });
 
@@ -129,31 +140,44 @@ export function QuoteView({ quote }: QuoteViewProps) {
   });
 
   const convertMutation = useMutation<{ id: number }>({
-    mutationFn: () => mutateJson<{ id: number }>(`/api/quotes/${quote.id}/convert`, { method: "POST" }),
+    mutationFn: () =>
+      mutateJson<{ id: number }>(`/api/quotes/${quote.id}/convert`, {
+        method: "POST",
+      }),
     onSuccess: async (invoice) => {
       toast.success("Quote converted to invoice");
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       await navigate(`/invoices/${invoice.id}`);
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to convert quote");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to convert quote",
+      );
     },
   });
 
   const duplicateMutation = useMutation<{ id: number }>({
-    mutationFn: () => mutateJson<{ id: number }>(`/api/quotes/${quote.id}/duplicate`, {
-      method: "POST",
-    }),
+    mutationFn: () =>
+      mutateJson<{ id: number }>(`/api/quotes/${quote.id}/duplicate`, {
+        method: "POST",
+      }),
     onSuccess: async (duplicate) => {
       toast.success("Quote duplicated");
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       await navigate(`/quotes/${duplicate.id}`);
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to duplicate quote");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to duplicate quote",
+      );
     },
   });
 
+  const isBusy =
+    statusMutation.isPending ||
+    decisionMutation.isPending ||
+    convertMutation.isPending ||
+    duplicateMutation.isPending;
 
   const issueDate = useMemo(() => new Date(quote.issueDate), [quote.issueDate]);
   const expiryDate = useMemo(
@@ -161,7 +185,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
     [quote.expiryDate],
   );
   const paymentTermLabel = useMemo(() => {
-    if (!quote.paymentTerms) return "Payment terms unavailable";
+    if (!quote.paymentTerms) return "COD • Due on acceptance";
     if (quote.paymentTerms.days === 0) {
       return `${quote.paymentTerms.label} • Due on acceptance`;
     }
@@ -182,39 +206,52 @@ export function QuoteView({ quote }: QuoteViewProps) {
         title={quote.client.name}
         description={
           <span className="text-sm text-muted-foreground">
-            Issued {format(issueDate, "dd MMM yyyy")} • Expires {expiryDate ? format(expiryDate, "dd MMM yyyy") : "—"}
+            Issued {format(issueDate, "dd MMM yyyy")} • Expires{" "}
+            {expiryDate ? format(expiryDate, "dd MMM yyyy") : "—"}
           </span>
         }
-        meta={<Badge variant="secondary" className="bg-surface-subtle text-foreground">{paymentTermLabel}</Badge>}
+        meta={
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge
+              variant="outline"
+              className="rounded-full border border-border bg-surface-overlay px-3 py-1 text-xs font-medium text-muted-foreground"
+            >
+              {paymentTermLabel}
+            </Badge>
+            {isBusy ? (
+              <InlineLoader label="Updating…" className="text-[10px]" />
+            ) : null}
+          </div>
+        }
         actions={
           <ActionGroupContainer>
             <ActionButtonGroup title="Primary" variant="primary">
-              <NavigationLink
+              <ActionButton
                 href={`/quotes/${quote.id}?mode=edit`}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                className="gap-2 rounded-full"
               >
                 Edit
-              </NavigationLink>
+              </ActionButton>
               <PDFStyleDropdown
                 documentType="quote"
                 documentId={quote.id}
                 documentNumber={quote.number}
               />
-              <LoadingButton
-                variant="outline"
-                onClick={() => sendMutation.mutate()}
-                loading={sendMutation.isPending}
-                loadingText="Sending…"
-              >
-                Send
-              </LoadingButton>
             </ActionButtonGroup>
 
             <ActionButtonGroup title="Actions" variant="secondary">
-              <Button variant="outline" onClick={() => setDecision("accept")}>
+              <Button
+                variant="outline"
+                onClick={() => setDecision("accept")}
+                className="gap-2 rounded-full"
+              >
                 Accept
               </Button>
-              <Button variant="outline" onClick={() => setDecision("decline")}>
+              <Button
+                variant="outline"
+                onClick={() => setDecision("decline")}
+                className="gap-2 rounded-full"
+              >
                 Decline
               </Button>
               <LoadingButton
@@ -222,6 +259,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
                 onClick={() => convertMutation.mutate()}
                 loading={convertMutation.isPending}
                 loadingText="Converting…"
+                className="gap-2 rounded-full"
               >
                 Convert to invoice
               </LoadingButton>
@@ -231,6 +269,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
                 onClick={() => duplicateMutation.mutate()}
                 loading={duplicateMutation.isPending}
                 loadingText="Duplicating…"
+                className="gap-2 rounded-full"
               >
                 Duplicate
               </LoadingButton>
@@ -239,7 +278,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
             <ActionButtonGroup title="Status" variant="secondary">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="subtle" size="sm">
+                  <Button variant="subtle" size="sm" className="gap-2 rounded-full">
                     Change status
                   </Button>
                 </DropdownMenuTrigger>
@@ -250,7 +289,9 @@ export function QuoteView({ quote }: QuoteViewProps) {
                     <DropdownMenuItem
                       key={status}
                       onClick={() => statusMutation.mutate(status)}
-                      disabled={statusMutation.isPending || status === quote.status}
+                      disabled={
+                        statusMutation.isPending || status === quote.status
+                      }
                     >
                       {status.toLowerCase()}
                     </DropdownMenuItem>
@@ -262,67 +303,147 @@ export function QuoteView({ quote }: QuoteViewProps) {
         }
       />
 
-      <Card className="border border-zinc-200/70 bg-white shadow-sm">
+      <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">Summary</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Summary
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-3">
-          <SummaryItem label="Subtotal" value={formatCurrency(quote.subtotal)} />
+          <SummaryItem
+            label="Subtotal"
+            value={formatCurrency(quote.subtotal)}
+          />
           <SummaryItem label="Tax" value={formatCurrency(quote.taxTotal)} />
-          <SummaryItem label="Total" value={formatCurrency(quote.total)} emphasize />
+          <SummaryItem
+            label="Total"
+            value={formatCurrency(quote.total)}
+            emphasize
+          />
         </CardContent>
       </Card>
 
-      <Card className="border border-zinc-200/70 bg-white shadow-sm">
+      <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">Line items</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Line items
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead className="text-right">Unit price</TableHead>
-                <TableHead className="text-right">Discount</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quote.lines.map((line) => (
-                <TableRow key={line.id ?? `${line.name}-${line.orderIndex}`}
-                  className="align-top">
-                  <TableCell className="font-medium text-zinc-800">{line.name}</TableCell>
-                  <TableCell className="text-sm text-zinc-500 whitespace-pre-wrap">
-                    {line.description || "—"}
-                  </TableCell>
-                  <TableCell className="text-right">{formatQuantity(line.quantity)}</TableCell>
-                  <TableCell>{line.unit || "—"}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(line.unitPrice)}</TableCell>
-                  <TableCell className="text-right">{discountLabel(line.discountType, line.discountValue)}</TableCell>
-                  <TableCell className="text-right font-medium text-zinc-800">{formatCurrency(line.total)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {quote.lines.length === 0 ? (
+            <EmptyState
+              title="No line items"
+              description="Add items from the editor to see pricing breakdowns here."
+              className="rounded-2xl border-border"
+            />
+          ) : (
+            <>
+              {/* Mobile view */}
+              <div className="space-y-3 md:hidden">
+                {quote.lines.map((line, index) => {
+                  const hasDiscount = line.discountType !== "NONE" && (line.discountValue ?? 0) > 0;
+                  return (
+                    <Card key={index} className="rounded-2xl border border-border bg-background">
+                      <CardContent className="pt-4">
+                        <div className="space-y-2">
+                          <h4 className="font-medium text-foreground">{line.name}</h4>
+                          {line.description && (
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {line.description}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <span>
+                              <span className="text-muted-foreground">Qty:</span> {line.quantity} {line.unit}
+                            </span>
+                            <span>
+                              <span className="text-muted-foreground">Price:</span> {formatCurrency(line.unitPrice)}
+                            </span>
+                          </div>
+                          {hasDiscount && (
+                            <div className="text-sm text-muted-foreground">
+                              Discount: {line.discountType === "PERCENTAGE" ? `${line.discountValue ?? 0}%` : formatCurrency(line.discountValue ?? 0)}
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center pt-1 border-t border-border">
+                            <span className="text-sm text-muted-foreground">Line total</span>
+                            <span className="font-medium text-foreground">{formatCurrency(line.total)}</span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {/* Desktop view */}
+              <Table className="hidden md:table">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead className="text-right">Unit price</TableHead>
+                    <TableHead className="text-right">Discount</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                {quote.lines.map((line) => (
+                  <TableRow
+                    key={line.id ?? `${line.name}-${line.orderIndex}`}
+                    className="align-top"
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      {line.name}
+                    </TableCell>
+                    <TableCell className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {line.description || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatQuantity(line.quantity)}
+                    </TableCell>
+                    <TableCell>{line.unit || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(line.unitPrice)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {discountLabel(line.discountType, line.discountValue)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-foreground">
+                      {formatCurrency(line.total)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+              </Table>
+            </>
+          )}
         </CardContent>
       </Card>
 
       {(quote.notes || quote.terms) && (
-        <Card className="border border-zinc-200/70 bg-white shadow-sm">
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardContent className="grid gap-6 md:grid-cols-2">
             {quote.notes ? (
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-zinc-400">Notes</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600">{quote.notes}</p>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground/70">
+                  Notes
+                </h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                  {quote.notes}
+                </p>
               </div>
             ) : null}
             {quote.terms ? (
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-zinc-400">Terms</h3>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-600">{quote.terms}</p>
+                <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-muted-foreground/70">
+                  Terms
+                </h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                  {quote.terms}
+                </p>
               </div>
             ) : null}
           </CardContent>
@@ -347,11 +468,28 @@ export function QuoteView({ quote }: QuoteViewProps) {
   );
 }
 
-function SummaryItem({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
+function SummaryItem({
+  label,
+  value,
+  emphasize,
+}: {
+  label: string;
+  value: string;
+  emphasize?: boolean;
+}) {
   return (
-    <div className="rounded-lg border border-zinc-200/70 bg-white/80 p-4 shadow-sm">
-      <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{label}</p>
-      <p className={cn("mt-2 text-sm", emphasize ? "font-semibold text-zinc-900" : "text-zinc-600")}>{value}</p>
+    <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+      <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "mt-2 text-sm",
+          emphasize ? "font-semibold text-foreground" : "text-muted-foreground",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -381,29 +519,57 @@ interface DecisionDialogProps {
   onClose: () => void;
 }
 
-function DecisionDialog({ mode, note, onNoteChange, onClose, onConfirm, isLoading }: DecisionDialogProps) {
-  const title = mode === "accept" ? "Accept quote" : mode === "decline" ? "Decline quote" : null;
+function DecisionDialog({
+  mode,
+  note,
+  onNoteChange,
+  onClose,
+  onConfirm,
+  isLoading,
+}: DecisionDialogProps) {
+  const title =
+    mode === "accept"
+      ? "Accept quote"
+      : mode === "decline"
+        ? "Decline quote"
+        : null;
   return (
     <Dialog open={mode !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="rounded-3xl border border-border bg-surface-overlay">
         {title ? (
           <>
             <DialogHeader>
               <DialogTitle>{title}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              <p className="text-sm text-zinc-600">
-                Add an internal note (optional). The status will be updated automatically.
+              <p className="text-sm text-muted-foreground">
+                Add an internal note (optional). The status will be updated
+                automatically.
               </p>
-              <Textarea rows={4} value={note} onChange={(event) => onNoteChange(event.target.value)} placeholder="Add decision note (optional)" />
+              <Textarea
+                rows={4}
+                value={note}
+                onChange={(event) => onNoteChange(event.target.value)}
+                placeholder="Add decision note (optional)"
+              />
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+              <Button
+                variant="ghost"
+                onClick={onClose}
+                disabled={isLoading}
+                className="gap-2 rounded-full"
+              >
                 Cancel
               </Button>
-              <Button onClick={onConfirm} disabled={isLoading}>
-                {isLoading ? "Saving…" : title}
-              </Button>
+              <LoadingButton
+                onClick={onConfirm}
+                loading={isLoading}
+                loadingText="Updating…"
+                className="gap-2 rounded-full"
+              >
+                {title}
+              </LoadingButton>
             </DialogFooter>
           </>
         ) : null}

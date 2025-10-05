@@ -5,7 +5,8 @@ import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { addDays } from "date-fns";
+import { addDays, format } from "date-fns";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,10 +43,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import type { ProductTemplateDTO } from "@/server/services/product-templates";
-import { CalculatorDialog, type CalculatorMaterialOption } from "@/components/quotes/quote-editor";
+import {
+  CalculatorDialog,
+  type CalculatorMaterialOption,
+} from "@/components/quotes/quote-editor";
 import {
   invoiceInputSchema,
   type InvoiceInput,
@@ -149,83 +152,88 @@ export function InvoiceEditor({
     mode: "onChange",
   });
 
-
-const [dueDateTouched, setDueDateTouched] = useState(
-  Boolean(initialValues?.dueDate),
-);
-
-const paymentTermOptions = useMemo(
-  () => settings.paymentTerms ?? [],
-  [settings.paymentTerms],
-);
-const defaultPaymentTermCode = settings.defaultPaymentTerms;
-const watchedClientId = form.watch("clientId");
-const watchedIssueDate = form.watch("issueDate");
-
-const selectedClient = useMemo(() => {
-  return clients.find((client) => client.id === watchedClientId) ?? null;
-}, [clients, watchedClientId]);
-
-const resolvedPaymentTerm = useMemo(() => {
-  if (paymentTermOptions.length === 0) {
-    return null;
-  }
-  const clientCode = selectedClient?.paymentTerms ?? null;
-  const targetCode =
-    clientCode && clientCode.trim().length > 0
-      ? clientCode
-      : defaultPaymentTermCode;
-  const match = paymentTermOptions.find((term) => term.code === targetCode);
-  if (match) {
-    return match;
-  }
-  const fallback = paymentTermOptions.find(
-    (term) => term.code === defaultPaymentTermCode,
+  const [dueDateTouched, setDueDateTouched] = useState(
+    Boolean(initialValues?.dueDate),
   );
-  return fallback ?? paymentTermOptions[0];
-}, [defaultPaymentTermCode, paymentTermOptions, selectedClient?.paymentTerms]);
 
-const computedDueDate = useMemo(() => {
-  if (!resolvedPaymentTerm) {
-    return null;
-  }
-  const baseDate = watchedIssueDate
-    ? new Date(`${watchedIssueDate}T12:00:00`)
-    : (() => {
-        const now = new Date();
-        return new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate(),
-          12,
-          0,
-          0,
-          0,
-        );
-      })();
-  const computed =
-    resolvedPaymentTerm.days > 0
-      ? addDays(baseDate, resolvedPaymentTerm.days)
-      : baseDate;
-  return computed.toISOString().slice(0, 10);
-}, [resolvedPaymentTerm, watchedIssueDate]);
+  const paymentTermOptions = useMemo(
+    () => settings.paymentTerms ?? [],
+    [settings.paymentTerms],
+  );
+  const defaultPaymentTermCode = settings.defaultPaymentTerms;
+  const watchedClientId = form.watch("clientId");
+  const watchedIssueDate = form.watch("issueDate");
 
-const paymentTermDisplay = useMemo(() => {
-  if (!resolvedPaymentTerm) {
-    return "Payment terms unavailable";
-  }
-  const descriptor =
-    resolvedPaymentTerm.days === 0
-      ? "Due on issue date"
-      : `Due ${resolvedPaymentTerm.days} day${
-          resolvedPaymentTerm.days === 1 ? "" : "s"
-        } after issue`;
-  return `${resolvedPaymentTerm.label} · ${descriptor}`;
-}, [resolvedPaymentTerm]);
+  const selectedClient = useMemo(() => {
+    return clients.find((client) => client.id === watchedClientId) ?? null;
+  }, [clients, watchedClientId]);
 
-const paymentTermSourceLabel = selectedClient?.paymentTerms
-  ? "Client default"
-  : "Settings default";
+  const resolvedPaymentTerm = useMemo(() => {
+    if (paymentTermOptions.length === 0) {
+      return null;
+    }
+    const clientCode = selectedClient?.paymentTerms ?? null;
+    const targetCode =
+      clientCode && clientCode.trim().length > 0
+        ? clientCode
+        : defaultPaymentTermCode;
+    const match = paymentTermOptions.find((term) => term.code === targetCode);
+    if (match) {
+      return match;
+    }
+    const fallback = paymentTermOptions.find(
+      (term) => term.code === defaultPaymentTermCode,
+    );
+    return fallback ?? paymentTermOptions[0];
+  }, [
+    defaultPaymentTermCode,
+    paymentTermOptions,
+    selectedClient?.paymentTerms,
+  ]);
+
+  const computedDueDate = useMemo(() => {
+    if (!resolvedPaymentTerm) {
+      return null;
+    }
+    const baseDate = watchedIssueDate
+      ? new Date(`${watchedIssueDate}T12:00:00`)
+      : (() => {
+          const now = new Date();
+          return new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            12,
+            0,
+            0,
+            0,
+          );
+        })();
+    const computed =
+      resolvedPaymentTerm.days > 0
+        ? addDays(baseDate, resolvedPaymentTerm.days)
+        : baseDate;
+    return computed.toISOString().slice(0, 10);
+  }, [resolvedPaymentTerm, watchedIssueDate]);
+
+  const paymentTermDisplay = useMemo(() => {
+    if (!resolvedPaymentTerm) {
+      return "COD • Due immediately";
+    }
+    const descriptor =
+      resolvedPaymentTerm.days === 0
+        ? "Due immediately"
+        : `Due ${resolvedPaymentTerm.days} day${
+            resolvedPaymentTerm.days === 1 ? "" : "s"
+          } after issue`;
+    return `${resolvedPaymentTerm.label} • ${descriptor}`;
+  }, [resolvedPaymentTerm]);
+
+  const paymentTermSourceLabel = resolvedPaymentTerm
+    ? selectedClient?.paymentTerms
+      ? "Client default"
+      : "Settings default"
+    : "Fallback";
 
   useEffect(() => {
     if (initialValues) {
@@ -340,35 +348,38 @@ const paymentTermSourceLabel = selectedClient?.paymentTerms
       discountValue: 0,
       productTemplateId: null,
     });
-}
+  }
 
-function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
-  const lines = values.lines ?? [];
-  const lineTotals = lines.map((line) =>
-    calculateLineTotal({
-      quantity: line.quantity,
-      unitPrice: line.unitPrice,
-      discountType: line.discountType,
-      discountValue: line.discountValue ?? 0,
-    }),
-  );
+  function useInvoiceTotals(
+    values: InvoiceFormValues,
+    settings: SettingsInput,
+  ) {
+    const lines = values.lines ?? [];
+    const lineTotals = lines.map((line) =>
+      calculateLineTotal({
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discountType: line.discountType,
+        discountValue: line.discountValue ?? 0,
+      }),
+    );
 
-  const { subtotal, total, tax, discounted } = calculateDocumentTotals({
-    lines: lineTotals.map((total) => ({ total })),
-    discountType: values.discountType,
-    discountValue: values.discountValue ?? 0,
-    shippingCost: values.shippingCost ?? 0,
-    taxRate: values.taxRate ?? settings.taxRate ?? 0,
-  });
+    const { subtotal, total, tax, discounted } = calculateDocumentTotals({
+      lines: lineTotals.map((total) => ({ total })),
+      discountType: values.discountType,
+      discountValue: values.discountValue ?? 0,
+      shippingCost: values.shippingCost ?? 0,
+      taxRate: values.taxRate ?? settings.taxRate ?? 0,
+    });
 
-  return {
-    subtotal,
-    discounted,
-    tax,
-    total,
-    shippingCost: values.shippingCost ?? 0,
-  };
-}
+    return {
+      subtotal,
+      discounted,
+      tax,
+      total,
+      shippingCost: values.shippingCost ?? 0,
+    };
+  }
 
   function removeLine(index: number) {
     linesFieldArray.remove(index);
@@ -403,9 +414,9 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
         className="space-y-8"
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       >
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-zinc-900">
+            <CardTitle className="text-base font-semibold text-foreground">
               Invoice details
             </CardTitle>
           </CardHeader>
@@ -451,17 +462,28 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                   </FormItem>
                 )}
               />
-              <div className="col-span-full rounded-xl border border-zinc-200/80 bg-white/70 p-4 text-sm text-zinc-600">
+              <div className="col-span-full rounded-2xl border border-border bg-surface-subtle/80 p-4 text-sm text-muted-foreground">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/70">
                       Payment terms
                     </p>
-                    <p className="text-sm text-zinc-600">{paymentTermDisplay}</p>
+                    <p className="text-sm text-foreground/80">
+                      {paymentTermDisplay}
+                    </p>
+                    {computedDueDate ? (
+                      <p className="text-xs text-muted-foreground/90">
+                        Suggested due date{" "}
+                        {format(
+                          new Date(`${computedDueDate}T12:00:00`),
+                          "dd MMM yyyy",
+                        )}
+                      </p>
+                    ) : null}
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-zinc-300/70 text-xs font-medium uppercase tracking-wide text-zinc-600"
+                    className="border border-border bg-surface-overlay text-xs font-medium uppercase tracking-[0.25em] text-muted-foreground"
                   >
                     {paymentTermSourceLabel}
                   </Badge>
@@ -493,6 +515,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                           type="button"
                           variant="ghost"
                           size="sm"
+                          className="rounded-full"
                           onClick={() => {
                             setDueDateTouched(false);
                             form.setValue("dueDate", computedDueDate, {
@@ -598,9 +621,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                     <FormLabel>Shipping method</FormLabel>
                     <Select
                       value={
-                        field.value
-                          ? field.value
-                          : NO_SHIPPING_OPTION_VALUE
+                        field.value ? field.value : NO_SHIPPING_OPTION_VALUE
                       }
                       onValueChange={(value) =>
                         field.onChange(
@@ -688,25 +709,253 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
           </CardContent>
         </Card>
 
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-zinc-900">
+            <CardTitle className="text-base font-semibold text-foreground">
               Line items
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ScrollArea className="max-h-[60vh] rounded-2xl border border-zinc-200/70">
+            {/* Mobile view */}
+            <div className="space-y-4 md:hidden">
+              {linesFieldArray.fields.map((field, index) => {
+                const line = form.watch(`lines.${index}`);
+                const template = line.productTemplateId
+                  ? templates.find(
+                      (item) => item.id === line.productTemplateId,
+                    )
+                  : undefined;
+
+                const lineTotal = calculateLineTotal({
+                  quantity: line.quantity,
+                  unitPrice: line.unitPrice,
+                  discountType: line.discountType,
+                  discountValue: line.discountValue ?? 0,
+                });
+
+                return (
+                  <Card key={field.id} className="rounded-2xl border border-border bg-background">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <Select
+                            value={
+                              line.productTemplateId
+                                ? String(line.productTemplateId)
+                                : MANUAL_TEMPLATE_OPTION_VALUE
+                            }
+                            onValueChange={(value) =>
+                              applyTemplate(
+                                index,
+                                value === MANUAL_TEMPLATE_OPTION_VALUE
+                                  ? null
+                                  : Number(value),
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Manual entry" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={MANUAL_TEMPLATE_OPTION_VALUE}>
+                                Manual entry
+                              </SelectItem>
+                              {templates.map((templateOption) => (
+                                <SelectItem
+                                  key={templateOption.id}
+                                  value={String(templateOption.id)}
+                                >
+                                  {templateOption.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => linesFieldArray.remove(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {template?.pricingType === "CALCULATED" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-fit rounded-full"
+                          onClick={() =>
+                            setCalculator({
+                              index,
+                              templateId: template.id,
+                            })
+                          }
+                        >
+                          Calculator
+                        </Button>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Name
+                          </label>
+                          <Input
+                            value={line.name}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.name`,
+                                event.target.value,
+                              )
+                            }
+                            placeholder="Line name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Description
+                          </label>
+                          <Textarea
+                            value={line.description ?? ""}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.description`,
+                                event.target.value,
+                              )
+                            }
+                            rows={2}
+                            placeholder="Description (optional)"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Qty
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min={0}
+                              value={line.quantity}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.quantity`,
+                                  normalizeNumber(event.target.valueAsNumber),
+                                )
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Unit
+                            </label>
+                            <Input
+                              value={line.unit ?? ""}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.unit`,
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="unit"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Unit Price
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={line.unitPrice}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.unitPrice`,
+                                normalizeNumber(event.target.valueAsNumber),
+                              )
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Discount
+                            </label>
+                            <Select
+                              value={line.discountType}
+                              onValueChange={(value: (typeof discountTypeValues)[number]) =>
+                                form.setValue(`lines.${index}.discountType`, value)
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {discountTypeValues.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {value.toLowerCase()}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Value
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={line.discountValue ?? 0}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.discountValue`,
+                                  normalizeNumber(event.target.valueAsNumber),
+                                )
+                              }
+                              disabled={line.discountType === "NONE"}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="pt-3">
+                      <div className="flex justify-between items-center w-full">
+                        <span className="text-sm text-muted-foreground">
+                          Line total
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(lineTotal)}
+                        </span>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Desktop view */}
+            <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[160px]">Template</TableHead>
+                    <TableHead>Template</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead className="w-[90px]">Qty</TableHead>
-                    <TableHead className="w-[100px]">Unit</TableHead>
-                    <TableHead className="w-[120px]">Unit price</TableHead>
-                    <TableHead className="w-[150px]">Discount</TableHead>
-                    <TableHead className="w-[110px]">Total</TableHead>
-                    <TableHead className="w-[90px]">Actions</TableHead>
+                    <TableHead className="w-24">Qty</TableHead>
+                    <TableHead className="w-24">Unit</TableHead>
+                    <TableHead className="w-32">Unit price</TableHead>
+                    <TableHead className="w-32">Discount</TableHead>
+                    <TableHead className="w-32">Total</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -765,7 +1014,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="mt-2"
+                              className="mt-2 rounded-full"
                               onClick={() =>
                                 setCalculator({
                                   index,
@@ -878,7 +1127,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <p className="font-medium text-zinc-900">
+                          <p className="font-medium text-foreground">
                             {formatCurrency(lineTotal)}
                           </p>
                         </TableCell>
@@ -887,6 +1136,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                             <Button
                               type="button"
                               variant="outline"
+                              className="rounded-full"
                               onClick={addLine}
                             >
                               Add
@@ -895,7 +1145,7 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className="text-red-500"
+                                className="rounded-full text-red-500"
                                 onClick={() => removeLine(index)}
                               >
                                 Remove
@@ -908,28 +1158,28 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
                   })}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
 
-            <Button type="button" variant="outline" onClick={addLine}>
+            <Button type="button" variant="outline" className="rounded-full" onClick={addLine}>
               Add line item
             </Button>
           </CardContent>
           <CardFooter className="justify-end">
-            <div className="flex flex-col items-end gap-1 text-sm text-zinc-600">
-              <div className="flex min-w-[240px] justify-between gap-4">
+            <div className="flex flex-col items-end gap-1 text-sm text-muted-foreground">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Subtotal</span>
                 <span>{formatCurrency(totals.subtotal)}</span>
               </div>
-              <div className="flex min-w-[240px] justify-between gap-4">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Shipping</span>
                 <span>{formatCurrency(totals.shippingCost)}</span>
               </div>
-              <div className="flex min-w-[240px] justify-between gap-4">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Tax</span>
                 <span>{formatCurrency(totals.tax)}</span>
               </div>
               <Separator className="my-2" />
-              <div className="flex min-w-[240px] justify-between gap-4 text-base font-semibold text-zinc-900">
+              <div className="flex min-w-0 justify-between gap-4 text-base font-semibold text-foreground">
                 <span>Total</span>
                 <span>{formatCurrency(totals.total)}</span>
               </div>
@@ -938,10 +1188,10 @@ function useInvoiceTotals(values: InvoiceFormValues, settings: SettingsInput) {
         </Card>
 
         <div className="flex justify-between">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => router.back()}>
             Cancel
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" className="rounded-full" disabled={mutation.isPending}>
             {mutation.isPending
               ? "Saving…"
               : mode === "create"

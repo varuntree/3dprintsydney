@@ -1,13 +1,24 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, type ReactNode } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { InlineLoader } from "@/components/ui/loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -20,22 +31,31 @@ import { Badge } from "@/components/ui/badge";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ActionButton } from "@/components/ui/action-button";
 import { mutateJson, getJson } from "@/lib/http";
-import { clientNoteSchema } from "@/lib/schemas/clients";
+import { clientNoteSchema, clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
 import { formatDate } from "@/lib/datetime";
-import type { SettingsPayload } from "@/components/settings/settings-form";
 import { ActionButtonGroup, ActionGroupContainer } from "@/components/ui/action-button-group";
-import { NavigationLink } from "@/components/ui/navigation-link";
+import { usePaymentTerms, findPaymentTermLabel } from "@/hooks/use-payment-terms";
 import { useNavigation } from "@/hooks/useNavigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Mail, Phone, Edit, FileText, Receipt } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export type ClientDetailRecord = {
@@ -47,6 +67,7 @@ export type ClientDetailRecord = {
     phone: string;
     address: string;
     paymentTerms: string;
+    abn: string | null;
     notes: string;
     tags: string[];
     createdAt: string;
@@ -96,6 +117,21 @@ type NoteFormValues = {
   body: string;
 };
 
+type ClientFormValues = {
+  name: string;
+  company?: string;
+  abn?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  paymentTerms?: string;
+  notes?: string;
+  tags?: string[];
+};
+
+const PAYMENT_TERMS_INHERIT_VALUE = "__inherit_payment_terms__";
+const clientFormResolver = zodResolver(clientInputSchema) as Resolver<ClientFormValues>;
+
 export function ClientDetail({ detail }: ClientDetailProps) {
   const queryClient = useQueryClient();
 
@@ -110,36 +146,79 @@ export function ClientDetail({ detail }: ClientDetailProps) {
   const current = data ?? detail;
   const clientCode = current.client.id.toString().padStart(5, "0");
 
-  const settingsQuery = useQuery({
-    queryKey: ["settings"],
-    queryFn: () => getJson<SettingsPayload>("/api/settings"),
-    staleTime: 1000 * 60,
-  });
+  const {
+    terms: paymentTerms,
+    defaultTermCode,
+    isLoading: paymentTermsLoading,
+  } = usePaymentTerms();
 
   const paymentTermDisplay = useMemo(() => {
-    const settings = settingsQuery.data;
-    const terms = settings?.paymentTerms ?? [];
-    const resolveLabel = (code: string) => {
-      const term = terms.find((item) => item.code === code);
-      if (!term) {
-        return code || "—";
-      }
-      if (term.days === 0) {
-        return `${term.label} (due immediately)`;
-      }
-      return `${term.label} (${term.days} days)`;
-    };
-
-    if (current.client.paymentTerms) {
-      return resolveLabel(current.client.paymentTerms);
+    const explicitTerm = findPaymentTermLabel(paymentTerms, current.client.paymentTerms);
+    if (explicitTerm) {
+      return formatPaymentTerm(explicitTerm);
     }
 
-    if (settings?.defaultPaymentTerms) {
-      return `${resolveLabel(settings.defaultPaymentTerms)} (default)`;
+    const fallback = findPaymentTermLabel(paymentTerms, defaultTermCode);
+    if (fallback) {
+      const base = formatPaymentTerm(fallback);
+      return defaultTermCode ? `${base} (default)` : base;
     }
 
-    return "—";
-  }, [current.client.paymentTerms, settingsQuery.data]);
+    return current.client.paymentTerms || defaultTermCode || "—";
+  }, [paymentTerms, current.client.paymentTerms, defaultTermCode]);
+
+  const [editOpen, setEditOpen] = useState(false);
+
+  const initialFormValues = useMemo(
+    () => toFormValues(current.client),
+    [current.client],
+  );
+
+  const editForm = useForm<ClientFormValues>({
+    resolver: clientFormResolver,
+    defaultValues: initialFormValues,
+  });
+
+  useEffect(() => {
+    if (!editOpen) {
+      editForm.reset(toFormValues(current.client));
+    }
+  }, [current.client, editForm, editOpen]);
+
+  useEffect(() => {
+    if (editOpen) {
+      editForm.reset(toFormValues(current.client));
+    }
+  }, [editOpen, current.client, editForm]);
+
+  useEffect(() => {
+    if (paymentTermsLoading || !editOpen) return;
+    const currentTerm = editForm.getValues("paymentTerms");
+    if (!currentTerm && defaultTermCode) {
+      editForm.setValue("paymentTerms", defaultTermCode, { shouldDirty: false });
+    }
+  }, [paymentTermsLoading, defaultTermCode, editOpen, editForm]);
+
+  const editMutation = useMutation({
+    mutationFn: (values: ClientFormValues) =>
+      mutateJson(`/api/clients/${current.client.id}`, {
+        method: "PUT",
+        body: JSON.stringify(values),
+      }),
+    onSuccess: async () => {
+      toast.success("Client updated");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client", current.client.id] }),
+        queryClient.invalidateQueries({ queryKey: ["clients"] }),
+      ]);
+      setEditOpen(false);
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update client",
+      );
+    },
+  });
 
   const noteForm = useForm<NoteFormValues>({
     resolver: zodResolver(clientNoteSchema),
@@ -184,22 +263,27 @@ export function ClientDetail({ detail }: ClientDetailProps) {
   const tagChips = current.client.tags.length ? (
     <div className="flex flex-wrap gap-2">
       {current.client.tags.map((tag) => (
-        <Badge key={tag} variant="outline" className="border-zinc-200 text-xs uppercase tracking-wide text-muted-foreground">
+        <Badge key={tag} variant="outline" className="border-border text-xs uppercase tracking-wide text-muted-foreground">
           {tag}
         </Badge>
       ))}
     </div>
   ) : null;
 
+  const onEditSubmit = editForm.handleSubmit((values) =>
+    editMutation.mutate({ ...values, tags: current.client.tags }),
+  );
+
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <PageHeader
         kicker={
           <div className="flex items-center gap-2">
             <StatusBadge status="active" size="sm" />
             <Badge
               variant="outline"
-              className="border-transparent bg-zinc-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/90"
+              className="border-transparent bg-primary px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-primary-foreground"
             >
               {`Client ${clientCode}`}
             </Badge>
@@ -213,27 +297,34 @@ export function ClientDetail({ detail }: ClientDetailProps) {
         actions={
           <ActionGroupContainer>
             <ActionButtonGroup title="Actions" variant="primary">
-              <NavigationLink
+              <ActionButton
                 href={`/quotes/new?clientId=${current.client.id}`}
-                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                className="rounded-full"
               >
-                <FileText className="mr-2 h-4 w-4" />
-                New Quote
-              </NavigationLink>
-              <NavigationLink
+                <FileText className="h-4 w-4" />
+                <span>New Quote</span>
+              </ActionButton>
+              <ActionButton
                 href={`/invoices/new?clientId=${current.client.id}`}
-                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                variant="outline"
+                className="rounded-full"
               >
-                <Receipt className="mr-2 h-4 w-4" />
-                New Invoice
-              </NavigationLink>
+                <Receipt className="h-4 w-4" />
+                <span>New Invoice</span>
+              </ActionButton>
             </ActionButtonGroup>
 
             <ActionButtonGroup title="Manage" variant="secondary">
-              <Button variant="ghost" size="sm" disabled>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Details
-              </Button>
+              <ActionButton
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setEditOpen(true)}
+                disabled={editMutation.isPending}
+              >
+                <Edit className="h-4 w-4" />
+                <span>Edit Details</span>
+              </ActionButton>
             </ActionButtonGroup>
           </ActionGroupContainer>
         }
@@ -242,33 +333,33 @@ export function ClientDetail({ detail }: ClientDetailProps) {
       </PageHeader>
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-zinc-900">
+            <CardTitle className="text-base font-semibold text-foreground">
               Client
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm text-zinc-600">
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Name
               </p>
-              <p className="text-zinc-900 font-medium">{current.client.name}</p>
+              <p className="text-foreground font-medium">{current.client.name}</p>
               {current.client.company ? (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted-foreground">
                   {current.client.company}
                 </p>
               ) : null}
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Contact
               </p>
               <p>{current.client.email || "—"}</p>
               <p>{current.client.phone || "—"}</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Address
               </p>
               <p className="whitespace-pre-wrap">
@@ -276,7 +367,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               </p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Payment Terms
               </p>
               <p>{paymentTermDisplay}</p>
@@ -287,7 +378,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                   <Badge
                     key={tag}
                     variant="outline"
-                    className="border-zinc-300/70 text-zinc-600"
+                    className="border-border text-muted-foreground"
                   >
                     {tag}
                   </Badge>
@@ -314,7 +405,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
           </div>
 
           <Tabs defaultValue="invoices" className="space-y-4">
-            <TabsList className="bg-white/80 backdrop-blur">
+            <TabsList className="flex flex-wrap gap-2 rounded-3xl border border-border bg-surface-overlay p-1">
               <TabsTrigger value="invoices">Invoices</TabsTrigger>
               <TabsTrigger value="quotes">Quotes</TabsTrigger>
               <TabsTrigger value="jobs">Jobs</TabsTrigger>
@@ -328,7 +419,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                   key: `inv-${invoice.id}`,
                   href: `/invoices/${invoice.id}`,
                   cells: [
-                    <span key={`inv-code-${invoice.id}`} className="font-medium text-zinc-900">
+                    <span key={`inv-code-${invoice.id}`} className="font-medium text-foreground">
                       {invoice.number}
                     </span>,
                     <StatusBadge key={`inv-status-${invoice.id}`} status={invoice.status} size="sm" />,
@@ -347,7 +438,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                   key: `quote-${quote.id}`,
                   href: `/quotes/${quote.id}`,
                   cells: [
-                    <span key={`quote-code-${quote.id}`} className="font-medium text-zinc-900">
+                    <span key={`quote-code-${quote.id}`} className="font-medium text-foreground">
                       {quote.number}
                     </span>,
                     <StatusBadge key={`quote-status-${quote.id}`} status={quote.status} size="sm" />,
@@ -364,20 +455,20 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                 rows={current.jobs.map((job) => ({
                   key: `job-${job.id}`,
                   cells: [
-                    <span key={`job-${job.id}`} className="font-medium text-zinc-900">
+                    <span key={`job-${job.id}`} className="font-medium text-foreground">
                       {job.title}
                     </span>,
                     <Badge
                       key={`job-status-${job.id}`}
                       variant="outline"
-                      className="border-zinc-300/70 text-zinc-600"
+                      className="border-border text-muted-foreground"
                     >
                       {job.status.toLowerCase()}
                     </Badge>,
                     <Badge
                       key={`job-priority-${job.id}`}
                       variant="outline"
-                      className="border-zinc-300/70 text-zinc-600"
+                      className="border-border text-muted-foreground"
                     >
                       {job.priority.toLowerCase()}
                     </Badge>,
@@ -387,29 +478,33 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               />
             </TabsContent>
             <TabsContent value="activity">
-              <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+              <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium text-zinc-500">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
                     Recent Activity
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {current.activity.length === 0 ? (
-                    <p className="text-sm text-zinc-500">No activity yet.</p>
+                    <EmptyState
+                      title="No activity yet"
+                      description="Notes, invoices, and quotes for this client will appear here."
+                      className="rounded-2xl border-border"
+                    />
                   ) : (
                     <div className="space-y-3">
                       {current.activity.map((entry) => (
                         <div
                           key={entry.id}
-                          className="rounded-xl border border-zinc-200/70 bg-white/80 p-3 backdrop-blur"
+                          className="rounded-2xl border border-border bg-surface-overlay p-3"
                         >
-                          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                             {entry.action}
                           </p>
-                          <p className="text-sm text-zinc-700">
+                          <p className="text-sm text-foreground">
                             {entry.message}
                           </p>
-                          <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground/80">
                             <span>
                               {new Date(entry.createdAt).toLocaleString()}
                             </span>
@@ -428,12 +523,17 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                       )}
                       className="space-y-2"
                     >
+                      {noteMutation.isPending ? (
+                        <div className="flex justify-start">
+                          <InlineLoader label="Saving note…" className="text-xs" />
+                        </div>
+                      ) : null}
                       <FormField
                         control={noteForm.control}
                         name="body"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm text-zinc-600">
+                            <FormLabel className="text-sm text-muted-foreground">
                               Add internal note
                             </FormLabel>
                             <FormControl>
@@ -447,9 +547,14 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                           </FormItem>
                         )}
                       />
-                      <Button type="submit" disabled={noteMutation.isPending}>
-                        {noteMutation.isPending ? "Adding…" : "Add note"}
-                      </Button>
+                      <LoadingButton
+                        type="submit"
+                        loading={noteMutation.isPending}
+                        loadingText="Saving note…"
+                        className="gap-2"
+                      >
+                        Add note
+                      </LoadingButton>
                     </form>
                   </Form>
                 </CardContent>
@@ -458,20 +563,233 @@ export function ClientDetail({ detail }: ClientDetailProps) {
           </Tabs>
         </div>
       </div>
-    </div>
+      </div>
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={(next) => {
+          if (!next) {
+            setEditOpen(false);
+          } else {
+            setEditOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5">
+          <DialogHeader>
+            <DialogTitle>Edit Client</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={onEditSubmit} className="space-y-4">
+              {editMutation.isPending ? (
+                <div className="flex justify-start">
+                  <InlineLoader label="Saving client…" className="text-sm" />
+                </div>
+              ) : null}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={editForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Client name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="company"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Company" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField
+                  control={editForm.control}
+                  name="abn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ABN</FormLabel>
+                      <FormControl>
+                        <Input placeholder="00 000 000 000" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="contact@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+61" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={editForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder="Street, City, State" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="paymentTerms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment terms</FormLabel>
+                    <Select
+                      value={
+                        field.value && field.value.trim().length > 0
+                          ? field.value
+                          : PAYMENT_TERMS_INHERIT_VALUE
+                      }
+                      onValueChange={(value) =>
+                        field.onChange(
+                          value === PAYMENT_TERMS_INHERIT_VALUE ? "" : value,
+                        )
+                      }
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select payment terms" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={PAYMENT_TERMS_INHERIT_VALUE}>
+                          Use settings default
+                        </SelectItem>
+                        {paymentTerms.map((term) => (
+                          <SelectItem key={term.code} value={term.code}>
+                            {term.label}{" "}
+                            {term.days === 0 ? "(due immediately)" : `(${term.days} days)`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {paymentTermsLoading ? (
+                      <InlineLoader label="Loading payment terms…" className="text-xs" />
+                    ) : null}
+                    <FormDescription>
+                      Manage options in Settings → Payments.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editForm.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Internal notes</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} placeholder="Project background, preferences" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditOpen(false)}
+                  disabled={editMutation.isPending}
+                  className="gap-2 rounded-full"
+                >
+                  Cancel
+                </Button>
+                <LoadingButton
+                  type="submit"
+                  loading={editMutation.isPending}
+                  loadingText="Saving client…"
+                  className="gap-2 rounded-full"
+                >
+                  Save changes
+                </LoadingButton>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
+}
+
+function toFormValues(client: ClientDetailRecord["client"]): ClientFormValues {
+  return {
+    name: client.name ?? "",
+    company: client.company ?? "",
+    abn: client.abn ?? "",
+    email: client.email ?? "",
+    phone: client.phone ?? "",
+    address: client.address ?? "",
+    paymentTerms: client.paymentTerms ?? "",
+    notes: client.notes ?? "",
+    tags: client.tags ?? [],
+  };
+}
+
+function formatPaymentTerm(term: { label: string; days: number }): string {
+  if (!term) return "—";
+  return term.days === 0
+    ? `${term.label} (due immediately)`
+    : `${term.label} (${term.days} days)`;
 }
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+    <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
       <CardHeader>
-        <CardTitle className="text-xs font-medium uppercase tracking-[0.3em] text-zinc-400">
+        <CardTitle className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground/80">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold text-zinc-900">{value}</div>
+        <div className="text-2xl font-semibold text-foreground">{value}</div>
       </CardContent>
     </Card>
   );
@@ -498,7 +816,7 @@ function DataTable({ columns, rows, emptyMessage }: DataTableProps) {
   };
 
   return (
-    <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+    <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
@@ -513,7 +831,7 @@ function DataTable({ columns, rows, emptyMessage }: DataTableProps) {
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-20 text-center text-sm text-zinc-500"
+                  className="h-20 text-center text-sm text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
@@ -532,8 +850,9 @@ function DataTable({ columns, rows, emptyMessage }: DataTableProps) {
                     }
                   } : undefined}
                   className={cn(
-                    row.href &&
-                      "cursor-pointer transition-colors hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20",
+                    row.href
+                      ? "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+                      : "hover:bg-muted/20",
                   )}
                 >
                   {row.cells.map((cell, cellIndex) => (

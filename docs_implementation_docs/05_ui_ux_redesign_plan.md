@@ -46,3 +46,8 @@ This plan aligns the user-facing flows with the old app’s behaviour while usin
 - Calculator produces expected totals and persists breakdown.
 - PDF matches legacy layout with logo and payment link handling.
 
+
+## Implementation Notes
+- 2025-09-29: Dashboard tokens propagated across navigation, settings, clients, quotes, invoices, calculator dialog, reports.
+- Stripe status hook added to disable payment actions when not configured; invoice PDFs now monochrome with terms badge.
+- Remaining next steps tracked in ai_docs/temp_plan/run_20250929_1217.

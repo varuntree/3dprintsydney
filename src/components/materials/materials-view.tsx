@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -39,7 +38,9 @@ import {
 } from "@/components/ui/form";
 import { Pencil, Trash2 } from "lucide-react";
 import { LoadingButton } from "@/components/ui/loading-button";
-import { PageHeader } from "@/components/ui/page-header";
+import { DataCard } from "@/components/ui/data-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Package2 } from "lucide-react";
 
 export type MaterialRecord = {
   id: number;
@@ -181,26 +182,37 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
     return total / grouped.length;
   }, [grouped]);
 
+  const categories = useMemo(() => {
+    const categorySet = new Set(grouped.map(m => m.category).filter(Boolean));
+    return categorySet.size;
+  }, [grouped]);
+
+  const mostExpensive = useMemo(() => {
+    if (grouped.length === 0) return 0;
+    return Math.max(...grouped.map(material => material.costPerGram));
+  }, [grouped]);
+
   return (
-    <>
-      <PageHeader
-        title="Materials"
-        description="Maintain material costs and metadata for accurate pricing."
-        meta={
-          <div className="flex flex-wrap gap-4 text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-            <span>{grouped.length} tracked</span>
-            <span>{formatCurrency(averageCost)} avg $/g</span>
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Materials
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Maintain material costs and metadata for accurate pricing.
+            </p>
           </div>
-        }
-        actions={
           <Dialog
             open={open}
             onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
           >
             <DialogTrigger asChild>
-              <Button onClick={handleCreate}>Add Material</Button>
+              <Button className="rounded-full" onClick={handleCreate}>Add Material</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-w-lg rounded-3xl">
               <DialogHeader>
                 <DialogTitle>
                   {editing ? `Edit ${editing.name}` : "New material"}
@@ -294,6 +306,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
                   <Button
                     type="button"
                     variant="outline"
+                    className="rounded-full"
                     onClick={closeDialog}
                     disabled={isSubmitting}
                   >
@@ -301,6 +314,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
                   </Button>
                   <LoadingButton
                     type="submit"
+                    className="rounded-full"
                     loading={isSubmitting}
                     loadingText="Saving…"
                   >
@@ -311,16 +325,65 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
             </Form>
           </DialogContent>
         </Dialog>
-        }
-      />
+        </div>
+        <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Total Materials
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{grouped.length}</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Average Cost
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{formatCurrency(averageCost)}/g</p>
+          </div>
+          <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5">
+            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+              Categories
+            </p>
+            <p className="mt-2 text-lg font-semibold text-foreground">{categories}</p>
+          </div>
+        </div>
+      </header>
 
-      <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-500">
+      {/* Metrics Section */}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DataCard
+          title="Total Materials"
+          value={grouped.length}
+          description="Materials tracked in catalog"
+          tone="slate"
+        />
+        <DataCard
+          title="Average Cost"
+          value={`${formatCurrency(averageCost)}/g`}
+          description="Mean cost per gram"
+          tone="emerald"
+        />
+        <DataCard
+          title="Categories"
+          value={categories}
+          description="Unique material categories"
+          tone="sky"
+        />
+        <DataCard
+          title="Most Expensive"
+          value={`${formatCurrency(mostExpensive)}/g`}
+          description="Highest cost material"
+          tone="amber"
+        />
+      </section>
+
+      {/* Materials Table */}
+      <div className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+        <div className="rounded-3xl border border-border bg-surface-elevated/80 px-6 py-4 shadow-sm shadow-black/5 backdrop-blur">
+          <h2 className="text-sm font-medium text-muted-foreground">
             Material Catalog
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+          </h2>
+        </div>
+        <div className="p-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -334,12 +397,17 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
             <TableBody>
               {grouped.length === 0 ? (
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-sm text-zinc-500"
-                  >
-                    No materials yet. Add your first material to start pricing
-                    accurately.
+                  <TableCell colSpan={5} className="p-0">
+                    <EmptyState
+                      title="No materials yet"
+                      description="Add your first material to start pricing accurately."
+                      icon={<Package2 className="h-8 w-8" />}
+                      actions={
+                        <Button className="rounded-full" onClick={handleCreate}>
+                          Add Material
+                        </Button>
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -382,6 +450,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full"
                           onClick={() => handleEdit(material)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -389,9 +458,9 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="rounded-full text-red-500 hover:text-red-600"
                           onClick={() => handleDelete(material)}
                           disabled={deleteMutation.isPending}
-                          className="text-red-500 hover:text-red-600"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -402,9 +471,9 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-    </>
+        </div>
+      </div>
+    </div>
   );
 }
 

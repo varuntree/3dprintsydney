@@ -1,11 +1,52 @@
+import { formatMultiline } from "@/server/pdf/templates/shared/utils";
 import type { QuoteDetail } from "@/server/services/quotes";
 import type { InvoiceDetail } from "@/server/services/invoices";
-import { formatMultiline } from "@/server/pdf/templates/shared/utils";
-import {
-  type BusinessInfo,
-  type DocumentMeta,
-  type LineItem
-} from "@/server/pdf/templates/shared/components";
+
+const PDF_THEME = {
+  text: '#0f172a',
+  textMuted: '#475569',
+  textSubtle: '#64748b',
+  accent: '#111827',
+  border: '#e2e8f0',
+  surface: '#f8fafc',
+  surfaceStrong: '#f1f5f9',
+  badgeBg: '#0f172a',
+  badgeText: '#f8fafc',
+  statusBorder: '#cbd5f5',
+  statusBackground: '#f8fafc'
+};
+
+type BusinessInfo = {
+  logoDataUrl?: string;
+  businessName?: string;
+  businessAddress?: string;
+  businessPhone?: string;
+  businessEmail?: string;
+  abn?: string;
+  bankDetails?: string;
+};
+
+type DocumentMeta = {
+  number: string;
+  type: string;
+  issueDate: Date;
+  dueDate?: Date | null;
+  expiryDate?: Date | null;
+  status: string;
+  total: number;
+};
+
+type LineItem = {
+  id: number;
+  name: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+  discountType?: string;
+  discountValue?: number;
+};
 
 type TemplateOptions = {
   logoDataUrl?: string;
@@ -18,35 +59,24 @@ type TemplateOptions = {
 };
 
 type InvoiceWithPayment = InvoiceDetail & {
-  stripeCheckoutUrl?: string;
+  stripeCheckoutUrl?: string | null;
+  qrCodeSvg?: string | null;
 };
 
 // Enhanced header with proper logo placement and professional hierarchy
 function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: DocumentMeta): string {
-  const formatDate = (date: string | Date) => {
-    return new Date(date).toLocaleDateString('en-AU', {
+  const formatDate = (date: string | Date) =>
+    new Date(date).toLocaleDateString('en-AU', {
       day: 'numeric',
       month: 'short',
-      year: 'numeric'
+      year: 'numeric',
     });
-  };
 
   const getStatusBadge = (status: string): string => {
-    const statusColors = {
-      'DRAFT': 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a;',
-      'PENDING': 'background: #fef3c7; color: #92400e; border: 1px solid #fde68a;',
-      'ACCEPTED': 'background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;',
-      'PAID': 'background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;',
-      'OVERDUE': 'background: #fecaca; color: #991b1b; border: 1px solid #fca5a5;',
-      'DECLINED': 'background: #fecaca; color: #991b1b; border: 1px solid #fca5a5;',
-      'CONVERTED': 'background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;'
-    };
-
-    const style = statusColors[status as keyof typeof statusColors] || statusColors['PENDING'];
-
+    const label = status.toLowerCase();
     return `
-      <div class="status-badge" style="${style}">
-        ${status.toLowerCase()}
+      <div class="status-badge" data-status="${label}">
+        ${label}
       </div>
     `;
   };
@@ -105,7 +135,7 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
     <style>
       .production-header {
         margin-bottom: 48px;
-        border-bottom: 2px solid #f8fafc;
+        border-bottom: 2px solid ${PDF_THEME.border};
         padding-bottom: 32px;
       }
 
@@ -128,43 +158,49 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
       }
 
       .company-logo {
-        width: 80px;
-        height: 80px;
+        width: 72px;
+        height: 72px;
         object-fit: contain;
         border-radius: 8px;
+        border: 1px solid ${PDF_THEME.border};
+        background: #fff;
       }
 
       .business-name {
         font-size: 24px;
-        font-weight: 300;
-        color: #1a365d;
+        font-weight: 400;
+        color: ${PDF_THEME.text};
         margin: 0 0 8px 0;
-        letter-spacing: -0.025em;
+        letter-spacing: -0.02em;
         line-height: 1.2;
       }
 
       .business-contact {
-        font-size: 14px;
-        color: #4a5568;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
         line-height: 1.5;
       }
 
       .address-line {
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        white-space: pre-line;
       }
 
       .contact-line {
-        margin-bottom: 4px;
+        margin-bottom: 6px;
       }
 
-      .email, .phone {
-        color: #2d3748;
+      .email,
+      .phone {
+        color: ${PDF_THEME.text};
       }
 
       .abn {
         font-size: 12px;
-        color: #718096;
+        color: ${PDF_THEME.textSubtle};
         margin-top: 8px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
       }
 
       .document-section {
@@ -181,53 +217,57 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
       }
 
       .document-type {
-        font-size: 16px;
-        font-weight: 300;
-        color: #4a5568;
+        font-size: 14px;
+        font-weight: 500;
+        color: ${PDF_THEME.textSubtle};
         margin: 0;
-        letter-spacing: 2px;
+        letter-spacing: 0.3em;
         text-transform: uppercase;
       }
 
       .status-badge {
-        padding: 4px 8px;
-        border-radius: 4px;
+        padding: 4px 10px;
+        border-radius: 999px;
         font-size: 10px;
-        font-weight: 500;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.025em;
+        letter-spacing: 0.08em;
+        border: 1px solid ${PDF_THEME.statusBorder};
+        background: ${PDF_THEME.surface};
+        color: ${PDF_THEME.text};
       }
 
       .document-number {
-        font-size: 32px;
-        font-weight: 300;
-        color: #1a365d;
-        margin-bottom: 16px;
-        letter-spacing: -0.025em;
+        font-size: 28px;
+        font-weight: 500;
+        color: ${PDF_THEME.text};
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
       }
 
       .document-dates {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
       }
 
       .date-item {
         display: flex;
         justify-content: space-between;
-        min-width: 160px;
+        gap: 16px;
+        min-width: 180px;
       }
 
       .date-label {
         font-size: 11px;
-        color: #718096;
+        color: ${PDF_THEME.textSubtle};
         text-transform: uppercase;
-        letter-spacing: 0.025em;
+        letter-spacing: 0.08em;
       }
 
       .date-value {
         font-size: 11px;
-        color: #2d3748;
+        color: ${PDF_THEME.text};
         font-weight: 500;
       }
     </style>
@@ -235,6 +275,39 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
 }
 
 // Enhanced client info with better layout
+function renderProductionTermsInfo(label: string): string {
+  return `
+    <div class="terms-card no-break">
+      <div class="terms-title">Payment Terms</div>
+      <p class="terms-copy">${label}</p>
+    </div>
+
+    <style>
+      .terms-card {
+        border: 1px solid ${PDF_THEME.border};
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 30px;
+        background: #fff;
+        max-width: 320px;
+      }
+      .terms-title {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: ${PDF_THEME.textSubtle};
+        margin-bottom: 6px;
+      }
+      .terms-copy {
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
+        margin: 0;
+      }
+    </style>
+  `;
+}
+
 function renderProductionClientInfo(client: {
   name: string;
   company?: string;
@@ -260,47 +333,47 @@ function renderProductionClientInfo(client: {
 
     <style>
       .production-client-info {
-        margin-bottom: 40px;
+        margin-bottom: 36px;
       }
 
       .section-title {
-        font-size: 12px;
-        font-weight: 500;
-        color: #718096;
+        font-size: 11px;
+        font-weight: 600;
+        color: ${PDF_THEME.textSubtle};
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.12em;
         margin: 0 0 12px 0;
-        border-bottom: 1px solid #e2e8f0;
-        padding-bottom: 4px;
       }
 
       .client-details {
-        line-height: 1.5;
+        line-height: 1.55;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
       }
 
       .client-name {
         font-size: 16px;
-        font-weight: 500;
-        color: #1a365d;
+        font-weight: 600;
+        color: ${PDF_THEME.text};
         margin-bottom: 4px;
       }
 
       .client-company {
-        font-size: 14px;
-        color: #4a5568;
-        margin-bottom: 8px;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
+        margin-bottom: 6px;
       }
 
       .client-address {
-        font-size: 14px;
-        color: #4a5568;
-        margin-bottom: 8px;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
+        margin-bottom: 6px;
         white-space: pre-line;
       }
 
       .client-contact {
-        font-size: 14px;
-        color: #4a5568;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
       }
 
       .contact-item {
@@ -331,6 +404,7 @@ function renderProductionLineItems(lineItems: LineItem[]): string {
                 <td class="item-description">
                   <div class="item-name">${item.name}</div>
                   ${item.description ? `<div class="item-detail">${item.description}</div>` : ''}
+                  ${item.discountType && item.discountType !== 'NONE' ? `<div class="item-detail">Discount: ${item.discountType === 'PERCENT' ? `${item.discountValue ?? 0}%` : `$${(item.discountValue ?? 0).toFixed(2)}`}</div>` : ''}
                 </td>
                 <td class="item-qty">${item.quantity}${item.unit ? ` ${item.unit}` : ''}</td>
                 <td class="item-rate">$${item.unitPrice.toFixed(2)}</td>
@@ -344,54 +418,44 @@ function renderProductionLineItems(lineItems: LineItem[]): string {
 
     <style>
       .production-line-items {
-        margin-bottom: 40px;
+        margin-bottom: 36px;
       }
 
       .items-table-wrapper {
-        margin-top: 16px;
+        margin-top: 14px;
       }
 
       .items-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 14px;
+        font-size: 13px;
+        color: ${PDF_THEME.text};
       }
 
       .items-table th {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        padding: 12px;
+        background: ${PDF_THEME.surface};
+        border: 1px solid ${PDF_THEME.border};
+        padding: 10px 12px;
         text-align: left;
-        font-weight: 500;
-        font-size: 12px;
-        color: #4a5568;
+        font-weight: 600;
+        font-size: 11px;
+        color: ${PDF_THEME.textSubtle};
         text-transform: uppercase;
-        letter-spacing: 0.025em;
-        border-bottom: 2px solid #cbd5e0;
+        letter-spacing: 0.08em;
       }
 
       .col-description {
-        width: 50%;
+        width: 52%;
       }
 
       .col-qty {
         width: 12%;
-        text-align: center;
-      }
-
-      .col-rate {
-        width: 19%;
         text-align: right;
       }
 
+      .col-rate,
       .col-amount {
-        width: 19%;
-        text-align: right;
-      }
-
-      .items-table th.col-qty,
-      .items-table th.col-rate,
-      .items-table th.col-amount {
+        width: 18%;
         text-align: right;
       }
 
@@ -401,45 +465,34 @@ function renderProductionLineItems(lineItems: LineItem[]): string {
       }
 
       .items-table td {
-        border: 1px solid #e2e8f0;
-        padding: 16px 12px;
+        border: 1px solid ${PDF_THEME.border};
+        padding: 14px 12px;
         vertical-align: top;
-      }
-
-      .items-table tbody tr:nth-child(even) {
-        background: #fafbfc;
-      }
-
-      .items-table tbody tr:hover {
-        background: #f1f5f9;
+        background: #fff;
       }
 
       .item-name {
-        font-weight: 500;
-        color: #1a365d;
+        font-weight: 600;
+        color: ${PDF_THEME.text};
         margin-bottom: 4px;
       }
 
       .item-detail {
         font-size: 12px;
-        color: #718096;
+        color: ${PDF_THEME.textSubtle};
         line-height: 1.4;
       }
 
       .item-qty {
-        text-align: center;
-        color: #4a5568;
-      }
-
-      .item-rate, .item-amount {
         text-align: right;
-        font-weight: 500;
-        color: #2d3748;
+        color: ${PDF_THEME.textMuted};
       }
 
-      /* Prevent table breaks */
-      .items-table {
-        page-break-inside: auto;
+      .item-rate,
+      .item-amount {
+        text-align: right;
+        font-weight: 600;
+        color: ${PDF_THEME.text};
       }
 
       .items-table thead {
@@ -462,35 +515,33 @@ function renderProductionSummary(financial: {
 }, balanceDue?: number): string {
   return `
     <div class="production-summary">
-      <div class="summary-container">
-        <div class="summary-table">
-          <div class="summary-row">
-            <span class="summary-label">Subtotal</span>
-            <span class="summary-value">$${financial.subtotal.toFixed(2)}</span>
-          </div>
-          ${financial.discountTotal > 0 ? `
-            <div class="summary-row">
-              <span class="summary-label">Discount</span>
-              <span class="summary-value discount">-$${financial.discountTotal.toFixed(2)}</span>
-            </div>
-          ` : ''}
-          ${financial.tax > 0 ? `
-            <div class="summary-row">
-              <span class="summary-label">GST (10%)</span>
-              <span class="summary-value">$${financial.tax.toFixed(2)}</span>
-            </div>
-          ` : ''}
-          <div class="summary-row total-row">
-            <span class="summary-label">Total</span>
-            <span class="summary-value total">$${financial.total.toFixed(2)}</span>
-          </div>
-          ${balanceDue !== undefined && balanceDue !== financial.total ? `
-            <div class="summary-row balance-row">
-              <span class="summary-label">Balance Due</span>
-              <span class="summary-value balance-due">$${balanceDue.toFixed(2)}</span>
-            </div>
-          ` : ''}
+      <div class="summary-table">
+        <div class="summary-row">
+          <span class="summary-label">Subtotal</span>
+          <span class="summary-value">$${financial.subtotal.toFixed(2)}</span>
         </div>
+        ${financial.discountTotal && financial.discountTotal > 0 ? `
+          <div class="summary-row">
+            <span class="summary-label">Discount</span>
+            <span class="summary-value discount">-$${financial.discountTotal.toFixed(2)}</span>
+          </div>
+        ` : ''}
+        ${financial.tax > 0 ? `
+          <div class="summary-row">
+            <span class="summary-label">GST (10%)</span>
+            <span class="summary-value">$${financial.tax.toFixed(2)}</span>
+          </div>
+        ` : ''}
+        <div class="summary-row total-row">
+          <span class="summary-label">Total</span>
+          <span class="summary-value total">$${financial.total.toFixed(2)}</span>
+        </div>
+        ${balanceDue !== undefined && balanceDue !== financial.total ? `
+          <div class="summary-row balance-row">
+            <span class="summary-label">Balance Due</span>
+            <span class="summary-value balance-due">$${balanceDue.toFixed(2)}</span>
+          </div>
+        ` : ''}
       </div>
     </div>
 
@@ -498,164 +549,144 @@ function renderProductionSummary(financial: {
       .production-summary {
         display: flex;
         justify-content: flex-end;
-        margin-bottom: 40px;
-      }
-
-      .summary-container {
-        min-width: 300px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 24px;
+        margin-bottom: 32px;
       }
 
       .summary-table {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
+        width: 280px;
+        border: 1px solid ${PDF_THEME.border};
+        border-radius: 16px;
+        padding: 18px 20px;
+        background: #fff;
       }
 
       .summary-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        font-size: 13px;
+        color: ${PDF_THEME.textMuted};
+        padding: 6px 0;
+      }
+
+      .summary-row + .summary-row {
+        border-top: 1px solid ${PDF_THEME.border};
       }
 
       .summary-label {
-        font-size: 14px;
-        color: #4a5568;
-        font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
       }
 
       .summary-value {
-        font-size: 14px;
-        color: #1a365d;
-        font-weight: 500;
+        font-weight: 600;
+        color: ${PDF_THEME.text};
       }
 
       .summary-value.discount {
-        color: #059669;
+        color: ${PDF_THEME.textSubtle};
       }
 
       .total-row {
-        border-top: 2px solid #cbd5e0;
-        padding-top: 16px;
-        margin-top: 8px;
+        font-size: 14px;
       }
 
-      .total-row .summary-label,
-      .total-row .summary-value {
-        font-size: 18px;
-        font-weight: 600;
-        color: #1a365d;
-      }
-
-      .balance-row {
-        background: #fef3c7;
-        border: 1px solid #fde68a;
-        border-radius: 6px;
-        padding: 12px;
-        margin: 8px -12px -12px -12px;
-      }
-
-      .balance-row .summary-label,
-      .balance-row .summary-value {
+      .total-row .summary-value.total {
         font-size: 16px;
-        font-weight: 600;
-        color: #92400e;
+      }
+
+      .balance-row .summary-value.balance-due {
+        color: ${PDF_THEME.text};
       }
     </style>
   `;
 }
 
-// Enhanced payment section with Stripe integration and QR codes
+
 function renderProductionPaymentSection(invoice: InvoiceWithPayment, businessInfo: BusinessInfo): string {
-  if (invoice.status === 'PAID' || invoice.balanceDue <= 0) {
+  if (invoice.status === 'PAID') {
     return `
-      <div class="payment-section paid">
-        <div class="payment-status">
-          <div class="status-icon">✓</div>
-          <div class="status-text">
-            <h3>Payment Received</h3>
-            <p>This invoice has been paid in full.</p>
+      <div class="payment-section no-break">
+        <div class="payment-card paid">
+          <div class="paid-status">
+            <div class="paid-icon">✓</div>
+            <div>
+              <div class="paid-title">Payment received</div>
+              <div class="paid-subtitle">Thank you — this invoice is fully settled.</div>
+            </div>
           </div>
         </div>
       </div>
 
       <style>
-        .payment-section.paid {
-          background: #d1fae5;
-          border: 2px solid #10b981;
-          border-radius: 12px;
-          padding: 24px;
-          margin-bottom: 40px;
-          text-align: center;
+        .payment-card.paid {
+          border: 1px solid ${PDF_THEME.border};
+          border-radius: 16px;
+          padding: 20px;
+          background: ${PDF_THEME.surface};
+          display: flex;
+          justify-content: center;
         }
-
-        .payment-status {
+        .paid-status {
           display: flex;
           align-items: center;
-          justify-content: center;
           gap: 16px;
+          color: ${PDF_THEME.text};
         }
-
-        .status-icon {
-          width: 48px;
-          height: 48px;
-          background: #10b981;
-          color: white;
-          border-radius: 50%;
+        .paid-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 20px;
+          border: 1px solid ${PDF_THEME.border};
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 24px;
-          font-weight: bold;
+          font-weight: 700;
         }
-
-        .status-text h3 {
-          font-size: 18px;
-          color: #065f46;
-          margin: 0 0 4px 0;
-        }
-
-        .status-text p {
+        .paid-title {
           font-size: 14px;
-          color: #047857;
-          margin: 0;
+          font-weight: 600;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .paid-subtitle {
+          font-size: 12px;
+          color: ${PDF_THEME.textSubtle};
         }
       </style>
     `;
   }
 
+  const showStripe = Boolean(invoice.stripeCheckoutUrl);
+
   return `
-    <div class="payment-section">
-      <h3 class="section-title">Payment Information</h3>
+    <div class="payment-section no-break">
+      <h3 class="section-title">Payment Options</h3>
       <div class="payment-methods">
-        ${invoice.stripeCheckoutUrl ? `
-          <div class="payment-method primary">
-            <div class="payment-header">
-              <div class="payment-icon">💳</div>
-              <div class="payment-title">
-                <h4>Pay Online</h4>
-                <p>Secure payment via credit card or bank transfer</p>
-              </div>
+        ${showStripe ? `
+          <div class="payment-card">
+            <div class="payment-card-header">
+              <div class="payment-card-title">Secure Online Payment</div>
+              <div class="payment-card-subtitle">Pay instantly via Stripe checkout</div>
             </div>
-            <div class="payment-content">
-              <div class="qr-section">
-                <div class="qr-code" style="background: url('data:image/svg+xml;base64,${btoa(`
-                  <svg width="120" height="120" xmlns="http://www.w3.org/2000/svg">
-                    <rect width="120" height="120" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
-                    <text x="60" y="60" text-anchor="middle" fill="#4a5568" font-size="12" font-family="Arial">QR Code</text>
-                  </svg>
-                `)}') center/contain no-repeat;"></div>
-                <p class="qr-instructions">Scan with your phone to pay</p>
+            <div class="payment-card-body">
+              <div class="payment-card-qr">
+                <div class="qr-code" style="background-image: url('data:image/svg+xml;utf8,${encodeURIComponent(
+                  invoice.qrCodeSvg?.replace(/\n/g, ' ') ??
+                    `<svg width="120" height="120" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="120" height="120" fill="${PDF_THEME.surfaceStrong}" stroke="${PDF_THEME.border}" stroke-width="2"/>
+                      <text x="60" y="60" text-anchor="middle" fill="${PDF_THEME.textMuted}" font-size="12" font-family="Arial">QR Code</text>
+                    </svg>`
+                )}');"></div>
+                <p class="qr-caption">Scan with your phone</p>
               </div>
-              <div class="payment-link">
+              <div class="payment-card-actions">
                 <a href="${invoice.stripeCheckoutUrl}" class="pay-button">
-                  Pay $${invoice.balanceDue.toFixed(2)} Now
+                  Pay $${invoice.balanceDue.toFixed(2)} online
                 </a>
                 <div class="payment-url">
-                  <span class="url-label">Or visit:</span>
+                  <span class="url-label">Or visit</span>
                   <span class="url-text">${invoice.stripeCheckoutUrl}</span>
                 </div>
               </div>
@@ -664,31 +695,24 @@ function renderProductionPaymentSection(invoice: InvoiceWithPayment, businessInf
         ` : ''}
 
         ${businessInfo.bankDetails ? `
-          <div class="payment-method secondary">
-            <div class="payment-header">
-              <div class="payment-icon">🏦</div>
-              <div class="payment-title">
-                <h4>Bank Transfer</h4>
-                <p>Direct deposit to our business account</p>
-              </div>
+          <div class="payment-card">
+            <div class="payment-card-header">
+              <div class="payment-card-title">Bank Transfer</div>
+              <div class="payment-card-subtitle">Use the details below to pay by EFT</div>
             </div>
-            <div class="payment-content">
-              <div class="bank-details">
-                ${formatMultiline(businessInfo.bankDetails)}
-              </div>
-              <div class="payment-reference">
-                <strong>Reference:</strong> ${invoice.number}
-              </div>
+            <div class="payment-card-body bank">
+              <div class="bank-details">${formatMultiline(businessInfo.bankDetails)}</div>
+              <div class="payment-reference"><strong>Reference:</strong> ${invoice.number}</div>
             </div>
           </div>
         ` : ''}
 
         <div class="payment-terms">
-          <h4>Payment Terms</h4>
+          <div class="payment-card-title">Payment Terms</div>
           <ul>
-            <li>Payment is due within ${invoice.dueDate ? Math.ceil((new Date(invoice.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30} days</li>
-            <li>Late payments may incur additional fees</li>
-            <li>For questions, contact ${businessInfo.businessEmail || 'our billing department'}</li>
+            <li>Payment due ${invoice.dueDate ? 'by ' + new Date(invoice.dueDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : 'on receipt'}.</li>
+            <li>Please include the invoice number with your payment.</li>
+            <li>Questions? Contact ${businessInfo.businessEmail || 'our team'}.</li>
           </ul>
         </div>
       </div>
@@ -696,179 +720,118 @@ function renderProductionPaymentSection(invoice: InvoiceWithPayment, businessInf
 
     <style>
       .payment-section {
-        margin-bottom: 40px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 32px;
-        page-break-inside: avoid;
-        break-inside: avoid;
+        margin-bottom: 36px;
+        color: ${PDF_THEME.text};
       }
-
       .payment-methods {
         display: flex;
         flex-direction: column;
-        gap: 24px;
-        margin-top: 20px;
+        gap: 20px;
       }
-
-      .payment-method {
-        background: white;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 24px;
+      .payment-card {
+        border: 1px solid ${PDF_THEME.border};
+        border-radius: 16px;
+        padding: 20px;
+        background: #fff;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
-
-      .payment-method.primary {
-        border-color: #3182ce;
-        background: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
+      .payment-card-header {
+        margin-bottom: 14px;
       }
-
-      .payment-header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 20px;
-      }
-
-      .payment-icon {
-        font-size: 32px;
-        width: 60px;
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #f1f5f9;
-        border-radius: 12px;
-      }
-
-      .payment-title h4 {
-        font-size: 18px;
-        color: #1a365d;
-        margin: 0 0 4px 0;
+      .payment-card-title {
+        font-size: 13px;
         font-weight: 600;
+        color: ${PDF_THEME.text};
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 4px;
       }
-
-      .payment-title p {
-        font-size: 14px;
-        color: #4a5568;
-        margin: 0;
+      .payment-card-subtitle {
+        font-size: 12px;
+        color: ${PDF_THEME.textSubtle};
       }
-
-      .payment-content {
+      .payment-card-body {
         display: flex;
         align-items: center;
-        gap: 32px;
+        gap: 24px;
       }
-
-      .qr-section {
+      .payment-card-body.bank {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      .payment-card-qr {
         text-align: center;
         flex-shrink: 0;
       }
-
       .qr-code {
         width: 120px;
         height: 120px;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 12px;
+        border: 1px solid ${PDF_THEME.border};
+        background-color: ${PDF_THEME.surface};
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
         margin-bottom: 8px;
       }
-
-      .qr-instructions {
-        font-size: 12px;
-        color: #718096;
-        margin: 0;
-      }
-
-      .payment-link {
-        flex: 1;
-      }
-
-      .pay-button {
-        display: inline-block;
-        background: #3182ce;
-        color: white;
-        padding: 16px 32px;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 600;
-        text-decoration: none;
-        margin-bottom: 16px;
-        transition: background-color 0.2s;
-      }
-
-      .pay-button:hover {
-        background: #2c5aa0;
-      }
-
-      .payment-url {
-        background: #f1f5f9;
-        border: 1px solid #cbd5e0;
-        border-radius: 6px;
-        padding: 12px;
-      }
-
-      .url-label {
-        font-size: 12px;
-        color: #718096;
-        display: block;
-        margin-bottom: 4px;
-      }
-
-      .url-text {
+      .qr-caption {
         font-size: 11px;
-        color: #2d3748;
-        word-break: break-all;
-        font-family: monospace;
+        color: ${PDF_THEME.textSubtle};
       }
-
-      .bank-details {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        padding: 16px;
-        font-size: 14px;
-        color: #2d3748;
-        white-space: pre-line;
-        margin-bottom: 12px;
+      .payment-card-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
       }
-
-      .payment-reference {
-        font-size: 14px;
-        color: #4a5568;
-        background: #fff5f5;
-        border: 1px solid #fecaca;
-        border-radius: 6px;
-        padding: 12px;
-      }
-
-      .payment-terms {
-        border-top: 1px solid #e2e8f0;
-        padding-top: 20px;
-        margin-top: 20px;
-      }
-
-      .payment-terms h4 {
-        font-size: 14px;
-        color: #4a5568;
-        margin: 0 0 12px 0;
+      .pay-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: ${PDF_THEME.accent};
+        color: ${PDF_THEME.badgeText};
         font-weight: 600;
+        font-size: 13px;
+        text-decoration: none;
+        letter-spacing: 0.04em;
       }
-
-      .payment-terms ul {
-        margin: 0;
-        padding-left: 20px;
-        color: #718096;
+      .payment-url {
+        font-size: 11px;
+        color: ${PDF_THEME.textSubtle};
+        word-break: break-word;
+      }
+      .url-label {
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-right: 4px;
+      }
+      .bank-details {
+        font-size: 13px;
+        color: ${PDF_THEME.text};
+        white-space: pre-line;
+      }
+      .payment-reference {
         font-size: 12px;
-        line-height: 1.6;
+        color: ${PDF_THEME.textMuted};
       }
-
+      .payment-terms {
+        font-size: 12px;
+        color: ${PDF_THEME.textSubtle};
+      }
+      .payment-terms ul {
+        padding-left: 18px;
+        margin: 8px 0 0 0;
+      }
       .payment-terms li {
-        margin-bottom: 6px;
+        margin-bottom: 4px;
       }
     </style>
   `;
 }
+
 
 // Production-ready base template
 function generateProductionHTML(content: string, title: string): string {
@@ -905,7 +868,7 @@ function generateProductionHTML(content: string, title: string): string {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
           font-size: 14px;
           line-height: 1.5;
-          color: #2d3748;
+          color: ${PDF_THEME.text};
           background: white;
           padding: 0;
           margin: 0;
@@ -1071,8 +1034,12 @@ export function renderProductionQuoteHtml(quote: QuoteDetail, options: TemplateO
     issueDate: new Date(quote.issueDate),
     expiryDate: quote.expiryDate ? new Date(quote.expiryDate) : null,
     status: quote.status,
-    total: quote.total
+    total: quote.total,
   };
+
+  const paymentTermsLabel = quote.paymentTerms
+    ? `${quote.paymentTerms.label}${quote.paymentTerms.days === 0 ? ' • Due on acceptance' : ` • ${quote.paymentTerms.days}-day terms`}`
+    : 'Due on acceptance';
 
   const lineItems: LineItem[] = quote.lines.map((line) => ({
     id: line.id,
@@ -1094,26 +1061,27 @@ export function renderProductionQuoteHtml(quote: QuoteDetail, options: TemplateO
       subtotal: quote.subtotal,
       tax: quote.taxTotal,
       total: quote.total,
-      discountTotal: quote.discountTotal || 0
+      discountTotal: (quote as QuoteDetail & { discountTotal?: number }).discountTotal ?? 0
     })}
+    ${renderProductionTermsInfo(paymentTermsLabel)}
     ${quote.notes ? `
       <div class="production-notes no-break">
-        <h3 class="section-title">Notes & Terms</h3>
+        <h3 class="section-title">Notes</h3>
         <div class="notes-content">${formatMultiline(quote.notes)}</div>
       </div>
       <style>
         .production-notes {
           margin-bottom: 30px;
-          padding: 20px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          padding: 18px;
+          border: 1px solid ${PDF_THEME.border};
+          border-radius: 16px;
+          background: #fff;
         }
         .notes-content {
-          font-size: 14px;
+          font-size: 13px;
           line-height: 1.6;
-          color: #4a5568;
-          margin-top: 8px;
+          color: ${PDF_THEME.textMuted};
+          margin-top: 6px;
           white-space: pre-line;
         }
       </style>
@@ -1163,27 +1131,27 @@ export function renderProductionInvoiceHtml(invoice: InvoiceWithPayment, options
       subtotal: invoice.subtotal,
       tax: invoice.taxTotal,
       total: invoice.total,
-      discountTotal: invoice.discountTotal || 0
+      discountTotal: (invoice as InvoiceWithPayment & { discountTotal?: number }).discountTotal ?? 0
     }, invoice.balanceDue)}
     ${renderProductionPaymentSection(invoice, businessInfo)}
     ${invoice.notes ? `
       <div class="production-notes no-break">
-        <h3 class="section-title">Notes & Terms</h3>
+        <h3 class="section-title">Notes</h3>
         <div class="notes-content">${formatMultiline(invoice.notes)}</div>
       </div>
       <style>
         .production-notes {
           margin-bottom: 30px;
-          padding: 20px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
+          padding: 18px;
+          border: 1px solid ${PDF_THEME.border};
+          border-radius: 16px;
+          background: #fff;
         }
         .notes-content {
-          font-size: 14px;
+          font-size: 13px;
           line-height: 1.6;
-          color: #4a5568;
-          margin-top: 8px;
+          color: ${PDF_THEME.textMuted};
+          margin-top: 6px;
           white-space: pre-line;
         }
       </style>

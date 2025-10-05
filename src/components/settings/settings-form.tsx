@@ -6,6 +6,9 @@ import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { InlineLoader } from "@/components/ui/loader";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Card,
   CardContent,
@@ -229,16 +232,31 @@ export function SettingsForm({ initial }: SettingsFormProps) {
   ] as const;
 
   return (
-    <Form {...form}>
-      <form onSubmit={onSubmit} className="space-y-6">
-        <Tabs defaultValue="identity" className="space-y-4">
-          <TabsList className="bg-white/80 backdrop-blur">
-            {tabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+    <div className="flex flex-col gap-6">
+      <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Settings
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Configure business details, payment terms, and system preferences.
+          </p>
+        </div>
+      </header>
+
+      <Form {...form}>
+        <form onSubmit={onSubmit} className="space-y-6">
+          {mutation.isPending ? (
+            <InlineLoader label="Saving settings…" className="text-sm" />
+          ) : null}
+          <Tabs defaultValue="identity" className="space-y-4">
+            <TabsList className="flex flex-wrap gap-2 rounded-full border border-border bg-surface-overlay p-1">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value} className="rounded-full">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
           <TabsContent value="identity" className="focus-visible:outline-none">
             <SettingsCard
@@ -427,12 +445,13 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-zinc-900">Payment terms</h3>
-                      <p className="text-sm text-zinc-500">Define the options available when creating clients. Codes should be unique.</p>
+                      <h3 className="text-sm font-semibold text-foreground">Payment terms</h3>
+                      <p className="text-sm text-muted-foreground">Define the options available when creating clients. Codes should be unique.</p>
                     </div>
                     <Button
                       type="button"
                       variant="outline"
+                      disabled={mutation.isPending}
                       onClick={() =>
                         paymentTermsArray.append({
                           code: "",
@@ -440,29 +459,31 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                           days: 0,
                         } as SettingsInput["paymentTerms"][number])
                       }
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 rounded-full"
                     >
                       <Plus className="h-4 w-4" /> Add term
                     </Button>
                   </div>
 
                   {paymentTermsArray.fields.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-zinc-200/70 bg-white/60 p-4 text-sm text-zinc-500">
-                      No payment terms configured yet. Add your first option to enable selection on clients.
-                    </p>
+                    <EmptyState
+                      title="No payment terms yet"
+                      description="Add payment terms so clients, quotes, and invoices pick up the correct defaults."
+                      className="rounded-2xl border-border/60 bg-card/80 shadow-sm shadow-black/5"
+                    />
                   ) : (
                     <div className="space-y-3">
                       {paymentTermsArray.fields.map((field, index) => (
                         <div
                           key={field.id}
-                          className="grid gap-3 rounded-xl border border-zinc-200/70 bg-white/80 p-4 backdrop-blur-sm md:grid-cols-[minmax(160px,1fr)_minmax(120px,160px)_minmax(120px,160px)_auto]"
+                          className="grid gap-3 rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5 p-4 md:grid-cols-[minmax(160px,1fr)_minmax(120px,160px)_minmax(120px,160px)_auto]"
                         >
                           <FormField
                             control={form.control}
                             name={`paymentTerms.${index}.label` as const}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Label</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">Label</FormLabel>
                                 <FormControl>
                                   <Input placeholder="COD" {...field} />
                                 </FormControl>
@@ -475,7 +496,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                             name={`paymentTerms.${index}.code` as const}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Code</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">Code</FormLabel>
                                 <FormControl>
                                   <Input placeholder="COD" {...field} />
                                 </FormControl>
@@ -488,7 +509,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                             name={`paymentTerms.${index}.days` as const}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">Days</FormLabel>
+                                <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">Days</FormLabel>
                                 <FormControl>
                                   <Input type="number" min={0} step={1} {...field} />
                                 </FormControl>
@@ -502,8 +523,9 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                               type="button"
                               variant="ghost"
                               size="icon"
+                              disabled={mutation.isPending}
                               onClick={() => paymentTermsArray.remove(index)}
-                              className="text-zinc-400 hover:text-red-500"
+                              className="text-muted-foreground/80 hover:text-red-500 rounded-full"
                               aria-label="Remove payment term"
                             >
                               <Trash className="h-4 w-4" />
@@ -545,21 +567,23 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             >
               <div className="space-y-3">
                 {shippingArray.fields.length === 0 ? (
-                  <p className="text-sm text-zinc-500">
-                    No shipping options yet. Add your first option.
-                  </p>
+                  <EmptyState
+                    title="No shipping options"
+                    description="Add shipping presets so quotes and invoices can include delivery costs."
+                    className="rounded-2xl border-border/60 bg-card/80 shadow-sm shadow-black/5"
+                  />
                 ) : null}
                 {shippingArray.fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="grid gap-3 rounded-xl border border-zinc-200/70 bg-white/80 p-4 backdrop-blur-sm md:grid-cols-[1fr_minmax(120px,160px)_minmax(100px,120px)_auto]"
+                    className="grid gap-3 rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5 p-4 md:grid-cols-[1fr_minmax(120px,160px)_minmax(100px,120px)_auto]"
                   >
                     <FormField
                       control={form.control}
                       name={`shippingOptions.${index}.label` as const}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             Label
                           </FormLabel>
                           <FormControl>
@@ -574,7 +598,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                       name={`shippingOptions.${index}.code` as const}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             Code
                           </FormLabel>
                           <FormControl>
@@ -589,7 +613,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                       name={`shippingOptions.${index}.amount` as const}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             Amount
                           </FormLabel>
                           <FormControl>
@@ -609,8 +633,9 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                         type="button"
                         variant="ghost"
                         size="icon"
+                        disabled={mutation.isPending}
                         onClick={() => shippingArray.remove(index)}
-                        className="text-zinc-400 hover:text-red-500"
+                        className="text-muted-foreground/80 hover:text-red-500 rounded-full"
                         aria-label="Remove shipping option"
                       >
                         <Trash className="h-4 w-4" />
@@ -622,6 +647,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
               <Button
                 type="button"
                 variant="outline"
+                disabled={mutation.isPending}
                 onClick={() =>
                   shippingArray.append({
                     code: "",
@@ -629,7 +655,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                     amount: 0,
                   } as SettingsInput["shippingOptions"][number])
                 }
-                className="mt-4 flex items-center gap-2"
+                className="mt-4 flex items-center gap-2 rounded-full"
               >
                 <Plus className="h-4 w-4" /> Add option
               </Button>
@@ -781,26 +807,26 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                     </Select>
                     <FormDescription>
                       Choose when jobs are pushed to the production board. Use
-                      <strong className="mx-1 text-zinc-700">When invoice is created</strong>
+                      <strong className="mx-1 text-foreground">When invoice is created</strong>
                       to queue work as soon as terms are agreed, or
-                      <strong className="mx-1 text-zinc-700">When invoice is paid</strong>
+                      <strong className="mx-1 text-foreground">When invoice is paid</strong>
                       to hold jobs until payment clears.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Card className="mt-4 border border-zinc-200/60 bg-white/70 backdrop-blur">
+              <Card className="mt-4 rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">
                 <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-zinc-900">
+                  <CardTitle className="text-sm font-semibold text-foreground">
                     Policy preview
                   </CardTitle>
-                  <CardDescription className="text-xs text-zinc-500">
+                  <CardDescription className="text-xs text-muted-foreground">
                     Workflow impacts for job automation.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+                  <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {policyOptions.map((option) => (
                       <Badge
                         key={option.value}
@@ -809,7 +835,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                             ? "default"
                             : "outline"
                         }
-                        className="border border-zinc-300/60 bg-white/60 text-zinc-600"
+                        className="border border-border bg-surface-overlay text-muted-foreground rounded-full"
                       >
                         {option.label}
                       </Badge>
@@ -947,29 +973,37 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                       toast.error(e instanceof Error ? e.message : "Maintenance failed");
                     }
                   }}
+                  className="rounded-full"
                 >
                   Run Maintenance Now
                 </Button>
               </div>
             </SettingsCard>
           </TabsContent>
-        </Tabs>
+          </Tabs>
 
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => form.reset(normalizeSettings(initial))}
-            disabled={mutation.isPending}
-          >
-            Reset
-          </Button>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving…" : "Save settings"}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => form.reset(normalizeSettings(initial))}
+              disabled={mutation.isPending}
+              className="gap-2 rounded-full"
+            >
+              Reset
+            </Button>
+            <LoadingButton
+              type="submit"
+              loading={mutation.isPending}
+              loadingText="Saving settings…"
+              className="gap-2 rounded-full"
+            >
+              Save settings
+            </LoadingButton>
+          </div>
+        </form>
+      </Form>
+    </div>
   );
 }
 
@@ -981,16 +1015,16 @@ interface SettingsCardProps {
 
 function SettingsCard({ title, description, children }: SettingsCardProps) {
   return (
-    <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-base font-semibold text-zinc-900">
+    <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
           {title}
         </CardTitle>
-        <CardDescription className="text-sm text-zinc-500">
+        <CardDescription className="text-sm text-muted-foreground">
           {description}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 text-sm text-zinc-600">
+      <CardContent className="space-y-6">
         {children}
       </CardContent>
     </Card>

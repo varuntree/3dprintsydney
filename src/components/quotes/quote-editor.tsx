@@ -6,8 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Badge } from "@/components/ui/badge";
+import { InlineLoader } from "@/components/ui/loader";
 import {
   Card,
   CardContent,
@@ -47,7 +50,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   quoteInputSchema,
@@ -187,11 +189,15 @@ export function QuoteEditor({
       (term) => term.code === defaultPaymentTermCode,
     );
     return fallback ?? paymentTermOptions[0];
-  }, [defaultPaymentTermCode, paymentTermOptions, selectedClient?.paymentTerms]);
+  }, [
+    defaultPaymentTermCode,
+    paymentTermOptions,
+    selectedClient?.paymentTerms,
+  ]);
 
   const paymentTermDisplay = useMemo(() => {
     if (!resolvedPaymentTerm) {
-      return "Payment terms unavailable";
+      return "COD · Due on acceptance";
     }
     const descriptor =
       resolvedPaymentTerm.days === 0
@@ -200,9 +206,11 @@ export function QuoteEditor({
     return `${resolvedPaymentTerm.label} · ${descriptor}`;
   }, [resolvedPaymentTerm]);
 
-  const paymentTermSourceLabel = selectedClient?.paymentTerms
-    ? "Client default"
-    : "Settings default";
+  const paymentTermSourceLabel = resolvedPaymentTerm
+    ? selectedClient?.paymentTerms
+      ? "Client default"
+      : "Settings default"
+    : "Fallback";
 
   useEffect(() => {
     if (initialValues) {
@@ -276,6 +284,12 @@ export function QuoteEditor({
 
   const shippingLabel = form.watch("shippingLabel");
 
+  const calculatorLineBreakdown = calculator
+    ? (form.getValues(
+        `lines.${calculator.index}.calculatorBreakdown`,
+      ) as Record<string, unknown> | null)
+    : null;
+
   useEffect(() => {
     if (!shippingLabel) return;
     const match = settings.shippingOptions?.find(
@@ -336,9 +350,12 @@ export function QuoteEditor({
         className="space-y-8"
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       >
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+        {mutation.isPending ? (
+          <InlineLoader label="Saving quote…" className="text-sm" />
+        ) : null}
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-zinc-900">
+            <CardTitle className="text-base font-semibold text-foreground">
               Quote details
             </CardTitle>
           </CardHeader>
@@ -371,15 +388,19 @@ export function QuoteEditor({
                   </FormItem>
                 )}
               />
-              <div className="col-span-full rounded-xl border border-zinc-200/80 bg-white/70 p-4 text-sm text-zinc-600">
+              <div className="col-span-full rounded-xl border border-border/80 bg-surface-overlay p-4 text-sm text-muted-foreground">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Payment terms</p>
-                    <p className="text-sm text-zinc-600">{paymentTermDisplay}</p>
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
+                      Payment terms
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {paymentTermDisplay}
+                    </p>
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-zinc-300/70 text-xs font-medium uppercase tracking-wide text-zinc-600"
+                    className="border-border/70 text-xs font-medium uppercase tracking-wide text-muted-foreground"
                   >
                     {paymentTermSourceLabel}
                   </Badge>
@@ -501,9 +522,7 @@ export function QuoteEditor({
                     <FormLabel>Shipping method</FormLabel>
                     <Select
                       value={
-                        field.value
-                          ? field.value
-                          : NO_SHIPPING_OPTION_VALUE
+                        field.value ? field.value : NO_SHIPPING_OPTION_VALUE
                       }
                       onValueChange={(value) =>
                         field.onChange(
@@ -591,25 +610,253 @@ export function QuoteEditor({
           </CardContent>
         </Card>
 
-        <Card className="border border-zinc-200/70 bg-white/70 shadow-sm backdrop-blur">
+        <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-zinc-900">
+            <CardTitle className="text-base font-semibold text-foreground">
               Line items
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ScrollArea className="max-h-[60vh] rounded-2xl border border-zinc-200/70">
+            {/* Mobile view */}
+            <div className="space-y-4 md:hidden">
+              {linesFieldArray.fields.map((field, index) => {
+                const line = form.watch(`lines.${index}`);
+                const template = line.productTemplateId
+                  ? templates.find(
+                      (item) => item.id === line.productTemplateId,
+                    )
+                  : undefined;
+
+                const lineTotal = calculateLineTotal({
+                  quantity: line.quantity,
+                  unitPrice: line.unitPrice,
+                  discountType: line.discountType,
+                  discountValue: line.discountValue ?? 0,
+                });
+
+                return (
+                  <Card key={field.id} className="rounded-2xl border border-border bg-background">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <Select
+                            value={
+                              line.productTemplateId
+                                ? String(line.productTemplateId)
+                                : MANUAL_TEMPLATE_OPTION_VALUE
+                            }
+                            onValueChange={(value) =>
+                              applyTemplate(
+                                index,
+                                value === MANUAL_TEMPLATE_OPTION_VALUE
+                                  ? null
+                                  : Number(value),
+                              )
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Manual entry" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={MANUAL_TEMPLATE_OPTION_VALUE}>
+                                Manual entry
+                              </SelectItem>
+                              {templates.map((templateOption) => (
+                                <SelectItem
+                                  key={templateOption.id}
+                                  value={String(templateOption.id)}
+                                >
+                                  {templateOption.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2 h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => linesFieldArray.remove(index)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {template?.pricingType === "CALCULATED" && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-fit rounded-full"
+                          onClick={() =>
+                            setCalculator({
+                              index,
+                              templateId: template.id,
+                            })
+                          }
+                        >
+                          Calculator
+                        </Button>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Name
+                          </label>
+                          <Input
+                            value={line.name}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.name`,
+                                event.target.value,
+                              )
+                            }
+                            placeholder="Line name"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Description
+                          </label>
+                          <Textarea
+                            value={line.description ?? ""}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.description`,
+                                event.target.value,
+                              )
+                            }
+                            rows={2}
+                            placeholder="Description (optional)"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Qty
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min={0}
+                              value={line.quantity}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.quantity`,
+                                  normalizeNumber(event.target.valueAsNumber),
+                                )
+                              }
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Unit
+                            </label>
+                            <Input
+                              value={line.unit ?? ""}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.unit`,
+                                  event.target.value,
+                                )
+                              }
+                              placeholder="unit"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-foreground mb-1.5 block">
+                            Unit Price
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={line.unitPrice}
+                            onChange={(event) =>
+                              form.setValue(
+                                `lines.${index}.unitPrice`,
+                                normalizeNumber(event.target.valueAsNumber),
+                              )
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Discount
+                            </label>
+                            <Select
+                              value={line.discountType}
+                              onValueChange={(value: (typeof discountTypeValues)[number]) =>
+                                form.setValue(`lines.${index}.discountType`, value)
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {discountTypeValues.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {value.toLowerCase()}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-foreground mb-1.5 block">
+                              Value
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min={0}
+                              value={line.discountValue ?? 0}
+                              onChange={(event) =>
+                                form.setValue(
+                                  `lines.${index}.discountValue`,
+                                  normalizeNumber(event.target.valueAsNumber),
+                                )
+                              }
+                              disabled={line.discountType === "NONE"}
+                              placeholder="0.00"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="pt-3">
+                      <div className="flex justify-between items-center w-full">
+                        <span className="text-sm text-muted-foreground">
+                          Line total
+                        </span>
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(lineTotal)}
+                        </span>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Desktop view */}
+            <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[160px]">Template</TableHead>
+                    <TableHead>Template</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead className="w-[90px]">Qty</TableHead>
-                    <TableHead className="w-[100px]">Unit</TableHead>
-                    <TableHead className="w-[120px]">Unit price</TableHead>
-                    <TableHead className="w-[150px]">Discount</TableHead>
-                    <TableHead className="w-[110px]">Total</TableHead>
-                    <TableHead className="w-[90px]">Actions</TableHead>
+                    <TableHead className="w-24">Qty</TableHead>
+                    <TableHead className="w-24">Unit</TableHead>
+                    <TableHead className="w-32">Unit price</TableHead>
+                    <TableHead className="w-32">Discount</TableHead>
+                    <TableHead className="w-32">Total</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -667,7 +914,7 @@ export function QuoteEditor({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="mt-2"
+                              className="mt-2 rounded-full"
                               onClick={() =>
                                 setCalculator({
                                   index,
@@ -780,7 +1027,7 @@ export function QuoteEditor({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <p className="font-medium text-zinc-900">
+                          <p className="font-medium text-foreground">
                             {formatCurrency(lineTotal)}
                           </p>
                         </TableCell>
@@ -790,6 +1037,8 @@ export function QuoteEditor({
                               type="button"
                               variant="outline"
                               onClick={() => addLine()}
+                              disabled={mutation.isPending}
+                              className="gap-2 rounded-full"
                             >
                               Add
                             </Button>
@@ -797,8 +1046,9 @@ export function QuoteEditor({
                               <Button
                                 type="button"
                                 variant="ghost"
-                                className="text-red-500"
+                                className="text-destructive rounded-full"
                                 onClick={() => removeLine(index)}
+                                disabled={mutation.isPending}
                               >
                                 Remove
                               </Button>
@@ -810,28 +1060,34 @@ export function QuoteEditor({
                   })}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
 
-            <Button type="button" variant="outline" onClick={addLine}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addLine}
+              disabled={mutation.isPending}
+              className="gap-2 rounded-full"
+            >
               Add line item
             </Button>
           </CardContent>
           <CardFooter className="justify-end">
-            <div className="flex flex-col items-end gap-1 text-sm text-zinc-600">
-              <div className="flex min-w-[240px] justify-between gap-4">
+            <div className="flex flex-col items-end gap-1 text-sm text-muted-foreground">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Subtotal</span>
                 <span>{formatCurrency(totals.subtotal)}</span>
               </div>
-              <div className="flex min-w-[240px] justify-between gap-4">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Shipping</span>
                 <span>{formatCurrency(totals.shippingCost)}</span>
               </div>
-              <div className="flex min-w-[240px] justify-between gap-4">
+              <div className="flex min-w-0 justify-between gap-4">
                 <span>Tax</span>
                 <span>{formatCurrency(totals.taxTotal)}</span>
               </div>
               <Separator className="my-2" />
-              <div className="flex min-w-[240px] justify-between gap-4 text-base font-semibold text-zinc-900">
+              <div className="flex min-w-0 justify-between gap-4 text-base font-semibold text-foreground">
                 <span>Total</span>
                 <span>{formatCurrency(totals.total)}</span>
               </div>
@@ -839,17 +1095,24 @@ export function QuoteEditor({
           </CardFooter>
         </Card>
 
-        <div className="flex justify-between">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={mutation.isPending}
+            className="gap-2 rounded-full"
+          >
             Cancel
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending
-              ? "Saving…"
-              : mode === "create"
-                ? "Create quote"
-                : "Save changes"}
-          </Button>
+          <LoadingButton
+            type="submit"
+            loading={mutation.isPending}
+            loadingText="Saving quote…"
+            className="gap-2 rounded-full"
+          >
+            {mode === "create" ? "Create quote" : "Save changes"}
+          </LoadingButton>
         </div>
       </form>
 
@@ -863,6 +1126,7 @@ export function QuoteEditor({
           }
           settings={settings}
           materials={materials}
+          initialBreakdown={calculatorLineBreakdown}
           onApply={(result) => {
             form.setValue(`lines.${calculator.index}.unitPrice`, result.total);
             form.setValue(`lines.${calculator.index}.quantity`, 1);
@@ -922,6 +1186,7 @@ export interface CalculatorDialogProps {
   template: ProductTemplateDTO;
   settings: SettingsInput;
   materials: CalculatorMaterialOption[];
+  initialBreakdown?: Record<string, unknown> | null;
   onApply: (result: {
     total: number;
     breakdown: Record<string, unknown>;
@@ -942,6 +1207,7 @@ export function CalculatorDialog({
   template,
   settings,
   materials,
+  initialBreakdown,
   onApply,
 }: CalculatorDialogProps) {
   const materialOptions = useMemo<CalculatorMaterialOption[]>(() => {
@@ -959,16 +1225,95 @@ export function CalculatorDialog({
       });
     }
 
-    return Array.from(map.values());
-  }, [materials, template.materialCostPerGram, template.materialId, template.materialName]);
+    const breakdownMaterialIdRaw = initialBreakdown?.materialId;
+    const breakdownMaterialId =
+      typeof breakdownMaterialIdRaw === "number"
+        ? breakdownMaterialIdRaw
+        : breakdownMaterialIdRaw != null &&
+            !Number.isNaN(Number(breakdownMaterialIdRaw))
+          ? Number(breakdownMaterialIdRaw)
+          : null;
 
-  const defaultValues = useMemo<CalculatorFormValues>(() => ({
-    hours: template.calculatorConfig?.baseHours ?? 1,
-    grams: template.calculatorConfig?.materialGrams ?? 0,
-    quality: template.calculatorConfig?.quality ?? "standard",
-    infill: template.calculatorConfig?.infill ?? "medium",
-    materialId: template.materialId ?? materialOptions[0]?.id ?? null,
-  }), [
+    if (breakdownMaterialId !== null && !map.has(breakdownMaterialId)) {
+      map.set(breakdownMaterialId, {
+        id: breakdownMaterialId,
+        name:
+          typeof initialBreakdown?.materialName === "string" &&
+          initialBreakdown.materialName.trim().length > 0
+            ? initialBreakdown.materialName
+            : "Selected material",
+        costPerGram:
+          typeof initialBreakdown?.materialCostPerGram === "number"
+            ? initialBreakdown.materialCostPerGram
+            : (template.materialCostPerGram ?? 0),
+        color: null,
+      });
+    }
+
+    return Array.from(map.values());
+  }, [
+    initialBreakdown?.materialCostPerGram,
+    initialBreakdown?.materialId,
+    initialBreakdown?.materialName,
+    materials,
+    template.materialCostPerGram,
+    template.materialId,
+    template.materialName,
+  ]);
+
+  const defaultValues = useMemo<CalculatorFormValues>(() => {
+    const fallbackHours = template.calculatorConfig?.baseHours ?? 1;
+    const fallbackGrams = template.calculatorConfig?.materialGrams ?? 0;
+    const fallbackQuality = template.calculatorConfig?.quality ?? "standard";
+    const fallbackInfill = template.calculatorConfig?.infill ?? "medium";
+    const fallbackMaterial =
+      template.materialId ?? materialOptions[0]?.id ?? null;
+
+    const parsedBreakdownHours =
+      typeof initialBreakdown?.hours === "number"
+        ? initialBreakdown.hours
+        : initialBreakdown?.hours != null &&
+            !Number.isNaN(Number(initialBreakdown.hours))
+          ? Number(initialBreakdown.hours)
+          : null;
+    const parsedBreakdownGrams =
+      typeof initialBreakdown?.grams === "number"
+        ? initialBreakdown.grams
+        : initialBreakdown?.grams != null &&
+            !Number.isNaN(Number(initialBreakdown.grams))
+          ? Number(initialBreakdown.grams)
+          : null;
+    const parsedBreakdownQuality =
+      typeof initialBreakdown?.quality === "string" &&
+      initialBreakdown.quality.trim().length > 0
+        ? initialBreakdown.quality
+        : null;
+    const parsedBreakdownInfill =
+      typeof initialBreakdown?.infill === "string" &&
+      initialBreakdown.infill.trim().length > 0
+        ? initialBreakdown.infill
+        : null;
+    const parsedBreakdownMaterialId =
+      typeof initialBreakdown?.materialId === "number"
+        ? initialBreakdown.materialId
+        : initialBreakdown?.materialId != null &&
+            !Number.isNaN(Number(initialBreakdown.materialId))
+          ? Number(initialBreakdown.materialId)
+          : null;
+
+    return {
+      hours: parsedBreakdownHours ?? fallbackHours,
+      grams: parsedBreakdownGrams ?? fallbackGrams,
+      quality: parsedBreakdownQuality ?? fallbackQuality,
+      infill: parsedBreakdownInfill ?? fallbackInfill,
+      materialId: parsedBreakdownMaterialId ?? fallbackMaterial,
+    };
+  }, [
+    initialBreakdown?.grams,
+    initialBreakdown?.hours,
+    initialBreakdown?.infill,
+    initialBreakdown?.materialId,
+    initialBreakdown?.quality,
     materialOptions,
     template.calculatorConfig?.baseHours,
     template.calculatorConfig?.infill,
@@ -978,9 +1323,11 @@ export function CalculatorDialog({
   ]);
 
   const [values, setValues] = useState(defaultValues);
+  const [isApplying, setIsApplying] = useState(false);
 
   useEffect(() => {
     setValues(defaultValues);
+    setIsApplying(false);
   }, [defaultValues, open]);
 
   const qualityOptions = Object.keys(
@@ -988,6 +1335,7 @@ export function CalculatorDialog({
       standard: 1,
     },
   );
+
   const infillOptions = Object.keys(
     settings.calculatorConfig?.infillMultipliers ?? {
       medium: 1,
@@ -1011,7 +1359,7 @@ export function CalculatorDialog({
 
   const infillMultiplier = hasNumericInfill
     ? 0.3 + (numericInfill / 100) * 0.8
-    : calculatorConfig.infillMultipliers?.[values.infill] ?? 1;
+    : (calculatorConfig.infillMultipliers?.[values.infill] ?? 1);
 
   const selectedMaterial =
     values.materialId !== null
@@ -1019,13 +1367,9 @@ export function CalculatorDialog({
       : undefined;
 
   const materialCostPerGram =
-    selectedMaterial?.costPerGram ??
-    template.materialCostPerGram ??
-    0;
+    selectedMaterial?.costPerGram ?? template.materialCostPerGram ?? 0;
 
-  const appliedMaterialId =
-    selectedMaterial?.id ?? template.materialId ?? null;
-
+  const appliedMaterialId = selectedMaterial?.id ?? template.materialId ?? null;
   const appliedMaterialName =
     selectedMaterial?.name ?? template.materialName ?? "Material";
 
@@ -1043,20 +1387,61 @@ export function CalculatorDialog({
       ? String(numericInfill)
       : "";
 
+  const breakdown = {
+    labor,
+    setup: setupFee,
+    material,
+    minimumPrice,
+    overridesMinimum: baseTotal < minimumPrice,
+  };
+
+  const handleApply = () => {
+    if (isApplying) return;
+    setIsApplying(true);
+    try {
+      onApply({
+        total,
+        breakdown: {
+          hours: values.hours,
+          grams: values.grams,
+          quality: values.quality,
+          infill: values.infill,
+          labor,
+          laborBase: baseLabor,
+          material,
+          materialCostPerGram,
+          materialId: appliedMaterialId,
+          materialName: appliedMaterialName,
+          setup: setupFee,
+          qualityMultiplier,
+          infillMultiplier,
+          minimumPrice,
+        },
+      });
+      onClose();
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => (!next ? onClose() : null)}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-xl rounded-3xl border border-border bg-surface-overlay">
         <DialogHeader>
           <DialogTitle>Pricing calculator</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 text-sm text-zinc-600">
-          <div className="grid gap-3">
+        <div className="grid gap-6 text-sm text-muted-foreground">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Material
               </span>
               <Select
-                value={values.materialId !== null ? String(values.materialId) : "none"}
+                value={
+                  values.materialId !== null
+                    ? String(values.materialId)
+                    : "none"
+                }
                 onValueChange={(value) =>
                   setValues((prev) => ({
                     ...prev,
@@ -1077,10 +1462,40 @@ export function CalculatorDialog({
                 </SelectContent>
               </Select>
             </label>
+            <div className="rounded-2xl border border-border bg-surface-overlay p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
+                Preview
+              </p>
+              <div className="mt-3 space-y-2 text-foreground">
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
+                    Total
+                  </span>
+                  <span className="text-2xl font-semibold tracking-tight">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+                <div className="grid gap-1 text-xs text-muted-foreground">
+                  <span>Labor • {formatCurrency(labor)}</span>
+                  <span>Material • {formatCurrency(material)}</span>
+                  <span>Setup • {formatCurrency(setupFee)}</span>
+                  <span>
+                    Multipliers • quality ×{qualityMultiplier.toFixed(2)} ·
+                    infill ×{infillMultiplier.toFixed(2)}
+                  </span>
+                  {breakdown.overridesMinimum ? (
+                    <span className="rounded-full border border-border px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      Minimum price applied
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Hours
               </span>
               <Input
@@ -1097,7 +1512,7 @@ export function CalculatorDialog({
               />
             </label>
             <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Material grams
               </span>
               <Input
@@ -1113,122 +1528,95 @@ export function CalculatorDialog({
                 }
               />
             </label>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Quality
               </span>
               <Select
                 value={values.quality}
                 onValueChange={(value) =>
-                  setValues((prev) => ({ ...prev, quality: value }))
+                  setValues((prev) => ({
+                    ...prev,
+                    quality: value,
+                  }))
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select quality" />
                 </SelectTrigger>
                 <SelectContent>
-                  {qualityOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
+                  {qualityOptions.map((quality) => (
+                    <SelectItem key={quality} value={quality}>
+                      {quality}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </label>
             <label className="space-y-1">
-              <span className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">
                 Infill
               </span>
-              <Select
-                value={values.infill}
-                onValueChange={(value) =>
-                  setValues((prev) => ({ ...prev, infill: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={hasNumericInfill ? `${numericInfill}%` : undefined} />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="1"
+                  min={0}
+                  max={100}
+                  value={infillInputValue}
+                  placeholder="%"
+                  onChange={(event) =>
+                    setValues((prev) => ({
+                      ...prev,
+                      infill: event.target.value,
+                    }))
+                  }
+                />
+                <div className="flex flex-wrap gap-2">
                   {infillOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
+                    <Button
+                      key={option}
+                      type="button"
+                      variant={values.infill === option ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 rounded-full px-3 text-xs"
+                      onClick={() =>
+                        setValues((prev) => ({
+                          ...prev,
+                          infill: option,
+                        }))
+                      }
+                    >
                       {option}
-                    </SelectItem>
+                    </Button>
                   ))}
-                </SelectContent>
-              </Select>
-              <Input
-                className="mt-2"
-                type="number"
-                min={0}
-                max={100}
-                placeholder="Custom %"
-                value={infillInputValue}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setValues((prev) => ({
-                    ...prev,
-                    infill:
-                      value.trim().length === 0 ? defaultValues.infill : value,
-                  }));
-                }}
-              />
-              <p className="text-xs text-zinc-500">Leave blank to use a preset multiplier.</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground/80">
+                Enter a percentage or choose a preset above.
+              </p>
             </label>
           </div>
-          <div className="rounded-2xl border border-zinc-200/60 bg-white/70 p-4 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-              Preview
-            </p>
-            <div className="mt-2 text-lg font-semibold text-zinc-900">
-              {formatCurrency(total)}
-            </div>
-            <ul className="mt-2 space-y-1 text-xs text-zinc-500">
-              <li>
-                Labor {formatCurrency(labor)} (rate {formatCurrency(baseHourlyRate)}/hr)
-              </li>
-              <li>
-                Material {formatCurrency(material)} at {formatCurrency(materialCostPerGram)}/g
-              </li>
-              <li>Setup {formatCurrency(setupFee)}</li>
-              <li>
-                Multipliers: quality ×{qualityMultiplier.toFixed(2)}, infill ×
-                {infillMultiplier.toFixed(2)}
-              </li>
-              <li>Minimum price {formatCurrency(minimumPrice)}</li>
-            </ul>
-          </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={isApplying}
+            className="rounded-full"
+          >
             Cancel
           </Button>
-          <Button
-            onClick={() =>
-              onApply({
-                total,
-                breakdown: {
-                  hours: values.hours,
-                  grams: values.grams,
-                  quality: values.quality,
-                  infill: values.infill,
-                  labor,
-                  laborBase: baseLabor,
-                  material,
-                  materialCostPerGram,
-                  materialId: appliedMaterialId,
-                  materialName: appliedMaterialName,
-                  setup: setupFee,
-                  qualityMultiplier,
-                  infillMultiplier,
-                  minimumPrice,
-                },
-              })
-            }
+          <LoadingButton
+            type="button"
+            loading={isApplying}
+            loadingText="Applying…"
+            onClick={handleApply}
+            className="gap-2 rounded-full"
           >
-            Use price
-          </Button>
+            Apply pricing
+          </LoadingButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

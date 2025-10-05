@@ -1,6 +1,7 @@
 # 3D Print Sydney - Technical Architecture Documentation
 
 ## Table of Contents
+
 1. [System Overview & Technology Stack](#system-overview--technology-stack)
 2. [Next.js App Router Architecture](#nextjs-app-router-architecture)
 3. [Database Schema & Prisma Configuration](#database-schema--prisma-configuration)
@@ -16,9 +17,11 @@
 ## System Overview & Technology Stack
 
 ### Core Technologies
+
 The 3D Print Sydney application is built as a modern full-stack web application for managing print operations, quotes, invoices, and client relationships.
 
 **Frontend Stack:**
+
 - **Next.js 15.5.3** - React framework with App Router
 - **React 19.1.0** - UI library with latest concurrent features
 - **TypeScript 5** - Type safety and developer experience
@@ -26,17 +29,20 @@ The 3D Print Sydney application is built as a modern full-stack web application 
 - **Radix UI** - Accessible, unstyled component primitives
 
 **Backend Stack:**
+
 - **Next.js API Routes** - Server-side API endpoints
 - **Prisma 6.16.2** - Type-safe database ORM
 - **SQLite** - Local database with WAL mode optimization
 - **Zod** - Runtime type validation and schema parsing
 
 **State Management & Data Fetching:**
+
 - **TanStack React Query 5.89.0** - Server state management
 - **Zustand 5.0.8** - Client-side state management
 - **Immer 10.1.3** - Immutable state updates
 
 **Additional Tools:**
+
 - **Puppeteer** - PDF generation and automation
 - **Stripe** - Payment processing integration
 - **Lucide React** - Icon system
@@ -76,6 +82,7 @@ src/
 The application leverages Next.js 15's App Router for file-based routing with enhanced developer experience:
 
 **Root Layout** (`/Users/varunprasad/Downloads/Archive/3dprintsydney/src/app/layout.tsx`):
+
 ```typescript
 export const dynamic = "force-dynamic";
 
@@ -99,6 +106,7 @@ export default function RootLayout({
 ### Route Structure
 
 **Page Routes:**
+
 ```
 /                          # Dashboard overview
 /clients                   # Client management
@@ -119,6 +127,7 @@ export default function RootLayout({
 ```
 
 **API Routes Structure:**
+
 ```
 /api/clients              # Client CRUD operations
 /api/clients/[id]         # Individual client operations
@@ -143,6 +152,7 @@ The application uses `dynamic = "force-dynamic"` to ensure server-side rendering
 ### Database Setup
 
 **Prisma Client Configuration** (`/Users/varunprasad/Downloads/Archive/3dprintsydney/src/server/db/client.ts`):
+
 ```typescript
 export const prisma =
   globalForPrisma.prisma ??
@@ -166,6 +176,7 @@ await prisma.$queryRawUnsafe("PRAGMA foreign_keys=ON;");
 ### Core Entity Relationships
 
 **Primary Entities:**
+
 - **Client** - Customer information and contact details
 - **Quote** - Price proposals with lifecycle management
 - **Invoice** - Billing documents with payment tracking
@@ -423,7 +434,7 @@ export function useClients(params?: {
   offset?: number;
 }) {
   return useQuery({
-    queryKey: ['clients', params],
+    queryKey: ["clients", params],
     queryFn: () => fetchClients(params),
     staleTime: 1000 * 60, // 1 minute
   });
@@ -431,7 +442,7 @@ export function useClients(params?: {
 
 export function useClient(id: number) {
   return useQuery({
-    queryKey: ['clients', id],
+    queryKey: ["clients", id],
     queryFn: () => fetchClient(id),
     enabled: !!id,
   });
@@ -450,13 +461,13 @@ export function useCreateClient() {
     mutationFn: createClient,
     onSuccess: (newClient) => {
       // Invalidate and refetch clients list
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
 
       // Optimistically update cache
-      queryClient.setQueryData(['clients', newClient.id], newClient);
+      queryClient.setQueryData(["clients", newClient.id], newClient);
     },
     onError: (error) => {
-      toast.error('Failed to create client');
+      toast.error("Failed to create client");
     },
   });
 }
@@ -483,9 +494,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        destructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90",
-        outline: "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+        default:
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-white shadow-xs hover:bg-destructive/90",
+        outline:
+          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
       },
       size: {
@@ -503,6 +517,10 @@ const buttonVariants = cva(
 );
 ```
 
+### Shared Token Palette
+
+Design tokens now live in `src/styles/tokens.css`. The palette defines semantic layers such as `--surface-overlay`, `--warning-subtle`, and `--success-foreground`, which underpin Tailwind utility aliases (`bg-surface-overlay`, `text-warning-foreground`, etc.). All feature surfaces import the shared palette through `src/app/globals.css`, ensuring invoices, quotes, clients, and jobs share the same theming as the dashboard while keeping overrides in a single place.
+
 ### Layout System
 
 **App Shell Pattern** (`/Users/varunprasad/Downloads/Archive/3dprintsydney/src/components/layout/app-shell.tsx`):
@@ -512,18 +530,18 @@ export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-zinc-50 via-white to-zinc-100">
-      <aside className="hidden w-[260px] flex-col border-r bg-white/70 backdrop-blur-xl lg:flex">
+    <div className="flex min-h-screen bg-background text-foreground">
+      <aside className="hidden w-[260px] flex-col border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
         {/* Sidebar Navigation */}
       </aside>
 
       <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-40 border-b bg-white/70 backdrop-blur-xl">
+        <header className="sticky top-0 z-40 border-b border-border bg-surface-overlay backdrop-blur">
           {/* Header with Quick Actions */}
         </header>
 
-        <main className="flex-1 bg-transparent px-6 py-10">
-          <div className="mx-auto w-full max-w-[1400px]">
+        <main className="flex-1 bg-surface-canvas px-6 py-10">
+          <div className="mx-auto w-full max-w-[1400px] space-y-8">
             {children}
           </div>
         </main>
@@ -564,12 +582,14 @@ export function AppShell({ children }: AppShellProps) {
 ### Component Composition Patterns
 
 **Compound Components:**
+
 - Dialog compositions for modal workflows
 - Form components with built-in validation
 - Data tables with sorting, filtering, and pagination
 - Navigation components with active state management
 
 **Accessibility Features:**
+
 - ARIA labels and descriptions on all interactive elements
 - Keyboard navigation support
 - Focus management for modal dialogs
@@ -582,6 +602,7 @@ export function AppShell({ children }: AppShellProps) {
 ### Server-Side Optimizations
 
 **Database Performance:**
+
 ```typescript
 // SQLite optimizations
 await prisma.$queryRawUnsafe("PRAGMA journal_mode=WAL;");
@@ -596,6 +617,7 @@ transactionOptions: {
 ```
 
 **API Route Optimizations:**
+
 - Efficient query patterns with selective field inclusion
 - Pagination support for large datasets
 - Request/response compression
@@ -604,17 +626,20 @@ transactionOptions: {
 ### Client-Side Performance
 
 **Code Splitting:**
+
 - Next.js automatic code splitting by route
 - Dynamic imports for heavy components
 - Lazy loading for non-critical features
 
 **React Query Optimizations:**
+
 - Background refetching for stale data
 - Intelligent cache invalidation
 - Optimistic updates for immediate feedback
 - Parallel query execution
 
 **CSS Optimizations:**
+
 - Tailwind CSS purging in production
 - Modern CSS features (oklch colors, custom properties)
 - Backdrop blur effects with hardware acceleration
@@ -622,6 +647,7 @@ transactionOptions: {
 ### Bundle Optimization
 
 **Next.js Configuration:**
+
 ```typescript
 const nextConfig: NextConfig = {
   outputFileTracingRoot: __dirname,
@@ -632,6 +658,7 @@ const nextConfig: NextConfig = {
 ### Accessibility Performance
 
 **Development-time Accessibility Checking:**
+
 ```typescript
 useEffect(() => {
   if (process.env.NODE_ENV !== "development") return;
@@ -679,12 +706,14 @@ export const clientInputSchema = z.object({
 ### Database Security
 
 **Prisma Security Features:**
+
 - Type-safe query construction prevents SQL injection
 - Transaction isolation for data consistency
 - Foreign key constraints enforcement
 - Parameterized queries for all database operations
 
 **Environment Configuration:**
+
 ```env
 DATABASE_URL="file:./dev.db"
 NODE_ENV="development"
@@ -693,11 +722,13 @@ NODE_ENV="development"
 ### API Security
 
 **Request Validation:**
+
 - Zod schema validation for all input payloads
 - Type-safe request/response handling
 - Comprehensive error handling without information leakage
 
 **Payment Integration Security:**
+
 - Stripe webhook signature verification
 - Secure payment session handling
 - PCI compliance through Stripe's secure infrastructure
@@ -705,6 +736,7 @@ NODE_ENV="development"
 ### File Upload Security
 
 **Attachment Handling:**
+
 - File type validation
 - Size limitations
 - Secure file storage with metadata tracking
@@ -717,6 +749,7 @@ NODE_ENV="development"
 ### Type Safety
 
 **End-to-End Type Safety:**
+
 ```typescript
 // Database types generated by Prisma
 export type ClientSummaryDTO = {
@@ -741,13 +774,15 @@ interface Success<T> {
 ### Error Handling
 
 **Structured Error Management:**
+
 ```typescript
 export function handleError(error: unknown, scope: string) {
   logger.error({ scope, error });
   const message = error instanceof Error ? error.message : "Unexpected error";
-  const status = error && typeof error === "object" && "status" in error
-    ? (error as { status?: number }).status
-    : 500;
+  const status =
+    error && typeof error === "object" && "status" in error
+      ? (error as { status?: number }).status
+      : 500;
   return fail("INTERNAL_ERROR", message, status);
 }
 ```
@@ -755,6 +790,7 @@ export function handleError(error: unknown, scope: string) {
 ### Logging Strategy
 
 **Structured Logging:**
+
 - Development: Query logging, warnings, and errors
 - Production: Error logging only
 - Scope-based logging for debugging
@@ -763,6 +799,7 @@ export function handleError(error: unknown, scope: string) {
 ### Testing Patterns
 
 **Development Tools:**
+
 - TypeScript strict mode for compile-time checking
 - ESLint for code quality enforcement
 - Prettier for consistent code formatting
@@ -771,12 +808,14 @@ export function handleError(error: unknown, scope: string) {
 ### Code Organization
 
 **Feature-Based Structure:**
+
 - Components grouped by feature domain
 - Service layer separation for business logic
 - Schema co-location with feature modules
 - Utility functions in dedicated lib directory
 
 **Import Patterns:**
+
 ```typescript
 // Absolute imports with path mapping
 import { Button } from "@/components/ui/button";
@@ -787,6 +826,7 @@ import { clientInputSchema } from "@/lib/schemas/clients";
 ### Development Workflow
 
 **Scripts and Automation:**
+
 ```json
 {
   "scripts": {
@@ -808,6 +848,7 @@ import { clientInputSchema } from "@/lib/schemas/clients";
 The 3D Print Sydney application demonstrates modern full-stack development practices with a focus on type safety, performance, and maintainability. The architecture provides a solid foundation for scaling the business operations while maintaining code quality and developer experience.
 
 Key architectural strengths:
+
 - **Type Safety**: End-to-end TypeScript with runtime validation
 - **Performance**: Optimized database queries and efficient state management
 - **Maintainability**: Clear separation of concerns and consistent patterns

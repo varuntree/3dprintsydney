@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Menu } from "lucide-react";
 import { NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { NavigationLink } from "./navigation-link";
 
 export function NavigationDrawer() {
@@ -18,61 +24,40 @@ export function NavigationDrawer() {
   const closeDrawer = () => setIsOpen(false);
 
   return (
-    <>
-      {/* Mobile menu button */}
-      <Button
-        variant="outline"
-        size="icon"
-        className="lg:hidden border-zinc-200/80 bg-white/80 text-zinc-700 backdrop-blur"
-        onClick={() => setIsOpen(true)}
-      >
-        <Menu className="h-4 w-4" />
-      </Button>
-
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-zinc-900/20 backdrop-blur-sm lg:hidden"
-          onClick={closeDrawer}
-        />
-      )}
-
-      {/* Drawer */}
-      <aside
-        className={cn(
-          "fixed left-0 top-0 z-50 h-full w-[280px] transform border-r border-zinc-200/60 bg-white/95 backdrop-blur-xl shadow-xl transition-transform duration-300 ease-in-out lg:hidden",
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {/* Header */}
-        <div className="flex h-20 items-center justify-between px-6">
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="lg:hidden border-border bg-surface-overlay text-foreground backdrop-blur"
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-[280px] p-0 bg-sidebar text-sidebar-foreground">
+        <SheetHeader className="px-6 py-5">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl border border-zinc-200/80 bg-white/80 backdrop-blur flex items-center justify-center text-sm font-semibold tracking-wider">
+            <div className="h-10 w-10 rounded-full border border-border bg-surface-overlay backdrop-blur flex items-center justify-center text-sm font-semibold tracking-wider">
               3D
             </div>
             <div>
-              <p className="text-sm uppercase text-zinc-500">Operations</p>
-              <p className="text-lg font-semibold tracking-tight">Print Studio</p>
+              <SheetTitle className="text-left text-lg font-semibold tracking-tight text-foreground">
+                Print Studio
+              </SheetTitle>
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+                Operations
+              </p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={closeDrawer}
-            className="text-zinc-500 hover:text-zinc-900"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        </SheetHeader>
 
         <Separator className="mx-6" />
 
-        {/* Navigation */}
         <ScrollArea className="flex-1 px-4 py-4">
           <nav className="flex flex-col gap-6">
             {/* Quick Actions */}
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
                 Quick Actions
               </p>
               <div className="space-y-1">
@@ -83,7 +68,7 @@ export function NavigationDrawer() {
                       key={action.href}
                       href={action.href}
                       onClick={closeDrawer}
-                      className="bg-zinc-50 hover:bg-zinc-100 text-zinc-700 font-medium"
+                      className="bg-surface-elevated hover:bg-primary hover:text-primary-foreground font-medium"
                     >
                       <Icon className="h-4 w-4" />
                       <span>{action.name}</span>
@@ -99,7 +84,7 @@ export function NavigationDrawer() {
             {NAV_SECTIONS.map((section) => (
               <div key={section.title ?? "main"} className="space-y-3">
                 {section.title ? (
-                  <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
+                  <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
                     {section.title}
                   </p>
                 ) : null}
@@ -126,7 +111,7 @@ export function NavigationDrawer() {
             ))}
           </nav>
         </ScrollArea>
-      </aside>
-    </>
+      </SheetContent>
+    </Sheet>
   );
 }

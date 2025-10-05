@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "3D Print Sydney Console",
   description:
     "Local operations desk for quoting, invoicing, and print queue management.",
+  viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0",
 };
 
 export default function RootLayout({

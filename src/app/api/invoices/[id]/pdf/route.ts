@@ -17,10 +17,7 @@ export async function GET(
 ) {
   try {
     const id = await parseId(context.params);
-    const url = new URL(request.url);
-    const style = url.searchParams.get("style") || "classic";
-
-    const { buffer, filename } = await generateInvoicePdf(id, style);
+    const { buffer, filename } = await generateInvoicePdf(id);
     return new NextResponse(buffer as unknown as BodyInit, {
       headers: {
         "Content-Type": "application/pdf",

@@ -4,12 +4,9 @@ import { getStripeEnvironment } from "@/server/services/stripe";
 export async function POST() {
   try {
     const env = await getStripeEnvironment();
-    if (!env?.stripe) {
+    // Basic sanity checks — avoid brittle SDK shape assertions across versions
+    if (!env || !env.stripe) {
       throw new Error("Stripe client not available");
-    }
-    // Access a benign property to ensure instance constructed
-    if (typeof env.stripe.accounts !== "function") {
-      throw new Error("Stripe SDK not initialised correctly");
     }
     return ok({ ok: true });
   } catch (error) {

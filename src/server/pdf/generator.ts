@@ -10,13 +10,9 @@ import { renderProductionQuoteHtml, renderProductionInvoiceHtml } from "@/server
 import { logger } from "@/lib/logger";
 
 // Production template - single high-quality template
-function getQuoteTemplate(_style: string = "production") {
-  return renderProductionQuoteHtml;
-}
+const getQuoteTemplate = () => renderProductionQuoteHtml;
 
-function getInvoiceTemplate(_style: string = "production") {
-  return renderProductionInvoiceHtml;
-}
+const getInvoiceTemplate = () => renderProductionInvoiceHtml;
 
 async function renderPdf(html: string, filename: string) {
   await ensureStorage();
@@ -119,7 +115,7 @@ async function renderPdf(html: string, filename: string) {
   return { buffer, path: resolvePdfPath(filename) };
 }
 
-export async function generateQuotePdf(id: number, style: string = "production") {
+export async function generateQuotePdf(id: number) {
   const quote = await getQuoteDetail(id);
   const settings = await getSettings().catch(() => null);
   const logoFile = join(process.cwd(), "public", "logo.png");
@@ -155,12 +151,12 @@ export async function generateQuotePdf(id: number, style: string = "production")
   };
 
   // Route to appropriate template based on style
-  const html = getQuoteTemplate(style)(quote, templateData);
+  const html = getQuoteTemplate()(quote, templateData);
   const { buffer, path } = await renderPdf(html, `quote-${quote.number}.pdf`);
   return { buffer, filename: `quote-${quote.number}.pdf`, path };
 }
 
-export async function generateInvoicePdf(id: number, style: string = "production") {
+export async function generateInvoicePdf(id: number) {
   let invoice = await getInvoiceDetail(id);
   const settings = await getSettings().catch(() => null);
 
@@ -220,7 +216,12 @@ export async function generateInvoicePdf(id: number, style: string = "production
   };
 
   // Route to appropriate template based on style
-  const html = getInvoiceTemplate(style)(invoice, templateData);
+  const invoiceForTemplate = {
+    ...invoice,
+    stripeCheckoutUrl: invoice.stripeCheckoutUrl ?? null,
+  };
+
+  const html = getInvoiceTemplate()(invoiceForTemplate, templateData);
   const { buffer, path } = await renderPdf(html, `invoice-${invoice.number}.pdf`);
   return { buffer, filename: `invoice-${invoice.number}.pdf`, path };
 }
