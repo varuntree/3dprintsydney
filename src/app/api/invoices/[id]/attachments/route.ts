@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { addInvoiceAttachment } from "@/server/services/invoices";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
 const ALLOWED_TYPES = [
@@ -21,11 +23,13 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    // Restrict attachment uploads to admin for now
+    await requireAdmin(request);
     const formData = await request.formData();
     const file = formData.get("file");
 

@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { revertInvoiceToQuote } from "@/server/services/invoices";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
@@ -11,10 +13,11 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const invoiceId = await parseId(context.params);
     await revertInvoiceToQuote(invoiceId);
     return ok({ success: true });

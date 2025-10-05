@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       expires: new Date(0),
     });
     return res;
-  } catch (error: any) {
+  } catch (_error) {
     return NextResponse.json({ error: "Failed to logout" }, { status: 400 });
   }
 }

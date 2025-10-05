@@ -8,7 +8,7 @@ import { getUserFromCookies } from "@/server/auth/session";
 export default async function DashboardPage() {
   const user = await getUserFromCookies();
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN") redirect("/me");
+  if (user.role !== "ADMIN") redirect("/client");
   const snapshot = await getDashboardSnapshot();
   const initial: DashboardClientSnapshot = {
     metrics: snapshot.metrics,

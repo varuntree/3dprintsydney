@@ -2,6 +2,8 @@ import { ok, fail, handleError } from "@/server/api/respond";
 import { markInvoicePaid } from "@/server/services/invoices";
 import { paymentInputSchema } from "@/lib/schemas/invoices";
 import type { PaymentMethod } from "@prisma/client";
+import { requireInvoiceAccess } from "@/server/auth/permissions";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
@@ -13,11 +15,12 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const invoiceId = await parseId(context.params);
+    await requireInvoiceAccess(request, invoiceId);
 
     let payload: unknown = undefined;
     if (request.headers.get("content-type")?.includes("application/json")) {

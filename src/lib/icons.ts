@@ -1,11 +1,14 @@
 import {
   BarChart3,
   Beaker,
+  Home,
   FilePlus,
   FileText,
   LayoutDashboard,
+  MessagesSquare,
   Package,
   Printer,
+  Rocket,
   Receipt,
   Settings,
   UserPlus,
@@ -26,6 +29,9 @@ const iconMap = {
   settings: Settings,
   "file-plus": FilePlus,
   "user-plus": UserPlus,
+  home: Home,
+  "messages-square": MessagesSquare,
+  rocket: Rocket,
 } as const;
 
 export type IconName = keyof typeof iconMap;

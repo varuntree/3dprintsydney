@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { fail } from "@/server/api/respond";
 import { readInvoiceAttachment } from "@/server/services/invoices";
+import { requireAttachmentAccess } from "@/server/auth/permissions";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -12,11 +13,12 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    await requireAttachmentAccess(request, id);
     const { stream, attachment } = await readInvoiceAttachment(id);
 
     return new NextResponse(stream as unknown as BodyInit, {

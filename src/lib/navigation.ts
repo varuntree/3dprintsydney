@@ -3,7 +3,7 @@ export type NavSection = {
   items: { name: string; href: string; icon: string }[];
 };
 
-export const NAV_SECTIONS: NavSection[] = [
+export const OWNER_NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { name: "Dashboard", href: "/", icon: "layout-dashboard" },
@@ -24,6 +24,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Operations",
     items: [
+      { name: "Messages", href: "/admin/messages", icon: "messages-square" },
       { name: "Users", href: "/admin/users", icon: "users" },
       { name: "Reports", href: "/reports", icon: "bar-chart-3" },
       { name: "Settings", href: "/settings", icon: "settings" },
@@ -36,3 +37,20 @@ export const QUICK_ACTIONS = [
   { name: "New Invoice", href: "/invoices/new", icon: "receipt" },
   { name: "New Client", href: "/clients/new", icon: "user-plus" },
 ];
+
+export const CLIENT_NAV_SECTIONS: NavSection[] = [
+  {
+    items: [
+      { name: "Home", href: "/client", icon: "home" },
+      { name: "Quick Order", href: "/quick-order", icon: "rocket" },
+      { name: "Orders", href: "/client/orders", icon: "receipt" },
+      { name: "Messages", href: "/client/messages", icon: "messages-square" },
+    ],
+  },
+];
+
+export function getNavSections(role: "ADMIN" | "CLIENT" | null | undefined): NavSection[] {
+  if (role === "CLIENT") return CLIENT_NAV_SECTIONS;
+  if (role === "ADMIN") return OWNER_NAV_SECTIONS;
+  return OWNER_NAV_SECTIONS;
+}

@@ -40,8 +40,9 @@ export async function POST(req: Request) {
       expires: expiresAt,
     });
     return res;
-  } catch (error: any) {
-    const status = error?.status ?? 400;
-    return NextResponse.json({ error: error?.message ?? "Invalid request" }, { status });
+  } catch (error) {
+    const e = error as Error & { status?: number };
+    const status = e?.status ?? 400;
+    return NextResponse.json({ error: e?.message ?? "Invalid request" }, { status });
   }
 }

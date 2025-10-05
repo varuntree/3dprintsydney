@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
+import { getNavSections, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -20,9 +20,10 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isPublic = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/me");
+  const isPublic = pathname.startsWith("/login") || pathname.startsWith("/signup");
   const adminPrefixes = ["/", "/clients", "/quotes", "/invoices", "/jobs", "/materials", "/products", "/printers", "/reports", "/settings", "/admin"]; // root dashboard is admin
   const isAdminRoute = adminPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
 
   useEffect(() => {
     if (isPublic) return;
@@ -35,8 +36,9 @@ export function AppShell({ children }: AppShellProps) {
         return;
       }
       const { data } = await r.json();
+      setRole(data.role);
       if (isAdminRoute && data.role !== "ADMIN") {
-        router.replace("/me");
+        router.replace("/client");
       }
     })();
     return () => {
@@ -64,7 +66,7 @@ export function AppShell({ children }: AppShellProps) {
         <Separator className="mx-6 bg-border" />
         <ScrollArea className="flex-1 min-h-0 px-4 py-4">
           <nav className="flex flex-col gap-6">
-            {NAV_SECTIONS.map((section) => (
+            {getNavSections(role).map((section) => (
               <div key={section.title ?? "main"} className="space-y-3">
                 {section.title ? (
                   <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
@@ -113,7 +115,7 @@ export function AppShell({ children }: AppShellProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 sm:flex">
-                {QUICK_ACTIONS.map((action) => {
+                {role === 'ADMIN' && QUICK_ACTIONS.map((action) => {
                   const Icon = getIcon(action.icon);
                   return (
                     <ActionButton
@@ -141,7 +143,7 @@ export function AppShell({ children }: AppShellProps) {
                 </button>
               </div>
               <div className="flex items-center gap-2 sm:hidden">
-                {QUICK_ACTIONS.slice(0, 2).map((action) => {
+                {role === 'ADMIN' && QUICK_ACTIONS.slice(0, 2).map((action) => {
                   const Icon = getIcon(action.icon);
                   return (
                     <ActionButton

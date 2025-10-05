@@ -45,8 +45,9 @@ export async function requireAdmin(req: NextRequest) {
   return user;
 }
 
-export function setSessionCookie(token: string, expiresAt: Date) {
-  cookies().set(SESSION_COOKIE, token, {
+export async function setSessionCookie(token: string, expiresAt: Date) {
+  const c = await cookies();
+  c.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -55,8 +56,9 @@ export function setSessionCookie(token: string, expiresAt: Date) {
   });
 }
 
-export function clearSessionCookie() {
-  cookies().set(SESSION_COOKIE, "", {
+export async function clearSessionCookie() {
+  const c = await cookies();
+  c.set(SESSION_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -66,7 +68,8 @@ export function clearSessionCookie() {
 }
 
 export async function getUserFromCookies() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+  const c = await cookies();
+  const token = c.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const session = await prisma.session.findUnique({
     where: { token },

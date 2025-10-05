@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { voidInvoice } from "@/server/services/invoices";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
@@ -8,8 +10,9 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return parsed;
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const body = await request.json().catch(() => ({}));
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
@@ -22,4 +25,3 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return handleError(error, "invoices.void");
   }
 }
-

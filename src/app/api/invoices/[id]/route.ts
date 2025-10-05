@@ -5,6 +5,8 @@ import {
   updateInvoice,
   deleteInvoice,
 } from "@/server/services/invoices";
+import { requireInvoiceAccess } from "@/server/auth/permissions";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -16,11 +18,13 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    // auth: admin or owning client only
+    await requireInvoiceAccess(request, id);
     const invoice = await getInvoiceDetail(id);
     return ok(invoice);
   } catch (error) {
@@ -32,11 +36,12 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    await requireInvoiceAccess(request, id);
     const payload = await request.json();
     const invoice = await updateInvoice(id, payload);
     return ok(invoice);
@@ -54,11 +59,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    await requireInvoiceAccess(request, id);
     const invoice = await deleteInvoice(id);
     return ok(invoice);
   } catch (error) {

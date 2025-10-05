@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { fail } from "@/server/api/respond";
+import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { generateInvoicePdf } from "@/server/pdf/generator";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
@@ -12,11 +13,12 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    await requireInvoiceAccess(request, id);
     const { buffer, filename } = await generateInvoicePdf(id);
     return new NextResponse(buffer as unknown as BodyInit, {
       headers: {

@@ -19,8 +19,9 @@ export async function GET(req: NextRequest) {
         messageCount: u._count.messages,
       })),
     });
-  } catch (error: any) {
-    const status = error?.status ?? 400;
-    return NextResponse.json({ error: error?.message ?? "Failed" }, { status });
+  } catch (error) {
+    const e = error as Error & { status?: number };
+    const status = e?.status ?? 400;
+    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
   }
 }

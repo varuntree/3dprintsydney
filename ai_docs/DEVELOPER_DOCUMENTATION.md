@@ -406,7 +406,12 @@ enum PrinterStatus {
 
 ### Authentication
 
-Currently no authentication implemented - this is a single-user local application.
+Session cookie authentication with role-based access:
+
+- Users have roles: `ADMIN` or `CLIENT`.
+- Admin has full access to all resources; clients are scoped to their own `clientId`.
+- Client portal routes: `/client`, `/client/orders`, `/client/orders/[id]`, `/client/messages`, `/quick-order`.
+- Admin portal routes: dashboard and all owner modules; clients are redirected away from admin routes.
 
 ### Core API Routes
 
@@ -1030,3 +1035,17 @@ npm outdated          # Check for updates
 **Maintainers**: Development Team
 
 For questions or issues, check the troubleshooting section or create an issue in the project repository.
+
+
+### Slicer Configuration (Quick Order)
+
+Quick Order can call an external slicer CLI to estimate print time and material usage. Configure via environment variables:
+
+```
+SLICER_BIN=<path to prusaslicer or slic3r>
+SLICER_DISABLE=1             # set to 1 to bypass slicer and use fallback estimates
+SLICER_CONCURRENCY=1         # 1–4 concurrent slicer processes
+SLICER_TIMEOUT_MS=120000     # per-file timeout (ms)
+```
+
+When disabled or on failure, the UI clearly indicates estimates are from fallbacks.

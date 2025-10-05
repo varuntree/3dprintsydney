@@ -246,6 +246,7 @@ model Invoice {
   payments           Payment[]
   items              InvoiceItem[]
   attachments        Attachment[]
+  messages           UserMessage[]
   activities         ActivityLog[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
@@ -394,7 +395,13 @@ model UserMessage {
   id        Int      @id @default(autoincrement())
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Optional association to an order (invoice) for per‑order threads
+  invoiceId Int?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
   sender    Role
   content   String
   createdAt DateTime @default(now())
+
+  @@index([userId, invoiceId, createdAt])
+  @@index([invoiceId, createdAt])
 }

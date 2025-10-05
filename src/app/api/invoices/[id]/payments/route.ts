@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { addManualPayment } from "@/server/services/invoices";
+import { requireInvoiceAccess } from "@/server/auth/permissions";
+import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
@@ -12,11 +14,12 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
     const id = await parseId(context.params);
+    await requireInvoiceAccess(request, id);
     const payload = await request.json();
     const payment = await addManualPayment(id, payload);
     return ok(payment, { status: 201 });

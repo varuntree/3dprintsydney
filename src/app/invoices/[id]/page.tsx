@@ -17,6 +17,8 @@ import { getSettings } from "@/server/services/settings";
 import { getInvoiceDetail, type InvoiceDetail } from "@/server/services/invoices";
 import { listProductTemplates } from "@/server/services/product-templates";
 import { listMaterials } from "@/server/services/materials";
+import { PostAndMessageSidebar } from "@/components/messages/sidebar";
+import { InvoiceConversation } from "@/components/messages/invoice-conversation";
 
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
@@ -155,6 +157,20 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         <InvoiceView invoice={viewModel} />
         <InvoicePayments invoiceId={detail.id} payments={payments} />
         <InvoiceAttachments invoiceId={detail.id} attachments={attachments} />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <aside className="space-y-6 order-last lg:order-first">
+            <PostAndMessageSidebar invoiceId={detail.id} />
+          </aside>
+          <div className="lg:col-span-2">
+            <div className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+              <div className="p-4 sm:p-6">
+                <h2 className="mb-3 text-base font-medium">Messages</h2>
+                <InvoiceConversation invoiceId={detail.id} />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   } catch {

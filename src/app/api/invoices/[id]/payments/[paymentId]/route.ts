@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { deletePayment } from "@/server/services/invoices";
+import { requirePaymentAccess } from "@/server/auth/permissions";
+import type { NextRequest } from "next/server";
 
 async function parsePaymentParams(
   paramsPromise: Promise<{ id: string; paymentId: string }>,
@@ -13,11 +15,12 @@ async function parsePaymentParams(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string; paymentId: string }> },
 ) {
   try {
     const id = await parsePaymentParams(context.params);
+    await requirePaymentAccess(request, id);
     const payment = await deletePayment(id);
     return ok(payment);
   } catch (error) {

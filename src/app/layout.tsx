@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,7 +9,12 @@ export const metadata: Metadata = {
   title: "3D Print Sydney Console",
   description:
     "Local operations desk for quoting, invoicing, and print queue management.",
-  viewport: "width=device-width, initial-scale=1.0, maximum-scale=1.0",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

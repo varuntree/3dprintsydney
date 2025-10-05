@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
-import { NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
+import { getNavSections, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,6 +20,17 @@ import { NavigationLink } from "./navigation-link";
 export function NavigationDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me").then(async (r) => {
+      if (!r.ok) return;
+      const { data } = await r.json();
+      if (!cancelled) setRole(data.role);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const closeDrawer = () => setIsOpen(false);
 
@@ -56,6 +67,7 @@ export function NavigationDrawer() {
         <ScrollArea className="flex-1 px-4 py-4">
           <nav className="flex flex-col gap-6">
             {/* Quick Actions */}
+            {role === 'ADMIN' && (
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
                 Quick Actions
@@ -77,11 +89,12 @@ export function NavigationDrawer() {
                 })}
               </div>
             </div>
+            )}
 
             <Separator className="mx-2" />
 
             {/* Main Navigation */}
-            {NAV_SECTIONS.map((section) => (
+            {getNavSections(role).map((section) => (
               <div key={section.title ?? "main"} className="space-y-3">
                 {section.title ? (
                   <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">

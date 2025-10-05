@@ -1,5 +1,8 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { removeInvoiceAttachment } from "@/server/services/invoices";
+import { requireAdmin } from "@/server/auth/session";
+import { requireAttachmentAccess } from "@/server/auth/permissions";
+import type { NextRequest } from "next/server";
 
 async function parseParams(
   paramsPromise: Promise<{ id: string; attachmentId: string }>,
@@ -13,11 +16,14 @@ async function parseParams(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string; attachmentId: string }> },
 ) {
   try {
     const attachmentId = await parseParams(context.params);
+    // Only admins may delete attachments; ensure the requester has access to the invoice
+    await requireAttachmentAccess(request, attachmentId);
+    await requireAdmin(request);
     const attachment = await removeInvoiceAttachment(attachmentId);
     return ok(attachment);
   } catch (error) {
