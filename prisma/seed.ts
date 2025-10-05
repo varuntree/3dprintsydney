@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/server/auth/password";
 
 const prisma = new PrismaClient();
 
@@ -133,6 +134,18 @@ async function main() {
       notes: "Swap nozzles weekly",
     },
   });
+
+  const adminEmail = "admin@3dprintsydney.com";
+  const admin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!admin) {
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash: hashPassword("admin"),
+        role: "ADMIN",
+      },
+    });
+  }
 }
 
 main()

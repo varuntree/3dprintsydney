@@ -7,6 +7,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Role {
+  ADMIN
+  CLIENT
+}
+
 enum QuoteStatus {
   DRAFT
   PENDING
@@ -118,6 +123,7 @@ model Client {
   invoices     Invoice[]
   jobs         Job[]
   activities   ActivityLog[]
+  users        User[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -359,5 +365,36 @@ model ActivityLog {
   action    String
   message   String
   metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  passwordHash String
+  role         Role          @default(CLIENT)
+  clientId     Int?
+  client       Client?       @relation(fields: [clientId], references: [id])
+  sessions     Session[]
+  messages     UserMessage[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model UserMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sender    Role
+  content   String
   createdAt DateTime @default(now())
 }

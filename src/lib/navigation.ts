@@ -24,6 +24,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "Operations",
     items: [
+      { name: "Users", href: "/admin/users", icon: "users" },
       { name: "Reports", href: "/reports", icon: "bar-chart-3" },
       { name: "Settings", href: "/settings", icon: "settings" },
     ],

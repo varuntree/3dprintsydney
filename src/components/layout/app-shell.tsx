@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +10,7 @@ import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { RouteProgressBar } from "@/components/ui/route-progress-bar";
 import { ActionButton } from "@/components/ui/action-button";
+import { UserProfile } from "@/components/layout/user-profile";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -17,10 +19,35 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const isPublic = pathname.startsWith("/login") || pathname.startsWith("/signup") || pathname.startsWith("/me");
+  const adminPrefixes = ["/", "/clients", "/quotes", "/invoices", "/jobs", "/materials", "/products", "/printers", "/reports", "/settings", "/admin"]; // root dashboard is admin
+  const isAdminRoute = adminPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+  useEffect(() => {
+    if (isPublic) return;
+    let cancelled = false;
+    (async () => {
+      const r = await fetch("/api/auth/me");
+      if (cancelled) return;
+      if (!r.ok) {
+        if (isAdminRoute) router.replace("/login");
+        return;
+      }
+      const { data } = await r.json();
+      if (isAdminRoute && data.role !== "ADMIN") {
+        router.replace("/me");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <aside className="hidden w-[260px] flex-col border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
+      {!isPublic && (
+      <aside className="sticky top-0 hidden h-[100svh] w-[260px] flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
         <div className="flex h-20 items-center gap-2 px-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface-overlay text-sm font-semibold tracking-wider">
             3D
@@ -35,7 +62,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </div>
         <Separator className="mx-6 bg-border" />
-        <ScrollArea className="flex-1 px-4 py-4">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-4">
           <nav className="flex flex-col gap-6">
             {NAV_SECTIONS.map((section) => (
               <div key={section.title ?? "main"} className="space-y-3">
@@ -66,8 +93,11 @@ export function AppShell({ children }: AppShellProps) {
             ))}
           </nav>
         </ScrollArea>
+        <UserProfile />
       </aside>
+      )}
       <div className="flex flex-1 flex-col">
+        {!isPublic && (
         <header className="sticky top-0 z-40 border-b border-border bg-surface-overlay backdrop-blur">
           <div className="flex min-h-[5rem] items-center justify-between gap-4 px-4 py-3 sm:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
@@ -100,6 +130,15 @@ export function AppShell({ children }: AppShellProps) {
                     </ActionButton>
                   );
                 })}
+                <button
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    router.replace('/login');
+                  }}
+                  className="rounded-full border border-border px-3 py-1 text-sm hover:bg-surface-overlay"
+                >
+                  Logout
+                </button>
               </div>
               <div className="flex items-center gap-2 sm:hidden">
                 {QUICK_ACTIONS.slice(0, 2).map((action) => {
@@ -118,13 +157,23 @@ export function AppShell({ children }: AppShellProps) {
                     </ActionButton>
                   );
                 })}
+                <button
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST' });
+                    router.replace('/login');
+                  }}
+                  className="rounded-md px-2 py-1 text-sm underline"
+                >
+                  Logout
+                </button>
               </div>
             </div>
           </div>
           <RouteProgressBar className="border-t border-border" />
         </header>
+        )}
         <main className="flex-1 bg-surface-canvas px-4 py-6 sm:px-6 sm:py-10">
-          <div className="mx-auto w-full max-w-[1400px] space-y-6 sm:space-y-8">
+          <div className={`mx-auto w-full ${isPublic ? "max-w-xl" : "max-w-[1400px]"} space-y-6 sm:space-y-8`}>
             {children}
           </div>
         </main>

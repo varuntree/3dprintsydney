@@ -1,5 +1,5 @@
 # 3D Print Sydney - Comprehensive Developer Documentation
-
+Default admin user: admin@3dprintsydney.com / “admin”
 ## Table of Contents
 
 1. [Overview](#overview)
