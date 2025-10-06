@@ -224,6 +224,12 @@ export type ClientDetailDTO = {
     paid: number;
     queuedJobs: number;
   };
+  clientUser?: {
+    id: number;
+    email: string;
+    createdAt: Date;
+    messageCount: number;
+  } | null;
 };
 
 export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
@@ -315,6 +321,23 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     (job) => job.status !== "COMPLETED" && job.status !== "CANCELLED",
   ).length;
 
+  // Resolve the primary client portal user (first created)
+  const clientUser = await prisma.user.findFirst({
+    where: { clientId: id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  let clientUserPayload: ClientDetailDTO["clientUser"] = null;
+  if (clientUser) {
+    const messageCount = await prisma.userMessage.count({ where: { userId: clientUser.id } });
+    clientUserPayload = {
+      id: clientUser.id,
+      email: clientUser.email,
+      createdAt: clientUser.createdAt,
+      messageCount,
+    };
+  }
+
   return {
     client: {
       id: client.id,
@@ -358,6 +381,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       paid,
       queuedJobs,
     },
+    clientUser: clientUserPayload,
   };
 }
 

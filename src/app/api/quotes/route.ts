@@ -1,9 +1,16 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { createQuote, listQuotes } from "@/server/services/quotes";
 import { ZodError } from "zod";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/quotes
+ * ADMIN ONLY - Quote management is admin-only
+ */
+export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? undefined;
     const status = searchParams.getAll("status");
@@ -25,8 +32,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+/**
+ * POST /api/quotes
+ * ADMIN ONLY - Only admins can create quotes
+ */
+export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const payload = await request.json();
     const quote = await createQuote(payload);
     return ok(quote, { status: 201 });

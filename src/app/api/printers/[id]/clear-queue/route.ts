@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { prisma } from "@/server/db/client";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -8,7 +10,8 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return id;
 }
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  await requireAdmin(request);
   try {
     const id = await parseId(context.params);
     await prisma.$transaction(async (tx) => {

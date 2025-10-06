@@ -50,6 +50,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { InlineLoader } from "@/components/ui/loader";
+import { StatusBadge } from "@/components/ui/status-badge";
 import type { JobCreationPolicyValue } from "@/lib/schemas/settings";
 import type { SettingsPayload } from "@/components/settings/settings-form";
 import {
@@ -172,20 +173,13 @@ const priorityStyles: Record<JobPriority, string> = {
   URGENT: "border-border bg-danger-subtle text-destructive",
 };
 
+// Status labels - kept for dialog descriptions
 const statusLabels: Record<JobStatus, string> = {
   QUEUED: "Queued",
   PRINTING: "Printing",
   PAUSED: "Paused",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
-};
-
-const statusStyles: Record<JobStatus, string> = {
-  QUEUED: "bg-surface-subtle text-muted-foreground",
-  PRINTING: "bg-success-subtle text-success-foreground",
-  PAUSED: "bg-warning-subtle text-warning-foreground",
-  COMPLETED: "bg-info-subtle text-info-foreground",
-  CANCELLED: "bg-danger-subtle text-destructive",
 };
 
 
@@ -1417,14 +1411,12 @@ function JobCard({
         </Badge>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Badge
-          className={cn(
-            statusStyles[job.status],
-            "border-none text-[10px] font-medium uppercase tracking-[0.2em]",
-          )}
-        >
-          {statusLabels[job.status]}
-        </Badge>
+        <StatusBadge
+          status={job.status}
+          variant="default"
+          size="sm"
+          className="text-[10px] font-medium uppercase tracking-[0.2em]"
+        />
         {typeof job.estimatedHours === "number" ? (
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" />

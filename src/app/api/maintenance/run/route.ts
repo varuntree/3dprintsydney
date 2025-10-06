@@ -1,8 +1,15 @@
 import { ok, handleError } from "@/server/api/respond";
 import { runDailyMaintenance } from "@/server/services/maintenance";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function POST() {
+/**
+ * POST /api/maintenance/run
+ * ADMIN ONLY - Only admins can trigger maintenance operations
+ */
+export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request);
     await runDailyMaintenance();
     return ok({ success: true });
   } catch (error) {

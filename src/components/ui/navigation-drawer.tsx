@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { getNavSections, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
+import { isNavItemActive } from "@/lib/nav-utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -104,9 +105,7 @@ export function NavigationDrawer() {
                 <div className="space-y-1">
                   {section.items.map((item) => {
                     const Icon = getIcon(item.icon);
-                    const active =
-                      pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`);
+                    const active = isNavItemActive(item.href, pathname);
                     return (
                       <NavigationLink
                         key={item.href}

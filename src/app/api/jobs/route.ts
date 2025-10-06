@@ -1,9 +1,16 @@
 import { ok, handleError } from "@/server/api/respond";
 import { getJobBoard } from "@/server/services/jobs";
 import { JobStatus } from "@prisma/client";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/jobs
+ * ADMIN ONLY - Job board is admin-only
+ */
+export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const archived = searchParams.get("archived");
     const includeArchived = archived === "true";

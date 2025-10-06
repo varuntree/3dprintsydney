@@ -1,6 +1,8 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updateJobStatus } from "@/server/services/jobs";
 import { jobStatusSchema } from "@/lib/schemas/jobs";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -12,9 +14,10 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  await requireAdmin(request);
   try {
     const id = await parseId(context.params);
     const payload = await request.json();

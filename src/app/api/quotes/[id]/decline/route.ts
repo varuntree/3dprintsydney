@@ -1,5 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { declineQuote } from "@/server/services/quotes";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
@@ -8,7 +10,8 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return parsed;
 }
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  await requireAdmin(request);
   try {
     const id = await parseId(context.params);
     const body = await request.json().catch(() => ({}));

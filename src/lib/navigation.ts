@@ -24,8 +24,7 @@ export const OWNER_NAV_SECTIONS: NavSection[] = [
   {
     title: "Operations",
     items: [
-      { name: "Messages", href: "/admin/messages", icon: "messages-square" },
-      { name: "Users", href: "/admin/users", icon: "users" },
+      { name: "Messages", href: "/messages", icon: "messages-square" },
       { name: "Reports", href: "/reports", icon: "bar-chart-3" },
       { name: "Settings", href: "/settings", icon: "settings" },
     ],
@@ -44,7 +43,6 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
       { name: "Home", href: "/client", icon: "home" },
       { name: "Quick Order", href: "/quick-order", icon: "rocket" },
       { name: "Orders", href: "/client/orders", icon: "receipt" },
-      { name: "Messages", href: "/client/messages", icon: "messages-square" },
     ],
   },
 ];

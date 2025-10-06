@@ -8,14 +8,21 @@ export async function deleteUserAndData(userId: number) {
   if (!user) throw new Error("User not found");
 
   await prisma.$transaction(async (tx) => {
-    await tx.userMessage.deleteMany({ where: { userId } });
-    await tx.session.deleteMany({ where: { userId } });
-
     if (user.clientId) {
       const clientId = user.clientId;
 
+      // Identify all users under this client
+      const clientUsers = await tx.user.findMany({ where: { clientId }, select: { id: true } });
+      const clientUserIds = clientUsers.map((u) => u.id);
+
+      // Remove user-level data (messages, sessions) for ALL client users
+      if (clientUserIds.length > 0) {
+        await tx.userMessage.deleteMany({ where: { userId: { in: clientUserIds } } });
+        await tx.session.deleteMany({ where: { userId: { in: clientUserIds } } });
+      }
+
+      // Remove file attachments from disk for all client invoices
       const invoices = await tx.invoice.findMany({ where: { clientId }, select: { id: true } });
-      // Delete attachments files on disk
       for (const inv of invoices) {
         const dir = path.join(FILES_ROOT, String(inv.id));
         try {
@@ -42,9 +49,14 @@ export async function deleteUserAndData(userId: number) {
         },
       });
 
+      // Remove all client users then the client record
+      await tx.user.deleteMany({ where: { clientId } });
       await tx.client.delete({ where: { id: clientId } });
+    } else {
+      // Standalone admin user: remove messages/sessions for this user
+      await tx.userMessage.deleteMany({ where: { userId } });
+      await tx.session.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
     }
-
-    await tx.user.delete({ where: { id: userId } });
   });
 }

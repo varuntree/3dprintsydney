@@ -77,18 +77,71 @@ Invoices still support manual payments regardless of Stripe availability.
 
 Stripe checkout, jobs/queue, dashboard metrics, CSV exports, and final documentation are still pending; expect rapid iteration in those areas next.
 
-## Project Structure Highlights
+## Project Structure
+
+### Route Group Architecture (Updated October 2025)
+
+The application uses Next.js 15 route groups for clean portal separation:
 
 ```
 src/
-  app/           # Next.js app routes (pages + API routes)
-  components/    # shadcn-based UI components + feature views
-  lib/           # util functions (currency, datetime, schemas, http helpers)
-  server/        # Prisma services, file storage, PDF generator
-  server/pdf/    # HTML renderers and Puppeteer wrapper
-  server/files/  # local storage helpers
-  server/services/# domain-specific service layers
+├── app/
+│   ├── (admin)/              # Admin portal (requireAdmin in layout)
+│   │   ├── layout.tsx       # AdminShell wrapper with navigation
+│   │   ├── page.tsx         # Dashboard
+│   │   ├── clients/         # Client management
+│   │   ├── invoices/        # Invoice management
+│   │   ├── quotes/          # Quote management
+│   │   ├── jobs/            # Job scheduling & queue
+│   │   ├── materials/       # Material catalog
+│   │   ├── printers/        # Printer management
+│   │   ├── products/        # Product templates
+│   │   ├── messages/        # Admin messaging hub
+│   │   ├── users/           # User management
+│   │   ├── reports/         # Analytics & exports
+│   │   └── settings/        # Business settings
+│   ├── (client)/            # Client portal (requireClient in layout)
+│   │   ├── layout.tsx       # ClientShell wrapper
+│   │   ├── client/
+│   │   │   ├── page.tsx     # Client dashboard
+│   │   │   ├── orders/      # View invoices & payments
+│   │   │   └── messages/    # Client messaging
+│   │   └── quick-order/     # Self-service ordering
+│   ├── (public)/            # Public routes
+│   │   ├── login/           # Authentication
+│   │   └── signup/          # Registration
+│   └── api/                 # API routes (all secured)
+├── components/
+│   ├── layout/              # AdminShell, ClientShell
+│   ├── messages/            # WhatsApp-style messaging
+│   └── ui/                  # shadcn components
+├── lib/
+│   ├── auth-utils.ts        # Server Component auth
+│   ├── nav-utils.ts         # Navigation helpers
+│   └── chat/                # Message grouping logic
+├── server/
+│   ├── auth/
+│   │   ├── session.ts       # Session management
+│   │   ├── api-helpers.ts   # API authorization
+│   │   └── permissions.ts   # Invoice/attachment access
+│   ├── services/            # Domain services
+│   ├── pdf/                 # PDF generation
+│   └── files/               # File storage
+└── middleware.ts            # Edge route protection
 ```
+
+### Security Architecture
+
+**Three-Layer Security:**
+1. **Middleware** (`/middleware.ts`) - Edge protection, routes CLIENT users away from admin areas
+2. **Layout Auth** (route group layouts) - Server-side user resolution, no role flicker
+3. **API Authorization** (65/65 routes secured) - `requireAdmin`, `requireUser`, `requireInvoiceAccess`
+
+**User Roles:**
+- `ADMIN` - Full access to all management features, analytics, and settings
+- `CLIENT` - Access to own invoices, quick-order, and messaging only
+
+See `/MIGRATION_SUMMARY.md` for complete architecture documentation.
 
 ## Contributing / Next Steps
 

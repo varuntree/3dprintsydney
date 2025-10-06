@@ -1,9 +1,16 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listInvoices, createInvoice } from "@/server/services/invoices";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/invoices
+ * ADMIN ONLY - Invoice listing is admin-only (clients use /api/client/invoices)
+ */
+export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? undefined;
     const status = searchParams.getAll("status");
@@ -25,8 +32,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+/**
+ * POST /api/invoices
+ * ADMIN ONLY - Only admins can create invoices manually (clients use quick-order checkout)
+ */
+export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const payload = await request.json();
     const invoice = await createInvoice(payload);
     return ok(invoice, { status: 201 });

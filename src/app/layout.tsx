@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppProviders } from "@/components/providers/app-providers";
-import { AppShell } from "@/components/layout/app-shell";
+import NextTopLoader from "nextjs-toploader";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,19 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
+/**
+ * Root Layout - Simplified
+ *
+ * Provides only:
+ * - HTML structure
+ * - Global styles
+ * - App-wide providers (theme, toast, etc.)
+ *
+ * Navigation handled by route group layouts:
+ * - (admin)/layout.tsx - Admin portal with AdminNavigation
+ * - (client)/layout.tsx - Client portal with ClientNavigation
+ * - (public)/layout.tsx - Public pages (login/signup)
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,9 +38,16 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <AppProviders>
-          <AppShell>{children}</AppShell>
-        </AppProviders>
+        <NextTopLoader
+          color="#3b82f6"
+          height={3}
+          showSpinner={false}
+          easing="ease"
+          speed={200}
+          shadow="0 0 10px #3b82f6,0 0 5px #3b82f6"
+          zIndex={9999}
+        />
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

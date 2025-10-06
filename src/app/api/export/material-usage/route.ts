@@ -1,8 +1,15 @@
 import { logger } from "@/lib/logger";
 import { exportMaterialUsageCsv } from "@/server/services/exports";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/export/material-usage
+ * ADMIN ONLY - Material usage reports contain sensitive operational data
+ */
+export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from");
     const to = searchParams.get("to");

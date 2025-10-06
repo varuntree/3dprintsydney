@@ -1,6 +1,8 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updatePrinter, deletePrinter } from "@/server/services/printers";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -11,11 +13,16 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return id;
 }
 
+/**
+ * PUT /api/printers/[id]
+ * ADMIN ONLY
+ */
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const payload = await request.json();
     const printer = await updatePrinter(id, payload);
@@ -33,11 +40,16 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE /api/printers/[id]
+ * ADMIN ONLY
+ */
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const printer = await deletePrinter(id);
     return ok(printer);

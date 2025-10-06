@@ -5,6 +5,8 @@ import {
   updateClient,
   deleteClient,
 } from "@/server/services/clients";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -15,11 +17,16 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return id;
 }
 
+/**
+ * GET /api/clients/[id]
+ * ADMIN ONLY
+ */
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const client = await getClientDetail(id);
     return ok(client);
@@ -31,11 +38,16 @@ export async function GET(
   }
 }
 
+/**
+ * PUT /api/clients/[id]
+ * ADMIN ONLY
+ */
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const payload = await request.json();
     const client = await updateClient(id, payload);
@@ -53,11 +65,16 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE /api/clients/[id]
+ * ADMIN ONLY
+ */
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const client = await deleteClient(id);
     return ok(client);

@@ -1,9 +1,16 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listProductTemplates, createProductTemplate } from "@/server/services/product-templates";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * GET /api/product-templates
+ * ADMIN ONLY - Product template management is admin-only
+ */
+export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? undefined;
     const limit = Number(searchParams.get("limit") ?? "0");
@@ -23,8 +30,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+/**
+ * POST /api/product-templates
+ * ADMIN ONLY - Only admins can create product templates
+ */
+export async function POST(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const payload = await request.json();
     const template = await createProductTemplate(payload);
     return ok(template, { status: 201 });

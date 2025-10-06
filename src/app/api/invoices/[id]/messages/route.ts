@@ -16,14 +16,33 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   try {
     const invoiceId = await parseId(context.params);
     await requireInvoiceAccess(req, invoiceId);
+
+    // Get all messages for the client user associated with this invoice (unified thread)
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { clientId: true },
+    });
+    if (!invoice) {
+      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    }
+
+    const clientUser = await prisma.user.findFirst({
+      where: { clientId: invoice.clientId },
+    });
+    if (!clientUser) {
+      return NextResponse.json({ error: "No client user" }, { status: 400 });
+    }
+
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") ?? "50");
     const offset = Number(searchParams.get("offset") ?? "0");
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
     const take = Number.isFinite(limit) && limit > 0 ? limit : 50;
     const skip = Number.isFinite(offset) && offset >= 0 ? offset : 0;
+
+    // Fetch all messages for this client user (unified thread across all invoices)
     const messages = await prisma.userMessage.findMany({
-      where: { invoiceId },
+      where: { userId: clientUser.id },
       orderBy: { createdAt: order },
       take,
       skip,

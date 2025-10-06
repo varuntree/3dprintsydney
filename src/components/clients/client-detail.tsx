@@ -57,6 +57,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Mail, Phone, Edit, FileText, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Conversation } from "@/components/messages/conversation";
 
 export type ClientDetailRecord = {
   client: {
@@ -107,6 +108,12 @@ export type ClientDetailRecord = {
     paid: number;
     queuedJobs: number;
   };
+  clientUser?: {
+    id: number;
+    email: string;
+    createdAt: string;
+    messageCount: number;
+  } | null;
 };
 
 interface ClientDetailProps {
@@ -134,6 +141,7 @@ const clientFormResolver = zodResolver(clientInputSchema) as Resolver<ClientForm
 
 export function ClientDetail({ detail }: ClientDetailProps) {
   const queryClient = useQueryClient();
+  const { navigate } = useNavigation();
 
   const { data } = useQuery({
     queryKey: ["client", detail.client.id],
@@ -410,6 +418,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               <TabsTrigger value="quotes">Quotes</TabsTrigger>
               <TabsTrigger value="jobs">Jobs</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
+              <TabsTrigger value="messages">Messages</TabsTrigger>
             </TabsList>
             <TabsContent value="invoices">
               <DataTable
@@ -560,10 +569,71 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            <TabsContent value="messages">
+              {current.clientUser ? (
+                <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium">Messages with {current.clientUser.email}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="min-h-[420px]">
+                      <Conversation userId={current.clientUser.id} currentUserRole="ADMIN" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+                  <CardContent className="py-6">
+                    <EmptyState
+                      title="No portal user for this client"
+                      description="Client messages appear once a client creates a portal account. You can still message clients on specific invoices."
+                      className="rounded-2xl border-border"
+                    />
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
           </Tabs>
         </div>
       </div>
       </div>
+
+      {/* Danger Zone */}
+      {current.clientUser ? (
+        <Card className="rounded-3xl border border-red-300/40 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20">
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold text-red-700 dark:text-red-300">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p className="text-red-700 dark:text-red-300">
+              Deleting the client portal user removes the client and ALL associated data (messages, invoices, quotes, jobs, payments, files, and activity). This cannot be undone.
+            </p>
+            <div className="flex justify-end">
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  if (!current.clientUser) return;
+                  const ok = confirm(
+                    "Delete the client portal user and ALL client data? This cannot be undone.",
+                  );
+                  if (!ok) return;
+                  const res = await fetch(`/api/admin/users/${current.clientUser.id}`, { method: "DELETE" });
+                  if (res.ok) {
+                    toast.success("Client and portal user deleted");
+                    await navigate("/clients", { replace: true });
+                  } else {
+                    const j = await res.json().catch(() => ({ error: "Unknown error" }));
+                    toast.error(j?.error ?? "Failed to delete client portal user");
+                  }
+                }}
+              >
+                Delete Client Portal User + All Client Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Dialog
         open={editOpen}

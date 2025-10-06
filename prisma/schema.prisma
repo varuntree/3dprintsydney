@@ -375,7 +375,7 @@ model User {
   passwordHash String
   role         Role          @default(CLIENT)
   clientId     Int?
-  client       Client?       @relation(fields: [clientId], references: [id])
+  client       Client?       @relation(fields: [clientId], references: [id], onDelete: Cascade)
   sessions     Session[]
   messages     UserMessage[]
   createdAt    DateTime      @default(now())

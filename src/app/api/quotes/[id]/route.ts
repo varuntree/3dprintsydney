@@ -1,6 +1,8 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { getQuote, updateQuote, deleteQuote } from "@/server/services/quotes";
+import { requireAdmin } from "@/server/auth/session";
+import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -11,11 +13,16 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   return id;
 }
 
+/**
+ * GET /api/quotes/[id]
+ * ADMIN ONLY
+ */
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const quote = await getQuote(id);
     return ok(quote);
@@ -27,11 +34,16 @@ export async function GET(
   }
 }
 
+/**
+ * PUT /api/quotes/[id]
+ * ADMIN ONLY
+ */
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const payload = await request.json();
     const quote = await updateQuote(id, payload);
@@ -49,11 +61,16 @@ export async function PUT(
   }
 }
 
+/**
+ * DELETE /api/quotes/[id]
+ * ADMIN ONLY
+ */
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await requireAdmin(request);
     const id = await parseId(context.params);
     const quote = await deleteQuote(id);
     return ok(quote);
