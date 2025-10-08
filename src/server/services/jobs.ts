@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { logger } from "@/lib/logger";
+import { getSettings } from "@/server/services/settings";
 type HttpError = Error & { status?: number };
 
 export type JobCard = {
@@ -147,16 +148,23 @@ export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardS
     });
   });
 
+  const queuedStatuses = new Set<JobStatus>([
+    JobStatus.QUEUED,
+    JobStatus.PRE_PROCESSING,
+    JobStatus.IN_QUEUE,
+  ]);
+  const activeStatuses = new Set<JobStatus>([JobStatus.PRINTING]);
+
   cards.forEach((job) => {
     const column = columnMap.get(job.printerId ?? null);
     if (!column) {
       return;
     }
     column.jobs.push(job);
-    if (job.status === JobStatus.QUEUED) {
+    if (queuedStatuses.has(job.status)) {
       column.metrics.queuedCount += 1;
     }
-    if (job.status === JobStatus.PRINTING) {
+    if (activeStatuses.has(job.status)) {
       column.metrics.activeCount += 1;
     }
     if (typeof job.estimatedHours === "number") {
@@ -259,7 +267,7 @@ export async function ensureJobForInvoice(invoiceId: number) {
       clientId: invoice.clientId,
       title: `Invoice ${invoice.number}`,
       description: null,
-      status: JobStatus.QUEUED,
+      status: JobStatus.PRE_PROCESSING,
       priority: JobPriority.NORMAL,
       printerId: null,
       queuePosition: nextPosition,
@@ -279,6 +287,50 @@ export async function ensureJobForInvoice(invoiceId: number) {
   logger.info({ scope: "jobs.ensure", data: { invoiceId, jobId: created.id } });
 
   return created;
+}
+
+export type ClientJobSummary = {
+  id: number;
+  title: string;
+  status: JobStatus;
+  priority: JobPriority;
+  invoiceId: number;
+  invoiceNumber: string;
+  updatedAt: Date;
+  createdAt: Date;
+};
+
+export async function listJobsForClient(
+  clientId: number,
+  options?: { includeArchived?: boolean },
+): Promise<ClientJobSummary[]> {
+  const jobs = await prisma.job.findMany({
+    where: {
+      clientId,
+      archivedAt: options?.includeArchived ? undefined : null,
+    },
+    orderBy: [{ updatedAt: "desc" }],
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      priority: true,
+      updatedAt: true,
+      createdAt: true,
+      invoice: { select: { id: true, number: true } },
+    },
+  });
+
+  return jobs.map((job) => ({
+    id: job.id,
+    title: job.title,
+    status: job.status,
+    priority: job.priority,
+    invoiceId: job.invoice.id,
+    invoiceNumber: job.invoice.number,
+    updatedAt: job.updatedAt,
+    createdAt: job.createdAt,
+  }));
 }
 
 export async function updateJob(
@@ -350,6 +402,19 @@ export async function updateJobStatus(
 
   const data: Prisma.JobUncheckedUpdateInput = { status };
 
+  const resetStatuses = new Set<JobStatus>([
+    JobStatus.QUEUED,
+    JobStatus.PRE_PROCESSING,
+    JobStatus.IN_QUEUE,
+  ]);
+
+  const postPrintStatuses = new Set<JobStatus>([
+    JobStatus.PRINTING_COMPLETE,
+    JobStatus.POST_PROCESSING,
+    JobStatus.PACKAGING,
+    JobStatus.OUT_FOR_DELIVERY,
+  ]);
+
   async function accumulateRun(record = jobRecord!) {
     if (record.lastRunStartedAt) {
       const delta = Math.max(
@@ -381,12 +446,10 @@ export async function updateJobStatus(
     data.startedAt = jobRecord.startedAt ?? now;
     data.pausedAt = null;
     data.lastRunStartedAt = jobRecord.lastRunStartedAt ?? now;
-  }
-  if (status === JobStatus.PAUSED) {
+  } else if (status === JobStatus.PAUSED) {
     await accumulateRun();
     data.pausedAt = now;
-  }
-  if (status === JobStatus.COMPLETED) {
+  } else if (status === JobStatus.COMPLETED) {
     await accumulateRun();
     data.completedAt = now;
     if (!jobRecord.startedAt) {
@@ -410,15 +473,17 @@ export async function updateJobStatus(
       data.archivedAt = now;
       data.archivedReason = "auto-archive (immediate)";
     }
-  }
-  if (status === JobStatus.QUEUED) {
+  } else if (resetStatuses.has(status)) {
     data.startedAt = null;
     data.completedAt = null;
     data.pausedAt = null;
     data.actualHours = null;
     data.lastRunStartedAt = null;
-  }
-  if (status === JobStatus.CANCELLED) {
+  } else if (postPrintStatuses.has(status)) {
+    await accumulateRun();
+    data.pausedAt = null;
+    data.lastRunStartedAt = null;
+  } else if (status === JobStatus.CANCELLED) {
     data.completedAt = null;
     data.pausedAt = null;
     data.actualHours = null;
@@ -428,7 +493,26 @@ export async function updateJobStatus(
     data.archivedReason = note ?? "cancelled";
   }
 
-  const job = await prisma.job.update({ where: { id }, data });
+  const job = await prisma.job.update({
+    where: { id },
+    data,
+    include: {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          notifyOnJobStatus: true,
+        },
+      },
+      invoice: {
+        select: {
+          id: true,
+          number: true,
+        },
+      },
+    },
+  });
 
   await prisma.activityLog.create({
     data: {
@@ -440,6 +524,10 @@ export async function updateJobStatus(
       metadata: note ? { note } : undefined,
     },
   });
+
+  if (jobRecord.status !== status) {
+    await maybeNotifyJobStatusChange(jobRecord.status, job, note);
+  }
 
   logger.info({ scope: "jobs.status", data: { id, status } });
   return job;
@@ -499,4 +587,74 @@ export async function bulkArchiveJobs(ids: number[], reason?: string) {
   });
   logger.info({ scope: "jobs.archive.bulk", data: { count: ids.length } });
   return ids.length;
+}
+
+type JobWithRelations = Prisma.JobGetPayload<{
+  include: {
+    client: {
+      select: {
+        id: true;
+        name: true;
+        email: true;
+        notifyOnJobStatus: true;
+      };
+    };
+    invoice: {
+      select: {
+        id: true;
+        number: true;
+      };
+    };
+  };
+}>;
+
+async function maybeNotifyJobStatusChange(
+  previousStatus: JobStatus,
+  job: JobWithRelations,
+  note?: string,
+) {
+  if (previousStatus === job.status) {
+    return;
+  }
+
+  const settings = await getSettings();
+  if (!settings?.enableEmailSend) {
+    logger.info({
+      scope: "jobs.notify",
+      message: "Email notifications disabled; skipping job status email",
+      data: {
+        jobId: job.id,
+        status: job.status,
+      },
+    });
+    return;
+  }
+
+  if (!job.client.notifyOnJobStatus) {
+    logger.info({
+      scope: "jobs.notify",
+      message: "Client opted out of job status emails",
+      data: {
+        jobId: job.id,
+        clientId: job.clientId,
+      },
+    });
+    return;
+  }
+
+  logger.info({
+    scope: "jobs.notify",
+    message: "Dispatching job status notification",
+    data: {
+      jobId: job.id,
+      clientId: job.clientId,
+      clientEmail: job.client.email ?? null,
+      invoiceNumber: job.invoice?.number ?? null,
+      previousStatus,
+      newStatus: job.status,
+      note: note ?? null,
+    },
+  });
+
+  // Placeholder: integrate with email delivery in future iteration.
 }

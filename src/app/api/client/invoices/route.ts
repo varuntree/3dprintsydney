@@ -14,10 +14,29 @@ export async function GET(req: NextRequest) {
     const invoices = await prisma.invoice.findMany({
       where: { clientId: user.clientId },
       orderBy: { issueDate: "desc" },
-      take, skip,
-      select: { id: true, number: true, status: true, total: true, issueDate: true, balanceDue: true },
+      take,
+      skip,
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        issueDate: true,
+        balanceDue: true,
+        stripeCheckoutUrl: true,
+      },
     });
-    return NextResponse.json({ data: invoices.map((i) => ({ ...i, total: Number(i.total), balanceDue: Number(i.balanceDue) })) });
+    return NextResponse.json({
+      data: invoices.map((i) => ({
+        id: i.id,
+        number: i.number,
+        status: i.status,
+        total: Number(i.total),
+        issueDate: i.issueDate,
+        balanceDue: Number(i.balanceDue),
+        stripeCheckoutUrl: i.stripeCheckoutUrl,
+      })),
+    });
   } catch (error) {
     const e = error as Error & { status?: number };
     const status = e?.status ?? 400;

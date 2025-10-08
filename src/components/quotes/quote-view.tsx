@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
+import { PdfGenerateButton } from "@/components/ui/pdf-generate-button";
 import {
   ActionButtonGroup,
   ActionGroupContainer,
@@ -96,7 +96,7 @@ export interface QuoteViewProps {
 export function QuoteView({ quote }: QuoteViewProps) {
   const { navigate } = useNavigation();
   const queryClient = useQueryClient();
-  const [decision, setDecision] = useState<"accept" | "decline" | null>(null);
+  const [decision, setDecision] = useState<"decline" | null>(null);
   const [decisionNote, setDecisionNote] = useState("");
 
   const statusMutation = useMutation({
@@ -119,14 +119,14 @@ export function QuoteView({ quote }: QuoteViewProps) {
     },
   });
 
-  const decisionMutation = useMutation({
-    mutationFn: (mode: "accept" | "decline") =>
-      mutateJson(`/api/quotes/${quote.id}/${mode}`, {
+  const declineMutation = useMutation({
+    mutationFn: () =>
+      mutateJson(`/api/quotes/${quote.id}/decline`, {
         method: "POST",
         body: JSON.stringify({ note: decisionNote || undefined }),
       }),
-    onSuccess: async (_, mode) => {
-      toast.success(`Quote ${mode === "accept" ? "accepted" : "declined"}`);
+    onSuccess: async () => {
+      toast.success("Quote declined");
       setDecision(null);
       setDecisionNote("");
       await Promise.all([
@@ -175,7 +175,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
 
   const isBusy =
     statusMutation.isPending ||
-    decisionMutation.isPending ||
+    declineMutation.isPending ||
     convertMutation.isPending ||
     duplicateMutation.isPending;
 
@@ -232,28 +232,14 @@ export function QuoteView({ quote }: QuoteViewProps) {
               >
                 Edit
               </ActionButton>
-              <PDFStyleDropdown
-                documentType="quote"
-                documentId={quote.id}
-                documentNumber={quote.number}
-              />
+            <PdfGenerateButton
+              documentType="quote"
+              documentId={quote.id}
+              documentNumber={quote.number}
+            />
             </ActionButtonGroup>
 
             <ActionButtonGroup title="Actions" variant="secondary">
-              <Button
-                variant="outline"
-                onClick={() => setDecision("accept")}
-                className="gap-2 rounded-full"
-              >
-                Accept
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setDecision("decline")}
-                className="gap-2 rounded-full"
-              >
-                Decline
-              </Button>
               <LoadingButton
                 variant="outline"
                 onClick={() => convertMutation.mutate()}
@@ -261,8 +247,15 @@ export function QuoteView({ quote }: QuoteViewProps) {
                 loadingText="Converting…"
                 className="gap-2 rounded-full"
               >
-                Convert to invoice
+                Accept &amp; convert
               </LoadingButton>
+              <Button
+                variant="outline"
+                onClick={() => setDecision("decline")}
+                className="gap-2 rounded-full"
+              >
+                Decline
+              </Button>
               <LoadingButton
                 variant="subtle"
                 size="sm"
@@ -459,10 +452,10 @@ export function QuoteView({ quote }: QuoteViewProps) {
         }}
         onConfirm={() => {
           if (!decision) return;
-          decisionMutation.mutate(decision);
+          declineMutation.mutate();
         }}
         onNoteChange={setDecisionNote}
-        isLoading={decisionMutation.isPending}
+        isLoading={declineMutation.isPending}
       />
     </div>
   );
@@ -511,7 +504,7 @@ function discountLabel(type: string, value?: number | null) {
 }
 
 interface DecisionDialogProps {
-  mode: "accept" | "decline" | null;
+  mode: "decline" | null;
   note: string;
   isLoading: boolean;
   onNoteChange: (value: string) => void;
@@ -527,12 +520,7 @@ function DecisionDialog({
   onConfirm,
   isLoading,
 }: DecisionDialogProps) {
-  const title =
-    mode === "accept"
-      ? "Accept quote"
-      : mode === "decline"
-        ? "Decline quote"
-        : null;
+  const title = mode === "decline" ? "Decline quote" : null;
   return (
     <Dialog open={mode !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="rounded-3xl border border-border bg-surface-overlay">
@@ -543,14 +531,14 @@ function DecisionDialog({
             </DialogHeader>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Add an internal note (optional). The status will be updated
-                automatically.
+                Add an internal note explaining why the quote was lost. The status will be
+                updated automatically.
               </p>
               <Textarea
                 rows={4}
                 value={note}
                 onChange={(event) => onNoteChange(event.target.value)}
-                placeholder="Add decision note (optional)"
+                placeholder="Reason for decline (optional)"
               />
             </div>
             <DialogFooter className="gap-2">
@@ -563,12 +551,13 @@ function DecisionDialog({
                 Cancel
               </Button>
               <LoadingButton
+                variant="destructive"
                 onClick={onConfirm}
                 loading={isLoading}
-                loadingText="Updating…"
+                loadingText="Declining…"
                 className="gap-2 rounded-full"
               >
-                {title}
+                Decline quote
               </LoadingButton>
             </DialogFooter>
           </>

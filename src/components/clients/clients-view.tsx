@@ -52,7 +52,7 @@ import { mutateJson, getJson } from "@/lib/http";
 import { clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
 import { UserPlus } from "lucide-react";
-import { DataCard } from "@/components/ui/data-card";
+import { Switch } from "@/components/ui/switch";
 
 export type ClientSummaryRecord = {
   id: number;
@@ -61,6 +61,7 @@ export type ClientSummaryRecord = {
   email: string;
   phone: string;
   paymentTerms?: string | null;
+  notifyOnJobStatus: boolean;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
@@ -82,6 +83,7 @@ type ClientFormValues = {
   paymentTerms?: string;
   notes?: string;
   tags?: string[];
+  notifyOnJobStatus?: boolean;
 };
 
 const PAYMENT_TERMS_INHERIT_VALUE = "__inherit_payment_terms__";
@@ -102,6 +104,7 @@ function defaults(): ClientFormValues {
     paymentTerms: "",
     notes: "",
     tags: [],
+    notifyOnJobStatus: false,
   };
 }
 
@@ -109,7 +112,12 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(startOpen);
   const hasAppliedStartOpen = useRef(false);
-  const { terms: paymentTermOptions, defaultTermCode, isLoading: paymentTermsLoading } = usePaymentTerms();
+  const {
+    terms: paymentTermOptions,
+    defaultTermCode,
+    isLoading: paymentTermsLoading,
+    notificationsEnabledDefault,
+  } = usePaymentTerms();
 
   const form = useForm<ClientFormValues>({
     resolver: clientResolver,
@@ -152,7 +160,11 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
 
   useEffect(() => {
     if (startOpen && !hasAppliedStartOpen.current) {
-      form.reset(defaults());
+      form.reset({
+        ...defaults(),
+        paymentTerms: defaultTermCode,
+        notifyOnJobStatus: notificationsEnabledDefault,
+      });
       setOpen(true);
       hasAppliedStartOpen.current = true;
     }
@@ -160,10 +172,14 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
     if (!startOpen) {
       hasAppliedStartOpen.current = false;
     }
-  }, [startOpen, form]);
+  }, [startOpen, form, defaultTermCode, notificationsEnabledDefault]);
 
   function openDialog() {
-    form.reset(defaults());
+    form.reset({
+      ...defaults(),
+      paymentTerms: defaultTermCode,
+      notifyOnJobStatus: notificationsEnabledDefault,
+    });
     setOpen(true);
   }
 
@@ -171,7 +187,10 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
     setOpen(false);
   }
 
-  const clients = data ?? [];
+  const clients = (data ?? []).map((client) => ({
+    ...client,
+    notifyOnJobStatus: client.notifyOnJobStatus ?? false,
+  }));
 
   const totalOutstanding = clients.reduce(
     (sum, client) => sum + client.outstandingBalance,
@@ -203,19 +222,6 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
           <span>{formatCurrency(totalOutstanding)} outstanding</span>
         </div>
       </header>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <DataCard
-          title="Total Clients"
-          value={clients.length}
-          tone="slate"
-        />
-        <DataCard
-          title="Outstanding Balance"
-          value={formatCurrency(totalOutstanding)}
-          tone={totalOutstanding > 0 ? "amber" : "emerald"}
-        />
-      </div>
 
       <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
         <CardHeader>
@@ -444,6 +450,28 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                     <FormDescription>
                       Manage options in Settings → Payments.
                     </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="notifyOnJobStatus"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                      <FormLabel className="text-sm font-medium">Job status emails</FormLabel>
+                      <FormDescription>
+                        Send automated job status updates to this client when enabled globally.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? false}
+                        onCheckedChange={field.onChange}
+                        disabled={mutation.isPending}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

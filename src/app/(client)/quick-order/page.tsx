@@ -2,18 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Upload as UploadIcon,
+  UploadCloud,
   Settings2,
   Package,
   CreditCard,
   Check,
   ChevronDown,
   ChevronUp,
+  Info,
+  X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +25,15 @@ type Upload = { id: string; filename: string; size: number };
 type Material = { id: number; name: string; costPerGram: number };
 
 type Step = "upload" | "configure" | "price" | "checkout";
+
+type ShippingQuote = {
+  code: string;
+  label: string;
+  baseAmount: number;
+  amount: number;
+  remoteSurcharge?: number;
+  remoteApplied: boolean;
+};
 
 export default function QuickOrderPage() {
   const router = useRouter();
@@ -35,10 +48,7 @@ export default function QuickOrderPage() {
     Record<string, { grams: number; timeSec: number; fallback?: boolean }>
   >({});
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
-  const [shippingCode, setShippingCode] = useState<string | undefined>(undefined);
-  const [shippingOptions, setShippingOptions] = useState<
-    { code: string; label: string; amount: number }[]
-  >([]);
+  const [shippingQuote, setShippingQuote] = useState<ShippingQuote | null>(null);
   const [address, setAddress] = useState({
     name: "",
     line1: "",
@@ -54,6 +64,7 @@ export default function QuickOrderPage() {
     total: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pricing, setPricing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -98,17 +109,42 @@ export default function QuickOrderPage() {
       return;
     }
     const { data } = await res.json();
-    setUploads((prev) => [...prev, ...data]);
+    const uploaded = data as Upload[];
+    setUploads((prev) => [...prev, ...uploaded]);
     const defaultMat = Array.isArray(materials) && materials.length > 0 ? materials[0]!.id : undefined;
     const next = { ...settings };
     const newExpanded = new Set(expandedFiles);
-    for (const it of data as Upload[]) {
+    for (const it of uploaded) {
       next[it.id] = { materialId: defaultMat ?? 0, layerHeight: 0.2, infill: 20, quantity: 1 };
       newExpanded.add(it.id); // Auto-expand new files
     }
     setSettings(next);
     setExpandedFiles(newExpanded);
     if (uploads.length === 0) setCurrentStep("configure");
+  }
+
+  function removeUpload(id: string) {
+    const nextUploads = uploads.filter((u) => u.id !== id);
+    if (nextUploads.length === uploads.length) return;
+    setUploads(nextUploads);
+    setSettings((prev) => {
+      const copy = { ...prev } as typeof prev;
+      delete copy[id];
+      return copy;
+    });
+    setMetrics((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setExpandedFiles((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setPriceData(null);
+    setShippingQuote(null);
+    setCurrentStep(nextUploads.length === 0 ? "upload" : "configure");
   }
 
   async function runSlice() {
@@ -140,34 +176,55 @@ export default function QuickOrderPage() {
 
   async function computePrice() {
     setLoading(true);
+    setPricing(true);
     setError(null);
+    setShippingQuote(null);
+    setPriceData(null);
     const items = uploads.map((u) => ({
       fileId: u.id,
       filename: u.filename,
       materialId: settings[u.id].materialId,
+      materialName:
+        materials.find((m) => m.id === settings[u.id].materialId)?.name ?? undefined,
       layerHeight: settings[u.id].layerHeight,
       infill: settings[u.id].infill,
       quantity: settings[u.id].quantity,
       metrics: metrics[u.id] ?? { grams: 80, timeSec: 3600, fallback: true },
     }));
-    const res = await fetch("/api/quick-order/price", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
-    });
-    setLoading(false);
-    if (!res.ok) {
+    try {
+      const res = await fetch("/api/quick-order/price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items,
+          location: {
+            state: address.state,
+            postcode: address.postcode,
+          },
+        }),
+      });
+      if (!res.ok) {
+        setError("Pricing failed");
+        return;
+      }
+      const { data } = await res.json();
+      const quote: ShippingQuote | null = data.shipping ?? null;
+      setShippingQuote(quote);
+      const subtotal = Math.round((data.subtotal ?? 0) * 100) / 100;
+      const shippingAmount = quote ? Math.round((quote.amount ?? 0) * 100) / 100 : 0;
+      setPriceData({
+        subtotal,
+        shipping: shippingAmount,
+        total: Math.round((subtotal + shippingAmount) * 100) / 100,
+      });
+      setCurrentStep("price");
+    } catch (err) {
+      console.error(err);
       setError("Pricing failed");
-      return;
+    } finally {
+      setLoading(false);
+      setPricing(false);
     }
-    const { data } = await res.json();
-    setShippingOptions(data.shippingOptions ?? []);
-    setPriceData({
-      subtotal: data.subtotal ?? 0,
-      shipping: 0,
-      total: data.subtotal ?? 0,
-    });
-    setCurrentStep("price");
   }
 
   async function checkout() {
@@ -177,6 +234,8 @@ export default function QuickOrderPage() {
       fileId: u.id,
       filename: u.filename,
       materialId: settings[u.id].materialId,
+      materialName:
+        materials.find((m) => m.id === settings[u.id].materialId)?.name ?? undefined,
       layerHeight: settings[u.id].layerHeight,
       infill: settings[u.id].infill,
       quantity: settings[u.id].quantity,
@@ -185,7 +244,7 @@ export default function QuickOrderPage() {
     const res = await fetch("/api/quick-order/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, shippingCode, address }),
+      body: JSON.stringify({ items, address }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -215,7 +274,7 @@ export default function QuickOrderPage() {
   const hasSlicedAll = uploads.every((u) => metrics[u.id]);
 
   const steps = [
-    { id: "upload", label: "Upload", icon: UploadIcon },
+    { id: "upload", label: "Upload", icon: UploadCloud },
     { id: "configure", label: "Configure", icon: Settings2 },
     { id: "price", label: "Price", icon: Package },
     { id: "checkout", label: "Checkout", icon: CreditCard },
@@ -283,7 +342,7 @@ export default function QuickOrderPage() {
           {/* Upload Section */}
           <section className="rounded-lg border border-border bg-surface-overlay p-6">
             <div className="mb-4 flex items-center gap-2">
-              <UploadIcon className="h-5 w-5 text-muted-foreground" />
+              <UploadCloud className="h-6 w-6 text-blue-600" />
               <h2 className="text-lg font-semibold">Upload Files</h2>
             </div>
             <div className="space-y-4">
@@ -330,14 +389,27 @@ export default function QuickOrderPage() {
                     <div key={u.id} className="rounded-lg border border-border bg-background">
                       {/* File Header - Always Visible */}
                       <div
-                        className="flex cursor-pointer items-center justify-between p-3 hover:bg-surface-muted"
+                        className="flex cursor-pointer items-center justify-between gap-3 p-3 hover:bg-surface-muted"
                         onClick={() => toggleFileExpanded(u.id)}
                       >
-                        <div className="flex-1">
-                          <div className="font-medium">{u.filename}</div>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="truncate font-medium">{u.filename}</span>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeUpload(u.id);
+                              }}
+                              aria-label={`Remove ${u.filename}`}
+                              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-destructive/30 text-destructive transition-colors hover:bg-destructive/10"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                           {hasMetrics && (
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              ~{Math.round(metrics[u.id].grams)}g, ~
+                            <div className="text-xs text-muted-foreground">
+                              ~{Math.round(metrics[u.id].grams)}g · ~
                               {Math.ceil((metrics[u.id].timeSec || 0) / 60)} min
                               {metrics[u.id].fallback ? " (est.)" : ""}
                             </div>
@@ -355,7 +427,19 @@ export default function QuickOrderPage() {
                         <div className="border-t border-border p-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <Label className="text-xs">Material</Label>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">Material</Label>
+                                <Link
+                                  href="/materials"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
+                                >
+                                  <Info className="h-3 w-3" />
+                                  Info
+                                </Link>
+                              </div>
                               <Select
                                 value={String(settings[u.id]?.materialId ?? "")}
                                 onValueChange={(v) =>
@@ -432,8 +516,22 @@ export default function QuickOrderPage() {
                 })}
               </div>
               <div className="mt-4 flex justify-end">
-                <Button onClick={computePrice} disabled={uploads.length === 0 || loading}>
-                  Calculate Price
+                <Button
+                  onClick={computePrice}
+                  disabled={uploads.length === 0 || loading || pricing}
+                  className={cn(
+                    "flex items-center gap-2 bg-blue-600 text-white shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60",
+                    pricing ? "animate-pulse" : "hover:bg-blue-500"
+                  )}
+                >
+                  {pricing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    "Calculate Price"
+                  )}
                 </Button>
               </div>
             </section>
@@ -457,9 +555,19 @@ export default function QuickOrderPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping</span>
                   <span className="font-medium">
-                    {shippingCode ? `$${priceData.shipping.toFixed(2)}` : "TBD"}
+                    {shippingQuote
+                      ? `$${priceData.shipping.toFixed(2)}`
+                      : "Awaiting address"}
                   </span>
                 </div>
+                {shippingQuote ? (
+                  <p className="text-xs text-muted-foreground">
+                    {shippingQuote.label}
+                    {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge
+                      ? ` (includes +$${shippingQuote.remoteSurcharge.toFixed(2)} remote surcharge)`
+                      : ""}
+                  </p>
+                ) : null}
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between text-base font-semibold">
                     <span>Total</span>
@@ -478,20 +586,26 @@ export default function QuickOrderPage() {
                 <h2 className="text-lg font-semibold">Checkout</h2>
               </div>
               <div className="space-y-4">
-                <div>
-                  <Label className="text-xs">Shipping Method</Label>
-                  <Select value={shippingCode} onValueChange={setShippingCode}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select shipping" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shippingOptions.map((o) => (
-                        <SelectItem key={o.code} value={o.code}>
-                          {o.label} {o.amount ? `(+$${o.amount.toFixed(2)})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="rounded-md border border-dashed border-border bg-surface-muted p-4">
+                  {shippingQuote ? (
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium text-foreground">
+                        {shippingQuote.label} ({shippingQuote.code})
+                      </p>
+                      <p className="text-muted-foreground">
+                        Estimated shipping: ${shippingQuote.amount.toFixed(2)}
+                      </p>
+                      {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge ? (
+                        <p className="text-xs text-amber-600">
+                          Remote surcharge +${shippingQuote.remoteSurcharge.toFixed(2)} applied based on postcode.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Provide a state and postcode to calculate shipping.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -540,7 +654,12 @@ export default function QuickOrderPage() {
                       <Label className="text-xs">State</Label>
                       <Input
                         value={address.state}
-                        onChange={(e) => setAddress({ ...address, state: e.target.value })}
+                        onChange={(e) =>
+                          setAddress({
+                            ...address,
+                            state: e.target.value.toUpperCase(),
+                          })
+                        }
                         className="h-9"
                       />
                     </div>
@@ -555,7 +674,11 @@ export default function QuickOrderPage() {
                   </div>
                 </div>
 
-                <Button className="w-full" onClick={checkout} disabled={!shippingCode || loading}>
+                <Button
+                  className="w-full bg-blue-600 text-white shadow-md hover:bg-blue-500"
+                  onClick={checkout}
+                  disabled={!priceData || !shippingQuote || loading}
+                >
                   {loading ? "Processing..." : "Place Order"}
                 </Button>
               </div>

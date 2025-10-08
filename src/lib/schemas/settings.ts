@@ -3,10 +3,15 @@ import { z } from "zod";
 export const jobCreationPolicyValues = ["ON_PAYMENT", "ON_INVOICE"] as const;
 export type JobCreationPolicyValue = (typeof jobCreationPolicyValues)[number];
 
-export const shippingOptionSchema = z.object({
+export const shippingRegionSchema = z.object({
   code: z.string().min(1, "Code is required"),
   label: z.string().min(1, "Label is required"),
-  amount: z.number().min(0, "Amount must be positive"),
+  states: z
+    .array(z.string().min(1, "State/Territory is required"))
+    .min(1, "Provide at least one state or territory"),
+  baseAmount: z.number().min(0, "Amount must be positive"),
+  remoteSurcharge: z.number().min(0).optional(),
+  postcodePrefixes: z.array(z.string().min(1)).optional(),
 });
 
 export const calculatorConfigSchema = z.object({
@@ -46,7 +51,32 @@ export const settingsInputSchema = z.object({
   defaultPaymentTerms: z.string().min(1),
   bankDetails: z.string().optional().or(z.literal("")),
   jobCreationPolicy: z.enum(jobCreationPolicyValues),
-  shippingOptions: z.array(shippingOptionSchema).default(() => []),
+  shippingRegions: z
+    .array(shippingRegionSchema)
+    .default(() => [
+      {
+        code: "sydney_metro",
+        label: "Sydney Metro",
+        states: ["NSW"],
+        baseAmount: 12.5,
+        remoteSurcharge: 0,
+      },
+      {
+        code: "regional",
+        label: "Regional Australia",
+        states: ["NSW", "VIC", "QLD", "SA", "WA", "NT", "TAS", "ACT"],
+        baseAmount: 25,
+        remoteSurcharge: 0,
+      },
+      {
+        code: "remote",
+        label: "Remote & Islands",
+        states: ["TAS", "WA", "NT"],
+        baseAmount: 45,
+        remoteSurcharge: 15,
+      },
+    ]),
+  defaultShippingRegion: z.string().min(1),
   paymentTerms: z
     .array(paymentTermSchema)
     .default(() => DEFAULT_PAYMENT_TERMS.map((term) => ({ ...term }))),
@@ -98,6 +128,39 @@ export const settingsInputSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["defaultPaymentTerms"],
       message: "Default must reference a defined payment term",
+    });
+  }
+
+  const regionCodes = new Set<string>();
+  data.shippingRegions.forEach((region, index) => {
+    const normalized = region.code.trim();
+    if (regionCodes.has(normalized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["shippingRegions", index, "code"],
+        message: "Codes must be unique",
+      });
+    }
+    regionCodes.add(normalized);
+  });
+
+  if (data.shippingRegions.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["shippingRegions"],
+      message: "At least one shipping region is required",
+    });
+  }
+
+  const defaultRegionExists = data.shippingRegions.some(
+    (region) => region.code === data.defaultShippingRegion,
+  );
+
+  if (!defaultRegionExists) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["defaultShippingRegion"],
+      message: "Default must reference a defined shipping region",
     });
   }
 });

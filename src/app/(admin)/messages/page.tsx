@@ -67,7 +67,12 @@ export default function AdminMessagesPage() {
         />
 
         <div className="h-full overflow-y-auto rounded-lg border border-border bg-surface-overlay">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">Loading conversations…</p>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-8 text-center">
               <User className="mb-2 h-12 w-12 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">No users found</p>

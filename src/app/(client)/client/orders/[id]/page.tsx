@@ -6,7 +6,49 @@ import { getInvoiceDetail } from "@/server/services/invoices";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Conversation } from "@/components/messages/conversation";
+import { formatDistanceToNow } from "date-fns";
+import type { JobStatus } from "@prisma/client";
+import { CheckCircle2, Circle, Loader2, PauseCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PayOnlineButton } from "@/components/client/pay-online-button";
+
+const JOB_STATUS_FLOW: JobStatus[] = [
+  "PRE_PROCESSING",
+  "IN_QUEUE",
+  "PRINTING",
+  "PRINTING_COMPLETE",
+  "POST_PROCESSING",
+  "PACKAGING",
+  "OUT_FOR_DELIVERY",
+  "COMPLETED",
+];
+
+const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  PRE_PROCESSING: "Pre-processing",
+  QUEUED: "Queued",
+  IN_QUEUE: "In queue",
+  PRINTING: "Printing",
+  PAUSED: "Paused",
+  PRINTING_COMPLETE: "Print complete",
+  POST_PROCESSING: "Post-processing",
+  PACKAGING: "Packaging",
+  OUT_FOR_DELIVERY: "Out for delivery",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+function canonicalizeStatus(status: JobStatus): JobStatus {
+  switch (status) {
+    case "QUEUED":
+      return "IN_QUEUE";
+    case "PAUSED":
+      return "PRINTING";
+    default:
+      return status;
+  }
+}
 
 interface ClientInvoicePageProps {
   params: Promise<{ id: string }>;
@@ -57,13 +99,119 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
                 <div className="font-medium">${detail.balanceDue.toFixed(2)}</div>
               </div>
             </div>
-            {detail.stripeCheckoutUrl ? (
-              <div className="pt-2 text-sm">
-                <a className="underline" href={detail.stripeCheckoutUrl}>Pay online</a>
+            {detail.balanceDue > 0 ? (
+              <div className="flex justify-end">
+                <PayOnlineButton invoiceId={detail.id} size="sm" />
               </div>
             ) : null}
           </CardContent>
         </Card>
+
+        {detail.jobs.length > 0 ? (
+          <Card className="border border-border bg-surface-overlay">
+            <CardHeader>
+              <CardTitle className="text-base">Production Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {detail.jobs.map((job) => {
+                  if (job.status === "CANCELLED") {
+                    return (
+                      <div
+                        key={job.id}
+                        className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-semibold text-foreground">{job.title}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              Last updated {formatDistanceToNow(job.updatedAt, { addSuffix: true })}
+                            </p>
+                          </div>
+                          <StatusBadge status={job.status} size="sm" />
+                        </div>
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          This job has been cancelled. Please contact our team if you need to restart production.
+                        </p>
+                        {job.notes ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Note: {job.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
+                  const canonical = canonicalizeStatus(job.status);
+                  const currentIndex = JOB_STATUS_FLOW.indexOf(canonical);
+                  const safeIndex = currentIndex < 0 ? 0 : currentIndex;
+
+                  return (
+                    <div
+                      key={job.id}
+                      className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold text-foreground">{job.title}</h3>
+                          <p className="text-xs text-muted-foreground">
+                            Last updated {formatDistanceToNow(job.updatedAt, { addSuffix: true })}
+                          </p>
+                          {job.printerName ? (
+                            <p className="text-xs text-muted-foreground">Printer: {job.printerName}</p>
+                          ) : null}
+                        </div>
+                        <StatusBadge status={job.status} size="sm" />
+                      </div>
+                      <ol className="mt-3 space-y-2">
+                        {JOB_STATUS_FLOW.map((status, stepIndex) => {
+                          const reached = stepIndex <= safeIndex;
+                          const isCurrent = stepIndex === safeIndex;
+                          const icon = isCurrent
+                            ? job.status === "PAUSED"
+                              ? (
+                                  <PauseCircle className="h-4 w-4 text-warning" />
+                                )
+                              : (
+                                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                                )
+                            : reached
+                              ? (
+                                  <CheckCircle2 className="h-4 w-4 text-success" />
+                                )
+                              : (
+                                  <Circle className="h-4 w-4 text-muted-foreground" />
+                                );
+
+                          return (
+                            <li
+                              key={status}
+                              className="flex items-center gap-2 text-xs uppercase tracking-wide"
+                            >
+                              {icon}
+                              <span
+                                className={cn(
+                                  reached ? "text-foreground" : "text-muted-foreground",
+                                  isCurrent ? "font-medium" : undefined,
+                                )}
+                              >
+                                {JOB_STATUS_LABELS[status]}
+                                {isCurrent && job.status === "PAUSED" ? " (Paused)" : ""}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                      {job.notes ? (
+                        <p className="mt-3 text-xs text-muted-foreground">Note: {job.notes}</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Attachments */}
         <Card className="border border-border bg-surface-overlay">

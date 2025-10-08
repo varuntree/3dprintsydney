@@ -5,7 +5,7 @@ import {
   settingsInputSchema,
   type SettingsInput,
   calculatorConfigSchema,
-  shippingOptionSchema,
+  shippingRegionSchema,
   paymentTermSchema,
   DEFAULT_PAYMENT_TERMS,
 } from "@/lib/schemas/settings";
@@ -17,16 +17,16 @@ function serializeSettings(
     return null;
   }
 
-  const shippingRaw = Array.isArray(settings.shippingOptions)
-    ? settings.shippingOptions
+  const shippingRaw = Array.isArray(settings.shippingRegions)
+    ? settings.shippingRegions
     : [];
-  const shippingOptions = shippingRaw
+  const shippingRegionsParsed = shippingRaw
     .map((item) => {
-      const parsed = shippingOptionSchema.safeParse(item);
+      const parsed = shippingRegionSchema.safeParse(item);
       if (!parsed.success) {
         logger.warn({
-          scope: "settings.shippingOptions.parse",
-          message: "Invalid shipping option encountered; skipping",
+          scope: "settings.shippingRegions.parse",
+          message: "Invalid shipping region encountered; skipping",
           error: parsed.error,
         });
         return null;
@@ -34,8 +34,35 @@ function serializeSettings(
       return parsed.data;
     })
     .filter(
-      (item): item is SettingsInput["shippingOptions"][number] => item !== null,
+      (item): item is SettingsInput["shippingRegions"][number] => item !== null,
     );
+
+  const defaultShippingRegions: SettingsInput["shippingRegions"] = [
+    {
+      code: "sydney_metro",
+      label: "Sydney Metro",
+      states: ["NSW"],
+      baseAmount: 12.5,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "regional",
+      label: "Regional Australia",
+      states: ["NSW", "VIC", "QLD", "SA", "WA", "NT", "TAS", "ACT"],
+      baseAmount: 25,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "remote",
+      label: "Remote & Islands",
+      states: ["TAS", "WA", "NT"],
+      baseAmount: 45,
+      remoteSurcharge: 15,
+    },
+  ];
+
+  const shippingRegions =
+    shippingRegionsParsed.length > 0 ? shippingRegionsParsed : defaultShippingRegions;
 
   const paymentTermsRaw = Array.isArray(settings.paymentTerms)
     ? settings.paymentTerms
@@ -84,7 +111,12 @@ function serializeSettings(
     defaultPaymentTerms: defaultPaymentTermCode,
     bankDetails: settings.bankDetails ?? "",
     jobCreationPolicy: settings.jobCreationPolicy,
-    shippingOptions,
+    shippingRegions,
+    defaultShippingRegion:
+      settings.defaultShippingRegion &&
+      shippingRegions.some((region) => region.code === settings.defaultShippingRegion)
+        ? settings.defaultShippingRegion
+        : shippingRegions[0]?.code ?? "sydney_metro",
     paymentTerms: resolvedPaymentTerms,
     calculatorConfig: calculator,
     defaultCurrency: settings.defaultCurrency ?? "AUD",
@@ -115,8 +147,8 @@ export async function getSettings() {
 
 export async function updateSettings(payload: unknown) {
   const parsed = settingsInputSchema.parse(payload);
-  const shippingOptionsJson =
-    parsed.shippingOptions as unknown as Prisma.InputJsonValue;
+  const shippingRegionsJson =
+    parsed.shippingRegions as unknown as Prisma.InputJsonValue;
   const calculatorConfigJson =
     parsed.calculatorConfig as unknown as Prisma.InputJsonValue;
   const paymentTermsJson = parsed.paymentTerms.map((term) => ({
@@ -139,7 +171,8 @@ export async function updateSettings(payload: unknown) {
     bankDetails: parsed.bankDetails || null,
     jobCreationPolicy: parsed.jobCreationPolicy as JobCreationPolicy,
     defaultCurrency: parsed.defaultCurrency,
-    shippingOptions: shippingOptionsJson,
+    shippingRegions: shippingRegionsJson,
+    defaultShippingRegion: parsed.defaultShippingRegion,
     paymentTerms: paymentTermsJson,
     calculatorConfig: calculatorConfigJson,
     autoDetachJobOnComplete: parsed.autoDetachJobOnComplete,

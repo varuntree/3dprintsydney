@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { PDFStyleDropdown } from "@/components/ui/pdf-style-dropdown";
+import { PdfGenerateButton } from "@/components/ui/pdf-generate-button";
 import {
   ActionButtonGroup,
   ActionGroupContainer,
@@ -272,7 +272,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                 >
                   Edit
                 </NavigationLink>
-                <PDFStyleDropdown
+                <PdfGenerateButton
                   documentType="invoice"
                   documentId={invoice.id}
                   documentNumber={invoice.number}

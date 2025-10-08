@@ -43,7 +43,7 @@ import { mutateJson, getJson } from "@/lib/http";
 import {
   calculatorConfigSchema,
   settingsInputSchema,
-  shippingOptionSchema,
+  shippingRegionSchema,
   paymentTermSchema,
   DEFAULT_PAYMENT_TERMS,
   type SettingsInput,
@@ -65,25 +65,81 @@ const resolver: Resolver<SettingsInput> = zodResolver(
 ) as Resolver<SettingsInput>;
 
 function normalizeSettings(payload: SettingsPayload): SettingsInput {
-  const shippingOptions = (payload.shippingOptions ?? []).map((option, index) => {
-    const base = {
-      code: option.code ?? "",
-      label: option.label ?? "",
-      amount:
-        typeof option.amount === "number"
-          ? option.amount
-          : Number(option.amount ?? 0),
-    };
-    const parsed = shippingOptionSchema.safeParse(base);
-    if (parsed.success) {
-      return parsed.data;
-    }
-    console.warn("Invalid shipping option recovered in settings payload", {
-      index,
-      issues: parsed.error.issues,
-    });
-    return base as SettingsInput["shippingOptions"][number];
-  });
+  const fallbackShippingRegions: SettingsInput["shippingRegions"] = [
+    {
+      code: "sydney_metro",
+      label: "Sydney Metro",
+      states: ["NSW"],
+      baseAmount: 12.5,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "regional",
+      label: "Regional Australia",
+      states: ["NSW", "VIC", "QLD", "SA", "WA", "NT", "TAS", "ACT"],
+      baseAmount: 25,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "remote",
+      label: "Remote & Islands",
+      states: ["TAS", "WA", "NT"],
+      baseAmount: 45,
+      remoteSurcharge: 15,
+    },
+  ];
+
+  const shippingRegionsInput = (payload.shippingRegions ?? []).map(
+    (region, index) => {
+      const rawStates = region.states as unknown;
+      const base = {
+        code: region.code ?? "",
+        label: region.label ?? "",
+        states: Array.isArray(rawStates)
+          ? rawStates.map((state) => String(state))
+          : typeof rawStates === "string"
+            ? rawStates
+                .split(",")
+                .map((state) => state.trim())
+                .filter(Boolean)
+            : [],
+        baseAmount:
+          typeof region.baseAmount === "number"
+            ? region.baseAmount
+            : Number(region.baseAmount ?? 0),
+        remoteSurcharge:
+          region.remoteSurcharge === undefined || region.remoteSurcharge === null
+            ? undefined
+            : typeof region.remoteSurcharge === "number"
+              ? region.remoteSurcharge
+              : Number(region.remoteSurcharge),
+        postcodePrefixes: Array.isArray(region.postcodePrefixes)
+          ? region.postcodePrefixes.map((code) => String(code))
+          : undefined,
+      };
+      const parsed = shippingRegionSchema.safeParse(base);
+      if (parsed.success) {
+        return parsed.data;
+      }
+      console.warn("Invalid shipping region recovered in settings payload", {
+        index,
+        issues: parsed.error.issues,
+      });
+      return {
+        code: base.code,
+        label: base.label,
+        states: base.states,
+        baseAmount: base.baseAmount,
+        remoteSurcharge: base.remoteSurcharge,
+        postcodePrefixes: base.postcodePrefixes,
+      } as SettingsInput["shippingRegions"][number];
+    },
+  );
+
+  const shippingRegions =
+    shippingRegionsInput.length > 0
+      ? shippingRegionsInput
+      : fallbackShippingRegions;
 
   const paymentTermsInput = (payload.paymentTerms ?? DEFAULT_PAYMENT_TERMS).map(
     (term, index) => {
@@ -128,6 +184,12 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     ? payload.defaultPaymentTerms ?? paymentTerms[0]?.code ?? ""
     : paymentTerms[0]?.code ?? "";
 
+  const defaultShippingRegionCode = shippingRegions.some(
+    (region) => region.code === (payload.defaultShippingRegion ?? ""),
+  )
+    ? payload.defaultShippingRegion ?? shippingRegions[0]?.code ?? "sydney_metro"
+    : shippingRegions[0]?.code ?? "sydney_metro";
+
   return {
     businessName: payload.businessName ?? "",
     businessEmail: payload.businessEmail ?? "",
@@ -141,7 +203,8 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
     paymentTerms,
     bankDetails: payload.bankDetails ?? "",
     jobCreationPolicy: jobPolicy,
-    shippingOptions,
+    shippingRegions,
+    defaultShippingRegion: defaultShippingRegionCode,
     calculatorConfig: calculator,
     defaultCurrency: payload.defaultCurrency ?? "AUD",
     autoDetachJobOnComplete: payload.autoDetachJobOnComplete ?? true,
@@ -180,9 +243,9 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     }
   }, [data, form]);
 
-  const shippingArray = useFieldArray({
+  const shippingRegionsArray = useFieldArray({
     control: form.control,
-    name: "shippingOptions",
+    name: "shippingRegions",
   });
 
   const paymentTermsArray = useFieldArray({
@@ -191,6 +254,21 @@ export function SettingsForm({ initial }: SettingsFormProps) {
   });
 
   const paymentTerms = form.watch("paymentTerms");
+  const shippingRegions = form.watch("shippingRegions");
+
+  useEffect(() => {
+    const regions = form.getValues("shippingRegions");
+    const defaultRegion = form.getValues("defaultShippingRegion");
+    if (!regions || regions.length === 0) {
+      if (defaultRegion) {
+        form.setValue("defaultShippingRegion", "");
+      }
+      return;
+    }
+    if (!regions.some((region) => region.code === defaultRegion)) {
+      form.setValue("defaultShippingRegion", regions[0]?.code ?? "");
+    }
+  }, [form, shippingRegions]);
 
   const policyOptions = useMemo(
     () => [
@@ -563,31 +641,64 @@ export function SettingsForm({ initial }: SettingsFormProps) {
           <TabsContent value="shipping">
             <SettingsCard
               title="Shipping"
-              description="Configure shipping options shown on quotes and invoices."
+              description="Configure shipping regions for delivery estimates across quick orders, quotes, and invoices."
             >
-              <div className="space-y-3">
-                {shippingArray.fields.length === 0 ? (
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="defaultShippingRegion"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Default shipping region</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={(shippingRegions ?? []).length === 0 || mutation.isPending}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select default region" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {(shippingRegions ?? []).map((region) => (
+                            <SelectItem key={region.code} value={region.code}>
+                              {region.label} ({region.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Used when a job&apos;s location does not match a specific region.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {shippingRegionsArray.fields.length === 0 ? (
                   <EmptyState
-                    title="No shipping options"
-                    description="Add shipping presets so quotes and invoices can include delivery costs."
+                    title="No shipping regions"
+                    description="Add at least one region so shipping costs can be estimated."
                     className="rounded-2xl border-border/60 bg-card/80 shadow-sm shadow-black/5"
                   />
                 ) : null}
-                {shippingArray.fields.map((field, index) => (
+
+                {shippingRegionsArray.fields.map((field, index) => (
                   <div
                     key={field.id}
-                    className="grid gap-3 rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5 p-4 md:grid-cols-[1fr_minmax(120px,160px)_minmax(100px,120px)_auto]"
+                    className="grid gap-3 rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5 p-4 md:grid-cols-[minmax(160px,1fr)_minmax(140px,200px)_minmax(220px,1fr)_minmax(120px,140px)_minmax(120px,140px)_minmax(200px,1fr)_auto] md:items-end"
                   >
                     <FormField
                       control={form.control}
-                      name={`shippingOptions.${index}.label` as const}
+                      name={`shippingRegions.${index}.label` as const}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             Label
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder="Express Courier" {...field} />
+                            <Input placeholder="Sydney Metro" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -595,14 +706,14 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                     />
                     <FormField
                       control={form.control}
-                      name={`shippingOptions.${index}.code` as const}
+                      name={`shippingRegions.${index}.code` as const}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
                             Code
                           </FormLabel>
                           <FormControl>
-                            <Input placeholder="express" {...field} />
+                            <Input placeholder="sydney_metro" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -610,20 +721,103 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                     />
                     <FormField
                       control={form.control}
-                      name={`shippingOptions.${index}.amount` as const}
+                      name={`shippingRegions.${index}.states` as const}
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
-                            Amount
+                            States / Territories
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="NSW, ACT"
+                              value={Array.isArray(field.value) ? field.value.join(", ") : ""}
+                              onChange={(event) =>
+                                field.onChange(
+                                  event.target.value
+                                    .split(",")
+                                    .map((state) => state.trim())
+                                    .filter((state) => state.length > 0),
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>Comma separated abbreviations (e.g. NSW, ACT).</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`shippingRegions.${index}.baseAmount` as const}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+                            Base amount
                           </FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               step="0.1"
                               min={0}
-                              {...field}
+                              value={field.value ?? 0}
+                              onChange={(event) => field.onChange(Number(event.target.value))}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`shippingRegions.${index}.remoteSurcharge` as const}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+                            Remote add-on
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              min={0}
+                              value={field.value ?? ""}
+                              onChange={(event) =>
+                                field.onChange(
+                                  event.target.value === ""
+                                    ? undefined
+                                    : Number(event.target.value),
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>Optional surcharge applied to remote deliveries.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`shippingRegions.${index}.postcodePrefixes` as const}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80">
+                            Postcode prefixes
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="2000, 2001"
+                              value={Array.isArray(field.value) ? field.value.join(", ") : ""}
+                              onChange={(event) =>
+                                field.onChange(
+                                  event.target.value
+                                    .split(",")
+                                    .map((code) => code.trim())
+                                    .filter((code) => code.length > 0),
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>Optional comma separated prefixes for granular routing.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -634,31 +828,37 @@ export function SettingsForm({ initial }: SettingsFormProps) {
                         variant="ghost"
                         size="icon"
                         disabled={mutation.isPending}
-                        onClick={() => shippingArray.remove(index)}
+                        onClick={() => shippingRegionsArray.remove(index)}
                         className="text-muted-foreground/80 hover:text-red-500 rounded-full"
-                        aria-label="Remove shipping option"
+                        aria-label="Remove shipping region"
                       >
                         <Trash className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                 ))}
+
+                <div className="flex justify-start">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      shippingRegionsArray.append({
+                        code: "",
+                        label: "",
+                        states: [],
+                        baseAmount: 0,
+                        remoteSurcharge: 0,
+                        postcodePrefixes: [],
+                      } as SettingsInput["shippingRegions"][number])
+                    }
+                    className="gap-2 rounded-full"
+                  >
+                    <Plus className="h-4 w-4" /> Add shipping region
+                  </Button>
+                </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={mutation.isPending}
-                onClick={() =>
-                  shippingArray.append({
-                    code: "",
-                    label: "",
-                    amount: 0,
-                  } as SettingsInput["shippingOptions"][number])
-                }
-                className="mt-4 flex items-center gap-2 rounded-full"
-              >
-                <Plus className="h-4 w-4" /> Add option
-              </Button>
             </SettingsCard>
           </TabsContent>
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
 import { priceQuickOrder, type QuickOrderItemInput } from "@/server/services/quick-order";
 import { createInvoice, addInvoiceAttachment } from "@/server/services/invoices";
-import { moveTmpToDir, resolveTmpPath } from "@/server/files/tmp";
+import { moveTmpToDir } from "@/server/files/tmp";
 import path from "path";
 import { FILES_ROOT } from "@/server/files/storage";
 
@@ -14,23 +15,28 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
-    const shippingCode = body?.shippingCode ?? null;
-    const shippingLabel = body?.shippingLabel ?? "";
     const address = body?.address ?? {};
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "No items" }, { status: 400 });
     }
 
     // Recompute price server-side
-    const priced = await priceQuickOrder(items);
-    const shippingOptions = priced.shippingOptions;
-    const ship = shippingCode ? shippingOptions.find((o) => o.code === shippingCode) : null;
-    const shippingCost = ship ? ship.amount : 0;
+    const priced = await priceQuickOrder(items, {
+      state: typeof address?.state === "string" ? address.state : undefined,
+      postcode: typeof address?.postcode === "string" ? address.postcode : undefined,
+    });
+    const shippingQuote = priced.shipping;
+    const shippingCost = shippingQuote.amount;
 
     // Build invoice lines
     const lines = priced.items.map((p, idx) => ({
       name: `3D Print: ${p.filename}`,
-      description: `Qty ${p.quantity} • Material/quality set in settings` ,
+      description: [
+        `Qty ${p.quantity}`,
+        `Material ${items[idx]?.materialName ?? "Custom"}`,
+        `Layer ${items[idx]?.layerHeight ?? 0}mm`,
+        `Infill ${items[idx]?.infill ?? 0}%`,
+      ].join(" • "),
       quantity: p.quantity,
       unit: "part",
       unitPrice: p.unitPrice,
@@ -42,15 +48,24 @@ export async function POST(req: NextRequest) {
     const invoice = await createInvoice({
       clientId: user.clientId,
       shippingCost,
-      shippingLabel: ship ? ship.label : shippingLabel,
+      shippingLabel: shippingQuote.label,
       lines,
+    });
+
+    // Ensure admin/client dashboards reflect new invoice promptly
+    await Promise.all([
+      revalidatePath("/invoices"),
+      revalidatePath("/jobs"),
+      revalidatePath("/clients"),
+      revalidatePath("/client/orders"),
+    ]).catch(() => {
+      // best-effort; ignore revalidation failures
     });
 
     // Attach files + settings snapshot under invoice
     const destDir = path.join(FILES_ROOT, String(invoice.id));
     for (const it of items) {
       if (!it.fileId) continue;
-      const src = resolveTmpPath(it.fileId);
       const moved = await moveTmpToDir(it.fileId, destDir).catch(() => null);
       if (moved) {
         const buffer = await (await import("fs/promises")).readFile(moved);
@@ -59,11 +74,13 @@ export async function POST(req: NextRequest) {
       const settingsJson = Buffer.from(JSON.stringify({
         filename: it.filename,
         materialId: it.materialId,
+        materialName: it.materialName,
         layerHeight: it.layerHeight,
         infill: it.infill,
         quantity: it.quantity,
         metrics: it.metrics,
         address,
+        shipping: shippingQuote,
       }, null, 2));
       await addInvoiceAttachment(invoice.id, { name: `${path.parse(it.filename).name}.settings.json`, type: "application/json", buffer: settingsJson });
     }

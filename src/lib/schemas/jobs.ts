@@ -3,8 +3,14 @@ import { z } from "zod";
 export const jobPriorityValues = ["NORMAL", "FAST_TRACK", "URGENT"] as const;
 export const jobStatusValues = [
   "QUEUED",
+  "PRE_PROCESSING",
+  "IN_QUEUE",
   "PRINTING",
   "PAUSED",
+  "PRINTING_COMPLETE",
+  "POST_PROCESSING",
+  "PACKAGING",
+  "OUT_FOR_DELIVERY",
   "COMPLETED",
   "CANCELLED",
 ] as const;

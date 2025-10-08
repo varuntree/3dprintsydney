@@ -19,6 +19,11 @@ export default async function NewInvoicePage() {
     throw new Error("Settings not configured");
   }
 
+  const defaultShippingRegion =
+    settings.shippingRegions.find(
+      (region) => region.code === settings.defaultShippingRegion,
+    ) ?? settings.shippingRegions[0] ?? null;
+
   const initialValues: InvoiceFormValues = {
     clientId: clients[0]?.id ?? 0,
     issueDate: new Date().toISOString().slice(0, 10),
@@ -26,8 +31,8 @@ export default async function NewInvoicePage() {
     taxRate: settings.taxRate ?? 0,
     discountType: "NONE",
     discountValue: 0,
-    shippingCost: 0,
-    shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
+    shippingCost: defaultShippingRegion?.baseAmount ?? 0,
+    shippingLabel: defaultShippingRegion?.label ?? "",
     notes: "",
     terms: "",
     lines: [

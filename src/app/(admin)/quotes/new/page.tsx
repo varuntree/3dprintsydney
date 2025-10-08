@@ -21,14 +21,19 @@ export default async function NewQuotePage() {
     notFound();
   }
 
+  const defaultShippingRegion =
+    settings.shippingRegions.find(
+      (region) => region.code === settings.defaultShippingRegion,
+    ) ?? settings.shippingRegions[0] ?? null;
+
   const initialValues: QuoteFormValues = {
     clientId: clients[0]?.id ?? 0,
     issueDate: new Date().toISOString().slice(0, 10),
     expiryDate: undefined,
     discountType: "NONE",
     discountValue: 0,
-    shippingCost: 0,
-    shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
+    shippingCost: defaultShippingRegion?.baseAmount ?? 0,
+    shippingLabel: defaultShippingRegion?.label ?? "",
     notes: "",
     terms: "",
     lines: [

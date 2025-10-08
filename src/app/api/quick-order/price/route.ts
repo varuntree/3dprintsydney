@@ -10,7 +10,11 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "No items" }, { status: 400 });
     }
-    const priced = await priceQuickOrder(items);
+    const location = body?.location ?? {};
+    const priced = await priceQuickOrder(items, {
+      state: typeof location?.state === "string" ? location.state : undefined,
+      postcode: typeof location?.postcode === "string" ? location.postcode : undefined,
+    });
     return NextResponse.json({ data: priced });
   } catch (error) {
     const e = error as Error & { status?: number };

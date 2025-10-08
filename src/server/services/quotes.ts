@@ -68,7 +68,7 @@ export async function listQuotes(options?: {
   }
   const orderBy = options?.sort
     ? { [options.sort]: options.order ?? "desc" }
-    : { issueDate: "desc" as const };
+    : { createdAt: "desc" as const };
   const quotes = await prisma.quote.findMany({
     where,
     orderBy,

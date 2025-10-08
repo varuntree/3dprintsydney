@@ -10,6 +10,7 @@ export const clientInputSchema = z.object({
   paymentTerms: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
   tags: z.array(z.string()).optional().default([]),
+  notifyOnJobStatus: z.boolean().optional().default(false),
 });
 
 export type ClientInput = z.infer<typeof clientInputSchema>;

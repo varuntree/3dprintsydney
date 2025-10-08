@@ -8,11 +8,12 @@ Internal operations console for a boutique 3D printing business. The app streaml
 
 - **Settings** – Business identity, numbering prefixes, tax rates, payment terms, shipping options, calculator defaults, plus job automation guidance (ON_INVOICE vs ON_PAYMENT) and activity logging. Stripe checkout keys now live in the hard-coded legacy config and are no longer edited here.
 - **Catalog** – Materials, product templates (fixed or calculated pricing), printers. Product templates integrate with the calculator and printers expose status & capacity notes.
-- **Clients** – Directory with search stats, detail view with activity timeline, notes, and linked quotes/invoices/jobs.
+- **Clients** – Directory with search stats, detail view with activity timeline, notes, linked quotes/invoices/jobs, and per-client job status email preference.
 - **Quotes** – Full lifecycle (draft/pending/accepted/declined/converted) with a high-contrast read-only view, top-level actions (send/accept/decline/convert/duplicate/PDF), quick Edit toggle, and calculator-driven line items.
 - **Invoices** – Read-only view with status/due/payment-term chips, Stripe controls, list badge when a payment link exists, manual payments (add/remove) with balance recalculation, attachments (upload/download/delete), revert/void/write-off, and Edit mode on demand.
 - **Stripe payments** – Legacy checkout session flow restored with the hard-coded secret key, webhook handler kept permissive (no signature checks), list badges for linked invoices, and activity logging.
-- **Jobs & queue management** – Auto-create jobs from policy, printer board with drag/drop, status updates, activity logging.
+- **Jobs & queue management** – Auto-create jobs from policy, printer board with drag/drop, expanded status actions, client-facing timeline, optional notifications, and activity logging.
+- **Client portal** – Dashboard with prominent quick order CTA, recent orders/jobs, messaging, and a persisted job-status email toggle.
 - **Dashboard & reporting** – KPI metrics, revenue trend, outstanding invoices, printer load, recent activity feed, CSV exports.
 - **File/PDF infrastructure** – Local storage under `data/`, Puppeteer-based PDF generator, attachment streaming endpoints.
 - **Quality gates** – `npm run lint`, `npm run format`, `npm run typecheck`, `npm run build`, and `npm run audit` all passing as of the latest run.
@@ -74,8 +75,9 @@ Invoices still support manual payments regardless of Stripe availability.
 - Clients → add a client, open detail view, log an internal note, verify activity timeline.
 - Quotes → create a quote with template + manual line items, download the PDF, update status, duplicate, convert to invoice.
 - Invoices → open the converted invoice, edit line items, add manual payments, upload/remove attachments, download PDF.
+- Client portal → log in as a client, toggle job status emails in the header, reload to confirm the preference persists, and open an order to review the production timeline.
 
-Stripe checkout, jobs/queue, dashboard metrics, CSV exports, and final documentation are still pending; expect rapid iteration in those areas next.
+Remaining backlog: documentation polish and deeper automation guardrails (see `docs/build/02_plan.md`).
 
 ## Project Structure
 

@@ -2,8 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { formatCurrency } from "@/lib/currency";
+import { PayOnlineButton } from "@/components/client/pay-online-button";
 
-type InvoiceRow = { id: number; number: string; status: string; total: number; issueDate: string; balanceDue: number };
+type InvoiceRow = {
+  id: number;
+  number: string;
+  status: string;
+  total: number;
+  issueDate: string;
+  balanceDue: number;
+  stripeCheckoutUrl?: string | null;
+};
 
 export default function ClientOrdersPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([]);
@@ -37,23 +48,55 @@ export default function ClientOrdersPage() {
               <th className="px-3 py-2 text-left">Status</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2 text-right">Balance</th>
+              <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b last:border-0">
-                <td className="px-3 py-2"><a href={`/client/orders/${r.id}`} className="underline">{r.number}</a></td>
-                <td className="px-3 py-2">{new Date(r.issueDate).toLocaleDateString()}</td>
-                <td className="px-3 py-2">{r.status}</td>
-                <td className="px-3 py-2 text-right">{r.total.toFixed(2)}</td>
-                <td className="px-3 py-2 text-right">{r.balanceDue.toFixed(2)}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const isPaid = r.status === "PAID" || r.balanceDue <= 0;
+              return (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className="px-3 py-2">
+                    <a href={`/client/orders/${r.id}`} className="underline">
+                      {r.number}
+                    </a>
+                  </td>
+                  <td className="px-3 py-2">{new Date(r.issueDate).toLocaleDateString()}</td>
+                  <td className="px-3 py-2">
+                    <StatusBadge status={r.status} size="sm" />
+                  </td>
+                  <td className="px-3 py-2 text-right">{formatCurrency(r.total)}</td>
+                  <td className="px-3 py-2 text-right">{formatCurrency(r.balanceDue)}</td>
+                  <td className="px-3 py-2 text-right">
+                    {isPaid ? (
+                      <span className="text-xs font-medium text-muted-foreground">Paid</span>
+                    ) : (
+                      <PayOnlineButton
+                        invoiceId={r.id}
+                        size="sm"
+                        className="justify-end"
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       <div className="flex justify-center">
-        <Button variant="outline" size="sm" disabled={!hasMore} onClick={() => { const n = page + 1; setPage(n); load(n); }}>Load more</Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!hasMore}
+          onClick={() => {
+            const n = page + 1;
+            setPage(n);
+            load(n);
+          }}
+        >
+          Load more
+        </Button>
       </div>
     </div>
   );

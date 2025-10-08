@@ -64,6 +64,7 @@ import type { SettingsInput } from "@/lib/schemas/settings";
 import type { ClientSummaryRecord } from "@/components/clients/clients-view";
 import { mutateJson } from "@/lib/http";
 import { useNavigation } from "@/hooks/useNavigation";
+import { ClientPickerDialog } from "@/components/ui/client-picker-dialog";
 
 const NO_SHIPPING_OPTION_VALUE = "__no_shipping__";
 const MANUAL_TEMPLATE_OPTION_VALUE = "__manual_entry__";
@@ -116,6 +117,11 @@ export function InvoiceEditor({
   const router = useRouter();
   const { navigate } = useNavigation();
   const queryClient = useQueryClient();
+  const shippingRegions = settings.shippingRegions ?? [];
+  const defaultShippingRegion =
+    shippingRegions.find(
+      (region) => region.code === settings.defaultShippingRegion,
+    ) ?? shippingRegions[0] ?? null;
 
   const defaults: InvoiceFormValues = initialValues ?? {
     clientId: clients[0]?.id ?? 0,
@@ -124,8 +130,8 @@ export function InvoiceEditor({
     taxRate: settings.taxRate ?? 0,
     discountType: "NONE",
     discountValue: 0,
-    shippingCost: 0,
-    shippingLabel: settings.shippingOptions?.[0]?.label ?? "",
+    shippingCost: defaultShippingRegion?.baseAmount ?? 0,
+    shippingLabel: defaultShippingRegion?.label ?? "",
     notes: "",
     terms: "",
     lines: [
@@ -325,17 +331,23 @@ export function InvoiceEditor({
 
   useEffect(() => {
     if (!shippingLabel) return;
-    const match = settings.shippingOptions?.find(
-      (option) => option.label === shippingLabel,
-    );
+    const match =
+      shippingRegions.find((region) => region.label === shippingLabel) ??
+      shippingRegions.find((region) => region.code === shippingLabel);
     if (match) {
       const current = form.getValues("shippingCost") ?? 0;
-      if (current === 0 || current === match.amount) {
-        form.setValue("shippingCost", match.amount);
+      if (current === 0 || current === match.baseAmount) {
+        form.setValue("shippingCost", match.baseAmount);
+      }
+      if (shippingLabel !== match.label) {
+        form.setValue("shippingLabel", match.label, {
+          shouldDirty: false,
+          shouldValidate: false,
+        });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shippingLabel]);
+  }, [shippingLabel, shippingRegions]);
 
   function addLine() {
     linesFieldArray.append({
@@ -428,23 +440,14 @@ export function InvoiceEditor({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Client</FormLabel>
-                    <Select
-                      value={field.value ? String(field.value) : ""}
-                      onValueChange={(value) => field.onChange(Number(value))}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select client" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.id} value={String(client.id)}>
-                            {client.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <ClientPickerDialog
+                        clients={clients}
+                        value={field.value}
+                        onSelect={(id) => field.onChange(id)}
+                        disabled={mutation.isPending}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -640,9 +643,9 @@ export function InvoiceEditor({
                         <SelectItem value={NO_SHIPPING_OPTION_VALUE}>
                           No shipping
                         </SelectItem>
-                        {(settings.shippingOptions ?? []).map((option) => (
-                          <SelectItem key={option.code} value={option.label}>
-                            {option.label} ({formatCurrency(option.amount)})
+                        {shippingRegions.map((region) => (
+                          <SelectItem key={region.code} value={region.label}>
+                            {region.label} ({formatCurrency(region.baseAmount)})
                           </SelectItem>
                         ))}
                       </SelectContent>

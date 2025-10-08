@@ -46,8 +46,14 @@ enum PaymentMethod {
 
 enum JobStatus {
   QUEUED
+  PRE_PROCESSING
+  IN_QUEUE
   PRINTING
   PAUSED
+  PRINTING_COMPLETE
+  POST_PROCESSING
+  PACKAGING
+  OUT_FOR_DELIVERY
   COMPLETED
   CANCELLED
 }
@@ -81,7 +87,8 @@ model Settings {
   numberingInvoicePrefix String            @default("INV-")
   defaultPaymentTerms    String?           @default("COD")
   bankDetails            String?
-  shippingOptions        Json?
+  shippingRegions        Json?
+  defaultShippingRegion  String?           @default("sydney_metro")
   paymentTerms           Json?
   calculatorConfig       Json?
   defaultCurrency        String            @default("AUD")
@@ -119,6 +126,7 @@ model Client {
   tags         Json?
   paymentTerms String?
   notes        String?
+  notifyOnJobStatus Boolean  @default(false)
   quotes       Quote[]
   invoices     Invoice[]
   jobs         Job[]
@@ -317,7 +325,7 @@ model Job {
   printer        Printer?      @relation(fields: [printerId], references: [id])
   title          String
   description    String?
-  status         JobStatus     @default(QUEUED)
+  status         JobStatus     @default(PRE_PROCESSING)
   priority       JobPriority   @default(NORMAL)
   queuePosition  Int           @default(0)
   estimatedHours Float?

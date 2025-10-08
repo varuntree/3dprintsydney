@@ -11,6 +11,7 @@ export type ClientSummaryDTO = {
   email: string;
   phone: string;
   paymentTerms: string | null;
+  notifyOnJobStatus: boolean;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
@@ -72,6 +73,7 @@ export async function listClients(options?: {
       email: client.email ?? "",
       phone: client.phone ?? "",
       paymentTerms: client.paymentTerms ?? null,
+      notifyOnJobStatus: client.notifyOnJobStatus,
       outstandingBalance: outstanding,
       totalInvoices: client._count.invoices,
       totalQuotes: client._count.quotes,
@@ -97,6 +99,7 @@ export async function createClient(payload: unknown) {
         phone: parsed.phone || null,
         address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
         paymentTerms: paymentTermsCode,
+        notifyOnJobStatus: parsed.notifyOnJobStatus ?? false,
         notes: parsed.notes || null,
         tags: parsed.tags ?? [],
       },
@@ -136,6 +139,7 @@ export async function updateClient(id: number, payload: unknown) {
         phone: parsed.phone || null,
         address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
         paymentTerms: paymentTermsCode,
+        notifyOnJobStatus: parsed.notifyOnJobStatus ?? false,
         notes: parsed.notes || null,
         tags: parsed.tags ?? [],
       },
@@ -175,6 +179,48 @@ export async function deleteClient(id: number) {
   return client;
 }
 
+export async function getClientNotificationPreference(clientId: number) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    select: { notifyOnJobStatus: true },
+  });
+
+  if (!client) {
+    const error: Error & { status?: number } = new Error("Client not found");
+    error.status = 404;
+    throw error;
+  }
+
+  return client.notifyOnJobStatus;
+}
+
+export async function updateClientNotificationPreference(
+  clientId: number,
+  notifyOnJobStatus: boolean,
+) {
+  const updated = await prisma.client.update({
+    where: { id: clientId },
+    data: { notifyOnJobStatus },
+    select: { id: true, name: true, notifyOnJobStatus: true },
+  });
+
+  await prisma.activityLog.create({
+    data: {
+      clientId: updated.id,
+      action: "CLIENT_PREF_UPDATED",
+      message: `Client ${updated.name} notification preference updated`,
+      metadata: { notifyOnJobStatus },
+    },
+  });
+
+  logger.info({
+    scope: "clients.preference",
+    data: { clientId, notifyOnJobStatus },
+  });
+
+  return updated.notifyOnJobStatus;
+}
+
 export type ClientDetailDTO = {
   client: {
     id: number;
@@ -184,6 +230,7 @@ export type ClientDetailDTO = {
     phone: string;
     address: string;
     paymentTerms: string;
+    notifyOnJobStatus: boolean;
     abn: string | null;
     notes: string;
     tags: string[];
@@ -317,9 +364,19 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     return sum + Number(invoice.total ?? 0);
   }, 0);
 
-  const queuedJobs = client.jobs.filter(
-    (job) => job.status !== "COMPLETED" && job.status !== "CANCELLED",
-  ).length;
+  const openJobStatuses = new Set([
+    "QUEUED",
+    "PRE_PROCESSING",
+    "IN_QUEUE",
+    "PRINTING",
+    "PAUSED",
+    "PRINTING_COMPLETE",
+    "POST_PROCESSING",
+    "PACKAGING",
+    "OUT_FOR_DELIVERY",
+  ]);
+
+  const queuedJobs = client.jobs.filter((job) => openJobStatuses.has(job.status)).length;
 
   // Resolve the primary client portal user (first created)
   const clientUser = await prisma.user.findFirst({
@@ -347,6 +404,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       phone: client.phone ?? "",
       address: (client.address as { raw?: string } | null)?.raw ?? "",
       paymentTerms: client.paymentTerms ?? "",
+      notifyOnJobStatus: client.notifyOnJobStatus,
       abn: client.abn ?? null,
       notes: client.notes ?? "",
       tags: (client.tags as string[] | null) ?? [],

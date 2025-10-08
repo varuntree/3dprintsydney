@@ -6,8 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
-import { ChevronDown, ChevronUp, Receipt, DollarSign, Clock } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
 type DashboardStats = {
   totalOrders: number;
@@ -25,6 +28,23 @@ type InvoiceRow = {
   balanceDue: number;
 };
 
+type JobRow = {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  invoiceId: number;
+  invoiceNumber: string;
+  updatedAt: string;
+};
+
+type PreferenceResponse = {
+  data?: {
+    notifyOnJobStatus?: boolean;
+  };
+  error?: string;
+};
+
 /**
  * Client Dashboard
  *
@@ -37,8 +57,12 @@ type InvoiceRow = {
 export function ClientDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<InvoiceRow[]>([]);
+  const [jobs, setJobs] = useState<JobRow[]>([]);
   const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [prefsSaving, setPrefsSaving] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -47,9 +71,11 @@ export function ClientDashboard() {
   async function loadDashboard() {
     setLoading(true);
     try {
-      const [statsRes, ordersRes] = await Promise.all([
+      const [statsRes, ordersRes, jobsRes, prefsRes] = await Promise.all([
         fetch("/api/client/dashboard"),
         fetch("/api/client/invoices?limit=5&offset=0"),
+        fetch("/api/client/jobs"),
+        fetch("/api/client/preferences"),
       ]);
 
       if (statsRes.ok) {
@@ -61,19 +87,135 @@ export function ClientDashboard() {
         const { data } = await ordersRes.json();
         setRecentOrders(data);
       }
+
+      if (jobsRes.ok) {
+        const { data } = await jobsRes.json();
+        setJobs(data);
+      }
+
+      if (prefsRes.ok) {
+        const { data } = await prefsRes.json();
+        setNotifyOnJobStatus(Boolean(data?.notifyOnJobStatus));
+      }
     } finally {
       setLoading(false);
+      setPrefsLoaded(true);
+    }
+  }
+
+  async function handleNotificationToggle(next: boolean) {
+    const previous = notifyOnJobStatus;
+    setNotifyOnJobStatus(next);
+    setPrefsSaving(true);
+    try {
+      const res = await fetch("/api/client/preferences", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notifyOnJobStatus: next }),
+      });
+      const payload = (await res
+        .json()
+        .catch(() => ({}))) as PreferenceResponse;
+      if (!res.ok) {
+        const message =
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Unable to update preference";
+        throw new Error(message);
+      }
+      const resolved = Boolean(
+        payload?.data && typeof payload.data.notifyOnJobStatus === "boolean"
+          ? payload.data.notifyOnJobStatus
+          : next,
+      );
+      setNotifyOnJobStatus(resolved);
+      toast.success(
+        resolved
+          ? "Job status email notifications enabled."
+          : "Job status email notifications disabled.",
+      );
+    } catch (error) {
+      setNotifyOnJobStatus(previous);
+      toast.error(
+        error instanceof Error ? error.message : "Unable to update preference",
+      );
+    } finally {
+      setPrefsSaving(false);
     }
   }
 
   return (
     <div className="space-y-6">
       {/* Welcome Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your orders and communicate with our team
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage your orders and communicate with our team
+            </p>
+          </div>
+          <div className="flex items-center gap-3 rounded-full border border-border/60 bg-surface-overlay px-4 py-2">
+          <div className="text-left">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Job status emails
+            </p>
+            <p className="text-[11px] text-muted-foreground/80">
+              {prefsLoaded
+                ? notifyOnJobStatus
+                  ? "We'll email you as production progresses (when email alerts are enabled)."
+                  : "Turn on to receive job progress emails (requires email notifications to be enabled)."
+                : "Loading preference..."}
+            </p>
+          </div>
+          <Switch
+            id="notify-job-status"
+            checked={notifyOnJobStatus}
+            disabled={loading || !prefsLoaded || prefsSaving}
+            onCheckedChange={(checked) => {
+              if (prefsSaving) return;
+              void handleNotificationToggle(checked);
+            }}
+            aria-label="Toggle job status email notifications"
+          />
+        </div>
+      </div>
+
+      {/* Primary Actions */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link href="/quick-order" className="block h-full">
+          <Card className="h-full gap-4 border-transparent bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform duration-200 hover:-translate-y-1 hover:shadow-primary/60">
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div className="space-y-2">
+                <CardTitle className="text-lg font-semibold">Quick Order</CardTitle>
+                <p className="text-sm text-primary-foreground/80">
+                  Upload STL files and request a quote in minutes.
+                </p>
+              </div>
+              <UploadCloud className="h-6 w-6 text-primary-foreground/85" />
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-4 py-2 text-sm font-medium">
+                Start order
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/client/orders" className="block h-full">
+          <Card className="h-full border border-border bg-surface-overlay transition-transform duration-200 hover:-translate-y-1 hover:bg-surface-muted">
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div className="space-y-2">
+                <CardTitle className="text-base font-semibold">View All Orders</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Track production status, invoices, and payments.
+                </p>
+              </div>
+              <ClipboardList className="h-5 w-5 text-muted-foreground" />
+            </CardHeader>
+          </Card>
+        </Link>
       </div>
 
       {/* Stats Cards */}
@@ -134,6 +276,55 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Active Jobs */}
+      <Card className="border border-border bg-surface-overlay">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Current Jobs</CardTitle>
+            <Link href="/client/orders">
+              <Button variant="ghost" size="sm">
+                View Orders
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading jobs...</p>
+          ) : jobs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active jobs at the moment.</p>
+          ) : (
+            <div className="space-y-3">
+              {jobs.slice(0, 5).map((job) => (
+                <div
+                  key={job.id}
+                  className="flex flex-col gap-1 rounded-xl border border-border/60 bg-card/80 p-3 text-sm shadow-sm shadow-black/5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="space-y-0.5">
+                    <p className="font-medium text-foreground">{job.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Invoice
+                      <Link
+                        href={`/client/orders/${job.invoiceId}`}
+                        className="ml-1 underline hover:text-primary"
+                      >
+                        {job.invoiceNumber}
+                      </Link>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Updated {formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                    <StatusBadge status={job.status} size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent Orders */}
       <Card className="border border-border bg-surface-overlay">
@@ -231,30 +422,6 @@ export function ClientDashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Link href="/quick-order" className="block">
-          <Card className="h-full border border-border bg-surface-overlay hover:bg-surface-muted transition-colors cursor-pointer">
-            <CardHeader>
-              <CardTitle className="text-base">Quick Order</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Upload files and get instant quotes
-              </p>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link href="/client/orders" className="block">
-          <Card className="h-full border border-border bg-surface-overlay hover:bg-surface-muted transition-colors cursor-pointer">
-            <CardHeader>
-              <CardTitle className="text-base">View All Orders</CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Track your invoices and payments
-              </p>
-            </CardHeader>
-          </Card>
-        </Link>
-      </div>
     </div>
   );
 }

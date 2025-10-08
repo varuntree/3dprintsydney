@@ -14,6 +14,7 @@ interface UsePaymentTermsResult {
   terms: PaymentTermOption[];
   defaultTermCode: string;
   isLoading: boolean;
+  notificationsEnabledDefault: boolean;
 }
 
 const queryKey = ["settings"] as const;
@@ -37,6 +38,7 @@ export function usePaymentTerms(): UsePaymentTermsResult {
     terms,
     defaultTermCode,
     isLoading,
+    notificationsEnabledDefault: Boolean(data?.enableEmailSend),
   };
 }
 

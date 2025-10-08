@@ -191,6 +191,13 @@ export async function getInvoice(id: number) {
         orderBy: { paidAt: "desc" },
       },
       attachments: true,
+      jobs: {
+        where: { archivedAt: null },
+        orderBy: { createdAt: "asc" },
+        include: {
+          printer: { select: { name: true } },
+        },
+      },
     },
   });
 
@@ -284,6 +291,18 @@ export async function getInvoiceDetail(id: number) {
       processorId: payment.processorId ?? "",
       notes: payment.notes ?? "",
       paidAt: payment.paidAt,
+    })),
+    jobs: invoice.jobs.map((job) => ({
+      id: job.id,
+      title: job.title,
+      status: job.status,
+      priority: job.priority,
+      printerName: job.printer?.name ?? null,
+      notes: job.notes ?? "",
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
     })),
     attachments: invoice.attachments.map((attachment) => ({
       id: attachment.id,

@@ -86,7 +86,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       if (replace) setMessages(list);
       else setMessages((prev) => [...list, ...prev]);
       if (replace) setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
-    } catch (err) {
+    } catch {
       setLoading(false);
       setError("Network error. Please check your connection.");
     }
@@ -120,7 +120,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
 
       setContent("");
       await loadPage(0, true);
-    } catch (err) {
+    } catch {
       setError("Network error. Please try again.");
     }
   }

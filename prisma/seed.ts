@@ -11,9 +11,36 @@ const defaultPaymentTerms = [
 ];
 
 async function main() {
+  const defaultShippingRegions = [
+    {
+      code: "sydney_metro",
+      label: "Sydney Metro",
+      states: ["NSW"],
+      baseAmount: 12.5,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "regional",
+      label: "Regional Australia",
+      states: ["NSW", "VIC", "QLD", "SA", "WA", "NT", "TAS", "ACT"],
+      baseAmount: 25,
+      remoteSurcharge: 0,
+    },
+    {
+      code: "remote",
+      label: "Remote & Islands",
+      states: ["TAS", "WA", "NT"],
+      baseAmount: 45,
+      remoteSurcharge: 15,
+    },
+  ];
+
   await prisma.settings.upsert({
     where: { id: 1 },
-    update: {},
+    update: {
+      shippingRegions: defaultShippingRegions,
+      defaultShippingRegion: "sydney_metro",
+    },
     create: {
       businessName: "3D Print Sydney",
       businessEmail: "hello@3dprintsydney.local",
@@ -38,11 +65,8 @@ async function main() {
           high: 1.2,
         },
       },
-      shippingOptions: [
-        { code: "pickup", label: "Local Pickup", amount: 0 },
-        { code: "standard", label: "Standard Post", amount: 12.5 },
-        { code: "express", label: "Express Courier", amount: 25 },
-      ],
+      shippingRegions: defaultShippingRegions,
+      defaultShippingRegion: "sydney_metro",
     },
   });
 

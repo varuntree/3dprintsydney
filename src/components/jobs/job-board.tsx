@@ -95,13 +95,16 @@ import {
 } from "@/components/ui/tooltip";
 import {
   AlertCircle,
+  ArrowRight,
   Check,
   Clock,
   Pause,
   Play,
   RefreshCcw,
+  Truck,
   X,
   Pencil,
+  Package as PackageIcon,
 } from "lucide-react";
 
 export type JobBoardClientSnapshot = {
@@ -176,11 +179,83 @@ const priorityStyles: Record<JobPriority, string> = {
 // Status labels - kept for dialog descriptions
 const statusLabels: Record<JobStatus, string> = {
   QUEUED: "Queued",
+  PRE_PROCESSING: "Pre-processing",
+  IN_QUEUE: "In queue",
   PRINTING: "Printing",
   PAUSED: "Paused",
+  PRINTING_COMPLETE: "Printing complete",
+  POST_PROCESSING: "Post-processing",
+  PACKAGING: "Packaging",
+  OUT_FOR_DELIVERY: "Out for delivery",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",
 };
+
+type JobActionDefinition = {
+  status: JobStatus;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  tone?: "default" | "danger";
+};
+
+function getJobActions(job: JobCardClient): JobActionDefinition[] {
+  const actions: JobActionDefinition[] = [];
+
+  switch (job.status) {
+    case "PRE_PROCESSING":
+      actions.push({ status: "IN_QUEUE", icon: ArrowRight, label: "Send to queue" });
+      break;
+    case "QUEUED":
+    case "IN_QUEUE":
+      actions.push({ status: "PRINTING", icon: Play, label: "Start printing" });
+      break;
+    case "PRINTING":
+      actions.push({ status: "PRINTING_COMPLETE", icon: Check, label: "Mark print complete" });
+      actions.push({ status: "PAUSED", icon: Pause, label: "Pause printing" });
+      break;
+    case "PAUSED":
+      actions.push({ status: "PRINTING", icon: Play, label: "Resume printing" });
+      actions.push({ status: "IN_QUEUE", icon: RefreshCcw, label: "Return to queue" });
+      break;
+    case "PRINTING_COMPLETE":
+      actions.push({ status: "POST_PROCESSING", icon: ArrowRight, label: "Start post-processing" });
+      break;
+    case "POST_PROCESSING":
+      actions.push({ status: "PACKAGING", icon: PackageIcon, label: "Move to packaging" });
+      break;
+    case "PACKAGING":
+      actions.push({ status: "OUT_FOR_DELIVERY", icon: Truck, label: "Out for delivery" });
+      break;
+    case "OUT_FOR_DELIVERY":
+      actions.push({ status: "COMPLETED", icon: Check, label: "Mark delivered" });
+      break;
+    case "COMPLETED":
+      actions.push({ status: "IN_QUEUE", icon: RefreshCcw, label: "Return to queue" });
+      break;
+    case "CANCELLED":
+      actions.push({ status: "IN_QUEUE", icon: RefreshCcw, label: "Re-open" });
+      break;
+    default:
+      break;
+  }
+
+  if (job.status !== "PRE_PROCESSING" && job.status !== "IN_QUEUE" && job.status !== "QUEUED" && job.status !== "CANCELLED") {
+    actions.push({ status: "IN_QUEUE", icon: RefreshCcw, label: "Return to queue" });
+  }
+
+  if (job.status !== "CANCELLED" && job.status !== "COMPLETED") {
+    actions.push({ status: "CANCELLED", icon: X, label: "Cancel job", tone: "danger" });
+  }
+
+  const unique = new Map<JobStatus, JobActionDefinition>();
+  actions.forEach((action) => {
+    if (action.status !== job.status) {
+      unique.set(action.status, action);
+    }
+  });
+
+  return Array.from(unique.values());
+}
 
 
 const jobPolicyMeta: Record<
@@ -1325,49 +1400,7 @@ function JobCard({
     transition,
   };
 
-  const actionButtons: Array<{
-    status: JobStatus;
-    icon: ComponentType<{ className?: string }>;
-    label: string;
-    disabled: boolean;
-    visible: boolean;
-  }> = [
-    {
-      status: "PRINTING",
-      icon: Play,
-      label: "Start printing",
-      disabled: job.status === "PRINTING" || job.status === "COMPLETED",
-      visible: job.status === "QUEUED" || job.status === "PAUSED",
-    },
-    {
-      status: "PAUSED",
-      icon: Pause,
-      label: "Pause job",
-      disabled: job.status !== "PRINTING",
-      visible: job.status === "PRINTING",
-    },
-    {
-      status: "COMPLETED",
-      icon: Check,
-      label: "Mark completed",
-      disabled: job.status === "COMPLETED",
-      visible: job.status !== "COMPLETED",
-    },
-    {
-      status: "QUEUED",
-      icon: RefreshCcw,
-      label: "Return to queue",
-      disabled: job.status === "QUEUED",
-      visible: job.status !== "QUEUED",
-    },
-    {
-      status: "CANCELLED",
-      icon: X,
-      label: "Cancel job",
-      disabled: job.status === "CANCELLED",
-      visible: job.status !== "CANCELLED",
-    },
-  ];
+  const jobActions = getJobActions(job);
 
   return (
     <div
@@ -1432,27 +1465,24 @@ function JobCard({
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          {actionButtons
-            .filter((action) => action.visible)
-            .map((action) => (
-              <Tooltip key={action.status}>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-full"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onRequestStatus(job, action.status);
-                    }}
-                    disabled={action.disabled}
-                  >
-                    <action.icon className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{action.label}</TooltipContent>
-              </Tooltip>
-            ))}
+          {jobActions.map((action) => (
+            <Tooltip key={action.status}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={action.tone === "danger" ? "destructive" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRequestStatus(job, action.status);
+                  }}
+                >
+                  <action.icon className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{action.label}</TooltipContent>
+            </Tooltip>
+          ))}
           {(job.status === "COMPLETED" || job.status === "CANCELLED") && (
             <Tooltip>
               <TooltipTrigger asChild>
