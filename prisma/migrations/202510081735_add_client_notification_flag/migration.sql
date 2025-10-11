@@ -1,0 +1,1 @@
+ALTER TABLE "Client" ADD COLUMN "notifyOnJobStatus" BOOLEAN NOT NULL DEFAULT false;

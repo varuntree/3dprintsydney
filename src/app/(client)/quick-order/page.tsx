@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   Info,
   X,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,8 +67,13 @@ export default function QuickOrderPage() {
   const [loading, setLoading] = useState(false);
   const [pricing, setPricing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     fetch("/api/auth/me").then(async (r) => {
       if (!r.ok) {
         router.replace("/login");
@@ -95,11 +101,11 @@ export default function QuickOrderPage() {
     });
   }, [router]);
 
-  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  async function processFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
     const fd = new FormData();
-    for (const f of Array.from(files)) fd.append("files", f);
+    files.forEach((file) => fd.append("files", file));
     setLoading(true);
     setError(null);
     const res = await fetch("/api/quick-order/upload", { method: "POST", body: fd });
@@ -111,16 +117,53 @@ export default function QuickOrderPage() {
     const { data } = await res.json();
     const uploaded = data as Upload[];
     setUploads((prev) => [...prev, ...uploaded]);
-    const defaultMat = Array.isArray(materials) && materials.length > 0 ? materials[0]!.id : undefined;
-    const next = { ...settings };
-    const newExpanded = new Set(expandedFiles);
-    for (const it of uploaded) {
-      next[it.id] = { materialId: defaultMat ?? 0, layerHeight: 0.2, infill: 20, quantity: 1 };
-      newExpanded.add(it.id); // Auto-expand new files
-    }
-    setSettings(next);
-    setExpandedFiles(newExpanded);
+    const defaultMat = materials[0]?.id ?? 0;
+    setSettings((prev) => {
+      const next = { ...prev } as typeof prev;
+      uploaded.forEach((it) => {
+        next[it.id] = {
+          materialId: defaultMat,
+          layerHeight: 0.2,
+          infill: 20,
+          quantity: 1,
+        };
+      });
+      return next;
+    });
+    setExpandedFiles((prev) => {
+      const next = new Set(prev);
+      uploaded.forEach((it) => next.add(it.id));
+      return next;
+    });
     if (uploads.length === 0) setCurrentStep("configure");
+  }
+
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) {
+      await processFiles(e.target.files);
+      e.target.value = "";
+    }
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    if (event.dataTransfer?.files?.length) {
+      await processFiles(event.dataTransfer.files);
+    }
   }
 
   function removeUpload(id: string) {
@@ -281,6 +324,7 @@ export default function QuickOrderPage() {
   ] as const;
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
+  const hasUploads = uploads.length > 0;
 
   return (
     <div className="space-y-6">
@@ -339,37 +383,117 @@ export default function QuickOrderPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Upload Section */}
+          {/* Upload & File List */}
           <section className="rounded-lg border border-border bg-surface-overlay p-6">
-            <div className="mb-4 flex items-center gap-2">
-              <UploadCloud className="h-6 w-6 text-blue-600" />
-              <h2 className="text-lg font-semibold">Upload Files</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">Files</h2>
+                <span className="text-xs text-muted-foreground">Upload STL or 3MF</span>
+              </div>
+              {hasUploads ? (
+                <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{uploads.length} file{uploads.length === 1 ? "" : "s"}</span>
+              ) : null}
             </div>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="file-upload">Select STL or 3MF files</Label>
-                <Input
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div
+                className={cn(
+                  "relative flex min-h-[260px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/70 bg-surface-muted text-center transition",
+                  dragActive && "border-primary bg-primary/5"
+                )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+              >
+                <UploadCloud className="h-14 w-14 text-primary" />
+                <p className="mt-3 text-sm font-medium text-foreground">Drop files here</p>
+                <p className="text-xs text-muted-foreground">or click to browse your computer</p>
+                <input
+                  ref={fileInputRef}
                   id="file-upload"
                   type="file"
                   multiple
                   accept=".stl,.3mf"
                   onChange={onUpload}
-                  className="mt-1"
+                  className="hidden"
                 />
               </div>
-              {uploads.length > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{uploads.length} file(s) uploaded</span>
+              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">Uploaded files</h3>
                   <Button
+                    type="button"
                     variant="outline"
                     size="sm"
-                    disabled={!canSlice || loading}
+                    disabled={!canSlice || loading || !hasUploads}
                     onClick={runSlice}
                   >
-                    {loading ? "Slicing..." : hasSlicedAll ? "Re-slice All" : "Slice All"}
+                    {loading ? "Slicing..." : hasSlicedAll ? "Re-slice" : "Slice files"}
                   </Button>
                 </div>
-              )}
+                {hasUploads ? (
+                  <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {uploads.map((file) => {
+                      const isExpanded = expandedFiles.has(file.id);
+                      const fileMetrics = metrics[file.id];
+                      return (
+                        <li key={file.id}>
+                          <div
+                            className={cn(
+                              "group flex w-full items-center gap-3 rounded-xl border border-border/70 bg-surface-overlay/60 p-3 transition hover:border-primary/40",
+                              isExpanded && "border-primary/70 bg-primary/5"
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className="flex flex-1 items-center gap-3 text-left"
+                              onClick={() => toggleFileExpanded(file.id)}
+                            >
+                              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                <FileText className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium text-foreground">{file.filename}</p>
+                                {fileMetrics ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    ~{Math.round(fileMetrics.grams)}g · ~{Math.ceil((fileMetrics.timeSec || 0) / 60)} min
+                                    {fileMetrics.fallback ? " (est.)" : ""}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Settings pending</p>
+                                )}
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                removeUpload(file.id);
+                              }}
+                              aria-label={`Remove ${file.filename}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-full border border-destructive/20 text-destructive transition hover:bg-destructive/10"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="flex h-full min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/60 text-center text-sm text-muted-foreground">
+                    <p>No files yet. Drag and drop or click the square to upload.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
