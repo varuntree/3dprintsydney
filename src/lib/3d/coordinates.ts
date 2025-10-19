@@ -17,6 +17,34 @@ export function setupZUpScene(scene: THREE.Scene): void {
 }
 
 /**
+ * Automatically aligns a model to lie flat on the build plate
+ * by rotating it so its largest dimension is horizontal
+ */
+export function alignMeshToHorizontalPlane(mesh: THREE.Mesh): void {
+  mesh.geometry.computeBoundingBox();
+  const bbox = mesh.geometry.boundingBox;
+
+  if (!bbox) return;
+
+  // Calculate dimensions
+  const dimX = bbox.max.x - bbox.min.x;
+  const dimY = bbox.max.y - bbox.min.y;
+  const dimZ = bbox.max.z - bbox.min.z;
+
+  // If Z dimension is the largest, rotate model to lay it flat
+  // This handles models imported in standing orientation
+  if (dimZ > dimX && dimZ > dimY) {
+    // Rotate 90 degrees around X axis to lay model flat
+    mesh.rotateX(Math.PI / 2);
+  }
+  // If Y dimension is very tall compared to X and Z, might also need rotation
+  else if (dimY > dimX * 1.5 && dimY > dimZ * 1.5) {
+    // Rotate around Z to lay it down
+    mesh.rotateZ(Math.PI / 2);
+  }
+}
+
+/**
  * Centers a model on the build plate and ensures bottom touches Z=0
  * Works correctly with Z-up coordinate system
  */

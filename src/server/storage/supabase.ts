@@ -5,6 +5,7 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 const ATTACHMENTS_BUCKET = 'attachments';
 const PDF_BUCKET = 'pdfs';
 const TMP_BUCKET = 'tmp';
+const ORDER_FILES_BUCKET = 'order-files';
 
 type BinaryPayload = Buffer | ArrayBuffer | Uint8Array;
 
@@ -201,4 +202,53 @@ export async function downloadTmpFile(path: string): Promise<Buffer> {
 
 export async function listTmpFiles(userKey: string): Promise<StoredObject[]> {
   return listBucketObjects(TMP_BUCKET, userKey, { recursive: true });
+}
+
+// ========================================
+// Order Files Bucket (Permanent 3D Models)
+// ========================================
+
+export async function uploadOrderFile(
+  clientId: number,
+  filename: string,
+  contents: BinaryPayload,
+  contentType: string | null
+) {
+  const supabase = getServiceSupabase();
+  const key = `${clientId}/${randomUUID()}/${filename}`;
+  const { error } = await supabase.storage.from(ORDER_FILES_BUCKET).upload(key, toBytes(contents), {
+    contentType: contentType ?? 'application/octet-stream',
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(`Failed to upload order file: ${error.message}`);
+  }
+  return key;
+}
+
+export async function getOrderFileSignedUrl(path: string, expiresIn = 300) {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.storage.from(ORDER_FILES_BUCKET).createSignedUrl(path, expiresIn);
+  if (error || !data?.signedUrl) {
+    throw new Error(`Failed to create order file signed URL: ${error?.message ?? 'Missing URL'}`);
+  }
+  return data.signedUrl;
+}
+
+export async function downloadOrderFile(path: string): Promise<Buffer> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.storage.from(ORDER_FILES_BUCKET).download(path);
+  if (error || !data) {
+    throw new Error(`Failed to download order file: ${error?.message ?? 'Missing data'}`);
+  }
+  const arrayBuffer = await data.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+export async function deleteOrderFile(path: string) {
+  await removeObjects(ORDER_FILES_BUCKET, [path]);
+}
+
+export async function listOrderFiles(clientId: number): Promise<StoredObject[]> {
+  return listBucketObjects(ORDER_FILES_BUCKET, String(clientId), { recursive: true });
 }

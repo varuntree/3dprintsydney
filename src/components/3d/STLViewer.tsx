@@ -5,7 +5,7 @@ import { Canvas, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid } from "@react-three/drei";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import * as THREE from "three";
-import { centerModelOnBed } from "@/lib/3d/coordinates";
+import { centerModelOnBed, alignMeshToHorizontalPlane } from "@/lib/3d/coordinates";
 
 interface STLViewerProps {
   url: string;
@@ -32,27 +32,27 @@ function Model({
 }) {
   const geometry = useLoader(STLLoader, url);
 
-  // Auto-center model on load
+  // Auto-center and align model on load
   useEffect(() => {
     if (meshRef.current && geometry) {
       try {
+        // First align model to lie flat horizontally
+        alignMeshToHorizontalPlane(meshRef.current);
+        // Then center it on the build plate
         centerModelOnBed(meshRef.current);
         onLoadComplete?.();
       } catch (error) {
-        console.error("[STLViewer] Failed to center model:", error);
+        console.error("[STLViewer] Failed to align/center model:", error);
         onError?.(error as Error);
       }
     }
   }, [geometry, meshRef, onLoadComplete, onError]);
 
   return (
-    <>
-      <mesh ref={meshRef}>
-        <primitive object={geometry} attach="geometry" />
-        <meshStandardMaterial color="#ff6b35" metalness={0.1} roughness={0.4} />
-      </mesh>
-      <OrbitControls makeDefault />
-    </>
+    <mesh ref={meshRef}>
+      <primitive object={geometry} attach="geometry" />
+      <meshStandardMaterial color="#ff6b35" metalness={0.1} roughness={0.4} />
+    </mesh>
   );
 }
 
@@ -119,6 +119,9 @@ function Scene({ url, onTransformChange, onLoadComplete, onError, meshRef }: STL
           meshRef={meshRef}
         />
       </Suspense>
+
+      {/* OrbitControls - placed here to avoid remounting issues */}
+      <OrbitControls makeDefault enableDamping dampingFactor={0.05} />
     </>
   );
 }

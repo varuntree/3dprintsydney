@@ -722,6 +722,23 @@ export async function markInvoicePaid(invoiceId: number, options?: {
   note?: string;
   paidAt?: Date;
 }) {
+  const supabase = getServiceSupabase();
+
+  // Validate invoice state before marking paid
+  const { data: currentInvoice } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', invoiceId)
+    .single();
+
+  if (!currentInvoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (currentInvoice.status === 'PAID') {
+    throw new Error('Invoice is already paid');
+  }
+
   const amount = options?.amount ?? 0;
   if (amount > 0) {
     return addManualPayment(invoiceId, {
@@ -734,7 +751,7 @@ export async function markInvoicePaid(invoiceId: number, options?: {
       paidAt: options?.paidAt?.toISOString(),
     });
   }
-  const supabase = getServiceSupabase();
+
   const paidAt = options?.paidAt ?? new Date();
   const { data: invoice, error } = await supabase
     .from('invoices')
@@ -759,6 +776,22 @@ export async function markInvoicePaid(invoiceId: number, options?: {
 
 export async function writeOffInvoice(id: number, reason?: string) {
   const supabase = getServiceSupabase();
+
+  // Validate invoice state before writing off
+  const { data: currentInvoice } = await supabase
+    .from('invoices')
+    .select('id, status, balance_due')
+    .eq('id', id)
+    .single();
+
+  if (!currentInvoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (currentInvoice.status === 'PAID' && Number(currentInvoice.balance_due) === 0) {
+    throw new Error('Invoice is already fully paid');
+  }
+
   const { data, error } = await supabase
     .from('invoices')
     .update({
@@ -779,6 +812,22 @@ export async function writeOffInvoice(id: number, reason?: string) {
 
 export async function voidInvoice(id: number, reason?: string) {
   const supabase = getServiceSupabase();
+
+  // Validate invoice state before voiding
+  const { data: currentInvoice } = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', id)
+    .single();
+
+  if (!currentInvoice) {
+    throw new Error('Invoice not found');
+  }
+
+  if (currentInvoice.status === 'PAID') {
+    throw new Error('Cannot void a paid invoice');
+  }
+
   const { data, error } = await supabase
     .from('invoices')
     .update({

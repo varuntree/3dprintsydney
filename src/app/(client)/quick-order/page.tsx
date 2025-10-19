@@ -564,8 +564,8 @@ export default function QuickOrderPage() {
 
   const steps = [
     { id: "upload", label: "Upload", icon: UploadCloud },
-    { id: "orient", label: "Orient", icon: Box },
     { id: "configure", label: "Configure", icon: Settings2 },
+    { id: "orient", label: "Orient", icon: Box },
     { id: "price", label: "Price", icon: Package },
     { id: "checkout", label: "Checkout", icon: CreditCard },
   ] as const;
@@ -648,7 +648,8 @@ export default function QuickOrderPage() {
               <div
                 className={cn(
                   "relative flex min-h-[260px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/70 bg-surface-muted text-center transition",
-                  dragActive && "border-primary bg-primary/5"
+                  dragActive && "border-primary bg-primary/5",
+                  loading && "pointer-events-none opacity-60"
                 )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -663,9 +664,19 @@ export default function QuickOrderPage() {
                   }
                 }}
               >
-                <UploadCloud className="h-14 w-14 text-primary" />
-                <p className="mt-3 text-sm font-medium text-foreground">Drop files here</p>
-                <p className="text-xs text-muted-foreground">or click to browse your computer</p>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-14 w-14 animate-spin text-primary" />
+                    <p className="mt-3 text-sm font-medium text-foreground">Uploading files...</p>
+                    <p className="text-xs text-muted-foreground">Please wait</p>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="h-14 w-14 text-primary" />
+                    <p className="mt-3 text-sm font-medium text-foreground">Drop files here</p>
+                    <p className="text-xs text-muted-foreground">or click to browse your computer</p>
+                  </>
+                )}
                 <input
                   ref={fileInputRef}
                   id="file-upload"
@@ -674,6 +685,7 @@ export default function QuickOrderPage() {
                   accept=".stl,.3mf"
                   onChange={onUpload}
                   className="hidden"
+                  disabled={loading}
                 />
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/70 p-4">

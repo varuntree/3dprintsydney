@@ -8,6 +8,7 @@ import {
   downloadTmpFileToBuffer,
   deleteTmpFile,
 } from "@/server/services/tmp-files";
+import { saveOrderFile } from "@/server/services/order-files";
 import path from "path";
 
 export async function POST(req: NextRequest) {
@@ -68,20 +69,42 @@ export async function POST(req: NextRequest) {
       // best-effort; ignore revalidation failures
     });
 
-    // Attach files + settings snapshot under invoice
+    // Save 3D model files permanently to order_files bucket
+    // This replaces the old attachments approach for better organization
     for (const it of items) {
       if (!it.fileId) continue;
       const tmpRecord = await requireTmpFile(user.id, it.fileId).catch(() => null);
       if (tmpRecord) {
         const buffer = await downloadTmpFileToBuffer(it.fileId);
+
+        // Save 3D model file permanently (admins can now download these)
+        await saveOrderFile({
+          invoiceId: invoice.id,
+          clientId: user.clientId,
+          userId: user.id,
+          filename: tmpRecord.filename,
+          fileType: "model",
+          contents: buffer,
+          mimeType: tmpRecord.mime_type || "application/octet-stream",
+          metadata: {
+            originalSize: tmpRecord.size_bytes,
+            uploadedFrom: "quick-order",
+          },
+        });
+
+        // Also keep a copy in attachments for backward compatibility
         await addInvoiceAttachment(invoice.id, {
           name: tmpRecord.filename,
           type: tmpRecord.mime_type || "application/octet-stream",
           buffer,
         });
+
+        // Clean up temporary file
         await deleteTmpFile(user.id, it.fileId).catch(() => undefined);
       }
-      const settingsJson = Buffer.from(JSON.stringify({
+
+      // Save print settings as a separate order file
+      const settingsData = {
         filename: it.filename,
         materialId: it.materialId,
         materialName: it.materialName,
@@ -92,8 +115,26 @@ export async function POST(req: NextRequest) {
         supports: it.supports,
         address,
         shipping: shippingQuote,
-      }, null, 2));
-      await addInvoiceAttachment(invoice.id, { name: `${path.parse(it.filename).name}.settings.json`, type: "application/json", buffer: settingsJson });
+      };
+      const settingsJson = Buffer.from(JSON.stringify(settingsData, null, 2));
+
+      await saveOrderFile({
+        invoiceId: invoice.id,
+        clientId: user.clientId,
+        userId: user.id,
+        filename: `${path.parse(it.filename).name}.settings.json`,
+        fileType: "settings",
+        contents: settingsJson,
+        mimeType: "application/json",
+        metadata: settingsData,
+      });
+
+      // Also keep settings in attachments for backward compatibility
+      await addInvoiceAttachment(invoice.id, {
+        name: `${path.parse(it.filename).name}.settings.json`,
+        type: "application/json",
+        buffer: settingsJson
+      });
     }
 
     // Stripe checkout

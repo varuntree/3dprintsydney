@@ -187,6 +187,24 @@ export async function createStripeCheckoutSession(
 
 
 export async function handleStripeEvent(event: Stripe.Event) {
+  const supabase = getServiceSupabase();
+
+  // Idempotency check: Has this event already been processed?
+  const { data: existingEvent } = await supabase
+    .from("webhook_events")
+    .select("id")
+    .eq("stripe_event_id", event.id)
+    .maybeSingle();
+
+  if (existingEvent) {
+    logger.info({
+      scope: "stripe.webhook",
+      message: "Event already processed (idempotency)",
+      data: { eventId: event.id, eventType: event.type },
+    });
+    return; // Skip processing
+  }
+
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const invoiceIdRaw = session.metadata?.invoiceId;
@@ -253,6 +271,13 @@ export async function handleStripeEvent(event: Stripe.Event) {
     logger.info({
       scope: "stripe.session.completed",
       data: { invoiceId, sessionId: session.id, amount },
+    });
+
+    // Record event as processed (idempotency)
+    await supabase.from("webhook_events").insert({
+      stripe_event_id: event.id,
+      event_type: event.type,
+      metadata: { invoiceId, sessionId: session.id, amount },
     });
   }
 }
