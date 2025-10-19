@@ -1,6 +1,6 @@
 # Stripe Flow — Simplified Handling (Legacy Parity)
 
-> **Update (2025-09-25):** The live implementation now hard-codes the legacy Stripe keys in `src/server/config/stripe-legacy.ts` and no longer exposes settings fields for them. Treat the notes below as historical context only.
+> **Update (2025-10-17):** Stripe credentials are now supplied via environment variables (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `STRIPE_CURRENCY`). No code changes are required beyond updating deployment configuration.
 
 We will retain the current Stripe SDK usage and webhook, but simplify the operator experience to match the legacy flow: a single payment link is embedded in the invoice PDF and reused.
 

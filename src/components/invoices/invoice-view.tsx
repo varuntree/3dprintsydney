@@ -46,6 +46,7 @@ export interface InvoiceViewModel {
   taxTotal: number;
   total: number;
   balanceDue: number;
+  poNumber: string | null;
   notes: string;
   terms: string;
   currency: string;
@@ -256,6 +257,11 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
               {dueDate ? format(dueDate, "dd MMM yyyy") : "—"}
               {isOverdue ? " · overdue" : ""}
             </p>
+            {invoice.poNumber ? (
+              <p className="text-xs font-medium text-muted-foreground">
+                PO Number: <span className="text-foreground/90">{invoice.poNumber}</span>
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-3">
             <Badge
@@ -268,7 +274,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
               <ActionButtonGroup title="Primary" variant="primary">
                 <NavigationLink
                   href={`/invoices/${invoice.id}?mode=edit`}
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/85 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                 >
                   Edit
                 </NavigationLink>

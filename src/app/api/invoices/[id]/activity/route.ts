@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/server/db/client";
 import { requireAdminAPI } from "@/server/auth/api-helpers";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -28,12 +28,22 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const offset = Number(searchParams.get("offset") ?? "0");
     const take = Number.isFinite(limit) && limit > 0 ? limit : 50;
     const skip = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-    const rows = await prisma.activityLog.findMany({
-      where: { invoiceId },
-      orderBy: { createdAt: "desc" },
-      take, skip,
-      select: { id: true, action: true, message: true, createdAt: true },
-    });
+    const supabase = getServiceSupabase();
+    const { data, error } = await supabase
+      .from("activity_logs")
+      .select("id, action, message, created_at")
+      .eq("invoice_id", invoiceId)
+      .order("created_at", { ascending: false })
+      .range(skip, skip + take - 1);
+    if (error) {
+      throw Object.assign(new Error(`Failed to load activity: ${error.message}`), { status: 500 });
+    }
+    const rows = (data ?? []).map((row) => ({
+      id: row.id,
+      action: row.action,
+      message: row.message,
+      createdAt: row.created_at,
+    }));
     return NextResponse.json({ data: rows });
   } catch (error) {
     const e = error as Error & { status?: number };

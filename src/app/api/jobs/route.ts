@@ -1,6 +1,6 @@
 import { ok, handleError } from "@/server/api/respond";
 import { getJobBoard } from "@/server/services/jobs";
-import { JobStatus } from "@prisma/client";
+import { JobStatus } from "@/lib/constants/enums";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -15,9 +15,10 @@ export async function GET(request: NextRequest) {
     const archived = searchParams.get("archived");
     const includeArchived = archived === "true";
     const statusesParam = searchParams.getAll("status");
+    const validStatuses = new Set(Object.values(JobStatus) as JobStatus[]);
     const statuses = statusesParam.length
       ? (statusesParam.filter((s): s is JobStatus =>
-          (Object.values(JobStatus) as string[]).includes(s),
+          validStatuses.has(s as JobStatus),
         ) as JobStatus[])
       : null;
     const completedWindow = searchParams.get("completedWindow");

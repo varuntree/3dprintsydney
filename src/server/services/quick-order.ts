@@ -1,17 +1,23 @@
-import { prisma } from "@/server/db/client";
 import { getSettings } from "@/server/services/settings";
 import type { SettingsInput } from "@/lib/schemas/settings";
 import { logger } from "@/lib/logger";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
 export type QuickOrderItemInput = {
-  fileId?: string; // temp file id for checkout attach
+  fileId?: string;
   filename: string;
   materialId: number;
   materialName?: string;
-  layerHeight: number; // mm
-  infill: number; // percent
+  layerHeight: number;
+  infill: number;
   quantity: number;
   metrics: { grams: number; timeSec: number; fallback?: boolean };
+  supports?: {
+    enabled: boolean;
+    pattern: "normal" | "tree";
+    angle: number;
+    acceptedFallback?: boolean;
+  };
 };
 
 export type QuickOrderShippingQuote = {
@@ -36,21 +42,23 @@ export type QuickOrderPrice = {
   taxRate?: number;
 };
 
-let cachedSettings: Awaited<ReturnType<typeof getSettings>> | null = null;
-let cachedSettingsAt = 0;
-const SETTINGS_TTL_MS = 60_000;
-
 type ShippingLocation = {
   state?: string | null;
   postcode?: string | null;
 };
+
+let cachedSettings: Awaited<ReturnType<typeof getSettings>> | null = null;
+let cachedSettingsAt = 0;
+const SETTINGS_TTL_MS = 60_000;
 
 function resolveShippingRegion(
   settings: SettingsInput,
   location: ShippingLocation,
 ): QuickOrderShippingQuote {
   const regions = settings.shippingRegions ?? [];
-  const fallback = regions.find((region) => region.code === settings.defaultShippingRegion) ?? regions[0];
+  const fallback =
+    regions.find((region) => region.code === settings.defaultShippingRegion) ??
+    regions[0];
 
   if (!fallback) {
     return {
@@ -96,7 +104,9 @@ function resolveShippingRegion(
 
   if (targetPostcode) {
     const postcodeMatch = candidates.find((region) =>
-      (region.postcodePrefixes ?? []).some((prefix) => targetPostcode.startsWith(prefix)),
+      (region.postcodePrefixes ?? []).some((prefix) =>
+        targetPostcode.startsWith(prefix),
+      ),
     );
     if (postcodeMatch) {
       candidates = [postcodeMatch];
@@ -106,7 +116,9 @@ function resolveShippingRegion(
   const selected = candidates[0] ?? fallback;
   const baseAmount = Number(selected.baseAmount ?? 0);
   const remoteSurcharge =
-    targetPostcode && (selected.postcodePrefixes ?? []).some((prefix) => targetPostcode.startsWith(prefix))
+    targetPostcode && (selected.postcodePrefixes ?? []).some((prefix) =>
+      targetPostcode.startsWith(prefix),
+    )
       ? Number(selected.remoteSurcharge ?? 0)
       : 0;
   const amount = Math.round((baseAmount + remoteSurcharge) * 100) / 100;
@@ -134,9 +146,22 @@ export async function priceQuickOrder(
   if (!settings) {
     throw new Error("Settings not configured");
   }
+
   const materialIds = Array.from(new Set(items.map((i) => i.materialId)));
-  const materials = await prisma.material.findMany({ where: { id: { in: materialIds } } });
-  const materialMap = new Map(materials.map((m) => [m.id, Number(m.costPerGram)]));
+  const supabase = getServiceSupabase();
+  const { data: materials, error } = await supabase
+    .from("materials")
+    .select("id, cost_per_gram")
+    .in("id", materialIds);
+
+  if (error) {
+    throw new Error(`Failed to load materials: ${error.message}`);
+  }
+
+  const materialMap = new Map<number, number>(
+    (materials ?? []).map((m) => [m.id, Number(m.cost_per_gram ?? 0)]),
+  );
+
   const hourlyRate = settings.calculatorConfig.hourlyRate ?? 45;
   const setupFee = settings.calculatorConfig.setupFee ?? 20;
   const minimumPrice = settings.calculatorConfig.minimumPrice ?? 35;

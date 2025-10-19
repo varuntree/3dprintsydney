@@ -12,7 +12,7 @@ export type ConversationMessage = Message;
 
 interface ConversationProps {
   invoiceId?: number;
-  userId?: number; // For admin viewing specific user thread
+  userId?: number | string; // For admin viewing specific user thread
   currentUserRole?: "ADMIN" | "CLIENT";
 }
 

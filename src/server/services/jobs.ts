@@ -1,14 +1,14 @@
+import { logger } from "@/lib/logger";
+import { getSettings } from "@/server/services/settings";
 import {
   InvoiceStatus,
   JobCreationPolicy,
   JobPriority,
   JobStatus,
   PrinterStatus,
-  Prisma,
-} from "@prisma/client";
-import { prisma } from "@/server/db/client";
-import { logger } from "@/lib/logger";
-import { getSettings } from "@/server/services/settings";
+} from "@/lib/constants/enums";
+import { getServiceSupabase } from "@/server/supabase/service-client";
+
 type HttpError = Error & { status?: number };
 
 export type JobCard = {
@@ -64,114 +64,283 @@ type BoardFilters = {
   statuses?: JobStatus[] | null;
 };
 
-async function getOpsSettings() {
-  const s = await prisma.settings.findUnique({ where: { id: 1 } });
+type SettingsOptions = {
+  autoDetachJobOnComplete: boolean;
+  autoArchiveCompletedJobsAfterDays: number;
+  preventAssignToOffline: boolean;
+  preventAssignToMaintenance: boolean;
+  maxActivePrintingPerPrinter: number;
+};
+
+type PrinterRow = {
+  id: number;
+  name: string;
+  status: string;
+};
+
+type ClientRow = {
+  id: number;
+  name: string | null;
+  email?: string | null;
+  notify_on_job_status?: boolean | null;
+};
+
+type InvoiceRow = {
+  id: number;
+  number: string | null;
+  status: string | null;
+};
+
+type JobRow = {
+  id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  printer_id: number | null;
+  client_id: number;
+  invoice_id: number;
+  queue_position: number;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  estimated_hours: string | number | null;
+  actual_hours: string | number | null;
+  notes: string | null;
+  paused_at: string | null;
+  last_run_started_at: string | null;
+  updated_at: string;
+  archived_at: string | null;
+  archived_reason: string | null;
+  completed_by: string | null;
+};
+
+type JobWithRelationsRow = JobRow & {
+  printers?: PrinterRow | null;
+  clients?: ClientRow | null;
+  invoices?: InvoiceRow | null;
+};
+
+type JobForNotification = JobWithRelationsRow & {
+  clients?: (ClientRow & { notify_on_job_status?: boolean | null; email?: string | null }) | null;
+  invoices?: InvoiceRow | null;
+};
+
+type ClientJobSummary = {
+  id: number;
+  title: string;
+  status: JobStatus;
+  priority: JobPriority;
+  invoiceId: number;
+  invoiceNumber: string;
+  updatedAt: Date;
+  createdAt: Date;
+};
+
+const QUEUED_STATUSES: ReadonlySet<JobStatus> = new Set([
+  JobStatus.QUEUED,
+  JobStatus.PRE_PROCESSING,
+  JobStatus.IN_QUEUE,
+]);
+
+const ACTIVE_STATUSES: ReadonlySet<JobStatus> = new Set([JobStatus.PRINTING]);
+
+const POST_PRINT_STATUSES: ReadonlySet<JobStatus> = new Set([
+  JobStatus.PRINTING_COMPLETE,
+  JobStatus.POST_PROCESSING,
+  JobStatus.PACKAGING,
+  JobStatus.OUT_FOR_DELIVERY,
+]);
+
+function toDate(value: string | null | undefined): Date | null {
+  return value ? new Date(value) : null;
+}
+
+function toNumber(value: string | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mapJobCard(row: JobWithRelationsRow): JobCard {
+  const printer = row.printers ?? null;
+  const client = row.clients ?? null;
+  const invoice = row.invoices ?? null;
+
   return {
-    autoDetachJobOnComplete: s?.autoDetachJobOnComplete ?? true,
-    autoArchiveCompletedJobsAfterDays: s?.autoArchiveCompletedJobsAfterDays ?? 7,
-    preventAssignToOffline: s?.preventAssignToOffline ?? true,
-    preventAssignToMaintenance: s?.preventAssignToMaintenance ?? true,
-    maxActivePrintingPerPrinter: s?.maxActivePrintingPerPrinter ?? 1,
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: (row.status ?? JobStatus.QUEUED) as JobStatus,
+    priority: (row.priority ?? JobPriority.NORMAL) as JobPriority,
+    printerId: row.printer_id,
+    printerName: printer?.name ?? null,
+    queuePosition: row.queue_position,
+    clientName: client?.name ?? "",
+    invoiceId: row.invoice_id,
+    invoiceNumber: invoice?.number ?? "",
+    invoiceStatus: (invoice?.status ?? InvoiceStatus.PENDING) as InvoiceStatus,
+    createdAt: new Date(row.created_at),
+    startedAt: toDate(row.started_at),
+    completedAt: toDate(row.completed_at),
+    estimatedHours: toNumber(row.estimated_hours),
+    actualHours: toNumber(row.actual_hours),
+    notes: row.notes,
   };
 }
 
-export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardSnapshot> {
-  const [printers, jobs] = await Promise.all([
-    prisma.printer.findMany({ orderBy: { name: "asc" } }),
-    prisma.job.findMany({
-      orderBy: { queuePosition: "asc" },
-      include: {
-        printer: true,
-        client: { select: { name: true } },
-        invoice: { select: { number: true, status: true } },
-      },
-      where: {
-        archivedAt: filters.includeArchived ? undefined : null,
-        status: filters.statuses ? { in: filters.statuses } : undefined,
-        ...(filters.completedSince
-          ? { completedAt: { gte: filters.completedSince } }
-          : {}),
-      },
-    }),
+function mapClientJob(row: JobWithRelationsRow): ClientJobSummary {
+  const invoice = row.invoices ?? null;
+  return {
+    id: row.id,
+    title: row.title,
+    status: (row.status ?? JobStatus.QUEUED) as JobStatus,
+    priority: (row.priority ?? JobPriority.NORMAL) as JobPriority,
+    invoiceId: row.invoice_id,
+    invoiceNumber: invoice?.number ?? "",
+    updatedAt: new Date(row.updated_at),
+    createdAt: new Date(row.created_at),
+  };
+}
+
+async function getOpsSettings(): Promise<SettingsOptions> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("settings")
+    .select(
+      "auto_detach_job_on_complete, auto_archive_completed_jobs_after_days, prevent_assign_to_offline, prevent_assign_to_maintenance, max_active_printing_per_printer",
+    )
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load ops settings: ${error.message}`);
+  }
+
+  return {
+    autoDetachJobOnComplete: data?.auto_detach_job_on_complete ?? true,
+    autoArchiveCompletedJobsAfterDays: data?.auto_archive_completed_jobs_after_days ?? 7,
+    preventAssignToOffline: data?.prevent_assign_to_offline ?? true,
+    preventAssignToMaintenance: data?.prevent_assign_to_maintenance ?? true,
+    maxActivePrintingPerPrinter: data?.max_active_printing_per_printer ?? 1,
+  };
+}
+
+async function ensurePrinterAssignable(printerId: number | null | undefined) {
+  if (printerId === null || printerId === undefined) return;
+
+  const [settings, printer] = await Promise.all([
+    getOpsSettings(),
+    getServiceSupabase()
+      .from("printers")
+      .select("id, status")
+      .eq("id", printerId)
+      .maybeSingle(),
   ]);
 
-  const cards: JobCard[] = jobs.map((job) => ({
-    id: job.id,
-    title: job.title,
-    description: job.description,
-    status: job.status,
-    priority: job.priority,
-    printerId: job.printerId,
-    printerName: job.printer?.name ?? null,
-    queuePosition: job.queuePosition,
-    clientName: job.client.name,
-    invoiceId: job.invoiceId,
-    invoiceNumber: job.invoice.number,
-    invoiceStatus: job.invoice.status,
-    createdAt: job.createdAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    estimatedHours: job.estimatedHours,
-    actualHours: job.actualHours,
-    notes: job.notes ?? null,
-  }));
+  if (printer.error) {
+    throw new Error(`Printer lookup failed: ${printer.error.message}`);
+  }
+  if (!printer.data) {
+    throw new Error("Printer not found");
+  }
 
+  const status = (printer.data.status ?? "ACTIVE") as PrinterStatus;
+  if (settings.preventAssignToOffline && status === PrinterStatus.OFFLINE) {
+    const err: HttpError = new Error("Assignment blocked: printer is offline");
+    err.status = 422;
+    throw err;
+  }
+  if (settings.preventAssignToMaintenance && status === PrinterStatus.MAINTENANCE) {
+    const err: HttpError = new Error("Assignment blocked: printer in maintenance");
+    err.status = 422;
+    throw err;
+  }
+}
+
+function applyCompletedTodayMetric(card: JobCard, today: Date): boolean {
+  if (!card.completedAt) return false;
+  return (
+    card.completedAt.getFullYear() === today.getFullYear() &&
+    card.completedAt.getMonth() === today.getMonth() &&
+    card.completedAt.getDate() === today.getDate()
+  );
+}
+
+export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardSnapshot> {
+  const supabase = getServiceSupabase();
+
+  let jobsQuery = supabase
+    .from("jobs")
+    .select(
+      "*, printers(id, name, status), clients(id, name), invoices(id, number, status)",
+    )
+    .order("queue_position", { ascending: true });
+
+  if (!filters.includeArchived) {
+    jobsQuery = jobsQuery.is("archived_at", null);
+  }
+  if (filters.statuses && filters.statuses.length > 0) {
+    jobsQuery = jobsQuery.in("status", filters.statuses);
+  }
+  if (filters.completedSince) {
+    jobsQuery = jobsQuery.gte("completed_at", filters.completedSince.toISOString());
+  }
+
+  const [printersRes, jobsRes] = await Promise.all([
+    supabase.from("printers").select("id, name, status").order("name", { ascending: true }),
+    jobsQuery,
+  ]);
+
+  if (printersRes.error) {
+    throw new Error(`Failed to load printers: ${printersRes.error.message}`);
+  }
+  if (jobsRes.error) {
+    throw new Error(`Failed to load jobs: ${jobsRes.error.message}`);
+  }
+
+  const printerRows: PrinterRow[] = printersRes.data ?? [];
+  const jobRows: JobWithRelationsRow[] = jobsRes.data ?? [];
+
+  const cards = jobRows.map(mapJobCard);
   const columnMap = new Map<number | null, JobBoardColumn>();
 
-  const unassigned: JobBoardColumn = {
+  columnMap.set(null, {
     key: "unassigned",
     printerId: null,
     printerName: "Unassigned",
     printerStatus: "UNASSIGNED",
     jobs: [],
-    metrics: {
-      queuedCount: 0,
-      activeCount: 0,
-      totalEstimatedHours: 0,
-    },
-  };
+    metrics: { queuedCount: 0, activeCount: 0, totalEstimatedHours: 0 },
+  });
 
-  columnMap.set(null, unassigned);
-
-  printers.forEach((printer) => {
+  printerRows.forEach((printer) => {
     columnMap.set(printer.id, {
       key: `printer-${printer.id}`,
       printerId: printer.id,
       printerName: printer.name,
-      printerStatus: printer.status,
+      printerStatus: (printer.status ?? PrinterStatus.ACTIVE) as PrinterStatus,
       jobs: [],
-      metrics: {
-        queuedCount: 0,
-        activeCount: 0,
-        totalEstimatedHours: 0,
-      },
+      metrics: { queuedCount: 0, activeCount: 0, totalEstimatedHours: 0 },
     });
   });
 
-  const queuedStatuses = new Set<JobStatus>([
-    JobStatus.QUEUED,
-    JobStatus.PRE_PROCESSING,
-    JobStatus.IN_QUEUE,
-  ]);
-  const activeStatuses = new Set<JobStatus>([JobStatus.PRINTING]);
-
-  cards.forEach((job) => {
-    const column = columnMap.get(job.printerId ?? null);
-    if (!column) {
-      return;
-    }
-    column.jobs.push(job);
-    if (queuedStatuses.has(job.status)) {
+  cards.forEach((card) => {
+    const column = columnMap.get(card.printerId ?? null);
+    if (!column) return;
+    column.jobs.push(card);
+    if (QUEUED_STATUSES.has(card.status)) {
       column.metrics.queuedCount += 1;
     }
-    if (activeStatuses.has(job.status)) {
+    if (ACTIVE_STATUSES.has(card.status)) {
       column.metrics.activeCount += 1;
     }
-    if (typeof job.estimatedHours === "number") {
-      column.metrics.totalEstimatedHours += job.estimatedHours;
+    if (typeof card.estimatedHours === "number") {
+      column.metrics.totalEstimatedHours += card.estimatedHours;
     }
   });
 
+  const today = new Date();
   const columns = Array.from(columnMap.values()).map((column) => ({
     ...column,
     jobs: column.jobs.sort((a, b) => a.queuePosition - b.queuePosition),
@@ -194,15 +363,9 @@ export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardS
       if (column.printerId !== null && column.jobs.length > 0) {
         acc.printersWithWork += 1;
       }
-      const completedToday = column.jobs.filter((job) => {
-        if (!job.completedAt) return false;
-        const today = new Date();
-        return (
-          job.completedAt.getFullYear() === today.getFullYear() &&
-          job.completedAt.getMonth() === today.getMonth() &&
-          job.completedAt.getDate() === today.getDate()
-        );
-      }).length;
+      const completedToday = column.jobs.filter((job) =>
+        applyCompletedTodayMetric(job, today),
+      ).length;
       acc.completedToday += completedToday;
       return acc;
     },
@@ -222,115 +385,136 @@ export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardS
   return { columns, summary };
 }
 
-async function ensurePrinterAssignable(printerId: number | null | undefined) {
-  if (printerId === null || printerId === undefined) return;
-  const [settings, printer] = await Promise.all([
-    getOpsSettings(),
-    prisma.printer.findUnique({ where: { id: printerId } }),
-  ]);
-  if (!printer) throw new Error("Printer not found");
-  if (settings.preventAssignToOffline && printer.status === "OFFLINE") {
-    const err: HttpError = new Error("Assignment blocked: printer is offline");
-    err.status = 422;
-    throw err;
+async function getMaxQueuePosition(printerId: number | null): Promise<number> {
+  const supabase = getServiceSupabase();
+  const query =
+    printerId === null
+      ? supabase.from("jobs").select("queue_position").is("printer_id", null)
+      : supabase.from("jobs").select("queue_position").eq("printer_id", printerId);
+  const { data, error } = await query
+    .order("queue_position", { ascending: false })
+    .limit(1);
+  if (error) {
+    throw new Error(`Failed to compute queue position: ${error.message}`);
   }
-  if (settings.preventAssignToMaintenance && printer.status === "MAINTENANCE") {
-    const err: HttpError = new Error("Assignment blocked: printer in maintenance");
-    err.status = 422;
-    throw err;
+  return data?.[0]?.queue_position ?? -1;
+}
+
+async function fetchJobWithRelations(id: number): Promise<JobWithRelationsRow> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("jobs")
+    .select(
+      "*, clients(id, name, email, notify_on_job_status), invoices(id, number, status), printers(id, name, status)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to load job: ${error.message}`);
   }
+  if (!data) {
+    throw new Error("Job not found");
+  }
+  return data as JobWithRelationsRow;
 }
 
 export async function ensureJobForInvoice(invoiceId: number) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: { client: { select: { name: true } } },
-  });
-  if (!invoice) {
+  const supabase = getServiceSupabase();
+  const invoiceRes = await supabase
+    .from("invoices")
+    .select(
+      "id, number, client_id, clients(name), invoice_items(name, description)",
+    )
+    .eq("id", invoiceId)
+    .maybeSingle();
+
+  if (invoiceRes.error) {
+    throw new Error(`Failed to load invoice: ${invoiceRes.error.message}`);
+  }
+  if (!invoiceRes.data) {
     throw new Error("Invoice not found");
   }
 
-  const existing = await prisma.job.findFirst({ where: { invoiceId } });
-  if (existing) {
-    return existing;
+  const existing = await supabase
+    .from("jobs")
+    .select("id")
+    .eq("invoice_id", invoiceId)
+    .maybeSingle();
+  if (existing.data) {
+    return fetchJobWithRelations(existing.data.id);
   }
 
-  const aggregate = await prisma.job.aggregate({
-    where: { printerId: null },
-    _max: { queuePosition: true },
-  });
-  const nextPosition = (aggregate._max.queuePosition ?? -1) + 1;
+  const lastPosition = await getMaxQueuePosition(null);
+  const nextPosition = lastPosition + 1;
 
-  const created = await prisma.job.create({
-    data: {
-      invoiceId,
-      clientId: invoice.clientId,
-      title: `Invoice ${invoice.number}`,
+  const hasFastTrackLine =
+    invoiceRes.data.invoice_items?.some((item) => {
+      const haystacks = [item?.name, item?.description]
+        .filter(Boolean)
+        .map((value) => (value ?? "").toLowerCase());
+      return haystacks.some((text) => text.includes("fast track"));
+    }) ?? false;
+
+  const { data: created, error: createError } = await supabase
+    .from("jobs")
+    .insert({
+      invoice_id: invoiceRes.data.id,
+      client_id: invoiceRes.data.client_id,
+      title: `Invoice ${invoiceRes.data.number}`,
       description: null,
       status: JobStatus.PRE_PROCESSING,
-      priority: JobPriority.NORMAL,
-      printerId: null,
-      queuePosition: nextPosition,
-    },
-  });
+      priority: hasFastTrackLine ? JobPriority.FAST_TRACK : JobPriority.NORMAL,
+      printer_id: null,
+      queue_position: nextPosition,
+    })
+    .select("id")
+    .single();
 
-  await prisma.activityLog.create({
-    data: {
-      clientId: invoice.clientId,
-      invoiceId,
-      jobId: created.id,
-      action: "JOB_CREATED",
-      message: `Job created for invoice ${invoice.number}`,
-    },
+  if (createError || !created) {
+    throw new Error(`Failed to create job: ${createError?.message ?? "Unknown error"}`);
+  }
+
+  const activityError = await supabase.from("activity_logs").insert({
+    client_id: invoiceRes.data.client_id,
+    invoice_id: invoiceRes.data.id,
+    job_id: created.id,
+    action: "JOB_CREATED",
+    message: `Job created for invoice ${invoiceRes.data.number}`,
   });
+  if (activityError.error) {
+    logger.warn({
+      scope: "jobs.ensure.activity",
+      message: "Failed to record job creation activity",
+      error: activityError.error,
+      data: { invoiceId },
+    });
+  }
 
   logger.info({ scope: "jobs.ensure", data: { invoiceId, jobId: created.id } });
-
-  return created;
+  return fetchJobWithRelations(created.id);
 }
-
-export type ClientJobSummary = {
-  id: number;
-  title: string;
-  status: JobStatus;
-  priority: JobPriority;
-  invoiceId: number;
-  invoiceNumber: string;
-  updatedAt: Date;
-  createdAt: Date;
-};
 
 export async function listJobsForClient(
   clientId: number,
   options?: { includeArchived?: boolean },
 ): Promise<ClientJobSummary[]> {
-  const jobs = await prisma.job.findMany({
-    where: {
-      clientId,
-      archivedAt: options?.includeArchived ? undefined : null,
-    },
-    orderBy: [{ updatedAt: "desc" }],
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      priority: true,
-      updatedAt: true,
-      createdAt: true,
-      invoice: { select: { id: true, number: true } },
-    },
-  });
+  const supabase = getServiceSupabase();
+  const query = supabase
+    .from("jobs")
+    .select("*, invoices(id, number)")
+    .eq("client_id", clientId)
+    .order("updated_at", { ascending: false });
 
-  return jobs.map((job) => ({
-    id: job.id,
-    title: job.title,
-    status: job.status,
-    priority: job.priority,
-    invoiceId: job.invoice.id,
-    invoiceNumber: job.invoice.number,
-    updatedAt: job.updatedAt,
-    createdAt: job.createdAt,
-  }));
+  if (!options?.includeArchived) {
+    query.is("archived_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list jobs: ${error.message}`);
+  }
+
+  return (data as JobWithRelationsRow[]).map(mapClientJob);
 }
 
 export async function updateJob(
@@ -344,20 +528,16 @@ export async function updateJob(
     notes?: string | null;
   },
 ) {
-  const existing = await prisma.job.findUnique({ where: { id } });
-  if (!existing) {
-    throw new Error("Job not found");
-  }
+  const supabase = getServiceSupabase();
+  const existing = await fetchJobWithRelations(id);
 
   let queuePosition: number | undefined;
+  const targetPrinterId = updates.printerId ?? existing.printer_id;
 
-  if (updates.printerId !== undefined && updates.printerId !== existing.printerId) {
+  if (updates.printerId !== undefined && updates.printerId !== existing.printer_id) {
     await ensurePrinterAssignable(updates.printerId);
-    const aggregate = await prisma.job.aggregate({
-      where: { printerId: updates.printerId ?? null, id: { not: id } },
-      _max: { queuePosition: true },
-    });
-    queuePosition = (aggregate._max.queuePosition ?? -1) + 1;
+    const maxPosition = await getMaxQueuePosition(targetPrinterId ?? null);
+    queuePosition = maxPosition + 1;
   }
 
   const normalizeText = (value: string | null | undefined) => {
@@ -367,277 +547,291 @@ export async function updateJob(
     return trimmed.length === 0 ? null : trimmed;
   };
 
-  const job = await prisma.job.update({
-    where: { id },
-    data: {
-      printerId: updates.printerId ?? undefined,
-      queuePosition,
+  const { error } = await supabase
+    .from("jobs")
+    .update({
+      printer_id: updates.printerId ?? undefined,
+      queue_position: queuePosition ?? undefined,
       priority: updates.priority ?? undefined,
       title: updates.title ?? undefined,
       description: normalizeText(updates.description ?? undefined),
-      estimatedHours:
-        updates.estimatedHours === undefined
-          ? undefined
-          : updates.estimatedHours,
+      estimated_hours:
+        updates.estimatedHours === undefined ? undefined : updates.estimatedHours,
       notes: normalizeText(updates.notes ?? undefined),
-    },
-  });
+    })
+    .eq("id", id);
 
-  logger.info({ scope: "jobs.update", data: { id } });
-  return job;
-}
-
-export async function updateJobStatus(
-  id: number,
-  status: JobStatus,
-  note?: string,
-) {
-  const jobRecord = await prisma.job.findUnique({ where: { id } });
-  if (!jobRecord) {
-    throw new Error("Job not found");
+  if (error) {
+    throw new Error(`Failed to update job: ${error.message}`);
   }
 
+  logger.info({ scope: "jobs.update", data: { id } });
+  return fetchJobWithRelations(id);
+}
+
+export async function updateJobStatus(id: number, status: JobStatus, note?: string) {
+  const supabase = getServiceSupabase();
+  const jobRecord = await fetchJobWithRelations(id);
   const now = new Date();
   const settings = await getOpsSettings();
 
-  const data: Prisma.JobUncheckedUpdateInput = { status };
+  const updates: Record<string, unknown> = { status };
 
-  const resetStatuses = new Set<JobStatus>([
-    JobStatus.QUEUED,
-    JobStatus.PRE_PROCESSING,
-    JobStatus.IN_QUEUE,
-  ]);
-
-  const postPrintStatuses = new Set<JobStatus>([
-    JobStatus.PRINTING_COMPLETE,
-    JobStatus.POST_PROCESSING,
-    JobStatus.PACKAGING,
-    JobStatus.OUT_FOR_DELIVERY,
-  ]);
-
-  async function accumulateRun(record = jobRecord!) {
-    if (record.lastRunStartedAt) {
-      const delta = Math.max(
-        (now.getTime() - record.lastRunStartedAt.getTime()) / 3_600_000,
+  const accumulateRun = async () => {
+    if (jobRecord.last_run_started_at) {
+      const lastRunStart = new Date(jobRecord.last_run_started_at);
+      const deltaHours = Math.max(
+        (now.getTime() - lastRunStart.getTime()) / 3_600_000,
         0,
       );
-      const accumulated = Number(((record.actualHours ?? 0) + delta).toFixed(2));
-      data.actualHours = accumulated;
-      data.lastRunStartedAt = null;
+      const accumulated = Number(
+        ((toNumber(jobRecord.actual_hours) ?? 0) + deltaHours).toFixed(2),
+      );
+      updates.actual_hours = accumulated;
+      updates.last_run_started_at = null;
     }
-  }
+  };
 
   if (status === JobStatus.PRINTING) {
-    if (!jobRecord.printerId) {
+    if (!jobRecord.printer_id) {
       const err: HttpError = new Error("Cannot start printing without a printer assignment");
       err.status = 422;
       throw err;
     }
-    await ensurePrinterAssignable(jobRecord.printerId);
-    // Enforce max active per printer
-    const activeCount = await prisma.job.count({
-      where: { printerId: jobRecord.printerId, status: JobStatus.PRINTING },
-    });
-    if (activeCount >= settings.maxActivePrintingPerPrinter) {
+    await ensurePrinterAssignable(jobRecord.printer_id);
+    const { count, error: countError } = await supabase
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("printer_id", jobRecord.printer_id)
+      .eq("status", JobStatus.PRINTING);
+    if (countError) {
+      throw new Error(`Failed to inspect active jobs: ${countError.message}`);
+    }
+    if ((count ?? 0) >= settings.maxActivePrintingPerPrinter) {
       const err: HttpError = new Error("Printer is busy: active job limit reached");
       err.status = 409;
       throw err;
     }
-    data.startedAt = jobRecord.startedAt ?? now;
-    data.pausedAt = null;
-    data.lastRunStartedAt = jobRecord.lastRunStartedAt ?? now;
+    updates.started_at = jobRecord.started_at ?? now.toISOString();
+    updates.paused_at = null;
+    updates.last_run_started_at = jobRecord.last_run_started_at ?? now.toISOString();
   } else if (status === JobStatus.PAUSED) {
     await accumulateRun();
-    data.pausedAt = now;
+    updates.paused_at = now.toISOString();
   } else if (status === JobStatus.COMPLETED) {
     await accumulateRun();
-    data.completedAt = now;
-    if (!jobRecord.startedAt) {
-      data.startedAt = now;
+    updates.completed_at = now.toISOString();
+    if (!jobRecord.started_at) {
+      updates.started_at = now.toISOString();
     }
-    data.pausedAt = null;
-    data.completedBy = "operator";
-
+    updates.paused_at = null;
+    updates.completed_by = jobRecord.completed_by ?? "operator";
     if (settings.autoDetachJobOnComplete) {
-      // Move to unassigned tail
-      const aggregate = await prisma.job.aggregate({
-        where: { printerId: null, id: { not: id } },
-        _max: { queuePosition: true },
-      });
-      const nextPosition = (aggregate._max.queuePosition ?? -1) + 1;
-      data.printerId = null;
-      data.queuePosition = nextPosition;
+      const maxPosition = await getMaxQueuePosition(null);
+      updates.printer_id = null;
+      updates.queue_position = maxPosition + 1;
     }
-
     if (settings.autoArchiveCompletedJobsAfterDays === 0) {
-      data.archivedAt = now;
-      data.archivedReason = "auto-archive (immediate)";
+      updates.archived_at = now.toISOString();
+      updates.archived_reason = "auto-archive (immediate)";
     }
-  } else if (resetStatuses.has(status)) {
-    data.startedAt = null;
-    data.completedAt = null;
-    data.pausedAt = null;
-    data.actualHours = null;
-    data.lastRunStartedAt = null;
-  } else if (postPrintStatuses.has(status)) {
+  } else if (QUEUED_STATUSES.has(status)) {
+    updates.started_at = null;
+    updates.completed_at = null;
+    updates.paused_at = null;
+    updates.actual_hours = null;
+    updates.last_run_started_at = null;
+  } else if (POST_PRINT_STATUSES.has(status)) {
     await accumulateRun();
-    data.pausedAt = null;
-    data.lastRunStartedAt = null;
+    updates.paused_at = null;
+    updates.last_run_started_at = null;
   } else if (status === JobStatus.CANCELLED) {
-    data.completedAt = null;
-    data.pausedAt = null;
-    data.actualHours = null;
-    data.lastRunStartedAt = null;
-    data.printerId = null;
-    data.archivedAt = now;
-    data.archivedReason = note ?? "cancelled";
+    updates.completed_at = null;
+    updates.paused_at = null;
+    updates.actual_hours = null;
+    updates.last_run_started_at = null;
+    updates.printer_id = null;
+    updates.archived_at = now.toISOString();
+    updates.archived_reason = note ?? "cancelled";
   }
 
-  const job = await prisma.job.update({
-    where: { id },
-    data,
-    include: {
-      client: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          notifyOnJobStatus: true,
-        },
-      },
-      invoice: {
-        select: {
-          id: true,
-          number: true,
-        },
-      },
-    },
-  });
+  const previousStatus = (jobRecord.status ?? JobStatus.QUEUED) as JobStatus;
 
-  await prisma.activityLog.create({
-    data: {
-      clientId: job.clientId,
-      jobId: job.id,
-      invoiceId: job.invoiceId,
-      action: "JOB_STATUS",
-      message: `Job ${job.title} -> ${status.toLowerCase()}`,
-      metadata: note ? { note } : undefined,
-    },
-  });
-
-  if (jobRecord.status !== status) {
-    await maybeNotifyJobStatusChange(jobRecord.status, job, note);
+  const { error } = await supabase.from("jobs").update(updates).eq("id", id);
+  if (error) {
+    throw new Error(`Failed to update job status: ${error.message}`);
   }
+
+  const activityError = await supabase.from("activity_logs").insert({
+    client_id: jobRecord.client_id,
+    job_id: jobRecord.id,
+    invoice_id: jobRecord.invoice_id,
+    action: "JOB_STATUS",
+    message: `Job status updated to ${status}`,
+    metadata: note ? { note } : null,
+  });
+  if (activityError.error) {
+    logger.warn({
+      scope: "jobs.status.activity",
+      message: "Failed to record job status activity",
+      error: activityError.error,
+      data: { id },
+    });
+  }
+
+  const updatedJob = await fetchJobWithRelations(id);
+  await maybeNotifyJobStatusChange(previousStatus, updatedJob as JobForNotification, note);
 
   logger.info({ scope: "jobs.status", data: { id, status } });
-  return job;
+  return updatedJob;
+}
+
+export async function clearPrinterQueue(printerId: number) {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("id")
+    .eq("printer_id", printerId)
+    .in("status", [JobStatus.QUEUED, JobStatus.PAUSED])
+    .order("queue_position", { ascending: true });
+  if (error) {
+    throw new Error(`Failed to load printer queue: ${error.message}`);
+  }
+
+  const queue = data ?? [];
+  if (queue.length === 0) {
+    logger.info({ scope: "jobs.printer.clear_queue", data: { printerId, count: 0 } });
+    return;
+  }
+
+  const basePosition = (await getMaxQueuePosition(null)) + 1;
+  let nextPosition = basePosition;
+  const timestamp = new Date().toISOString();
+
+  for (const job of queue) {
+    const { error: updateError } = await supabase
+      .from("jobs")
+      .update({
+        printer_id: null,
+        queue_position: nextPosition,
+        updated_at: timestamp,
+      })
+      .eq("id", job.id);
+    if (updateError) {
+      throw new Error(`Failed to detach job ${job.id}: ${updateError.message}`);
+    }
+    nextPosition += 1;
+  }
+
+  logger.info({ scope: "jobs.printer.clear_queue", data: { printerId, count: queue.length } });
 }
 
 export async function reorderJobs(entries: { id: number; queuePosition: number; printerId: number | null }[]) {
-  // Validate assignments
+  const supabase = getServiceSupabase();
   for (const entry of entries) {
     await ensurePrinterAssignable(entry.printerId ?? null);
   }
-  await prisma.$transaction(
+  await Promise.all(
     entries.map((entry) =>
-      prisma.job.update({
-        where: { id: entry.id },
-        data: {
-          queuePosition: entry.queuePosition,
-          printerId: entry.printerId,
-        },
-      }),
+      supabase
+        .from("jobs")
+        .update({
+          queue_position: entry.queuePosition,
+          printer_id: entry.printerId,
+        })
+        .eq("id", entry.id),
     ),
   );
   logger.info({ scope: "jobs.reorder", data: { count: entries.length } });
 }
 
 export async function getJobCreationPolicy(): Promise<JobCreationPolicy> {
-  const settings = await prisma.settings.findUnique({
-    where: { id: 1 },
-    select: { jobCreationPolicy: true },
-  });
-  return settings?.jobCreationPolicy ?? JobCreationPolicy.ON_PAYMENT;
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("settings")
+    .select("job_creation_policy")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to read job creation policy: ${error.message}`);
+  }
+  return (data?.job_creation_policy ?? JobCreationPolicy.ON_PAYMENT) as JobCreationPolicy;
 }
 
 export async function archiveJob(id: number, reason?: string) {
-  const job = await prisma.job.update({
-    where: { id },
-    data: { archivedAt: new Date(), archivedReason: reason ?? null },
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("jobs")
+    .update({
+      archived_at: new Date().toISOString(),
+      archived_reason: reason ?? null,
+    })
+    .eq("id", id);
+  if (error) {
+    throw new Error(`Failed to archive job: ${error.message}`);
+  }
+
+  const job = await fetchJobWithRelations(id);
+  const activityError = await supabase.from("activity_logs").insert({
+    client_id: job.client_id,
+    job_id: job.id,
+    invoice_id: job.invoice_id,
+    action: "JOB_ARCHIVED",
+    message: `Job ${job.title} archived`,
+    metadata: reason ? { reason } : null,
   });
-  await prisma.activityLog.create({
-    data: {
-      clientId: job.clientId,
-      jobId: job.id,
-      invoiceId: job.invoiceId,
-      action: "JOB_ARCHIVED",
-      message: `Job ${job.title} archived`,
-      metadata: reason ? { reason } : undefined,
-    },
-  });
+  if (activityError.error) {
+    logger.warn({
+      scope: "jobs.archive.activity",
+      message: "Failed to record job archive activity",
+      error: activityError.error,
+      data: { id },
+    });
+  }
   return job;
 }
 
 export async function bulkArchiveJobs(ids: number[], reason?: string) {
   if (ids.length === 0) return 0;
-  const now = new Date();
-  await prisma.job.updateMany({
-    where: { id: { in: ids } },
-    data: { archivedAt: now, archivedReason: reason ?? null },
-  });
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from("jobs")
+    .update({
+      archived_at: new Date().toISOString(),
+      archived_reason: reason ?? null,
+    })
+    .in("id", ids);
+  if (error) {
+    throw new Error(`Failed to bulk archive jobs: ${error.message}`);
+  }
   logger.info({ scope: "jobs.archive.bulk", data: { count: ids.length } });
   return ids.length;
 }
 
-type JobWithRelations = Prisma.JobGetPayload<{
-  include: {
-    client: {
-      select: {
-        id: true;
-        name: true;
-        email: true;
-        notifyOnJobStatus: true;
-      };
-    };
-    invoice: {
-      select: {
-        id: true;
-        number: true;
-      };
-    };
-  };
-}>;
-
 async function maybeNotifyJobStatusChange(
   previousStatus: JobStatus,
-  job: JobWithRelations,
+  job: JobForNotification,
   note?: string,
 ) {
-  if (previousStatus === job.status) {
-    return;
-  }
+  const currentStatus = (job.status ?? JobStatus.QUEUED) as JobStatus;
+  if (previousStatus === currentStatus) return;
 
   const settings = await getSettings();
   if (!settings?.enableEmailSend) {
     logger.info({
       scope: "jobs.notify",
       message: "Email notifications disabled; skipping job status email",
-      data: {
-        jobId: job.id,
-        status: job.status,
-      },
+      data: { jobId: job.id, status: currentStatus },
     });
     return;
   }
 
-  if (!job.client.notifyOnJobStatus) {
+  const client = job.clients ?? null;
+  if (!client?.notify_on_job_status) {
     logger.info({
       scope: "jobs.notify",
       message: "Client opted out of job status emails",
-      data: {
-        jobId: job.id,
-        clientId: job.clientId,
-      },
+      data: { jobId: job.id, clientId: job.client_id },
     });
     return;
   }
@@ -647,14 +841,13 @@ async function maybeNotifyJobStatusChange(
     message: "Dispatching job status notification",
     data: {
       jobId: job.id,
-      clientId: job.clientId,
-      clientEmail: job.client.email ?? null,
-      invoiceNumber: job.invoice?.number ?? null,
+      clientId: job.client_id,
+      clientEmail: client.email ?? null,
+      invoiceNumber: job.invoices?.number ?? null,
       previousStatus,
-      newStatus: job.status,
+      newStatus: currentStatus,
       note: note ?? null,
     },
   });
-
-  // Placeholder: integrate with email delivery in future iteration.
+  // Future: integrate email delivery
 }

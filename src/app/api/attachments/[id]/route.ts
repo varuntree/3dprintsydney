@@ -19,14 +19,9 @@ export async function GET(
   try {
     const id = await parseId(context.params);
     await requireAttachmentAccess(request, id);
-    const { stream, attachment } = await readInvoiceAttachment(id);
-
-    return new NextResponse(stream as unknown as BodyInit, {
-      headers: {
-        "Content-Type": attachment.filetype ?? "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${attachment.filename}"`,
-      },
-    });
+    const { url, attachment } = await readInvoiceAttachment(id);
+    const downloadUrl = `${url}&download=${encodeURIComponent(attachment.filename)}`;
+    return NextResponse.redirect(downloadUrl);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid attachment id") {
       return fail("INVALID_ID", error.message, 400);

@@ -1,8 +1,7 @@
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/server/db/client";
-import { logger } from "@/lib/logger";
-import { clientInputSchema, clientNoteSchema } from "@/lib/schemas/clients";
-import { resolvePaymentTermsOptions } from "@/server/services/settings";
+import { logger } from '@/lib/logger';
+import { clientInputSchema, clientNoteSchema } from '@/lib/schemas/clients';
+import { DEFAULT_PAYMENT_TERMS } from '@/lib/schemas/settings';
+import { getServiceSupabase } from '@/server/supabase/service-client';
 
 export type ClientSummaryDTO = {
   id: number;
@@ -18,207 +17,299 @@ export type ClientSummaryDTO = {
   createdAt: Date;
 };
 
-async function normalizePaymentTermsCode(
-  tx: Prisma.TransactionClient,
-  term: string | null | undefined,
-) {
+async function normalizePaymentTermsCode(term: string | null | undefined): Promise<string | null> {
   const trimmed = term?.trim();
   if (!trimmed) {
     return null;
   }
 
-  const { paymentTerms } = await resolvePaymentTermsOptions(tx);
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('settings')
+    .select('payment_terms, default_payment_terms')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Unable to resolve payment terms: ${error.message}`);
+  }
+
+  const paymentTerms = Array.isArray(data?.payment_terms) ? data?.payment_terms : DEFAULT_PAYMENT_TERMS;
   const isValid = paymentTerms.some((option) => option.code === trimmed);
   if (!isValid) {
-    throw new Error("Invalid payment terms selection");
+    throw new Error('Invalid payment terms selection');
   }
 
   return trimmed;
+}
+
+async function insertActivity(entry: {
+  clientId?: number | null;
+  quoteId?: number | null;
+  invoiceId?: number | null;
+  jobId?: number | null;
+  printerId?: number | null;
+  action: string;
+  message: string;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from('activity_logs').insert({
+    client_id: entry.clientId ?? null,
+    quote_id: entry.quoteId ?? null,
+    invoice_id: entry.invoiceId ?? null,
+    job_id: entry.jobId ?? null,
+    printer_id: entry.printerId ?? null,
+    action: entry.action,
+    message: entry.message,
+    metadata: entry.metadata ?? null,
+  });
+  if (error) {
+    throw new Error(`Failed to record activity: ${error.message}`);
+  }
+}
+
+function parseNullableText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+type ClientRow = {
+  id: number;
+  name: string;
+  company: string | null;
+  abn: string | null;
+  email: string | null;
+  phone: string | null;
+  address: { raw?: string } | null;
+  tags: string[] | null;
+  payment_terms: string | null;
+  notes: string | null;
+  notify_on_job_status: boolean;
+  created_at: string;
+  updated_at: string;
+  invoices?: Array<{ balance_due: number | null; status: string; total?: number | null }> | null;
+  quotes?: Array<{ id: number }> | null;
+};
+
+function mapClientSummary(row: ClientRow): ClientSummaryDTO {
+  const invoices = row.invoices ?? [];
+  const outstanding = invoices.reduce((sum, invoice) => {
+    if (invoice.status === 'PAID') {
+      return sum;
+    }
+    return sum + Number(invoice.balance_due ?? 0);
+  }, 0);
+
+  return {
+    id: row.id,
+    name: row.name,
+    company: row.company ?? '',
+    email: row.email ?? '',
+    phone: row.phone ?? '',
+    paymentTerms: row.payment_terms,
+    notifyOnJobStatus: row.notify_on_job_status,
+    outstandingBalance: outstanding,
+    totalInvoices: invoices.length,
+    totalQuotes: (row.quotes ?? []).length,
+    createdAt: new Date(row.created_at),
+  };
 }
 
 export async function listClients(options?: {
   q?: string;
   limit?: number;
   offset?: number;
-  sort?: "name" | "createdAt";
-  order?: "asc" | "desc";
+  sort?: 'name' | 'createdAt';
+  order?: 'asc' | 'desc';
 }): Promise<ClientSummaryDTO[]> {
-  const where = options?.q
-    ? { OR: [{ name: { contains: options.q, mode: "insensitive" } }, { company: { contains: options.q, mode: "insensitive" } }] }
-    : undefined;
-  const orderBy = options?.sort
-    ? { [options.sort]: options.order ?? "asc" }
-    : { name: "asc" as const };
-  const clients = await prisma.client.findMany({
-    where,
-    orderBy,
-    include: {
-      invoices: { select: { balanceDue: true, status: true } },
-      _count: { select: { invoices: true, quotes: true } },
-    },
-    take: options?.limit,
-    skip: options?.offset,
-  });
+  const supabase = getServiceSupabase();
+  let query = supabase
+    .from('clients')
+    .select(
+      `id, name, company, email, phone, payment_terms, notify_on_job_status, created_at,
+       invoices(balance_due,status), quotes(id)`
+    );
 
-  return clients.map((client) => {
-    const outstanding = client.invoices.reduce((sum, invoice) => {
-      if (invoice.status === "PAID") return sum;
-      return sum + Number(invoice.balanceDue ?? 0);
-    }, 0);
+  if (options?.q) {
+    const term = options.q.trim();
+    query = query.or(`name.ilike.%${term}%,company.ilike.%${term}%`);
+  }
 
-    return {
-      id: client.id,
-      name: client.name,
-      company: client.company ?? "",
-      email: client.email ?? "",
-      phone: client.phone ?? "",
-      paymentTerms: client.paymentTerms ?? null,
-      notifyOnJobStatus: client.notifyOnJobStatus,
-      outstandingBalance: outstanding,
-      totalInvoices: client._count.invoices,
-      totalQuotes: client._count.quotes,
-      createdAt: client.createdAt,
-    };
-  });
+  const sortColumn = options?.sort === 'createdAt' ? 'created_at' : 'name';
+  const ascending = (options?.order ?? 'asc') !== 'desc';
+  query = query.order(sortColumn, { ascending, nullsFirst: !ascending });
+
+  if (typeof options?.limit === 'number') {
+    const limit = Math.max(0, options.limit);
+    const offset = Math.max(0, options.offset ?? 0);
+    query = query.range(offset, offset + Math.max(limit - 1, 0));
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list clients: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => mapClientSummary(row as ClientRow));
 }
 
 export async function createClient(payload: unknown) {
   const parsed = clientInputSchema.parse(payload);
-  const client = await prisma.$transaction(async (tx) => {
-    const paymentTermsCode = await normalizePaymentTermsCode(
-      tx,
-      parsed.paymentTerms ?? null,
-    );
+  const supabase = getServiceSupabase();
 
-    const created = await tx.client.create({
-      data: {
-        name: parsed.name,
-        company: parsed.company || null,
-        abn: parsed.abn || null,
-        email: parsed.email || null,
-        phone: parsed.phone || null,
-        address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
-        paymentTerms: paymentTermsCode,
-        notifyOnJobStatus: parsed.notifyOnJobStatus ?? false,
-        notes: parsed.notes || null,
-        tags: parsed.tags ?? [],
-      },
-    });
+  const paymentTermsCode = await normalizePaymentTermsCode(parsed.paymentTerms ?? null);
 
-    await tx.activityLog.create({
-      data: {
-        clientId: created.id,
-        action: "CLIENT_CREATED",
-        message: `Client ${created.name} created`,
-      },
-    });
+  const { data, error } = await supabase
+    .from('clients')
+    .insert({
+      name: parsed.name,
+      company: parseNullableText(parsed.company),
+      abn: parseNullableText(parsed.abn),
+      email: parseNullableText(parsed.email),
+      phone: parseNullableText(parsed.phone),
+      address: parsed.address ? { raw: parsed.address } : null,
+      payment_terms: paymentTermsCode,
+      notify_on_job_status: parsed.notifyOnJobStatus ?? false,
+      notes: parseNullableText(parsed.notes),
+      tags: parsed.tags ?? [],
+    })
+    .select()
+    .single();
 
-    return created;
+  if (error || !data) {
+    throw new Error(`Failed to create client: ${error?.message ?? 'Unknown error'}`);
+  }
+
+  await insertActivity({
+    clientId: data.id,
+    action: 'CLIENT_CREATED',
+    message: `Client ${data.name} created`,
   });
 
-  logger.info({ scope: "clients.create", data: { id: client.id } });
+  logger.info({ scope: 'clients.create', data: { id: data.id } });
 
-  return client;
+  return {
+    ...data,
+    address: parsed.address ? { raw: parsed.address } : null,
+  };
 }
 
 export async function updateClient(id: number, payload: unknown) {
   const parsed = clientInputSchema.parse(payload);
-  const client = await prisma.$transaction(async (tx) => {
-    const paymentTermsCode = await normalizePaymentTermsCode(
-      tx,
-      parsed.paymentTerms ?? null,
-    );
+  const supabase = getServiceSupabase();
 
-    const updated = await tx.client.update({
-      where: { id },
-      data: {
-        name: parsed.name,
-        company: parsed.company || null,
-        abn: parsed.abn || null,
-        email: parsed.email || null,
-        phone: parsed.phone || null,
-        address: parsed.address ? { raw: parsed.address } : Prisma.JsonNull,
-        paymentTerms: paymentTermsCode,
-        notifyOnJobStatus: parsed.notifyOnJobStatus ?? false,
-        notes: parsed.notes || null,
-        tags: parsed.tags ?? [],
-      },
-    });
+  const paymentTermsCode = await normalizePaymentTermsCode(parsed.paymentTerms ?? null);
 
-    await tx.activityLog.create({
-      data: {
-        clientId: updated.id,
-        action: "CLIENT_UPDATED",
-        message: `Client ${updated.name} updated`,
-      },
-    });
+  const { data, error } = await supabase
+    .from('clients')
+    .update({
+      name: parsed.name,
+      company: parseNullableText(parsed.company),
+      abn: parseNullableText(parsed.abn),
+      email: parseNullableText(parsed.email),
+      phone: parseNullableText(parsed.phone),
+      address: parsed.address ? { raw: parsed.address } : null,
+      payment_terms: paymentTermsCode,
+      notify_on_job_status: parsed.notifyOnJobStatus ?? false,
+      notes: parseNullableText(parsed.notes),
+      tags: parsed.tags ?? [],
+    })
+    .eq('id', id)
+    .select()
+    .single();
 
-    return updated;
+  if (error || !data) {
+    throw new Error(`Failed to update client: ${error?.message ?? 'Unknown error'}`);
+  }
+
+  await insertActivity({
+    clientId: id,
+    action: 'CLIENT_UPDATED',
+    message: `Client ${data.name} updated`,
   });
 
-  logger.info({ scope: "clients.update", data: { id } });
+  logger.info({ scope: 'clients.update', data: { id } });
 
-  return client;
+  return {
+    ...data,
+    address: parsed.address ? { raw: parsed.address } : null,
+  };
 }
 
 export async function deleteClient(id: number) {
-  const client = await prisma.$transaction(async (tx) => {
-    const removed = await tx.client.delete({ where: { id } });
-    await tx.activityLog.create({
-      data: {
-        clientId: removed.id,
-        action: "CLIENT_DELETED",
-        message: `Client ${removed.name} deleted`,
-      },
-    });
-    return removed;
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('clients')
+    .delete()
+    .eq('id', id)
+    .select('id, name')
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to delete client: ${error?.message ?? 'Unknown error'}`);
+  }
+
+  await insertActivity({
+    clientId: id,
+    action: 'CLIENT_DELETED',
+    message: `Client ${data.name} deleted`,
   });
 
-  logger.info({ scope: "clients.delete", data: { id } });
+  logger.info({ scope: 'clients.delete', data: { id } });
 
-  return client;
+  return data;
 }
 
 export async function getClientNotificationPreference(clientId: number) {
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { notifyOnJobStatus: true },
-  });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('clients')
+    .select('notify_on_job_status')
+    .eq('id', clientId)
+    .maybeSingle();
 
-  if (!client) {
-    const error: Error & { status?: number } = new Error("Client not found");
-    error.status = 404;
-    throw error;
+  if (error) {
+    throw new Error(`Failed to load client preference: ${error.message}`);
+  }
+  if (!data) {
+    const err: Error & { status?: number } = new Error('Client not found');
+    err.status = 404;
+    throw err;
   }
 
-  return client.notifyOnJobStatus;
+  return Boolean(data.notify_on_job_status);
 }
 
 export async function updateClientNotificationPreference(
   clientId: number,
   notifyOnJobStatus: boolean,
 ) {
-  const updated = await prisma.client.update({
-    where: { id: clientId },
-    data: { notifyOnJobStatus },
-    select: { id: true, name: true, notifyOnJobStatus: true },
-  });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ notify_on_job_status: notifyOnJobStatus })
+    .eq('id', clientId)
+    .select('id, name, notify_on_job_status')
+    .single();
 
-  await prisma.activityLog.create({
-    data: {
-      clientId: updated.id,
-      action: "CLIENT_PREF_UPDATED",
-      message: `Client ${updated.name} notification preference updated`,
-      metadata: { notifyOnJobStatus },
-    },
+  if (error || !data) {
+    throw new Error(`Failed to update client preference: ${error?.message ?? 'Unknown error'}`);
+  }
+
+  await insertActivity({
+    clientId,
+    action: 'CLIENT_PREF_UPDATED',
+    message: `Client ${data.name} notification preference updated`,
+    metadata: { notifyOnJobStatus },
   });
 
   logger.info({
-    scope: "clients.preference",
+    scope: 'clients.preference',
     data: { clientId, notifyOnJobStatus },
   });
 
-  return updated.notifyOnJobStatus;
+  return Boolean(data.notify_on_job_status);
 }
 
 export type ClientDetailDTO = {
@@ -280,180 +371,188 @@ export type ClientDetailDTO = {
 };
 
 export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
-  const client = await prisma.client.findUnique({
-    where: { id },
-    include: {
-      invoices: {
-        orderBy: { issueDate: "desc" },
-        select: {
-          id: true,
-          number: true,
-          status: true,
-          total: true,
-          balanceDue: true,
-          issueDate: true,
-        },
-      },
-      quotes: {
-        orderBy: { issueDate: "desc" },
-        select: {
-          id: true,
-          number: true,
-          status: true,
-          total: true,
-          issueDate: true,
-        },
-      },
-      jobs: {
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          priority: true,
-          createdAt: true,
-        },
-      },
-    },
-  });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('clients')
+    .select(
+      `id, name, company, email, phone, payment_terms, notify_on_job_status, abn, notes, tags, address, created_at, updated_at,
+       invoices(id, number, status, total, balance_due, issue_date),
+       quotes(id, number, status, total, issue_date),
+       jobs(id, title, status, priority, created_at)`
+    )
+    .eq('id', id)
+    .maybeSingle();
 
-  if (!client) {
-    throw new Error("Client not found");
+  if (error) {
+    throw new Error(`Failed to load client: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error('Client not found');
   }
 
-  const activity = await prisma.activityLog.findMany({
-    where: {
-      OR: [
-        { clientId: id },
-        { invoice: { clientId: id } },
-        { quote: { clientId: id } },
-        { job: { clientId: id } },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      invoice: { select: { number: true } },
-      quote: { select: { number: true } },
-      job: { select: { title: true } },
-    },
-    take: 50,
-  });
+  const invoices = (data.invoices ?? []).map((invoice) => ({
+    id: invoice.id,
+    number: invoice.number,
+    status: invoice.status,
+    total: Number(invoice.total ?? 0),
+    balanceDue: Number(invoice.balance_due ?? 0),
+    issueDate: new Date(invoice.issue_date ?? new Date().toISOString()),
+  }));
 
-  const activityItems = activity.map((entry) => {
-    let context = "";
-    if (entry.invoice) context = `Invoice ${entry.invoice.number}`;
-    if (entry.quote) context = `Quote ${entry.quote.number}`;
-    if (entry.job) context = `Job ${entry.job.title}`;
+  const quotes = (data.quotes ?? []).map((quote) => ({
+    id: quote.id,
+    number: quote.number,
+    status: quote.status,
+    total: Number(quote.total ?? 0),
+    issueDate: new Date(quote.issue_date ?? new Date().toISOString()),
+  }));
 
+  const jobs = (data.jobs ?? []).map((job) => ({
+    id: job.id,
+    title: job.title,
+    status: job.status,
+    priority: job.priority,
+    createdAt: new Date(job.created_at ?? new Date().toISOString()),
+  }));
+
+  const outstanding = invoices.reduce((sum, invoice) => {
+    if (invoice.status === 'PAID') {
+      return sum;
+    }
+    return sum + invoice.balanceDue;
+  }, 0);
+
+  const paid = invoices.reduce((sum, invoice) => {
+    if (invoice.status !== 'PAID') {
+      return sum;
+    }
+    return sum + invoice.total;
+  }, 0);
+
+  const openJobStatuses = new Set([
+    'QUEUED',
+    'PRE_PROCESSING',
+    'IN_QUEUE',
+    'PRINTING',
+    'PAUSED',
+    'PRINTING_COMPLETE',
+    'POST_PROCESSING',
+    'PACKAGING',
+    'OUT_FOR_DELIVERY',
+  ]);
+
+  const queuedJobs = jobs.filter((job) => openJobStatuses.has(job.status)).length;
+
+  const { data: activityRows, error: activityError } = await supabase
+    .from('activity_logs')
+    .select('id, action, message, created_at, invoice_id, quote_id, job_id')
+    .eq('client_id', id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (activityError) {
+    throw new Error(`Failed to load client activity: ${activityError.message}`);
+  }
+
+  const invoiceMap = new Map(invoices.map((invoice) => [invoice.id, invoice.number]));
+  const quoteMap = new Map(quotes.map((quote) => [quote.id, quote.number]));
+  const jobMap = new Map(jobs.map((job) => [job.id, job.title]));
+
+  const activity = (activityRows ?? []).map((entry) => {
+    let context: string | undefined;
+    if (entry.invoice_id && invoiceMap.has(entry.invoice_id)) {
+      context = `Invoice ${invoiceMap.get(entry.invoice_id)}`;
+    } else if (entry.quote_id && quoteMap.has(entry.quote_id)) {
+      context = `Quote ${quoteMap.get(entry.quote_id)}`;
+    } else if (entry.job_id && jobMap.has(entry.job_id)) {
+      context = `Job ${jobMap.get(entry.job_id)}`;
+    }
     return {
       id: entry.id,
       action: entry.action,
       message: entry.message,
-      createdAt: entry.createdAt,
-      context: context || undefined,
+      createdAt: new Date(entry.created_at ?? new Date().toISOString()),
+      context,
     };
   });
 
-  const outstanding = client.invoices.reduce((sum, invoice) => {
-    if (invoice.status === "PAID") return sum;
-    return sum + Number(invoice.balanceDue ?? 0);
-  }, 0);
+  const { data: clientUserRow, error: clientUserError } = await supabase
+    .from('users')
+    .select('id, email, created_at')
+    .eq('client_id', id)
+    .eq('role', 'CLIENT')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
-  const paid = client.invoices.reduce((sum, invoice) => {
-    if (invoice.status !== "PAID") return sum;
-    return sum + Number(invoice.total ?? 0);
-  }, 0);
+  if (clientUserError) {
+    throw new Error(`Failed to load client user: ${clientUserError.message}`);
+  }
 
-  const openJobStatuses = new Set([
-    "QUEUED",
-    "PRE_PROCESSING",
-    "IN_QUEUE",
-    "PRINTING",
-    "PAUSED",
-    "PRINTING_COMPLETE",
-    "POST_PROCESSING",
-    "PACKAGING",
-    "OUT_FOR_DELIVERY",
-  ]);
-
-  const queuedJobs = client.jobs.filter((job) => openJobStatuses.has(job.status)).length;
-
-  // Resolve the primary client portal user (first created)
-  const clientUser = await prisma.user.findFirst({
-    where: { clientId: id },
-    orderBy: { createdAt: "asc" },
-  });
-
-  let clientUserPayload: ClientDetailDTO["clientUser"] = null;
-  if (clientUser) {
-    const messageCount = await prisma.userMessage.count({ where: { userId: clientUser.id } });
-    clientUserPayload = {
-      id: clientUser.id,
-      email: clientUser.email,
-      createdAt: clientUser.createdAt,
-      messageCount,
+  let clientUser: ClientDetailDTO['clientUser'] = null;
+  if (clientUserRow) {
+    const { count: messageCount, error: messageCountError } = await supabase
+      .from('user_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', clientUserRow.id);
+    if (messageCountError) {
+      throw new Error(`Failed to count client messages: ${messageCountError.message}`);
+    }
+    clientUser = {
+      id: clientUserRow.id,
+      email: clientUserRow.email,
+      createdAt: new Date(clientUserRow.created_at ?? new Date().toISOString()),
+      messageCount: messageCount ?? 0,
     };
   }
 
   return {
     client: {
-      id: client.id,
-      name: client.name,
-      company: client.company ?? "",
-      email: client.email ?? "",
-      phone: client.phone ?? "",
-      address: (client.address as { raw?: string } | null)?.raw ?? "",
-      paymentTerms: client.paymentTerms ?? "",
-      notifyOnJobStatus: client.notifyOnJobStatus,
-      abn: client.abn ?? null,
-      notes: client.notes ?? "",
-      tags: (client.tags as string[] | null) ?? [],
-      createdAt: client.createdAt,
-      updatedAt: client.updatedAt,
+      id: data.id,
+      name: data.name,
+      company: data.company ?? '',
+      email: data.email ?? '',
+      phone: data.phone ?? '',
+      address: (data.address as { raw?: string } | null)?.raw ?? '',
+      paymentTerms: data.payment_terms ?? '',
+      notifyOnJobStatus: data.notify_on_job_status,
+      abn: data.abn ?? null,
+      notes: data.notes ?? '',
+      tags: (data.tags as string[] | null) ?? [],
+      createdAt: new Date(data.created_at),
+      updatedAt: new Date(data.updated_at),
     },
-    invoices: client.invoices.map((invoice) => ({
-      id: invoice.id,
-      number: invoice.number,
-      status: invoice.status,
-      total: Number(invoice.total ?? 0),
-      balanceDue: Number(invoice.balanceDue ?? 0),
-      issueDate: invoice.issueDate,
-    })),
-    quotes: client.quotes.map((quote) => ({
-      id: quote.id,
-      number: quote.number,
-      status: quote.status,
-      total: Number(quote.total ?? 0),
-      issueDate: quote.issueDate,
-    })),
-    jobs: client.jobs.map((job) => ({
-      id: job.id,
-      title: job.title,
-      status: job.status,
-      priority: job.priority,
-      createdAt: job.createdAt,
-    })),
-    activity: activityItems,
+    invoices,
+    quotes,
+    jobs,
+    activity,
     totals: {
       outstanding,
       paid,
       queuedJobs,
     },
-    clientUser: clientUserPayload,
+    clientUser,
   };
 }
 
 export async function addClientNote(id: number, payload: unknown) {
   const parsed = clientNoteSchema.parse(payload);
-  const note = await prisma.activityLog.create({
-    data: {
-      clientId: id,
-      action: "CLIENT_NOTE",
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('activity_logs')
+    .insert({
+      client_id: id,
+      action: 'CLIENT_NOTE',
       message: parsed.body,
-    },
-  });
+    })
+    .select()
+    .single();
 
-  logger.info({ scope: "clients.note", data: { id } });
+  if (error || !data) {
+    throw new Error(`Failed to add client note: ${error?.message ?? 'Unknown error'}`);
+  }
 
-  return note;
+  logger.info({ scope: 'clients.note', data: { id } });
+
+  return data;
 }

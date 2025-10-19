@@ -1,16 +1,17 @@
-import { InvoiceStatus, JobStatus, QuoteStatus } from "@prisma/client";
 import { format, startOfMonth, subDays, subMonths } from "date-fns";
-import { prisma } from "@/server/db/client";
+import { InvoiceStatus, JobStatus, QuoteStatus } from "@/lib/constants/enums";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
-function decimalToNumber(value: unknown): number {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return value;
-  if (typeof (value as { toNumber?: () => number }).toNumber === "function") {
-    return (value as { toNumber: () => number }).toNumber();
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+type ActivityRow = {
+  id: number;
+  action: string;
+  message: string;
+  created_at: string;
+  invoices?: { number: string | null }[] | null;
+  quotes?: { number: string | null }[] | null;
+  jobs?: { title: string | null }[] | null;
+  clients?: { name: string | null }[] | null;
+};
 
 export type RecentActivityEntry = {
   id: number;
@@ -53,148 +54,265 @@ export type DashboardSnapshot = {
   recentActivityNextOffset: number | null;
 };
 
-export async function getRecentActivity(options?: { limit?: number; offset?: number }): Promise<RecentActivityResult> {
+function decimalToNumber(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildActivityContext(activity: ActivityRow): string {
+  const invoice = activity.invoices?.[0]?.number;
+  const quote = activity.quotes?.[0]?.number;
+  const job = activity.jobs?.[0]?.title;
+  const client = activity.clients?.[0]?.name;
+  if (invoice) return `Invoice ${invoice}`;
+  if (quote) return `Quote ${quote}`;
+  if (job) return job;
+  if (client) return client;
+  return "";
+}
+
+export async function getRecentActivity(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<RecentActivityResult> {
+  const supabase = getServiceSupabase();
   const limit = Math.min(Math.max(options?.limit ?? 12, 1), 50);
   const offset = Math.max(options?.offset ?? 0, 0);
+  const start = offset;
+  const end = offset + limit - 1;
 
-  const activities = await prisma.activityLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    skip: offset,
-    include: {
-      invoice: { select: { number: true } },
-      quote: { select: { number: true } },
-      job: { select: { title: true } },
-      client: { select: { name: true } },
-    },
-  });
+  const { data, error } = await supabase
+    .from("activity_logs")
+    .select(
+      "id, action, message, created_at, invoices:invoices(number), quotes:quotes(number), jobs:jobs(title), clients:clients(name)",
+    )
+    .order("created_at", { ascending: false })
+    .range(start, end);
 
-  const items = activities.map((entry) => ({
-    id: entry.id,
-    action: entry.action,
-    message: entry.message,
-    createdAt: entry.createdAt.toISOString(),
-    context: buildActivityContext(entry),
+  if (error) {
+    throw new Error(`Failed to load activity: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as ActivityRow[];
+  const items: RecentActivityEntry[] = rows.map((row) => ({
+    id: row.id,
+    action: row.action,
+    message: row.message,
+    createdAt: new Date(row.created_at).toISOString(),
+    context: buildActivityContext(row),
   }));
 
-  const nextOffset = activities.length < limit ? null : offset + activities.length;
-
+  const nextOffset = rows.length < limit ? null : offset + rows.length;
   return { items, nextOffset };
 }
 
-export async function getDashboardSnapshot(options?: { range?: string; from?: string; to?: string; activityLimit?: number; activityOffset?: number }): Promise<DashboardSnapshot> {
+type PaymentRow = { amount: unknown; paid_at: string | null };
+type InvoiceListRow = {
+  id: number;
+  number: string;
+  due_date: string | null;
+  balance_due: unknown;
+  clients?: { name: string | null }[] | null;
+};
+type QuoteRow = { status: string | null };
+type JobGroupRow = { printer_id: number | null; status: string | null };
+type PrinterRow = { id: number; name: string; status?: string | null };
+
+export async function getDashboardSnapshot(options?: {
+  range?: string;
+  from?: string;
+  to?: string;
+  activityLimit?: number;
+  activityOffset?: number;
+}): Promise<DashboardSnapshot> {
   const now = new Date();
   let rangeStart30 = subDays(now, 30);
   let rangeStart60 = subDays(now, 60);
   let trendStart = startOfMonth(subMonths(now, 5));
-  if (options?.range === "today") {
-    rangeStart30 = subDays(now, 1);
-    rangeStart60 = subDays(now, 2);
-    trendStart = startOfMonth(subMonths(now, 1));
-  }
-  if (options?.range === "7d") {
-    rangeStart30 = subDays(now, 7);
-    rangeStart60 = subDays(now, 14);
-    trendStart = startOfMonth(subMonths(now, 2));
-  }
-  if (options?.range === "ytd") {
-    rangeStart30 = subDays(now, 30);
-    rangeStart60 = subDays(now, 60);
-    trendStart = startOfMonth(subMonths(now, 11));
+
+  switch (options?.range) {
+    case "today":
+      rangeStart30 = subDays(now, 1);
+      rangeStart60 = subDays(now, 2);
+      trendStart = startOfMonth(subMonths(now, 1));
+      break;
+    case "7d":
+      rangeStart30 = subDays(now, 7);
+      rangeStart60 = subDays(now, 14);
+      trendStart = startOfMonth(subMonths(now, 2));
+      break;
+    case "ytd":
+      rangeStart30 = subDays(now, 30);
+      rangeStart60 = subDays(now, 60);
+      trendStart = startOfMonth(subMonths(now, 11));
+      break;
+    default:
+      break;
   }
 
-  const [paymentsLast60, outstandingInvoices, outstandingBalanceAgg, quoteGroups, jobGroups, printers, activityResult] =
-    await Promise.all([
-      prisma.payment.findMany({
-        where: { paidAt: { gte: rangeStart60 } },
-        select: { amount: true, paidAt: true },
-      }),
-      prisma.invoice.findMany({
-        where: {
-          status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] },
-        },
-        include: {
-          client: { select: { name: true } },
-        },
-        orderBy: [{ dueDate: "asc" }, { issueDate: "asc" }],
-        take: 8,
-      }),
-      prisma.invoice.aggregate({
-        where: {
-          status: { in: [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE] },
-        },
-        _sum: { balanceDue: true },
-      }),
-      prisma.quote.groupBy({
-        by: ["status"],
-        _count: { _all: true },
-      }),
-      prisma.job.groupBy({
-        by: ["printerId", "status"],
-        _count: { _all: true },
-      }),
-      prisma.printer.findMany({
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-      getRecentActivity({
-        limit: options?.activityLimit,
-        offset: options?.activityOffset,
-      }),
-    ]);
+  const supabase = getServiceSupabase();
 
-  const revenueTrendBaseStart = trendStart;
-  const paymentsTrend = await prisma.payment.findMany({
-    where: { paidAt: { gte: revenueTrendBaseStart } },
-    select: { amount: true, paidAt: true },
-  });
+  const [
+    paymentsLast60Res,
+    outstandingInvoicesRes,
+    quotesRes,
+    jobsRes,
+    printersRes,
+    activityRes,
+    paymentsTrendRes,
+  ] = await Promise.all([
+    supabase
+      .from("payments")
+      .select("amount, paid_at")
+      .gte("paid_at", rangeStart60.toISOString()),
+    supabase
+      .from("invoices")
+      .select("id, number, due_date, balance_due, clients(name)")
+      .in("status", [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE])
+      .order("due_date", { ascending: true })
+      .order("issue_date", { ascending: true })
+      .limit(8),
+    supabase.from("quotes").select("status"),
+    supabase.from("jobs").select("printer_id, status"),
+    supabase.from("printers").select("id, name, status").order("name", { ascending: true }),
+    getRecentActivity({
+      limit: options?.activityLimit,
+      offset: options?.activityOffset,
+    }),
+    supabase
+      .from("payments")
+      .select("amount, paid_at")
+      .gte("paid_at", trendStart.toISOString()),
+  ]);
 
-  const revenueTrend = buildRevenueTrend(paymentsTrend, now);
+  if (paymentsLast60Res.error) {
+    throw new Error(`Failed to load payments: ${paymentsLast60Res.error.message}`);
+  }
+  if (outstandingInvoicesRes.error) {
+    throw new Error(
+      `Failed to load outstanding invoices: ${outstandingInvoicesRes.error.message}`,
+    );
+  }
+  if (quotesRes.error) {
+    throw new Error(`Failed to load quote stats: ${quotesRes.error.message}`);
+  }
+  if (jobsRes.error) {
+    throw new Error(`Failed to load job summary: ${jobsRes.error.message}`);
+  }
+  if (printersRes.error) {
+    throw new Error(`Failed to load printers: ${printersRes.error.message}`);
+  }
+  if (paymentsTrendRes.error) {
+    throw new Error(`Failed to load revenue trend: ${paymentsTrendRes.error.message}`);
+  }
+
+  const paymentsLast60 = (paymentsLast60Res.data ?? []) as PaymentRow[];
+  const outstandingInvoicesRows = (outstandingInvoicesRes.data ?? []) as InvoiceListRow[];
+  const quotes = (quotesRes.data ?? []) as QuoteRow[];
+  const jobs = (jobsRes.data ?? []) as JobGroupRow[];
+  const printers = (printersRes.data ?? []) as PrinterRow[];
+  const paymentsTrendRows = (paymentsTrendRes.data ?? []) as PaymentRow[];
 
   const revenue30 = paymentsLast60
-    .filter((payment) => payment.paidAt && payment.paidAt >= rangeStart30)
+    .filter((payment) => payment.paid_at && new Date(payment.paid_at) >= rangeStart30)
     .reduce((sum, payment) => sum + decimalToNumber(payment.amount), 0);
 
   const revenue30Prev = paymentsLast60
-    .filter(
-      (payment) =>
-        payment.paidAt &&
-        payment.paidAt >= rangeStart60 &&
-        payment.paidAt < rangeStart30,
-    )
+    .filter((payment) => {
+      if (!payment.paid_at) return false;
+      const paidAt = new Date(payment.paid_at);
+      return paidAt >= rangeStart60 && paidAt < rangeStart30;
+    })
     .reduce((sum, payment) => sum + decimalToNumber(payment.amount), 0);
 
-  const outstandingBalance = decimalToNumber(
-    outstandingBalanceAgg._sum.balanceDue ?? 0,
+  const outstandingBalance = outstandingInvoicesRows.reduce(
+    (acc, invoice) => acc + decimalToNumber(invoice.balance_due),
+    0,
   );
 
-  const pendingQuotes = quoteGroups.find((group) => group.status === QuoteStatus.PENDING)?._count._all ?? 0;
+  const pendingQuotes = quotes.filter(
+    (quote) => quote.status === QuoteStatus.PENDING,
+  ).length;
 
-  const jobCounts = jobGroups.reduce(
-    (acc, group) => {
-      if (group.status === JobStatus.QUEUED) acc.queued += group._count._all;
-      if (group.status === JobStatus.PRINTING) acc.printing += group._count._all;
+  const jobCounts = jobs.reduce(
+    (acc, row) => {
+      const status = (row.status ?? JobStatus.QUEUED) as JobStatus;
+      if (status === JobStatus.QUEUED) acc.queued += 1;
+      if (status === JobStatus.PRINTING) acc.printing += 1;
       return acc;
     },
     { queued: 0, printing: 0 },
   );
 
-  const jobSummary = buildJobSummary(jobGroups, printers);
-
-  const outstanding = outstandingInvoices.map((invoice) => ({
+  const outstandingInvoices = outstandingInvoicesRows.map((invoice) => ({
     id: invoice.id,
     number: invoice.number,
-    clientName: invoice.client.name,
-    dueDate: invoice.dueDate ? invoice.dueDate.toISOString() : null,
-    balanceDue: decimalToNumber(invoice.balanceDue),
+    clientName: invoice.clients?.[0]?.name ?? "",
+    dueDate: invoice.due_date ? new Date(invoice.due_date).toISOString() : null,
+    balanceDue: decimalToNumber(invoice.balance_due),
   }));
 
-  const { items: recentActivity, nextOffset: recentActivityNextOffset } = activityResult;
+  const quoteStatusCounts = new Map<QuoteStatus, number>();
+  Object.values(QuoteStatus).forEach((status) => quoteStatusCounts.set(status, 0));
+  quotes.forEach((row) => {
+    const status = (row.status ?? QuoteStatus.DRAFT) as QuoteStatus;
+    quoteStatusCounts.set(status, (quoteStatusCounts.get(status) ?? 0) + 1);
+  });
 
-  const quoteStatus = Object.values(QuoteStatus).map((status) => ({
+  const jobSummaryMap = new Map<
+    number | null,
+    { printerId: number | null; printerName: string; queued: number; active: number }
+  >();
+
+  const ensureSummary = (printerId: number | null) => {
+    if (!jobSummaryMap.has(printerId)) {
+      const printerName =
+        printerId === null
+          ? "Unassigned"
+          : printers.find((printer) => printer.id === printerId)?.name ?? "Printer";
+      jobSummaryMap.set(printerId, {
+        printerId,
+        printerName,
+        queued: 0,
+        active: 0,
+      });
+    }
+    return jobSummaryMap.get(printerId)!;
+  };
+
+  jobs.forEach((row) => {
+    const printerId = row.printer_id;
+    const status = (row.status ?? JobStatus.QUEUED) as JobStatus;
+    const summary = ensureSummary(printerId);
+    if (status === JobStatus.QUEUED) summary.queued += 1;
+    if (status === JobStatus.PRINTING) summary.active += 1;
+  });
+
+  printers.forEach((printer) => ensureSummary(printer.id));
+  ensureSummary(null);
+
+  const jobSummary = Array.from(jobSummaryMap.values()).sort((a, b) => {
+    if (a.printerId === null) return -1;
+    if (b.printerId === null) return 1;
+    return a.printerName.localeCompare(b.printerName);
+  });
+
+  const revenueTrend = buildRevenueTrend(
+    paymentsTrendRows.map((row) => ({
+      amount: row.amount,
+      paidAt: row.paid_at ? new Date(row.paid_at) : null,
+    })),
+    now,
+  );
+
+  const quoteStatus = Array.from(quoteStatusCounts.entries()).map(([status, count]) => ({
     status,
-    count: quoteGroups.find((group) => group.status === status)?._count._all ?? 0,
+    count,
   }));
+
+  const { items: recentActivity, nextOffset: recentActivityNextOffset } = activityRes;
 
   return {
     metrics: {
@@ -208,7 +326,7 @@ export async function getDashboardSnapshot(options?: { range?: string; from?: st
     revenueTrend,
     quoteStatus,
     jobSummary,
-    outstandingInvoices: outstanding,
+    outstandingInvoices,
     recentActivity,
     recentActivityNextOffset,
   };
@@ -218,7 +336,7 @@ function buildRevenueTrend(
   payments: { amount: unknown; paidAt: Date | null }[],
   now: Date,
 ): { month: string; value: number }[] {
-  const months: { [key: string]: number } = {};
+  const months: Record<string, number> = {};
   for (let i = 5; i >= 0; i -= 1) {
     const monthDate = startOfMonth(subMonths(now, i));
     const key = format(monthDate, "yyyy-MM");
@@ -232,66 +350,5 @@ function buildRevenueTrend(
     months[key] += decimalToNumber(payment.amount);
   });
 
-  return Object.entries(months).map(([key, value]) => ({
-    month: key,
-    value,
-  }));
-}
-
-function buildJobSummary(
-  jobGroups: { printerId: number | null; status: JobStatus; _count: { _all: number } }[],
-  printers: { id: number; name: string }[],
-): DashboardSnapshot["jobSummary"] {
-  const printerLookup = new Map(printers.map((printer) => [printer.id, printer.name]));
-  const summaryMap = new Map<
-    number | null,
-    { printerId: number | null; printerName: string; queued: number; active: number }
-  >();
-
-  const ensure = (printerId: number | null) => {
-    if (!summaryMap.has(printerId)) {
-      summaryMap.set(printerId, {
-        printerId,
-        printerName: printerId === null ? "Unassigned" : printerLookup.get(printerId) ?? "Printer",
-        queued: 0,
-        active: 0,
-      });
-    }
-    return summaryMap.get(printerId)!;
-  };
-
-  jobGroups.forEach((group) => {
-    const entry = ensure(group.printerId);
-    if (group.status === JobStatus.QUEUED) {
-      entry.queued += group._count._all;
-    }
-    if (group.status === JobStatus.PRINTING) {
-      entry.active += group._count._all;
-    }
-  });
-
-  printers.forEach((printer) => {
-    ensure(printer.id);
-  });
-
-  ensure(null);
-
-  return Array.from(summaryMap.values()).sort((a, b) => {
-    if (a.printerId === null) return -1;
-    if (b.printerId === null) return 1;
-    return a.printerName.localeCompare(b.printerName);
-  });
-}
-
-function buildActivityContext(activity: {
-  invoice: { number: string } | null;
-  quote: { number: string } | null;
-  job: { title: string } | null;
-  client: { name: string } | null;
-}): string {
-  if (activity.invoice) return `Invoice ${activity.invoice.number}`;
-  if (activity.quote) return `Quote ${activity.quote.number}`;
-  if (activity.job) return activity.job.title;
-  if (activity.client) return activity.client.name;
-  return "";
+  return Object.entries(months).map(([month, value]) => ({ month, value }));
 }

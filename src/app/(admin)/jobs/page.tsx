@@ -3,12 +3,18 @@ import {
   type JobBoardClientSnapshot,
 } from "@/components/jobs/job-board";
 import { getJobBoard } from "@/server/services/jobs";
-import { JobStatus } from "@prisma/client";
+import { JobStatus } from "@/lib/constants/enums";
 
 export default async function JobsPage() {
   const board = await getJobBoard({
     includeArchived: false,
-    statuses: [JobStatus.QUEUED, JobStatus.PRINTING, JobStatus.PAUSED],
+    statuses: [
+      JobStatus.QUEUED,
+      JobStatus.PRE_PROCESSING,
+      JobStatus.IN_QUEUE,
+      JobStatus.PRINTING,
+      JobStatus.PAUSED,
+    ],
   });
 
   const initial: JobBoardClientSnapshot = {

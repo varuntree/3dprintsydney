@@ -1,15 +1,18 @@
 import { Parser } from "json2csv";
-import { prisma } from "@/server/db/client";
 import { endOfDay, parseISO, startOfDay } from "date-fns";
+import { getServiceSupabase } from "@/server/supabase/service-client";
+import { InvoiceStatus, JobStatus, JobPriority } from "@/lib/constants/enums";
 
 function decimalToNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === "number") return value;
-  if (typeof (value as { toNumber?: () => number }).toNumber === "function") {
-    return (value as { toNumber: () => number }).toNumber();
-  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function unwrap<T>(value: T | T[] | null | undefined): T | null {
+  if (value === null || value === undefined) return null;
+  return Array.isArray(value) ? value[0] ?? null : value;
 }
 
 type DateRange = { from?: string | null; to?: string | null };
@@ -19,168 +22,6 @@ type CsvPayload = {
   csv: string;
   contentType: string;
 };
-
-export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      issueDate: {
-        gte: from ?? undefined,
-        lte: to ?? undefined,
-      },
-    },
-    include: {
-      client: { select: { name: true } },
-    },
-    orderBy: [{ issueDate: "desc" }],
-  });
-
-  const rows = invoices.map((invoice) => ({
-    invoice_number: invoice.number,
-    client: invoice.client.name,
-    status: invoice.status,
-    issue_date: invoice.issueDate.toISOString(),
-    due_date: invoice.dueDate ? invoice.dueDate.toISOString() : "",
-    subtotal: decimalToNumber(invoice.subtotal),
-    tax_total: decimalToNumber(invoice.taxTotal),
-    total: decimalToNumber(invoice.total),
-    balance_due: decimalToNumber(invoice.balanceDue),
-    paid_at: invoice.paidAt ? invoice.paidAt.toISOString() : "",
-  }));
-
-  return buildCsvPayload("invoices", rows);
-}
-
-export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const payments = await prisma.payment.findMany({
-    where: {
-      paidAt: {
-        gte: from ?? undefined,
-        lte: to ?? undefined,
-      },
-    },
-    include: {
-      invoice: { select: { number: true, client: { select: { name: true } } } },
-    },
-    orderBy: [{ paidAt: "desc" }],
-  });
-
-  const rows = payments.map((payment) => ({
-    invoice_number: payment.invoice.number,
-    client: payment.invoice.client.name,
-    amount: decimalToNumber(payment.amount),
-    method: payment.method,
-    reference: payment.reference ?? "",
-    processor: payment.processor ?? "",
-    processor_id: payment.processorId ?? "",
-    paid_at: payment.paidAt.toISOString(),
-    notes: payment.notes ?? "",
-  }));
-
-  return buildCsvPayload("payments", rows);
-}
-
-export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const jobs = await prisma.job.findMany({
-    where: {
-      createdAt: {
-        gte: from ?? undefined,
-        lte: to ?? undefined,
-      },
-    },
-    include: {
-      invoice: { select: { number: true } },
-      client: { select: { name: true } },
-      printer: { select: { name: true } },
-    },
-    orderBy: [{ createdAt: "desc" }],
-  });
-
-  const rows = jobs.map((job) => ({
-    job_id: job.id,
-    title: job.title,
-    invoice_number: job.invoice.number,
-    client: job.client.name,
-    printer: job.printer?.name ?? "Unassigned",
-    status: job.status,
-    priority: job.priority,
-    created_at: job.createdAt.toISOString(),
-    started_at: job.startedAt ? job.startedAt.toISOString() : "",
-    completed_at: job.completedAt ? job.completedAt.toISOString() : "",
-    estimated_hours: job.estimatedHours ?? "",
-    actual_hours: job.actualHours ?? "",
-  }));
-
-  return buildCsvPayload("jobs", rows);
-}
-
-export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const invoices = await prisma.invoice.findMany({
-    where: {
-      status: { in: ["PENDING", "OVERDUE"] },
-      issueDate: { gte: from ?? undefined, lte: to ?? undefined },
-    },
-    include: { client: { select: { name: true } } },
-  });
-  const now = new Date();
-  function bucket(due: Date | null) {
-    if (!due) return "CURRENT";
-    const days = Math.floor((now.getTime() - due.getTime()) / 86400000);
-    if (days <= 0) return "CURRENT";
-    if (days <= 30) return "1-30";
-    if (days <= 60) return "31-60";
-    if (days <= 90) return "61-90";
-    return "90+";
-  }
-  const rows = invoices.map((inv) => ({
-    invoice_number: inv.number,
-    client: inv.client.name,
-    due_date: inv.dueDate ? inv.dueDate.toISOString() : "",
-    balance_due: decimalToNumber(inv.balanceDue),
-    bucket: bucket(inv.dueDate ?? null),
-  }));
-  return buildCsvPayload("ar-aging", rows);
-}
-
-export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const items = await prisma.invoiceItem.findMany({
-    where: { invoice: { issueDate: { gte: from ?? undefined, lte: to ?? undefined } } },
-    include: { productTemplate: { include: { material: true } }, invoice: { select: { number: true } } },
-  });
-  const agg = new Map<string, { count: number; amount: number }>();
-  items.forEach((it) => {
-    const name = it.productTemplate?.material?.name ?? "Unspecified";
-    const key = name;
-    const entry = agg.get(key) ?? { count: 0, amount: 0 };
-    entry.count += 1;
-    entry.amount += decimalToNumber(it.total);
-    agg.set(key, entry);
-  });
-  const rows = Array.from(agg.entries()).map(([material, v]) => ({ material, items: v.count, amount: v.amount }));
-  return buildCsvPayload("material-usage", rows);
-}
-
-export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<CsvPayload> {
-  const { from, to } = normalizeRange(range);
-  const jobs = await prisma.job.findMany({
-    where: { completedAt: { gte: from ?? undefined, lte: to ?? undefined } },
-    include: { printer: { select: { name: true } } },
-  });
-  const agg = new Map<string, { jobs: number; hours: number }>();
-  jobs.forEach((job) => {
-    const name = job.printer?.name ?? "Unassigned";
-    const entry = agg.get(name) ?? { jobs: 0, hours: 0 };
-    entry.jobs += 1;
-    entry.hours += job.actualHours ?? 0;
-    agg.set(name, entry);
-  });
-  const rows = Array.from(agg.entries()).map(([printer, v]) => ({ printer, completed_jobs: v.jobs, hours: Number(v.hours.toFixed(2)) }));
-  return buildCsvPayload("printer-utilization", rows);
-}
 
 function normalizeRange(range?: DateRange) {
   if (!range) return { from: undefined, to: undefined };
@@ -198,4 +39,232 @@ function buildCsvPayload(type: string, rows: Record<string, unknown>[]): CsvPayl
     csv,
     contentType: "text/csv;charset=utf-8",
   };
+}
+
+export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("invoices")
+    .select("number, status, issue_date, due_date, subtotal, tax_total, total, balance_due, paid_at, clients(name)")
+    .order("issue_date", { ascending: false });
+
+  if (from) query = query.gte("issue_date", from.toISOString());
+  if (to) query = query.lte("issue_date", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export invoices: ${error.message}`);
+  }
+
+  const rows = (data ?? []).map((invoice) => {
+    const client = unwrap(invoice.clients);
+    return {
+      invoice_number: invoice.number,
+      client: client?.name ?? "",
+      status: invoice.status,
+      issue_date: invoice.issue_date ? new Date(invoice.issue_date).toISOString() : "",
+      due_date: invoice.due_date ? new Date(invoice.due_date).toISOString() : "",
+      subtotal: decimalToNumber(invoice.subtotal),
+      tax_total: decimalToNumber(invoice.tax_total),
+      total: decimalToNumber(invoice.total),
+      balance_due: decimalToNumber(invoice.balance_due),
+      paid_at: invoice.paid_at ? new Date(invoice.paid_at).toISOString() : "",
+    };
+  });
+
+  return buildCsvPayload("invoices", rows);
+}
+
+export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("payments")
+    .select("amount, method, reference, processor, processor_id, paid_at, notes, invoices(number, clients(name))")
+    .order("paid_at", { ascending: false });
+
+  if (from) query = query.gte("paid_at", from.toISOString());
+  if (to) query = query.lte("paid_at", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export payments: ${error.message}`);
+  }
+
+  const rows = (data ?? []).map((payment) => {
+    const invoice = unwrap(payment.invoices);
+    const client = invoice ? unwrap(invoice.clients) : null;
+    return {
+      invoice_number: invoice?.number ?? "",
+      client: client?.name ?? "",
+      amount: decimalToNumber(payment.amount),
+      method: payment.method,
+      reference: payment.reference ?? "",
+      processor: payment.processor ?? "",
+      processor_id: payment.processor_id ?? "",
+      paid_at: payment.paid_at ? new Date(payment.paid_at).toISOString() : "",
+      notes: payment.notes ?? "",
+    };
+  });
+
+  return buildCsvPayload("payments", rows);
+}
+
+export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("jobs")
+    .select("id, title, status, priority, created_at, started_at, completed_at, estimated_hours, actual_hours, invoices(number), clients(name), printers(name)")
+    .order("created_at", { ascending: false });
+
+  if (from) query = query.gte("created_at", from.toISOString());
+  if (to) query = query.lte("created_at", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export jobs: ${error.message}`);
+  }
+
+  const rows = (data ?? []).map((job) => {
+    const invoice = unwrap(job.invoices);
+    const client = unwrap(job.clients);
+    const printer = unwrap(job.printers);
+    return {
+      job_id: job.id,
+      title: job.title,
+      invoice_number: invoice?.number ?? "",
+      client: client?.name ?? "",
+      printer: printer?.name ?? "Unassigned",
+      status: job.status as JobStatus,
+      priority: job.priority as JobPriority,
+      created_at: job.created_at ? new Date(job.created_at).toISOString() : "",
+      started_at: job.started_at ? new Date(job.started_at).toISOString() : "",
+      completed_at: job.completed_at ? new Date(job.completed_at).toISOString() : "",
+      estimated_hours: job.estimated_hours ?? "",
+      actual_hours: job.actual_hours ?? "",
+    };
+  });
+
+  return buildCsvPayload("jobs", rows);
+}
+
+export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("invoices")
+    .select("number, due_date, balance_due, clients(name)")
+    .in("status", [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]);
+
+  if (from) query = query.gte("issue_date", from.toISOString());
+  if (to) query = query.lte("issue_date", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export A/R aging: ${error.message}`);
+  }
+
+  const invoices = data ?? [];
+  const now = new Date();
+  const rows = invoices.map((invoice) => {
+    const client = unwrap(invoice.clients);
+    const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+    let bucket = "CURRENT";
+    if (dueDate) {
+      const days = Math.floor((now.getTime() - dueDate.getTime()) / 86400000);
+      if (days > 0 && days <= 30) bucket = "1-30";
+      else if (days <= 60) bucket = "31-60";
+      else if (days <= 90) bucket = "61-90";
+      else if (days > 90) bucket = "90+";
+    }
+    return {
+      invoice_number: invoice.number,
+      client: client?.name ?? "",
+      due_date: dueDate ? dueDate.toISOString() : "",
+      balance_due: decimalToNumber(invoice.balance_due),
+      bucket,
+    };
+  });
+
+  return buildCsvPayload("ar-aging", rows);
+}
+
+export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("invoice_items")
+    .select(
+      "total, product_templates:product_templates(materials:materials(name)), invoice:invoices(issue_date)",
+    );
+
+  if (from) query = query.gte("invoice.issue_date", from.toISOString());
+  if (to) query = query.lte("invoice.issue_date", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export material usage: ${error.message}`);
+  }
+
+  const agg = new Map<string, { count: number; amount: number }>();
+  (data ?? []).forEach((item) => {
+    const template = unwrap(item.product_templates);
+    const material = template ? unwrap(template.materials) : null;
+    const materialName = material?.name ?? "Unspecified";
+    const entry = agg.get(materialName) ?? { count: 0, amount: 0 };
+    entry.count += 1;
+    entry.amount += decimalToNumber(item.total);
+    agg.set(materialName, entry);
+  });
+
+  const rows = Array.from(agg.entries()).map(([material, stats]) => ({
+    material,
+    items: stats.count,
+    amount: stats.amount,
+  }));
+
+  return buildCsvPayload("material-usage", rows);
+}
+
+export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<CsvPayload> {
+  const supabase = getServiceSupabase();
+  const { from, to } = normalizeRange(range);
+
+  let query = supabase
+    .from("jobs")
+    .select("actual_hours, printers(name)")
+    .not("completed_at", "is", null);
+
+  if (from) query = query.gte("completed_at", from.toISOString());
+  if (to) query = query.lte("completed_at", to.toISOString());
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to export printer utilization: ${error.message}`);
+  }
+
+  const agg = new Map<string, { jobs: number; hours: number }>();
+  (data ?? []).forEach((job) => {
+    const printer = unwrap(job.printers);
+    const printerName = printer?.name ?? "Unassigned";
+    const entry = agg.get(printerName) ?? { jobs: 0, hours: 0 };
+    entry.jobs += 1;
+    entry.hours += decimalToNumber(job.actual_hours);
+    agg.set(printerName, entry);
+  });
+
+  const rows = Array.from(agg.entries()).map(([printer, stats]) => ({
+    printer,
+    completed_jobs: stats.jobs,
+    hours: Number(stats.hours.toFixed(2)),
+  }));
+
+  return buildCsvPayload("printer-utilization", rows);
 }

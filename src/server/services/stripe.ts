@@ -1,29 +1,78 @@
 import Stripe from "stripe";
-import { InvoiceStatus, PaymentMethod } from "@prisma/client";
-import { prisma } from "@/server/db/client";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getInvoiceDetail, markInvoicePaid } from "@/server/services/invoices";
+import { PaymentMethod, InvoiceStatus } from "@/lib/constants/enums";
 import { logger } from "@/lib/logger";
 import {
-  LEGACY_STRIPE_SECRET_KEY,
-  LEGACY_STRIPE_CANCEL_URL,
-  LEGACY_STRIPE_SUCCESS_URL,
-  LEGACY_STRIPE_CURRENCY,
-  assertLegacyStripeConfigured,
-} from "@/server/config/stripe-legacy";
+  getStripeSecretKey,
+  getStripeSuccessUrl,
+  getStripeCancelUrl,
+  getStripeCurrency,
+  getStripeWebhookSecret,
+} from "@/lib/env";
 
-assertLegacyStripeConfigured();
+type StripeConfig = {
+  secretKey: string;
+  successUrl: string;
+  cancelUrl: string;
+  currency: string;
+  webhookSecret: string | null;
+};
 
-const stripeClient = new Stripe(LEGACY_STRIPE_SECRET_KEY);
+let cachedConfig: StripeConfig | null = null;
+let cachedStripe: Stripe | null = null;
+
+function resolveStripeConfig(): StripeConfig | null {
+  const secretKey = getStripeSecretKey();
+  if (!secretKey) {
+    return null;
+  }
+
+  const successUrl = getStripeSuccessUrl();
+  const cancelUrl = getStripeCancelUrl();
+  const currency = getStripeCurrency();
+  const webhookSecret = getStripeWebhookSecret();
+
+  return {
+    secretKey,
+    successUrl,
+    cancelUrl,
+    currency,
+    webhookSecret,
+  };
+}
+
+function getStripeConfigOrThrow(): StripeConfig {
+  const config = resolveStripeConfig();
+  if (!config) {
+    throw new Error("Stripe is not configured");
+  }
+  if (!cachedConfig || cachedConfig.secretKey !== config.secretKey) {
+    cachedStripe = new Stripe(config.secretKey);
+    cachedConfig = config;
+  }
+  return config;
+}
 
 export type StripeEnvironment = {
   stripe: Stripe;
   currency: string;
+  successUrl: string;
+  cancelUrl: string;
+  webhookSecret: string | null;
 };
 
 export async function getStripeEnvironment(): Promise<StripeEnvironment> {
+  const config = getStripeConfigOrThrow();
+  if (!cachedStripe) {
+    cachedStripe = new Stripe(config.secretKey);
+  }
   return {
-    stripe: stripeClient,
-    currency: LEGACY_STRIPE_CURRENCY,
+    stripe: cachedStripe,
+    currency: config.currency,
+    successUrl: config.successUrl,
+    cancelUrl: config.cancelUrl,
+    webhookSecret: config.webhookSecret,
   };
 }
 
@@ -33,28 +82,28 @@ export async function createStripeCheckoutSession(
 ) {
   const env = await getStripeEnvironment();
 
-  const invoiceRecord = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    select: {
-      id: true,
-      status: true,
-      stripeSessionId: true,
-      stripeCheckoutUrl: true,
-    },
-  });
+  const supabase = getServiceSupabase();
+  const { data: invoiceRecord, error } = await supabase
+    .from("invoices")
+    .select("id, status, stripe_session_id, stripe_checkout_url")
+    .eq("id", invoiceId)
+    .maybeSingle();
 
+  if (error) {
+    throw new Error(`Failed to load invoice: ${error.message}`);
+  }
   if (!invoiceRecord) {
     throw new Error("Invoice not found");
   }
 
-  if (invoiceRecord.status === InvoiceStatus.PAID) {
+  if ((invoiceRecord.status ?? InvoiceStatus.PENDING) === InvoiceStatus.PAID) {
     throw new Error("Invoice is already paid");
   }
 
-  if (!options?.refresh && invoiceRecord.stripeCheckoutUrl) {
+  if (!options?.refresh && invoiceRecord.stripe_checkout_url) {
     return {
-      url: invoiceRecord.stripeCheckoutUrl,
-      sessionId: invoiceRecord.stripeSessionId ?? null,
+      url: invoiceRecord.stripe_checkout_url,
+      sessionId: invoiceRecord.stripe_session_id ?? null,
     };
   }
 
@@ -89,33 +138,40 @@ export async function createStripeCheckoutSession(
       invoiceId: String(invoiceId),
       invoiceNumber: detail.number,
     },
-    success_url: LEGACY_STRIPE_SUCCESS_URL,
-    cancel_url: LEGACY_STRIPE_CANCEL_URL,
+    success_url: env.successUrl,
+    cancel_url: env.cancelUrl,
   });
 
   if (!session.url) {
     throw new Error("Stripe checkout session missing URL");
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        stripeSessionId: session.id,
-        stripeCheckoutUrl: session.url ?? null,
-      },
-    });
+  const { error: updateError } = await supabase
+    .from("invoices")
+    .update({
+      stripe_session_id: session.id,
+      stripe_checkout_url: session.url ?? null,
+    })
+    .eq("id", invoiceId);
+  if (updateError) {
+    throw new Error(`Failed to store Stripe session: ${updateError.message}`);
+  }
 
-    await tx.activityLog.create({
-      data: {
-        invoiceId,
-        clientId: detail.client.id,
-        action: "STRIPE_CHECKOUT_CREATED",
-        message: `Stripe checkout session created for invoice ${detail.number}`,
-        metadata: { sessionId: session.id, amount: balanceDue },
-      },
-    });
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    invoice_id: invoiceId,
+    client_id: detail.client.id,
+    action: "STRIPE_CHECKOUT_CREATED",
+    message: `Stripe checkout session created for invoice ${detail.number}`,
+    metadata: { sessionId: session.id, amount: balanceDue },
   });
+  if (activityError) {
+    logger.warn({
+      scope: "stripe.session.create",
+      message: "Failed to record checkout creation activity",
+      error: activityError,
+      data: { invoiceId, sessionId: session.id },
+    });
+  }
 
   logger.info({
     scope: "stripe.session.create",
@@ -159,25 +215,40 @@ export async function handleStripeEvent(event: Stripe.Event) {
       note: "Stripe Checkout payment",
     });
 
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        stripeSessionId: null,
-        stripeCheckoutUrl: null,
-      },
-    });
+    const supabase = getServiceSupabase();
 
-    await prisma.activityLog.create({
-      data: {
-        invoiceId,
-        action: "STRIPE_CHECKOUT_COMPLETED",
-        message: `Stripe checkout completed for invoice ${session.metadata?.invoiceNumber ?? invoiceId}`,
-        metadata: {
-          sessionId: session.id,
-          amount,
-        },
+    const { error: clearError } = await supabase
+      .from("invoices")
+      .update({
+        stripe_session_id: null,
+        stripe_checkout_url: null,
+      })
+      .eq("id", invoiceId);
+    if (clearError) {
+      logger.error({
+        scope: "stripe.session.completed",
+        error: clearError,
+        data: { invoiceId, sessionId: session.id, message: "Failed to clear Stripe session fields" },
+      });
+    }
+
+    const { error: activityError } = await supabase.from("activity_logs").insert({
+      invoice_id: invoiceId,
+      action: "STRIPE_CHECKOUT_COMPLETED",
+      message: `Stripe checkout completed for invoice ${session.metadata?.invoiceNumber ?? invoiceId}`,
+      metadata: {
+        sessionId: session.id,
+        amount,
       },
     });
+    if (activityError) {
+      logger.warn({
+        scope: "stripe.session.completed",
+        message: "Failed to record checkout completion activity",
+        error: activityError,
+        data: { invoiceId, sessionId: session.id },
+      });
+    }
 
     logger.info({
       scope: "stripe.session.completed",

@@ -33,6 +33,7 @@ export default async function NewInvoicePage() {
     discountValue: 0,
     shippingCost: defaultShippingRegion?.baseAmount ?? 0,
     shippingLabel: defaultShippingRegion?.label ?? "",
+    poNumber: "",
     notes: "",
     terms: "",
     lines: [

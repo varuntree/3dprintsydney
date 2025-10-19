@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/server/db/client";
 import { requireAdmin } from "@/server/auth/session";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -13,13 +13,26 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
     const take = Number.isFinite(limit) && limit > 0 ? limit : 50;
     const skip = Number.isFinite(offset) && offset >= 0 ? offset : 0;
-    const messages = await prisma.userMessage.findMany({
-      where: { userId },
-      orderBy: { createdAt: order },
-      take,
-      skip,
+    const supabase = getServiceSupabase();
+    const { data, error } = await supabase
+      .from("user_messages")
+      .select("id, user_id, invoice_id, sender, content, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: order === "asc" })
+      .range(skip, skip + take - 1);
+    if (error) {
+      throw Object.assign(new Error(`Failed to load messages: ${error.message}`), { status: 500 });
+    }
+    return NextResponse.json({
+      data: (data ?? []).map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        invoiceId: row.invoice_id,
+        sender: row.sender,
+        content: row.content,
+        createdAt: row.created_at,
+      })),
     });
-    return NextResponse.json({ data: messages });
   } catch (error) {
     const e = error as Error & { status?: number };
     const status = e?.status ?? 400;
@@ -36,10 +49,30 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     if (!content || typeof content !== "string") {
       return NextResponse.json({ error: "Invalid content" }, { status: 400 });
     }
-    const msg = await prisma.userMessage.create({
-      data: { userId, sender: "ADMIN", content: content.slice(0, 5000) },
+    const supabase = getServiceSupabase();
+    const { data, error } = await supabase
+      .from("user_messages")
+      .insert({
+        user_id: userId,
+        invoice_id: null,
+        sender: "ADMIN",
+        content: content.slice(0, 5000),
+      })
+      .select("id, user_id, invoice_id, sender, content, created_at")
+      .single();
+    if (error || !data) {
+      throw Object.assign(new Error(error?.message ?? "Failed to create message"), { status: 500 });
+    }
+    return NextResponse.json({
+      data: {
+        id: data.id,
+        userId: data.user_id,
+        invoiceId: data.invoice_id,
+        sender: data.sender,
+        content: data.content,
+        createdAt: data.created_at,
+      },
     });
-    return NextResponse.json({ data: msg });
   } catch (error) {
     const e = error as Error & { status?: number };
     const status = e?.status ?? 400;

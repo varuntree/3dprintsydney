@@ -1,21 +1,23 @@
-import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "@/server/db/client";
-import { SESSION_COOKIE } from "@/server/auth/session";
-
-export async function POST(req: NextRequest) {
+import { NextResponse } from "next/server";
+	export async function POST() {
   try {
-    const token = req.cookies.get(SESSION_COOKIE)?.value;
-    if (token) await prisma.session.deleteMany({ where: { token } });
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(SESSION_COOKIE, "", {
+    const response = NextResponse.json({ ok: true });
+    response.cookies.set("sb:token", "", {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       expires: new Date(0),
     });
-    return res;
-  } catch (_error) {
-    return NextResponse.json({ error: "Failed to logout" }, { status: 400 });
+    response.cookies.set("sb:refresh-token", "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: new Date(0),
+    });
+    return response;
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message ?? "Failed to logout" }, { status: 400 });
   }
 }

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { mutateJson } from "@/lib/http";
 
 interface PayOnlineButtonProps {
   invoiceId: number;
@@ -29,18 +30,12 @@ export function PayOnlineButton({
     if (loading) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/invoices/${invoiceId}/stripe-session?refresh=true`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        const message = typeof payload?.error === "string" ? payload.error : "Unable to start payment";
-        toast.error(message);
-        return;
-      }
-      const payload = (await res.json()) as { url: string | null };
-      if (payload.url) {
-        window.location.href = payload.url;
+      const session = await mutateJson<{ url: string | null }>(
+        `/api/invoices/${invoiceId}/stripe-session?refresh=true`,
+        { method: "POST" },
+      );
+      if (session?.url) {
+        window.location.href = session.url;
       } else {
         toast.error("No checkout URL returned");
       }

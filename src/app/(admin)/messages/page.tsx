@@ -6,7 +6,7 @@ import { MessageSquare, User, Loader2 } from "lucide-react";
 import { Conversation } from "@/components/messages/conversation";
 
 type UserRow = {
-  id: number;
+  id: string;
   email: string;
   role: string;
   clientId: number | null;
@@ -25,7 +25,7 @@ type UserRow = {
 export default function AdminMessagesPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [q, setQ] = useState("");
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,7 +40,15 @@ export default function AdminMessagesPage() {
       return;
     }
     const { data } = await r.json();
-    setUsers(data);
+    const normalized: UserRow[] = (data as Array<Record<string, unknown>>).map((u) => ({
+      id: String(u.id ?? ''),
+      email: String(u.email ?? ''),
+      role: String(u.role ?? ''),
+      clientId: typeof u.clientId === 'number' ? (u.clientId as number) : null,
+      createdAt: String(u.createdAt ?? ''),
+      messageCount: typeof u.messageCount === 'number' ? (u.messageCount as number) : 0,
+    }));
+    setUsers(normalized);
     setLoading(false);
   }
 
@@ -48,7 +56,7 @@ export default function AdminMessagesPage() {
     (u) => !q || u.email.toLowerCase().includes(q.toLowerCase())
   );
 
-  const selectedUser = users.find((u) => u.id === selected);
+  const selectedUser = selected ? users.find((u) => u.id === selected) : undefined;
 
   return (
     <div className="flex h-[calc(100vh-200px)] gap-4">
@@ -85,7 +93,7 @@ export default function AdminMessagesPage() {
                   className={`cursor-pointer p-4 transition-colors hover:bg-surface-muted ${
                     selected === u.id ? "bg-surface-muted" : ""
                   }`}
-                  onClick={() => setSelected(u.id)}
+                onClick={() => setSelected(String(u.id))}
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-medium text-white">

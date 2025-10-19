@@ -59,6 +59,7 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         discountValue: detail.discountValue,
         shippingCost: detail.shippingCost,
         shippingLabel: detail.shippingLabel,
+        poNumber: detail.poNumber ?? "",
         notes: detail.notes,
         terms: detail.terms,
         lines: detail.lines.map((line) => ({
@@ -133,6 +134,7 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       taxTotal: detail.taxTotal,
       total: detail.total,
       balanceDue: detail.balanceDue,
+      poNumber: detail.poNumber ?? null,
       notes: detail.notes,
       terms: detail.terms,
       currency: settings.defaultCurrency ?? "AUD",

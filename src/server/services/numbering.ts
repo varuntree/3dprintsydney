@@ -1,41 +1,20 @@
-import { prisma } from "@/server/db/client";
-import type { Prisma } from "@prisma/client";
+import { getServiceSupabase } from '@/server/supabase/service-client';
 
 function pad(value: number) {
-  return value.toString().padStart(4, "0");
+  return value.toString().padStart(4, '0');
 }
 
-export async function nextDocumentNumber(
-  kind: "quote" | "invoice",
-  tx?: Prisma.TransactionClient,
-) {
-  // Inner operation that uses the provided transaction client.
-  const run = async (db: Prisma.TransactionClient) => {
-    const settings = await db.settings.findUnique({ where: { id: 1 } });
-    const desiredPrefix =
-      kind === "quote"
-        ? (settings?.numberingQuotePrefix ?? "QT-")
-        : (settings?.numberingInvoicePrefix ?? "INV-");
+export async function nextDocumentNumber(kind: 'quote' | 'invoice') {
+  const supabase = getServiceSupabase();
+  const defaultPrefix = kind === 'quote' ? 'QT-' : 'INV-';
+  const { data, error } = await supabase.rpc('next_document_number', {
+    p_kind: kind,
+    p_default_prefix: defaultPrefix,
+  });
 
-    const sequence = await db.numberSequence.upsert({
-      where: { kind },
-      update: {
-        current: { increment: 1 },
-        prefix: desiredPrefix,
-      },
-      create: {
-        kind,
-        prefix: desiredPrefix,
-        current: 1,
-      },
-    });
+  if (error || typeof data !== 'string') {
+    throw new Error(`Failed to generate document number: ${error?.message ?? 'Unknown error'}`);
+  }
 
-    return `${sequence.prefix}${pad(sequence.current)}`;
-  };
-
-  // If caller provided a tx, reuse it to avoid nested transactions (SQLite single-writer).
-  if (tx) return run(tx);
-
-  // Otherwise, run as a standalone transaction.
-  return prisma.$transaction(async (db) => run(db));
+  return data;
 }

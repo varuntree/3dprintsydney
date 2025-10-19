@@ -34,6 +34,7 @@ type DocumentMeta = {
   expiryDate?: Date | null;
   status: string;
   total: number;
+  poNumber?: string | null;
 };
 
 type LineItem = {
@@ -110,6 +111,12 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
             ${getStatusBadge(documentMeta.status)}
           </div>
           <div class="document-number">${documentMeta.number}</div>
+          ${documentMeta.poNumber ? `
+            <div class="po-number">
+              <span class="po-label">PO Number</span>
+              <span class="po-value">${documentMeta.poNumber}</span>
+            </div>
+          ` : ''}
           <div class="document-dates">
             <div class="date-item">
               <span class="date-label">Issue Date</span>
@@ -243,6 +250,28 @@ function renderProductionHeader(businessInfo: BusinessInfo, documentMeta: Docume
         color: ${PDF_THEME.text};
         margin-bottom: 12px;
         letter-spacing: -0.02em;
+      }
+
+      .po-number {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 16px;
+      }
+
+      .po-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-weight: 600;
+        color: ${PDF_THEME.textSubtle};
+      }
+
+      .po-value {
+        font-size: 14px;
+        font-weight: 500;
+        color: ${PDF_THEME.text};
+        letter-spacing: 0.05em;
       }
 
       .document-dates {
@@ -1108,7 +1137,8 @@ export function renderProductionInvoiceHtml(invoice: InvoiceWithPayment, options
     issueDate: new Date(invoice.issueDate),
     dueDate: invoice.dueDate ? new Date(invoice.dueDate) : null,
     status: invoice.status,
-    total: invoice.total
+    total: invoice.total,
+    poNumber: invoice.poNumber ?? null
   };
 
   const lineItems: LineItem[] = invoice.lines.map((line) => ({

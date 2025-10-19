@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "nextjs-toploader/app";
 import { OWNER_NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
@@ -11,11 +12,11 @@ import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { ActionButton } from "@/components/ui/action-button";
 import { MutationLoader } from "@/components/ui/mutation-loader";
-import type { User } from "@prisma/client";
+import type { LegacyUser } from "@/lib/types/user";
 
 interface AdminShellProps {
   children: React.ReactNode;
-  user: User;
+  user: LegacyUser;
 }
 
 /**
@@ -97,13 +98,20 @@ export function AdminShell({ children, user }: AdminShellProps) {
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{user.role}</p>
             </div>
           </div>
-          <Separator className="my-3" />
-          <button
-            onClick={handleLogout}
-            className="w-full rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
-          >
-            Logout
-          </button>
+          <div className="mt-3 space-y-2">
+            <Link
+              href="/account"
+              className="block w-full rounded-md border border-border px-3 py-2 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10"
+            >
+              Account settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </aside>
 

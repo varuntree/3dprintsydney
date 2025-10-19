@@ -3,9 +3,12 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
 import { priceQuickOrder, type QuickOrderItemInput } from "@/server/services/quick-order";
 import { createInvoice, addInvoiceAttachment } from "@/server/services/invoices";
-import { moveTmpToDir } from "@/server/files/tmp";
+import {
+  requireTmpFile,
+  downloadTmpFileToBuffer,
+  deleteTmpFile,
+} from "@/server/services/tmp-files";
 import path from "path";
-import { FILES_ROOT } from "@/server/files/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,6 +39,9 @@ export async function POST(req: NextRequest) {
         `Material ${items[idx]?.materialName ?? "Custom"}`,
         `Layer ${items[idx]?.layerHeight ?? 0}mm`,
         `Infill ${items[idx]?.infill ?? 0}%`,
+        items[idx]?.supports?.enabled
+          ? `Supports ${items[idx]?.supports?.pattern === "tree" ? "Organic" : "Standard"}`
+          : "Supports off",
       ].join(" • "),
       quantity: p.quantity,
       unit: "part",
@@ -63,13 +69,17 @@ export async function POST(req: NextRequest) {
     });
 
     // Attach files + settings snapshot under invoice
-    const destDir = path.join(FILES_ROOT, String(invoice.id));
     for (const it of items) {
       if (!it.fileId) continue;
-      const moved = await moveTmpToDir(it.fileId, destDir).catch(() => null);
-      if (moved) {
-        const buffer = await (await import("fs/promises")).readFile(moved);
-        await addInvoiceAttachment(invoice.id, { name: path.basename(moved), type: "application/octet-stream", buffer });
+      const tmpRecord = await requireTmpFile(user.id, it.fileId).catch(() => null);
+      if (tmpRecord) {
+        const buffer = await downloadTmpFileToBuffer(it.fileId);
+        await addInvoiceAttachment(invoice.id, {
+          name: tmpRecord.filename,
+          type: tmpRecord.mime_type || "application/octet-stream",
+          buffer,
+        });
+        await deleteTmpFile(user.id, it.fileId).catch(() => undefined);
       }
       const settingsJson = Buffer.from(JSON.stringify({
         filename: it.filename,
@@ -79,6 +89,7 @@ export async function POST(req: NextRequest) {
         infill: it.infill,
         quantity: it.quantity,
         metrics: it.metrics,
+        supports: it.supports,
         address,
         shipping: shippingQuote,
       }, null, 2));

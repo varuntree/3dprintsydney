@@ -61,8 +61,13 @@ export default function LoginPage() {
           {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
-      <div className="text-center text-sm">
-        <a className="text-primary underline" href="/signup">Create an account</a>
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <a className="text-primary underline" href="/signup">
+          Create an account
+        </a>
+        <a className="text-primary underline" href="/forgot-password">
+          Forgot password?
+        </a>
       </div>
     </div>
   );

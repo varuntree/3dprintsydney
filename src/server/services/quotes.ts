@@ -1,11 +1,3 @@
-import {
-  DiscountType,
-  QuoteStatus,
-  Prisma,
-  InvoiceStatus,
-  JobCreationPolicy,
-} from "@prisma/client";
-import { prisma } from "@/server/db/client";
 import { logger } from "@/lib/logger";
 import {
   calculateLineTotal,
@@ -19,33 +11,235 @@ import {
 import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
 import { resolvePaymentTermsOptions } from "@/server/services/settings";
-
-const decimalToNumber = (value: unknown) => {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return value;
-  if (typeof (value as { toNumber?: () => number }).toNumber === "function") {
-    return (value as { toNumber: () => number }).toNumber();
-  }
-  return Number(value);
-};
+import { getServiceSupabase } from "@/server/supabase/service-client";
+import {
+  DiscountType as DiscountTypeEnum,
+  InvoiceStatus,
+  JobCreationPolicy,
+  QuoteStatus as QuoteStatusEnum,
+} from "@/lib/constants/enums";
+import type {
+  DiscountType as DiscountTypeValue,
+  QuoteStatus as QuoteStatusValue,
+} from "@/lib/constants/enums";
+import { getInvoice } from "@/server/services/invoices";
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
   return String(Number.isFinite(value) ? value : 0);
 }
 
-function mapDiscount(type: QuoteInput["discountType"]): DiscountType {
-  if (type === "PERCENT") return DiscountType.PERCENT;
-  if (type === "FIXED") return DiscountType.FIXED;
-  return DiscountType.NONE;
+function mapDiscount(type: QuoteInput["discountType"]): DiscountTypeValue {
+  if (type === "PERCENT") return DiscountTypeEnum.PERCENT;
+  if (type === "FIXED") return DiscountTypeEnum.FIXED;
+  return DiscountTypeEnum.NONE;
 }
 
 function mapLineDiscount(
   type: QuoteInput["lines"][number]["discountType"],
-): DiscountType {
-  if (type === "PERCENT") return DiscountType.PERCENT;
-  if (type === "FIXED") return DiscountType.FIXED;
-  return DiscountType.NONE;
+): DiscountTypeValue {
+  if (type === "PERCENT") return DiscountTypeEnum.PERCENT;
+  if (type === "FIXED") return DiscountTypeEnum.FIXED;
+  return DiscountTypeEnum.NONE;
+}
+
+type QuoteItemRow = {
+  id: number;
+  quote_id: number;
+  product_template_id: number | null;
+  name: string;
+  description: string | null;
+  quantity: string;
+  unit: string | null;
+  unit_price: string;
+  discount_type: string;
+  discount_value: string | null;
+  total: string;
+  order_index: number;
+  calculator_breakdown: unknown;
+};
+
+type QuoteRow = {
+  id: number;
+  number: string;
+  client_id: number;
+  status: string;
+  issue_date: string;
+  expiry_date: string | null;
+  sent_at: string | null;
+  accepted_at: string | null;
+  declined_at: string | null;
+  decision_note: string | null;
+  converted_invoice_id: number | null;
+  tax_rate: string | null;
+  discount_type: string;
+  discount_value: string | null;
+  shipping_cost: string | null;
+  shipping_label: string | null;
+  subtotal: string;
+  total: string;
+  tax_total: string;
+  notes: string | null;
+  terms: string | null;
+  client?: { id: number; name: string; payment_terms?: string | null } | null;
+  clients?:
+    | { id: number; name: string; payment_terms?: string | null }
+    | Array<{ id: number; name: string; payment_terms?: string | null }>
+    | null;
+};
+
+type QuoteDetailRow = QuoteRow & {
+  items?: QuoteItemRow[];
+  quote_items?: QuoteItemRow[];
+};
+
+type QuoteSummaryDTO = {
+  id: number;
+  number: string;
+  clientName: string;
+  status: QuoteStatusValue;
+  total: number;
+  issueDate: Date;
+  expiryDate: Date | null;
+};
+
+function extractClient(row: QuoteRow | QuoteDetailRow) {
+  if (row.client) return row.client;
+  if (!row.clients) return null;
+  return Array.isArray(row.clients) ? row.clients[0] ?? null : row.clients;
+}
+
+function mapQuoteSummary(row: QuoteRow): QuoteSummaryDTO {
+  const client = extractClient(row);
+  return {
+    id: row.id,
+    number: row.number,
+    clientName: client?.name ?? "",
+    status: (row.status ?? "DRAFT") as QuoteStatusValue,
+    total: Number(row.total ?? 0),
+    issueDate: new Date(row.issue_date),
+    expiryDate: row.expiry_date ? new Date(row.expiry_date) : null,
+  };
+}
+
+function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_items"]) {
+  const source = items ?? [];
+  return source.map((item) => ({
+    id: item.id,
+    productTemplateId: item.product_template_id ?? undefined,
+    name: item.name,
+    description: item.description ?? "",
+    quantity: Number(item.quantity ?? 0),
+    unit: item.unit ?? "",
+    unitPrice: Number(item.unit_price ?? 0),
+    discountType: (item.discount_type ?? "NONE") as DiscountTypeValue,
+    discountValue: item.discount_value ? Number(item.discount_value) : 0,
+    total: Number(item.total ?? 0),
+    orderIndex: item.order_index,
+    calculatorBreakdown: item.calculator_breakdown as Record<string, unknown> | null,
+  }));
+}
+
+type ResolvedPaymentTerm = Awaited<ReturnType<typeof resolvePaymentTermsOptions>>["paymentTerms"][number] & {
+  source: "client" | "default";
+};
+
+type QuoteDetailDTO = {
+  id: number;
+  number: string;
+  client: { id: number; name: string };
+  status: QuoteStatusValue;
+  paymentTerms: ResolvedPaymentTerm | null;
+  issueDate: Date;
+  expiryDate: Date | null;
+  taxRate: number;
+  discountType: DiscountTypeValue;
+  discountValue: number;
+  shippingCost: number;
+  shippingLabel: string;
+  notes: string;
+  terms: string;
+  subtotal: number;
+  total: number;
+  taxTotal: number;
+  lines: ReturnType<typeof mapQuoteLines>;
+  sentAt: Date | null;
+  acceptedAt: Date | null;
+  declinedAt: Date | null;
+  decisionNote: string | null;
+  convertedInvoiceId: number | null;
+};
+
+function mapQuoteDetail(row: QuoteDetailRow, paymentTerm: ResolvedPaymentTerm | null): QuoteDetailDTO {
+  const client = extractClient(row);
+  return {
+    id: row.id,
+    number: row.number,
+    client: {
+      id: row.client_id,
+      name: client?.name ?? "",
+    },
+    status: (row.status ?? "DRAFT") as QuoteStatusValue,
+    paymentTerms: paymentTerm,
+    issueDate: new Date(row.issue_date),
+    expiryDate: row.expiry_date ? new Date(row.expiry_date) : null,
+    sentAt: row.sent_at ? new Date(row.sent_at) : null,
+    acceptedAt: row.accepted_at ? new Date(row.accepted_at) : null,
+    declinedAt: row.declined_at ? new Date(row.declined_at) : null,
+    decisionNote: row.decision_note ?? null,
+    convertedInvoiceId: row.converted_invoice_id ?? null,
+    taxRate: row.tax_rate ? Number(row.tax_rate) : 0,
+    discountType: (row.discount_type ?? "NONE") as DiscountTypeValue,
+    discountValue: row.discount_value ? Number(row.discount_value) : 0,
+    shippingCost: row.shipping_cost ? Number(row.shipping_cost) : 0,
+    shippingLabel: row.shipping_label ?? "",
+    notes: row.notes ?? "",
+    terms: row.terms ?? "",
+    subtotal: row.subtotal ? Number(row.subtotal) : 0,
+    total: row.total ? Number(row.total) : 0,
+    taxTotal: row.tax_total ? Number(row.tax_total) : 0,
+    lines: mapQuoteLines(row.items ?? row.quote_items),
+  };
+}
+
+async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("quotes")
+    .select(
+      `*, client:clients(id, name, payment_terms), items:quote_items(*, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown)`
+    )
+    .eq("id", id)
+    .order("order_index", { foreignTable: "quote_items", ascending: true })
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load quote: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error("Quote not found");
+  }
+
+  const client = (data as QuoteDetailRow).client;
+  const { paymentTerms, defaultPaymentTerms } = await resolvePaymentTermsOptions();
+  const trimmed = client?.payment_terms?.trim();
+
+  let resolved: ResolvedPaymentTerm | null = null;
+  if (trimmed) {
+    const match = paymentTerms.find((term) => term.code === trimmed);
+    if (match) {
+      resolved = { ...match, source: "client" as const };
+    }
+  }
+  if (!resolved) {
+    const fallbackCode = defaultPaymentTerms;
+    const fallback = paymentTerms.find((term) => term.code === fallbackCode) ?? paymentTerms[0];
+    if (fallback) {
+      resolved = { ...fallback, source: "default" as const };
+    }
+  }
+
+  return mapQuoteDetail(data as QuoteDetailRow, resolved);
 }
 
 export async function listQuotes(options?: {
@@ -56,122 +250,56 @@ export async function listQuotes(options?: {
   sort?: "issueDate" | "createdAt" | "number";
   order?: "asc" | "desc";
 }) {
-  const where: Prisma.QuoteWhereInput = {};
-  if (options?.q) {
-    where.OR = [
-      { number: { contains: options.q } },
-      { client: { name: { contains: options.q } } },
-    ];
-  }
-  if (options?.statuses && options.statuses.length) {
-    where.status = { in: options.statuses };
-  }
-  const orderBy = options?.sort
-    ? { [options.sort]: options.order ?? "desc" }
-    : { createdAt: "desc" as const };
-  const quotes = await prisma.quote.findMany({
-    where,
-    orderBy,
-    include: {
-      client: { select: { name: true } },
-    },
-    take: options?.limit,
-    skip: options?.offset,
-  });
+  const supabase = getServiceSupabase();
+  const orderColumn =
+    options?.sort === "number"
+      ? "number"
+      : options?.sort === "issueDate"
+        ? "issue_date"
+        : options?.sort === "createdAt"
+          ? "created_at"
+          : "created_at";
+  const ascending = (options?.order ?? "desc") === "asc";
 
-  return quotes.map((quote) => ({
-    id: quote.id,
-    number: quote.number,
-    clientName: quote.client.name,
-    status: quote.status,
-    total: Number(quote.total),
-    issueDate: quote.issueDate,
-    expiryDate: quote.expiryDate,
-  }));
+  let query = supabase
+    .from("quotes")
+    .select(
+      "id, number, client_id, status, total, issue_date, expiry_date, clients(name)"
+    )
+    .order(orderColumn, { ascending, nullsFirst: !ascending });
+
+  if (options?.q) {
+    const term = options.q.trim();
+    if (term.length > 0) {
+      query = query.or(
+        `number.ilike.%${term}%,clients.name.ilike.%${term}%`
+      );
+    }
+  }
+
+  if (options?.statuses?.length) {
+    query = query.in("status", options.statuses);
+  }
+
+  if (typeof options?.limit === "number") {
+    const limit = Math.max(1, options.limit);
+    const offset = Math.max(0, options.offset ?? 0);
+    query = query.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list quotes: ${error.message}`);
+  }
+  return (data ?? []).map((row) => mapQuoteSummary(row as QuoteRow));
 }
 
 export async function getQuote(id: number) {
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      items: {
-        orderBy: { orderIndex: "asc" },
-        include: { productTemplate: true },
-      },
-    },
-  });
-
-  if (!quote) {
-    throw new Error("Quote not found");
-  }
-
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function getQuoteDetail(id: number) {
-  const quote = await getQuote(id);
-  const { paymentTerms: termOptions, defaultPaymentTerms } =
-    await resolvePaymentTermsOptions(prisma);
-  const resolvedTerm = (() => {
-    const explicitCode = quote.client.paymentTerms?.trim();
-    if (explicitCode) {
-      const match = termOptions.find((option) => option.code === explicitCode);
-      if (match) {
-        return { ...match, source: "client" as const };
-      }
-    }
-    const defaultMatch = termOptions.find(
-      (option) => option.code === defaultPaymentTerms,
-    );
-    if (defaultMatch) {
-      return { ...defaultMatch, source: "default" as const };
-    }
-    if (termOptions.length > 0) {
-      return { ...termOptions[0], source: "default" as const };
-    }
-    return null;
-  })();
-
-  return {
-    id: quote.id,
-    number: quote.number,
-    client: {
-      id: quote.clientId,
-      name: quote.client.name,
-    },
-    status: quote.status,
-    paymentTerms: resolvedTerm,
-    issueDate: quote.issueDate,
-    expiryDate: quote.expiryDate,
-    taxRate: decimalToNumber(quote.taxRate),
-    discountType: quote.discountType,
-    discountValue: decimalToNumber(quote.discountValue),
-    shippingCost: decimalToNumber(quote.shippingCost),
-    shippingLabel: quote.shippingLabel ?? "",
-    notes: quote.notes ?? "",
-    terms: quote.terms ?? "",
-    subtotal: decimalToNumber(quote.subtotal),
-    total: decimalToNumber(quote.total),
-    taxTotal: decimalToNumber(quote.taxTotal),
-    lines: quote.items.map((item) => ({
-      id: item.id,
-      productTemplateId: item.productTemplateId ?? undefined,
-      name: item.name,
-      description: item.description ?? "",
-      quantity: decimalToNumber(item.quantity),
-      unit: item.unit ?? "",
-      unitPrice: decimalToNumber(item.unitPrice),
-      discountType: item.discountType,
-      discountValue: decimalToNumber(item.discountValue),
-      orderIndex: item.orderIndex,
-      calculatorBreakdown: item.calculatorBreakdown as Record<
-        string,
-        unknown
-      > | null,
-      total: decimalToNumber(item.total),
-    })),
-  };
+  return loadQuoteDetail(id);
 }
 
 export type QuoteDetail = Awaited<ReturnType<typeof getQuoteDetail>>;
@@ -207,383 +335,538 @@ export async function createQuote(payload: unknown) {
   const parsed = quoteInputSchema.parse(payload);
   const totals = computeTotals(parsed);
 
-  const quote = await prisma.$transaction(async (tx) => {
-    const number = await nextDocumentNumber("quote", tx);
-    const created = await tx.quote.create({
-      data: {
-        number,
-        clientId: parsed.clientId,
-        status: QuoteStatus.DRAFT,
-        issueDate: parsed.issueDate ? new Date(parsed.issueDate) : new Date(),
-        expiryDate: parsed.expiryDate ? new Date(parsed.expiryDate) : null,
-        taxRate: toDecimal(parsed.taxRate) ?? "0",
-        discountType: mapDiscount(parsed.discountType),
-        discountValue: toDecimal(parsed.discountValue) ?? "0",
-        shippingCost: toDecimal(parsed.shippingCost) ?? "0",
-        shippingLabel: parsed.shippingLabel || null,
-        notes: parsed.notes || null,
-        terms: parsed.terms || null,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        items: {
-          create: parsed.lines.map((line, index) => ({
-            productTemplateId: line.productTemplateId ?? undefined,
-            name: line.name,
-            description: line.description || null,
-            quantity: String(line.quantity),
-            unit: line.unit || null,
-            unitPrice: String(line.unitPrice),
-            discountType: mapLineDiscount(line.discountType),
-            discountValue: toDecimal(line.discountValue) ?? "0",
-            total: String(totals.lineTotals[index].total),
-            orderIndex: line.orderIndex ?? index,
-            calculatorBreakdown: line.calculatorBreakdown
-              ? (line.calculatorBreakdown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          })),
-        },
-      },
-      include: {
-        client: true,
-        items: true,
-      },
-    });
+  const supabase = getServiceSupabase();
+  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
+  const expiryDate = parsed.expiryDate ? new Date(parsed.expiryDate) : null;
+  const number = await nextDocumentNumber("quote");
 
-    await tx.activityLog.create({
-      data: {
-        clientId: created.clientId,
-        quoteId: created.id,
-        action: "QUOTE_CREATED",
-        message: `Quote ${created.number} created`,
-      },
-    });
+  const { data: created, error } = await supabase
+    .from("quotes")
+    .insert({
+      number,
+      client_id: parsed.clientId,
+      status: QuoteStatusEnum.DRAFT,
+      issue_date: issueDate.toISOString(),
+      expiry_date: expiryDate ? expiryDate.toISOString() : null,
+      tax_rate: toDecimal(parsed.taxRate),
+      discount_type: mapDiscount(parsed.discountType),
+      discount_value: toDecimal(parsed.discountValue),
+      shipping_cost: toDecimal(parsed.shippingCost),
+      shipping_label: parsed.shippingLabel || null,
+      notes: parsed.notes || null,
+      terms: parsed.terms || null,
+      subtotal: String(totals.subtotal),
+      total: String(totals.total),
+      tax_total: String(totals.taxTotal),
+    })
+    .select("id, client_id, number")
+    .single();
 
-    return created;
+  if (error || !created) {
+    throw new Error(`Failed to create quote: ${error?.message ?? "Unknown error"}`);
+  }
+
+  const itemPayload = parsed.lines.map((line, index) => ({
+    quote_id: created.id,
+    product_template_id: line.productTemplateId ?? null,
+    name: line.name,
+    description: line.description || null,
+    quantity: String(line.quantity),
+    unit: line.unit || null,
+    unit_price: String(line.unitPrice),
+    discount_type: mapLineDiscount(line.discountType),
+    discount_value: toDecimal(line.discountValue),
+    total: String(totals.lineTotals[index].total),
+    order_index: line.orderIndex ?? index,
+    calculator_breakdown: line.calculatorBreakdown ?? null,
+  }));
+
+  if (itemPayload.length > 0) {
+    const { error: itemError } = await supabase.from("quote_items").insert(itemPayload);
+    if (itemError) {
+      await supabase.from("quotes").delete().eq("id", created.id);
+      throw new Error(`Failed to insert quote items: ${itemError.message}`);
+    }
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: created.client_id,
+    quote_id: created.id,
+    action: "QUOTE_CREATED",
+    message: `Quote ${created.number} created`,
   });
 
-  logger.info({ scope: "quotes.create", data: { id: quote.id } });
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.create.activity",
+      message: "Failed to record quote creation activity",
+      error: activityError,
+      data: { quoteId: created.id },
+    });
+  }
 
-  return quote;
+  logger.info({ scope: "quotes.create", data: { id: created.id } });
+
+  return loadQuoteDetail(created.id);
 }
 
 export async function updateQuote(id: number, payload: unknown) {
   const parsed = quoteInputSchema.parse(payload);
   const totals = computeTotals(parsed);
+  const supabase = getServiceSupabase();
+  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : undefined;
+  const expiryDate = parsed.expiryDate ? new Date(parsed.expiryDate) : null;
 
-  const quote = await prisma.$transaction(async (tx) => {
-    const updated = await tx.quote.update({
-      where: { id },
-      data: {
-        clientId: parsed.clientId,
-        issueDate: parsed.issueDate ? new Date(parsed.issueDate) : undefined,
-        expiryDate: parsed.expiryDate ? new Date(parsed.expiryDate) : null,
-        taxRate: toDecimal(parsed.taxRate) ?? "0",
-        discountType: mapDiscount(parsed.discountType),
-        discountValue: toDecimal(parsed.discountValue) ?? "0",
-        shippingCost: toDecimal(parsed.shippingCost) ?? "0",
-        shippingLabel: parsed.shippingLabel || null,
-        notes: parsed.notes || null,
-        terms: parsed.terms || null,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        items: {
-          deleteMany: {},
-          create: parsed.lines.map((line, index) => ({
-            productTemplateId: line.productTemplateId ?? undefined,
-            name: line.name,
-            description: line.description || null,
-            quantity: String(line.quantity),
-            unit: line.unit || null,
-            unitPrice: String(line.unitPrice),
-            discountType: mapLineDiscount(line.discountType),
-            discountValue: toDecimal(line.discountValue) ?? "0",
-            total: String(totals.lineTotals[index].total),
-            orderIndex: line.orderIndex ?? index,
-            calculatorBreakdown: line.calculatorBreakdown
-              ? (line.calculatorBreakdown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          })),
-        },
-      },
-      include: {
-        client: true,
-        items: true,
-      },
-    });
+  const { data: updated, error } = await supabase
+    .from("quotes")
+    .update({
+      client_id: parsed.clientId,
+      issue_date: issueDate ? issueDate.toISOString() : undefined,
+      expiry_date: expiryDate ? expiryDate.toISOString() : null,
+      tax_rate: toDecimal(parsed.taxRate),
+      discount_type: mapDiscount(parsed.discountType),
+      discount_value: toDecimal(parsed.discountValue),
+      shipping_cost: toDecimal(parsed.shippingCost),
+      shipping_label: parsed.shippingLabel || null,
+      notes: parsed.notes || null,
+      terms: parsed.terms || null,
+      subtotal: String(totals.subtotal),
+      total: String(totals.total),
+      tax_total: String(totals.taxTotal),
+    })
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
 
-    await tx.activityLog.create({
-      data: {
-        clientId: updated.clientId,
-        quoteId: updated.id,
-        action: "QUOTE_UPDATED",
-        message: `Quote ${updated.number} updated`,
-      },
-    });
+  if (error || !updated) {
+    throw new Error(`Failed to update quote: ${error?.message ?? "Unknown error"}`);
+  }
 
-    return updated;
+  const { error: deleteError } = await supabase
+    .from("quote_items")
+    .delete()
+    .eq("quote_id", id);
+  if (deleteError) {
+    throw new Error(`Failed to reset quote items: ${deleteError.message}`);
+  }
+
+  const itemPayload = parsed.lines.map((line, index) => ({
+    quote_id: id,
+    product_template_id: line.productTemplateId ?? null,
+    name: line.name,
+    description: line.description || null,
+    quantity: String(line.quantity),
+    unit: line.unit || null,
+    unit_price: String(line.unitPrice),
+    discount_type: mapLineDiscount(line.discountType),
+    discount_value: toDecimal(line.discountValue),
+    total: String(totals.lineTotals[index].total),
+    order_index: line.orderIndex ?? index,
+    calculator_breakdown: line.calculatorBreakdown ?? null,
+  }));
+
+  if (itemPayload.length > 0) {
+    const { error: insertError } = await supabase.from("quote_items").insert(itemPayload);
+    if (insertError) {
+      throw new Error(`Failed to insert quote items: ${insertError.message}`);
+    }
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: updated.client_id,
+    quote_id: updated.id,
+    action: "QUOTE_UPDATED",
+    message: `Quote ${updated.number} updated`,
   });
+
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.update.activity",
+      message: "Failed to record quote update activity",
+      error: activityError,
+      data: { quoteId: updated.id },
+    });
+  }
 
   logger.info({ scope: "quotes.update", data: { id } });
 
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function updateQuoteStatus(id: number, payload: unknown) {
   const parsed = quoteStatusSchema.parse(payload);
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: { status: parsed.status as QuoteStatus },
+  const supabase = getServiceSupabase();
+  const { data: quote, error } = await supabase
+    .from("quotes")
+    .update({ status: parsed.status })
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
+
+  if (error || !quote) {
+    throw new Error(`Failed to update quote status: ${error?.message ?? "Unknown error"}`);
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: quote.client_id,
+    quote_id: quote.id,
+    action: "QUOTE_STATUS",
+    message: `Quote ${quote.number} marked ${parsed.status.toLowerCase()}`,
   });
 
-  await prisma.activityLog.create({
-    data: {
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      action: "QUOTE_STATUS",
-      message: `Quote ${quote.number} marked ${parsed.status.toLowerCase()}`,
-    },
-  });
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.status.activity",
+      message: "Failed to record quote status activity",
+      error: activityError,
+      data: { quoteId: quote.id },
+    });
+  }
 
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function deleteQuote(id: number) {
-  const quote = await prisma.$transaction(async (tx) => {
-    const removed = await tx.quote.delete({ where: { id } });
+  const supabase = getServiceSupabase();
+  const { data: removed, error } = await supabase
+    .from("quotes")
+    .delete()
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
 
-    await tx.activityLog.create({
-      data: {
-        clientId: removed.clientId,
-        quoteId: removed.id,
-        action: "QUOTE_DELETED",
-        message: `Quote ${removed.number} deleted`,
-      },
-    });
+  if (error || !removed) {
+    throw new Error(`Failed to delete quote: ${error?.message ?? "Unknown error"}`);
+  }
 
-    return removed;
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: removed.client_id,
+    quote_id: removed.id,
+    action: "QUOTE_DELETED",
+    message: `Quote ${removed.number} deleted`,
   });
+
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.delete.activity",
+      message: "Failed to record quote deletion activity",
+      error: activityError,
+      data: { quoteId: removed.id },
+    });
+  }
 
   logger.info({ scope: "quotes.delete", data: { id } });
 
-  return quote;
+  return removed;
 }
 
 export async function convertQuoteToInvoice(id: number) {
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      items: { orderBy: { orderIndex: "asc" } },
-    },
-  });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("quotes")
+    .select(`*, items:quote_items(*), client:clients(id, name)`)
+    .eq("id", id)
+    .order("order_index", { foreignTable: "quote_items", ascending: true })
+    .maybeSingle();
 
-  if (!quote) {
+  if (error) {
+    throw new Error(`Failed to load quote: ${error.message}`);
+  }
+  if (!data) {
     throw new Error("Quote not found");
   }
 
+  const quote = data as QuoteDetailRow & { client: { id: number; name: string } };
   const totals = {
-    subtotal: decimalToNumber(quote.subtotal),
-    total: decimalToNumber(quote.total),
-    taxTotal: decimalToNumber(quote.taxTotal),
-    shippingCost: decimalToNumber(quote.shippingCost),
+    subtotal: Number(quote.subtotal ?? 0),
+    total: Number(quote.total ?? 0),
+    taxTotal: Number(quote.tax_total ?? 0),
   };
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const number = await nextDocumentNumber("invoice", tx);
+  const invoiceNumber = await nextDocumentNumber("invoice");
+  const now = new Date();
 
-    const created = await tx.invoice.create({
-      data: {
-        number,
-        clientId: quote.clientId,
-        sourceQuoteId: quote.id,
-        status: InvoiceStatus.PENDING,
-        issueDate: new Date(),
-        dueDate: null,
-        taxRate: quote.taxRate ?? "0",
-        discountType: quote.discountType,
-        discountValue: quote.discountValue ?? "0",
-        shippingCost: quote.shippingCost ?? "0",
-        shippingLabel: quote.shippingLabel,
-        notes: quote.notes,
-        terms: quote.terms,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        balanceDue: String(totals.total),
-        items: {
-          create: quote.items.map((item, index) => ({
-            productTemplateId: item.productTemplateId ?? undefined,
-            name: item.name,
-            description: item.description,
-            quantity: item.quantity,
-            unit: item.unit,
-            unitPrice: item.unitPrice,
-            discountType: item.discountType,
-            discountValue: item.discountValue ?? "0",
-            total: item.total,
-            orderIndex: item.orderIndex ?? index,
-            calculatorBreakdown: item.calculatorBreakdown ?? Prisma.JsonNull,
-          })),
-        },
-      },
-    });
+  const { data: created, error: invoiceError } = await supabase
+    .from("invoices")
+    .insert({
+      number: invoiceNumber,
+      client_id: quote.client_id,
+      source_quote_id: quote.id,
+      converted_from_quote_id: quote.id,
+      status: InvoiceStatus.PENDING,
+      issue_date: now.toISOString(),
+      due_date: null,
+      tax_rate: quote.tax_rate,
+      discount_type: quote.discount_type,
+      discount_value: quote.discount_value,
+      shipping_cost: quote.shipping_cost,
+      shipping_label: quote.shipping_label,
+      notes: quote.notes,
+      terms: quote.terms,
+      subtotal: String(totals.subtotal),
+      total: String(totals.total),
+      tax_total: String(totals.taxTotal),
+      balance_due: String(totals.total),
+    })
+    .select("id, client_id, number")
+    .single();
 
-    await tx.quote.update({
-      where: { id: quote.id },
-      data: {
-        status: QuoteStatus.CONVERTED,
-        convertedInvoiceId: created.id,
-      },
-    });
+  if (invoiceError || !created) {
+    throw new Error(`Failed to create invoice: ${invoiceError?.message ?? "Unknown error"}`);
+  }
 
-    await tx.activityLog.create({
-      data: {
-        clientId: quote.clientId,
-        quoteId: quote.id,
-        invoiceId: created.id,
-        action: "QUOTE_CONVERTED",
-        message: `Quote ${quote.number} converted to invoice ${created.number}`,
-      },
-    });
+  const itemPayload = (quote.items ?? quote.quote_items ?? []).map((item, index) => ({
+    invoice_id: created.id,
+    product_template_id: item.product_template_id ?? null,
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unit: item.unit,
+    unit_price: item.unit_price,
+    discount_type: item.discount_type,
+    discount_value: item.discount_value,
+    total: item.total,
+    order_index: item.order_index ?? index,
+    calculator_breakdown: item.calculator_breakdown ?? null,
+  }));
 
-    return created;
+  if (itemPayload.length > 0) {
+    const { error: itemsError } = await supabase.from("invoice_items").insert(itemPayload);
+    if (itemsError) {
+      await supabase.from("invoices").delete().eq("id", created.id);
+      throw new Error(`Failed to copy quote items to invoice: ${itemsError.message}`);
+    }
+  }
+
+  const { error: updateQuoteError } = await supabase
+    .from("quotes")
+    .update({ status: QuoteStatusEnum.CONVERTED, converted_invoice_id: created.id })
+    .eq("id", id);
+  if (updateQuoteError) {
+    logger.error({ scope: "quotes.convert", error: updateQuoteError, data: { quoteId: id } });
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: quote.client_id,
+    quote_id: quote.id,
+    invoice_id: created.id,
+    action: "QUOTE_CONVERTED",
+    message: `Quote ${quote.number} converted to invoice ${created.number}`,
   });
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.convert.activity",
+      message: "Failed to record quote conversion activity",
+      error: activityError,
+      data: { quoteId: quote.id, invoiceId: created.id },
+    });
+  }
 
-  logger.info({
-    scope: "quotes.convert",
-    data: { quoteId: id, invoiceId: invoice.id },
-  });
+  logger.info({ scope: "quotes.convert", data: { quoteId: id, invoiceId: created.id } });
 
   const policy = await getJobCreationPolicy();
   if (policy === JobCreationPolicy.ON_INVOICE) {
-    await ensureJobForInvoice(invoice.id);
+    await ensureJobForInvoice(created.id);
   }
 
-  return invoice;
+  return getInvoice(created.id);
 }
 
 export async function sendQuote(id: number) {
-  const quote = await prisma.quote.update({ where: { id }, data: { sentAt: new Date(), status: QuoteStatus.PENDING } });
-  await prisma.activityLog.create({
-    data: {
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      action: "QUOTE_SENT",
-      message: `Quote ${quote.number} sent`,
-    },
+  const supabase = getServiceSupabase();
+  const { data: quote, error } = await supabase
+    .from("quotes")
+    .update({ sent_at: new Date().toISOString(), status: QuoteStatusEnum.PENDING })
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
+
+  if (error || !quote) {
+    throw new Error(`Failed to mark quote sent: ${error?.message ?? "Unknown error"}`);
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: quote.client_id,
+    quote_id: quote.id,
+    action: "QUOTE_SENT",
+    message: `Quote ${quote.number} sent`,
   });
+
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.send.activity",
+      message: "Failed to record quote sent activity",
+      error: activityError,
+      data: { quoteId: quote.id },
+    });
+  }
+
   logger.info({ scope: "quotes.send", data: { id } });
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function acceptQuote(id: number, note?: string) {
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: { status: QuoteStatus.ACCEPTED, acceptedAt: new Date(), decisionNote: note ?? null },
+  const supabase = getServiceSupabase();
+  const { data: quote, error } = await supabase
+    .from("quotes")
+    .update({
+      status: QuoteStatusEnum.ACCEPTED,
+      accepted_at: new Date().toISOString(),
+      decision_note: note ?? null,
+    })
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
+
+  if (error || !quote) {
+    throw new Error(`Failed to accept quote: ${error?.message ?? "Unknown error"}`);
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: quote.client_id,
+    quote_id: quote.id,
+    action: "QUOTE_ACCEPTED",
+    message: `Quote ${quote.number} accepted`,
+    metadata: note ? { note } : null,
   });
-  await prisma.activityLog.create({
-    data: {
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      action: "QUOTE_ACCEPTED",
-      message: `Quote ${quote.number} accepted`,
-      metadata: note ? { note } : undefined,
-    },
-  });
+
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.accept.activity",
+      message: "Failed to record quote acceptance",
+      error: activityError,
+      data: { quoteId: quote.id },
+    });
+  }
+
   logger.info({ scope: "quotes.accept", data: { id } });
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function declineQuote(id: number, note?: string) {
-  const quote = await prisma.quote.update({
-    where: { id },
-    data: { status: QuoteStatus.DECLINED, declinedAt: new Date(), decisionNote: note ?? null },
+  const supabase = getServiceSupabase();
+  const { data: quote, error } = await supabase
+    .from("quotes")
+    .update({
+      status: QuoteStatusEnum.DECLINED,
+      declined_at: new Date().toISOString(),
+      decision_note: note ?? null,
+    })
+    .eq("id", id)
+    .select("id, client_id, number")
+    .single();
+
+  if (error || !quote) {
+    throw new Error(`Failed to decline quote: ${error?.message ?? "Unknown error"}`);
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: quote.client_id,
+    quote_id: quote.id,
+    action: "QUOTE_DECLINED",
+    message: `Quote ${quote.number} declined`,
+    metadata: note ? { note } : null,
   });
-  await prisma.activityLog.create({
-    data: {
-      clientId: quote.clientId,
-      quoteId: quote.id,
-      action: "QUOTE_DECLINED",
-      message: `Quote ${quote.number} declined`,
-      metadata: note ? { note } : undefined,
-    },
-  });
+
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.decline.activity",
+      message: "Failed to record quote decline",
+      error: activityError,
+      data: { quoteId: quote.id },
+    });
+  }
+
   logger.info({ scope: "quotes.decline", data: { id } });
-  return quote;
+  return loadQuoteDetail(id);
 }
 
 export async function duplicateQuote(id: number) {
-  const quote = await prisma.quote.findUnique({
-    where: { id },
-    include: { items: { orderBy: { orderIndex: "asc" } } },
-  });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("quotes")
+    .select(`*, items:quote_items(*)`)
+    .eq("id", id)
+    .order("order_index", { foreignTable: "quote_items", ascending: true })
+    .maybeSingle();
 
-  if (!quote) {
+  if (error) {
+    throw new Error(`Failed to load quote: ${error.message}`);
+  }
+  if (!data) {
     throw new Error("Quote not found");
   }
 
-  const totals = {
-    subtotal: decimalToNumber(quote.subtotal),
-    total: decimalToNumber(quote.total),
-    taxTotal: decimalToNumber(quote.taxTotal),
-  };
+  const quote = data as QuoteDetailRow;
+  const number = await nextDocumentNumber("quote");
+  const now = new Date();
 
-  const duplicate = await prisma.$transaction(async (tx) => {
-    const number = await nextDocumentNumber("quote", tx);
+  const { data: created, error: duplicateError } = await supabase
+    .from("quotes")
+    .insert({
+      number,
+      client_id: quote.client_id,
+      status: QuoteStatusEnum.DRAFT,
+      issue_date: now.toISOString(),
+      expiry_date: quote.expiry_date,
+      tax_rate: quote.tax_rate,
+      discount_type: quote.discount_type,
+      discount_value: quote.discount_value,
+      shipping_cost: quote.shipping_cost,
+      shipping_label: quote.shipping_label,
+      notes: quote.notes,
+      terms: quote.terms,
+      subtotal: quote.subtotal,
+      total: quote.total,
+      tax_total: quote.tax_total,
+    })
+    .select("id, client_id, number")
+    .single();
 
-    const created = await tx.quote.create({
-      data: {
-        number,
-        clientId: quote.clientId,
-        status: QuoteStatus.DRAFT,
-        issueDate: new Date(),
-        expiryDate: quote.expiryDate,
-        taxRate: quote.taxRate,
-        discountType: quote.discountType,
-        discountValue: quote.discountValue,
-        shippingCost: quote.shippingCost,
-        shippingLabel: quote.shippingLabel,
-        notes: quote.notes,
-        terms: quote.terms,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        items: {
-          create: quote.items.map((item, index) => ({
-            productTemplateId: item.productTemplateId ?? undefined,
-            name: item.name,
-            description: item.description,
-            quantity: item.quantity,
-            unit: item.unit,
-            unitPrice: item.unitPrice,
-            discountType: item.discountType,
-            discountValue: item.discountValue ?? "0",
-            total: item.total,
-            orderIndex: item.orderIndex ?? index,
-            calculatorBreakdown: item.calculatorBreakdown ?? Prisma.JsonNull,
-          })),
-        },
-      },
-    });
+  if (duplicateError || !created) {
+    throw new Error(`Failed to duplicate quote: ${duplicateError?.message ?? "Unknown error"}`);
+  }
 
-    await tx.activityLog.create({
-      data: {
-        clientId: created.clientId,
-        quoteId: created.id,
-        action: "QUOTE_DUPLICATED",
-        message: `Quote ${created.number} duplicated from ${quote.number}`,
-      },
-    });
+  const itemPayload = (quote.items ?? quote.quote_items ?? []).map((item, index) => ({
+    quote_id: created.id,
+    product_template_id: item.product_template_id ?? null,
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unit: item.unit,
+    unit_price: item.unit_price,
+    discount_type: item.discount_type,
+    discount_value: item.discount_value,
+    total: item.total,
+    order_index: item.order_index ?? index,
+    calculator_breakdown: item.calculator_breakdown ?? null,
+  }));
 
-    return created;
+  if (itemPayload.length > 0) {
+    const { error: itemsError } = await supabase.from("quote_items").insert(itemPayload);
+    if (itemsError) {
+      await supabase.from("quotes").delete().eq("id", created.id);
+      throw new Error(`Failed to duplicate quote items: ${itemsError.message}`);
+    }
+  }
+
+  const { error: activityError } = await supabase.from("activity_logs").insert({
+    client_id: created.client_id,
+    quote_id: created.id,
+    action: "QUOTE_DUPLICATED",
+    message: `Quote ${created.number} duplicated from ${quote.number}`,
   });
 
-  logger.info({
-    scope: "quotes.duplicate",
-    data: { sourceId: id, newId: duplicate.id },
-  });
+  if (activityError) {
+    logger.warn({
+      scope: "quotes.duplicate.activity",
+      message: "Failed to record quote duplication",
+      error: activityError,
+      data: { quoteId: created.id },
+    });
+  }
 
-  return duplicate;
+  logger.info({ scope: "quotes.duplicate", data: { sourceId: id, newId: created.id } });
+
+  return { id: created.id, number: created.number };
 }

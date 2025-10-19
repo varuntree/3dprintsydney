@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
-import { saveTmpFile } from "@/server/files/tmp";
+import { saveTmpFile } from "@/server/services/tmp-files";
 
 export const runtime = "nodejs";
 
@@ -27,8 +27,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `File too large: ${name}` }, { status: 400 });
       }
       const buf = Buffer.from(await entry.arrayBuffer());
-      const saved = await saveTmpFile(String(user.id), name, buf);
-      results.push({ id: saved.tmpId, filename: saved.filename, size: saved.size, type: entry.type || "application/octet-stream" });
+      const { record, tmpId } = await saveTmpFile(
+        user.id,
+        name,
+        buf,
+        entry.type || "application/octet-stream",
+      );
+      results.push({
+        id: tmpId,
+        filename: record.filename,
+        size: record.size_bytes,
+        type: record.mime_type || "application/octet-stream",
+      });
     }
     return NextResponse.json({ data: results });
   } catch (error) {

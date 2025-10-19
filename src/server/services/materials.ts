@@ -1,6 +1,6 @@
-import { prisma } from "@/server/db/client";
 import { logger } from "@/lib/logger";
 import { materialInputSchema } from "@/lib/schemas/catalog";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
 export type MaterialDTO = {
   id: number;
@@ -13,21 +13,30 @@ export type MaterialDTO = {
   updatedAt: Date;
 };
 
-function serialize(
-  material: Awaited<ReturnType<typeof prisma.material.findFirst>>,
-): MaterialDTO {
-  if (!material) {
+type MaterialRow = {
+  id: number;
+  name: string;
+  color: string | null;
+  category: string | null;
+  cost_per_gram: string | number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapMaterial(row: MaterialRow | null): MaterialDTO {
+  if (!row) {
     throw new Error("Material not found");
   }
   return {
-    id: material.id,
-    name: material.name,
-    color: material.color ?? "",
-    category: material.category ?? "",
-    costPerGram: Number(material.costPerGram),
-    notes: material.notes ?? "",
-    createdAt: material.createdAt,
-    updatedAt: material.updatedAt,
+    id: row.id,
+    name: row.name,
+    color: row.color ?? "",
+    category: row.category ?? "",
+    costPerGram: Number(row.cost_per_gram ?? 0),
+    notes: row.notes ?? "",
+    createdAt: new Date(row.created_at),
+    updatedAt: new Date(row.updated_at),
   };
 }
 
@@ -38,107 +47,156 @@ export async function listMaterials(options?: {
   sort?: "name" | "updatedAt";
   order?: "asc" | "desc";
 }): Promise<MaterialDTO[]> {
-  const where = options?.q
-    ? {
-        OR: [
-          { name: { contains: options.q } },
-          { color: { contains: options.q } },
-          { category: { contains: options.q } },
-        ],
-      }
-    : undefined;
-  const orderBy = options?.sort
-    ? { [options.sort]: options.order ?? "asc" }
-    : { name: "asc" as const };
-  const materials = await prisma.material.findMany({
-    where,
-    orderBy,
-    take: options?.limit,
-    skip: options?.offset,
+  const supabase = getServiceSupabase();
+  let query = supabase
+    .from("materials")
+    .select("*")
+    .order(
+      options?.sort === "updatedAt" ? "updated_at" : "name",
+      {
+        ascending: (options?.order ?? "asc") === "asc",
+        nullsFirst: false,
+      },
+    );
+
+  if (options?.q) {
+    const term = options.q.trim();
+    if (term.length > 0) {
+      query = query.or(
+        `name.ilike.%${term}%,color.ilike.%${term}%,category.ilike.%${term}%`,
+      );
+    }
+  }
+
+  if (typeof options?.limit === "number") {
+    const limit = Math.max(1, options.limit);
+    const offset = Math.max(0, options.offset ?? 0);
+    query = query.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list materials: ${error.message}`);
+  }
+  return (data as MaterialRow[]).map(mapMaterial);
+}
+
+async function insertActivity(action: string, message: string, materialId: number) {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from("activity_logs").insert({
+    action,
+    message,
+    metadata: { materialId },
   });
-  return materials.map((material) => serialize(material));
+  if (error) {
+    logger.warn({
+      scope: "materials.activity",
+      message: "Failed to record material activity",
+      error,
+      data: { materialId, action },
+    });
+  }
 }
 
 export async function createMaterial(payload: unknown) {
   const parsed = materialInputSchema.parse(payload);
-  const material = await prisma.$transaction(async (tx) => {
-    const created = await tx.material.create({
-      data: {
-        name: parsed.name,
-        color: parsed.color || null,
-        category: parsed.category || null,
-        costPerGram: String(parsed.costPerGram),
-        notes: parsed.notes || null,
-      },
-    });
+  const supabase = getServiceSupabase();
 
-    await tx.activityLog.create({
-      data: {
-        action: "MATERIAL_CREATED",
-        message: `Material ${created.name} created`,
-        metadata: { materialId: created.id },
-      },
-    });
+  const { data, error } = await supabase
+    .from("materials")
+    .insert({
+      name: parsed.name,
+      color: parsed.color || null,
+      category: parsed.category || null,
+      cost_per_gram: String(parsed.costPerGram),
+      notes: parsed.notes || null,
+    })
+    .select("*")
+    .single();
 
-    return created;
-  });
+  if (error || !data) {
+    throw new Error(`Failed to create material: ${error?.message ?? "Unknown error"}`);
+  }
 
-  logger.info({ scope: "materials.create", data: { id: material.id } });
+  await insertActivity(
+    "MATERIAL_CREATED",
+    `Material ${data.name} created`,
+    data.id,
+  );
 
-  return serialize(material);
+  logger.info({ scope: "materials.create", data: { id: data.id } });
+  return mapMaterial(data as MaterialRow);
 }
 
 export async function updateMaterial(id: number, payload: unknown) {
   const parsed = materialInputSchema.parse(payload);
-  const material = await prisma.$transaction(async (tx) => {
-    const updated = await tx.material.update({
-      where: { id },
-      data: {
-        name: parsed.name,
-        color: parsed.color || null,
-        category: parsed.category || null,
-        costPerGram: String(parsed.costPerGram),
-        notes: parsed.notes || null,
-      },
-    });
+  const supabase = getServiceSupabase();
 
-    await tx.activityLog.create({
-      data: {
-        action: "MATERIAL_UPDATED",
-        message: `Material ${updated.name} updated`,
-        metadata: { materialId: updated.id },
-      },
-    });
+  const { data, error } = await supabase
+    .from("materials")
+    .update({
+      name: parsed.name,
+      color: parsed.color || null,
+      category: parsed.category || null,
+      cost_per_gram: String(parsed.costPerGram),
+      notes: parsed.notes || null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
 
-    return updated;
-  });
+  if (error || !data) {
+    throw new Error(`Failed to update material: ${error?.message ?? "Unknown error"}`);
+  }
+
+  await insertActivity(
+    "MATERIAL_UPDATED",
+    `Material ${data.name} updated`,
+    data.id,
+  );
 
   logger.info({ scope: "materials.update", data: { id } });
-
-  return serialize(material);
+  return mapMaterial(data as MaterialRow);
 }
 
 export async function deleteMaterial(id: number) {
-  // Guard: prevent delete if referenced by any product templates
-  const inUse = await prisma.productTemplate.count({ where: { materialId: id } });
-  if (inUse > 0) {
-    const err = new Error("Cannot delete material: it is referenced by product templates");
-    (err as unknown as { status?: number }).status = 422;
+  const supabase = getServiceSupabase();
+  const { count, error: countError } = await supabase
+    .from("product_templates")
+    .select("id", { count: "exact", head: true })
+    .eq("material_id", id);
+
+  if (countError) {
+    throw new Error(`Failed to verify material usage: ${countError.message}`);
+  }
+
+  if ((count ?? 0) > 0) {
+    const err = new Error(
+      "Cannot delete material: it is referenced by product templates",
+    );
+    (err as HttpError).status = 422;
     throw err;
   }
-  const material = await prisma.$transaction(async (tx) => {
-    const removed = await tx.material.delete({ where: { id } });
-    await tx.activityLog.create({
-      data: {
-        action: "MATERIAL_DELETED",
-        message: `Material ${removed.name} deleted`,
-        metadata: { materialId: removed.id },
-      },
-    });
-    return removed;
-  });
+
+  const { data, error } = await supabase
+    .from("materials")
+    .delete()
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to delete material: ${error?.message ?? "Unknown error"}`);
+  }
+
+  await insertActivity(
+    "MATERIAL_DELETED",
+    `Material ${data.name} deleted`,
+    data.id,
+  );
 
   logger.info({ scope: "materials.delete", data: { id } });
-
-  return serialize(material);
+  return mapMaterial(data as MaterialRow);
 }
+
+type HttpError = Error & { status?: number };

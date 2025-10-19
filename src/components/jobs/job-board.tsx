@@ -29,19 +29,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
-import {
-  type JobPriority,
-  type JobStatus,
-  type InvoiceStatus,
-  type PrinterStatus,
-} from "@prisma/client";
+import type {
+  JobPriority as JobPriorityType,
+  JobStatus as JobStatusType,
+  InvoiceStatus as InvoiceStatusType,
+  PrinterStatus as PrinterStatusType,
+} from "@/lib/constants/enums";
 import {
   jobPriorityValues,
   jobUpdateSchema,
   type JobUpdateInput,
 } from "@/lib/schemas/jobs";
 import { getJson, mutateJson } from "@/lib/http";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,6 +96,7 @@ import {
 import {
   AlertCircle,
   ArrowRight,
+  CalendarClock,
   Check,
   Clock,
   Pause,
@@ -105,6 +106,7 @@ import {
   X,
   Pencil,
   Package as PackageIcon,
+  Zap,
 } from "lucide-react";
 
 export type JobBoardClientSnapshot = {
@@ -116,7 +118,7 @@ export type JobBoardClientColumn = {
   key: string;
   printerId: number | null;
   printerName: string;
-  printerStatus: PrinterStatus | "UNASSIGNED";
+  printerStatus: PrinterStatusType | "UNASSIGNED";
   jobs: JobCardClient[];
   metrics: ColumnMetrics;
 };
@@ -125,15 +127,15 @@ export type JobCardClient = {
   id: number;
   title: string;
   description: string | null;
-  status: JobStatus;
-  priority: JobPriority;
+  status: JobStatusType;
+  priority: JobPriorityType;
   printerId: number | null;
   printerName: string | null;
   queuePosition: number;
   clientName: string;
   invoiceId: number;
   invoiceNumber: string;
-  invoiceStatus: InvoiceStatus;
+  invoiceStatus: InvoiceStatusType;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -164,20 +166,20 @@ type JobsBoardProps = {
 
 const queryKey = ["jobs-board"] as const;
 
-const priorityLabels: Record<JobPriority, string> = {
+const priorityLabels: Record<JobPriorityType, string> = {
   NORMAL: "Normal",
   FAST_TRACK: "Fast Track",
   URGENT: "Urgent",
 };
 
-const priorityStyles: Record<JobPriority, string> = {
+const priorityStyles: Record<JobPriorityType, string> = {
   NORMAL: "border-border bg-surface-overlay text-muted-foreground",
   FAST_TRACK: "border-border bg-warning-subtle text-warning-foreground",
   URGENT: "border-border bg-danger-subtle text-destructive",
 };
 
 // Status labels - kept for dialog descriptions
-const statusLabels: Record<JobStatus, string> = {
+const statusLabels: Record<JobStatusType, string> = {
   QUEUED: "Queued",
   PRE_PROCESSING: "Pre-processing",
   IN_QUEUE: "In queue",
@@ -192,7 +194,7 @@ const statusLabels: Record<JobStatus, string> = {
 };
 
 type JobActionDefinition = {
-  status: JobStatus;
+  status: JobStatusType;
   icon: ComponentType<{ className?: string }>;
   label: string;
   tone?: "default" | "danger";
@@ -247,7 +249,7 @@ function getJobActions(job: JobCardClient): JobActionDefinition[] {
     actions.push({ status: "CANCELLED", icon: X, label: "Cancel job", tone: "danger" });
   }
 
-  const unique = new Map<JobStatus, JobActionDefinition>();
+  const unique = new Map<JobStatusType, JobActionDefinition>();
   actions.forEach((action) => {
     if (action.status !== job.status) {
       unique.set(action.status, action);
@@ -293,7 +295,13 @@ function recalcColumns(
   return columns.map((column) => {
     const metrics = column.jobs.reduce(
       (acc, job) => {
-        if (job.status === "QUEUED") acc.queuedCount += 1;
+        if (
+          job.status === "QUEUED" ||
+          job.status === "PRE_PROCESSING" ||
+          job.status === "IN_QUEUE"
+        ) {
+          acc.queuedCount += 1;
+        }
         if (job.status === "PRINTING") acc.activeCount += 1;
         if (typeof job.estimatedHours === "number") {
           acc.totalEstimatedHours += job.estimatedHours;
@@ -398,8 +406,14 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   const [editingJob, setEditingJob] = useState<JobCardClient | null>(null);
   const [statusPrompt, setStatusPrompt] = useState<{
     job: JobCardClient;
-    status: JobStatus;
+    status: JobStatusType;
   } | null>(null);
+  const [assignPrompt, setAssignPrompt] = useState<{
+    job: JobCardClient;
+    status: JobStatusType;
+  } | null>(null);
+  const [assignSelection, setAssignSelection] = useState<number | null>(null);
+  const [assigning, setAssigning] = useState(false);
   const [statusNote, setStatusNote] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
@@ -440,7 +454,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   function buildJobsUrl(mode: ViewMode) {
     const params = new URLSearchParams();
     if (mode === "active") {
-      ["QUEUED", "PRINTING", "PAUSED"].forEach((s) =>
+      ["PRE_PROCESSING", "QUEUED", "IN_QUEUE", "PRINTING", "PAUSED"].forEach((s) =>
         params.append("status", s),
       );
       params.set("archived", "false");
@@ -520,7 +534,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       note,
     }: {
       id: number;
-      status: JobStatus;
+      status: JobStatusType;
       note?: string;
     }) =>
       mutateJson(`/api/jobs/${id}/status`, {
@@ -842,6 +856,92 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       }));
   }, [board.columns]);
 
+  useEffect(() => {
+    if (!assignPrompt) {
+      setAssignSelection(null);
+      return;
+    }
+    if (assignPrompt.job.printerId) {
+      setAssignSelection(assignPrompt.job.printerId);
+      return;
+    }
+    const fallback = printerOptions[0]?.id ?? null;
+    setAssignSelection(fallback ?? null);
+  }, [assignPrompt, printerOptions]);
+
+function requiresPrinter(status: JobStatusType) {
+    return status === "IN_QUEUE" || status === "PRINTING";
+  }
+
+function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
+    if (requiresPrinter(status) && printerOptions.length === 0) {
+      toast.error("Add a printer before assigning jobs to the queue.");
+      return;
+    }
+
+    if (requiresPrinter(status)) {
+      setAssignPrompt({ job, status });
+      return;
+    }
+
+    setStatusPrompt({ job, status });
+    setStatusNote("");
+  }
+
+  async function confirmAssignAndProceed() {
+    if (!assignPrompt) return;
+    const selectedId = assignSelection;
+    if (selectedId === null) {
+      toast.error("Select a printer to continue.");
+      return;
+    }
+
+    const { job, status } = assignPrompt;
+    try {
+      setAssigning(true);
+      const printerName = resolvePrinterName(selectedId) ?? job.printerName;
+      if (job.printerId !== selectedId) {
+        await mutateJson(`/api/jobs/${job.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title: job.title,
+            description: job.description,
+            priority: job.priority,
+            printerId: selectedId,
+            estimatedHours: job.estimatedHours,
+            notes: job.notes,
+          }),
+        });
+
+        applyLocalJobUpdate(job.id, (existing) => ({
+          ...existing,
+          printerId: selectedId,
+          printerName,
+        }));
+
+        await queryClient.invalidateQueries({ queryKey });
+      }
+
+      setAssignPrompt(null);
+      setStatusPrompt({
+        job: {
+          ...job,
+          printerId: selectedId,
+          printerName,
+        },
+        status,
+      });
+      setStatusNote("");
+      toast.success("Printer assigned");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to assign printer",
+      );
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   return (
     <TooltipProvider delayDuration={100}>
       <div className="space-y-6">
@@ -982,10 +1082,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                   column={column}
                   activeId={activeId}
                   onEdit={setEditingJob}
-                  onRequestStatus={(job, status) => {
-                    setStatusPrompt({ job, status });
-                    setStatusNote("");
-                  }}
+                  onRequestStatus={handleRequestStatus}
                   onArchive={(job) => archiveMutation.mutate({ id: job.id })}
                   selected={selected}
                   onToggleSelected={(id, on) => {
@@ -1076,7 +1173,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
                           <Select
                             value={field.value}
                             onValueChange={(value) =>
-                              field.onChange(value as JobPriority)
+                              field.onChange(value as JobPriorityType)
                             }
                           >
                             <FormControl>
@@ -1212,6 +1309,72 @@ export function JobsBoard({ initial }: JobsBoardProps) {
         </Sheet>
 
         <Dialog
+          open={Boolean(assignPrompt)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setAssignPrompt(null);
+              setAssignSelection(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md rounded-3xl shadow-sm shadow-black/5">
+            <DialogHeader>
+              <DialogTitle>Select a printer</DialogTitle>
+              <DialogDescription>
+                {assignPrompt
+                  ? `Choose where to send ${assignPrompt.job.title} before updating the status.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {printerOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No printers available. Add a printer in the admin settings to queue jobs.
+              </p>
+            ) : (
+              <Select
+                value={assignSelection ? String(assignSelection) : undefined}
+                onValueChange={(value) => setAssignSelection(Number(value))}
+              >
+                <SelectTrigger className="rounded-full">
+                  <SelectValue placeholder="Select printer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {printerOptions.map((printer) => (
+                    <SelectItem key={printer.id} value={String(printer.id)}>
+                      {printer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => {
+                  setAssignPrompt(null);
+                  setAssignSelection(null);
+                }}
+                disabled={assigning}
+              >
+                Cancel
+              </Button>
+              <LoadingButton
+                type="button"
+                className="rounded-full"
+                onClick={confirmAssignAndProceed}
+                loading={assigning}
+                loadingText="Assigning…"
+                disabled={printerOptions.length === 0}
+              >
+                Continue
+              </LoadingButton>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
           open={Boolean(statusPrompt)}
           onOpenChange={(open) => {
             if (!open) {
@@ -1286,7 +1449,7 @@ function JobColumn({
   column: JobBoardClientColumn;
   activeId: number | null;
   onEdit: (job: JobCardClient | null) => void;
-  onRequestStatus: (job: JobCardClient, status: JobStatus) => void;
+  onRequestStatus: (job: JobCardClient, status: JobStatusType) => void;
   onArchive: (job: JobCardClient) => void;
   selected: Set<number>;
   onToggleSelected: (id: number, on: boolean) => void;
@@ -1377,7 +1540,7 @@ function JobCard({
   columnKey: string;
   active: boolean;
   onEdit: () => void;
-  onRequestStatus: (job: JobCardClient, status: JobStatus) => void;
+  onRequestStatus: (job: JobCardClient, status: JobStatusType) => void;
   onArchive: () => void;
   selected: boolean;
   onToggleSelected: (on: boolean) => void;
@@ -1401,6 +1564,22 @@ function JobCard({
   };
 
   const jobActions = getJobActions(job);
+  const createdAtDate = useMemo(() => new Date(job.createdAt), [job.createdAt]);
+  const queuedRelative = useMemo(
+    () => formatDistanceToNow(createdAtDate, { addSuffix: true }),
+    [createdAtDate],
+  );
+  const queuedDisplay = useMemo(
+    () => `${format(createdAtDate, "d MMM yyyy")} · ${format(createdAtDate, "h:mm a")}`,
+    [createdAtDate],
+  );
+  const startedRelative = useMemo(
+    () =>
+      job.startedAt
+        ? formatDistanceToNow(new Date(job.startedAt), { addSuffix: true })
+        : null,
+    [job.startedAt],
+  );
 
   return (
     <div
@@ -1440,10 +1619,22 @@ function JobCard({
             priorityStyles[job.priority],
           )}
         >
-          {priorityLabels[job.priority]}
+          {job.priority === "FAST_TRACK" ? (
+            <span className="inline-flex items-center gap-1">
+              <Zap className="h-3 w-3" />
+              {priorityLabels[job.priority]}
+            </span>
+          ) : (
+            priorityLabels[job.priority]
+          )}
         </Badge>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1 text-muted-foreground/80">
+          <CalendarClock className="h-3 w-3" />
+          Queued {queuedDisplay}
+          <span className="text-muted-foreground/70">({queuedRelative})</span>
+        </span>
         <StatusBadge
           status={job.status}
           variant="default"
@@ -1456,11 +1647,8 @@ function JobCard({
             {job.estimatedHours.toFixed(1)}h
           </span>
         ) : null}
-        {job.startedAt ? (
-          <span>
-            Started{" "}
-            {formatDistanceToNow(new Date(job.startedAt), { addSuffix: true })}
-          </span>
+        {startedRelative ? (
+          <span className="text-muted-foreground/80">Started {startedRelative}</span>
         ) : null}
       </div>
       <div className="mt-3 flex items-center justify-between gap-2">

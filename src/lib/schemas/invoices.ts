@@ -28,6 +28,11 @@ export const invoiceInputSchema = z.object({
   shippingLabel: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
   terms: z.string().optional().or(z.literal("")),
+  poNumber: z
+    .string()
+    .max(120, "PO number is too long")
+    .optional()
+    .or(z.literal("")),
   lines: z.array(invoiceLineSchema).min(1),
 });
 

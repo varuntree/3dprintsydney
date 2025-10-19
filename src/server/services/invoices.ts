@@ -1,49 +1,24 @@
-import {
-  InvoiceStatus,
-  JobCreationPolicy,
-  PaymentMethod,
-  Prisma,
-  DiscountType,
-  QuoteStatus,
-} from "@prisma/client";
-import { prisma } from "@/server/db/client";
-import { logger } from "@/lib/logger";
+import { addDays } from 'date-fns';
+import { logger } from '@/lib/logger';
+import { DiscountType, InvoiceStatus, JobStatus, PaymentMethod } from '@/lib/constants/enums';
 import {
   calculateLineTotal,
   calculateDocumentTotals,
-} from "@/lib/calculations";
-import { addDays } from "date-fns";
+} from '@/lib/calculations';
 import {
   invoiceInputSchema,
   paymentInputSchema,
   type InvoiceInput,
-} from "@/lib/schemas/invoices";
-import { nextDocumentNumber } from "@/server/services/numbering";
-import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
-import { resolvePaymentTermsOptions } from "@/server/services/settings";
-import {
-  ensureStorage,
-  saveInvoiceFile,
-  deleteInvoiceFile,
-  readInvoiceFile,
-  fileInfo,
-} from "@/server/files/storage";
+} from '@/lib/schemas/invoices';
+import { getServiceSupabase } from '@/server/supabase/service-client';
+import { nextDocumentNumber } from '@/server/services/numbering';
+import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
+import { resolvePaymentTermsOptions } from '@/server/services/settings';
+import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
-  return String(Number.isFinite(value) ? value : 0);
-}
-
-function mapDiscount(type: InvoiceInput["discountType"]) {
-  if (type === "PERCENT") return DiscountType.PERCENT;
-  if (type === "FIXED") return DiscountType.FIXED;
-  return DiscountType.NONE;
-}
-
-function mapLineDiscount(type: InvoiceInput["lines"][number]["discountType"]) {
-  if (type === "PERCENT") return DiscountType.PERCENT;
-  if (type === "FIXED") return DiscountType.FIXED;
-  return DiscountType.NONE;
+  return Number.isFinite(value) ? String(value) : '0';
 }
 
 function computeTotals(payload: InvoiceInput) {
@@ -77,570 +52,532 @@ type ResolvedPaymentTerm = {
   code: string;
   label: string;
   days: number;
-  source: "client" | "default";
+  source: 'client' | 'default';
 };
 
-async function resolveClientPaymentTerm(
-  tx: Prisma.TransactionClient,
-  clientId: number,
-): Promise<ResolvedPaymentTerm> {
-  const client = await tx.client.findUnique({
-    where: { id: clientId },
-    select: { paymentTerms: true },
-  });
-
-  if (!client) {
-    throw new Error("Client not found");
+async function resolveClientPaymentTerm(clientId: number): Promise<ResolvedPaymentTerm> {
+  const supabase = getServiceSupabase();
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('payment_terms')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (clientError) {
+    throw new Error(`Failed to fetch client: ${clientError.message}`);
   }
-
-  const { paymentTerms, defaultPaymentTerms } = await resolvePaymentTermsOptions(tx);
+  if (!client) {
+    throw new Error('Client not found');
+  }
+  const { paymentTerms, defaultPaymentTerms } = await resolvePaymentTermsOptions();
   if (paymentTerms.length === 0) {
     return {
       code: defaultPaymentTerms,
       label: defaultPaymentTerms,
       days: 0,
-      source: "default",
+      source: 'default',
     };
   }
-
-  const candidateCode = client.paymentTerms?.trim() || defaultPaymentTerms;
+  const candidateCode = client.payment_terms?.trim() || defaultPaymentTerms;
   const match = paymentTerms.find((term) => term.code === candidateCode);
   if (match) {
-    return { ...match, source: client.paymentTerms ? "client" : "default" };
+    return { ...match, source: client.payment_terms ? 'client' : 'default' };
   }
-
-  const fallback = paymentTerms.find(
-    (term) => term.code === defaultPaymentTerms,
-  );
+  const fallback = paymentTerms.find((term) => term.code === defaultPaymentTerms);
   if (fallback) {
-    return { ...fallback, source: "default" };
+    return { ...fallback, source: 'default' };
   }
-
   const [first] = paymentTerms;
-  return { ...first, source: "default" };
+  return { ...first, source: 'default' };
 }
 
-function deriveDueDate(
-  issueDate: Date,
-  term: ResolvedPaymentTerm,
-  explicit?: Date | null,
-) {
+function deriveDueDate(issueDate: Date, term: ResolvedPaymentTerm, explicit?: Date | null) {
   if (explicit) {
     return explicit;
   }
-
   if (!term || term.days <= 0) {
     return issueDate;
   }
-
   return addDays(issueDate, term.days);
+}
+
+type InvoiceRow = {
+  id: number;
+  number: string;
+  client_id: number;
+  status: string;
+  total: string;
+  balance_due: string;
+  issue_date: string;
+  due_date: string | null;
+  stripe_checkout_url: string | null;
+  created_at?: string;
+  updated_at?: string;
+  clients?: { id: number; name: string; payment_terms?: string | null } | Array<{ id: number; name: string; payment_terms?: string | null }> | null;
+};
+
+type InvoiceDetailRow = InvoiceRow & {
+  notes: string | null;
+  terms: string | null;
+  tax_rate: string | null;
+  discount_type: string;
+  discount_value: string | null;
+  shipping_cost: string | null;
+  shipping_label: string | null;
+  subtotal: string;
+  tax_total: string;
+  po_number: string | null;
+  internal_notes: string | null;
+  calculator_snapshot: unknown;
+  paid_at: string | null;
+  attachments: Array<{ id: number; filename: string; filetype: string | null; size_bytes: number; storage_key: string; uploaded_at: string | null }>;
+  items: Array<{
+    id: number;
+    product_template_id: number | null;
+    name: string;
+    description: string | null;
+    quantity: string;
+    unit: string | null;
+    unit_price: string;
+    discount_type: string;
+    discount_value: string | null;
+    total: string;
+    order_index: number;
+    calculator_breakdown: unknown;
+  }>;
+  payments: Array<{
+    id: number;
+    amount: string;
+    method: string;
+    reference: string | null;
+    processor: string | null;
+    processor_id: string | null;
+    notes: string | null;
+    paid_at: string;
+  }>;
+  jobs?: Array<{
+    id: number;
+    title: string;
+    status: string;
+    printer_id: number | null;
+    notes: string | null;
+    updated_at: string;
+    printers?: { name: string | null } | null;
+  }>;
+};
+
+type InvoiceRevertRow = {
+  id: number;
+  number: string;
+  client_id: number;
+  status: string;
+  issue_date: string;
+  due_date: string | null;
+  tax_rate: string | null;
+  discount_type: string;
+  discount_value: string | null;
+  shipping_cost: string | null;
+  shipping_label: string | null;
+  subtotal: string;
+  tax_total: string;
+  total: string;
+  notes: string | null;
+  terms: string | null;
+  calculator_snapshot: unknown;
+  invoice_items: Array<{
+    id: number;
+    product_template_id: number | null;
+    name: string;
+    description: string | null;
+    quantity: string;
+    unit: string | null;
+    unit_price: string;
+    discount_type: string;
+    discount_value: string | null;
+    total: string;
+    order_index: number;
+    calculator_breakdown: unknown;
+  }>;
+  payments: Array<{ id: number; amount: string | null }>;
+  attachments: Array<{ id: number; storage_key: string }>;
+};
+
+function mapInvoiceSummary(row: InvoiceRow) {
+  const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+  return {
+    id: row.id,
+    number: row.number,
+    clientName: client?.name ?? '',
+    status: (row.status ?? 'PENDING') as InvoiceStatus,
+    total: Number(row.total ?? 0),
+    balanceDue: Number(row.balance_due ?? 0),
+    issueDate: new Date(row.issue_date),
+    dueDate: row.due_date ? new Date(row.due_date) : null,
+    hasStripeLink: Boolean(row.stripe_checkout_url),
+  };
 }
 
 export async function listInvoices(options?: {
   q?: string;
-  statuses?: ("PENDING" | "PAID" | "OVERDUE")[];
+  statuses?: ('PENDING' | 'PAID' | 'OVERDUE')[];
   limit?: number;
   offset?: number;
-  sort?: "issueDate" | "dueDate" | "createdAt" | "number";
-  order?: "asc" | "desc";
+  sort?: 'issueDate' | 'dueDate' | 'createdAt' | 'number';
+  order?: 'asc' | 'desc';
 }) {
-  const where: Prisma.InvoiceWhereInput = {};
+  const supabase = getServiceSupabase();
+  let query = supabase
+    .from('invoices')
+    .select('id, number, client_id, status, total, balance_due, issue_date, due_date, stripe_checkout_url, clients(name)', { count: 'exact' })
+    .order(options?.sort === 'number' ? 'number' : options?.sort === 'dueDate' ? 'due_date' : options?.sort === 'createdAt' ? 'created_at' : 'issue_date', {
+      ascending: (options?.order ?? 'desc') === 'asc',
+      nullsFirst: false,
+    });
+
   if (options?.q) {
-    where.OR = [
-      { number: { contains: options.q } },
-      { client: { name: { contains: options.q } } },
-    ];
+    const term = options.q.trim();
+    query = query.or(`number.ilike.%${term}%,clients.name.ilike.%${term}%`);
   }
-  if (options?.statuses && options.statuses.length) {
-    where.status = { in: options.statuses };
-  }
-  const orderBy = options?.sort
-    ? { [options.sort]: options.order ?? "desc" }
-    : { issueDate: "desc" as const };
-  const invoices = await prisma.invoice.findMany({
-    where,
-    orderBy,
-    include: { client: { select: { name: true } } },
-    take: options?.limit,
-    skip: options?.offset,
-  });
 
-  return invoices.map((invoice) => ({
-    id: invoice.id,
-    number: invoice.number,
-    clientName: invoice.client.name,
-    status: invoice.status,
-    total: Number(invoice.total),
-    balanceDue: Number(invoice.balanceDue),
-    issueDate: invoice.issueDate,
-    dueDate: invoice.dueDate,
-    hasStripeLink: Boolean(invoice.stripeCheckoutUrl),
-  }));
+  if (options?.statuses?.length) {
+    query = query.in('status', options.statuses);
+  }
+
+  if (typeof options?.limit === 'number') {
+    const limit = Math.max(1, options.limit);
+    const offset = Math.max(0, options.offset ?? 0);
+    query = query.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list invoices: ${error.message}`);
+  }
+  return (data ?? []).map((row) => mapInvoiceSummary(row as InvoiceRow));
 }
 
-export async function getInvoice(id: number) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      items: {
-        orderBy: { orderIndex: "asc" },
-        include: { productTemplate: true },
-      },
-      payments: {
-        orderBy: { paidAt: "desc" },
-      },
-      attachments: true,
-      jobs: {
-        where: { archivedAt: null },
-        orderBy: { createdAt: "asc" },
-        include: {
-          printer: { select: { name: true } },
-        },
-      },
-    },
-  });
-
-  if (!invoice) {
-    throw new Error("Invoice not found");
-  }
-
-  return invoice;
-}
-
-function decimalToNumber(value: unknown) {
-  if (value === null || value === undefined) return 0;
-  if (typeof value === "number") return value;
-  if (typeof (value as { toNumber?: () => number }).toNumber === "function") {
-    return (value as { toNumber: () => number }).toNumber();
-  }
-  return Number(value);
-}
-
-export async function getInvoiceDetail(id: number) {
-  const invoice = await getInvoice(id);
-  const { paymentTerms: termOptions, defaultPaymentTerms } =
-    await resolvePaymentTermsOptions(prisma);
-  const resolvedTerm = (() => {
-    const explicitCode = invoice.client.paymentTerms?.trim();
-    const candidates = termOptions;
-    if (explicitCode) {
-      const match = candidates.find((option) => option.code === explicitCode);
-      if (match) {
-        return { ...match, source: "client" as const };
-      }
-    }
-    const defaultMatch = candidates.find(
-      (option) => option.code === defaultPaymentTerms,
-    );
-    if (defaultMatch) {
-      return { ...defaultMatch, source: "default" as const };
-    }
-    if (candidates.length > 0) {
-      return { ...candidates[0], source: "default" as const };
-    }
-    return null;
-  })();
-
+function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTerm | null) {
+  const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
   return {
-    id: invoice.id,
-    number: invoice.number,
-    status: invoice.status,
+    id: row.id,
+    number: row.number,
+    status: (row.status ?? 'PENDING') as InvoiceStatus,
+    total: Number(row.total ?? 0),
+    balanceDue: Number(row.balance_due ?? 0),
+    issueDate: new Date(row.issue_date),
+    dueDate: row.due_date ? new Date(row.due_date) : null,
+    notes: row.notes ?? '',
+    terms: row.terms ?? '',
+    taxRate: row.tax_rate ? Number(row.tax_rate) : undefined,
+    shippingCost: row.shipping_cost ? Number(row.shipping_cost) : 0,
+    shippingLabel: row.shipping_label ?? '',
+    subtotal: Number(row.subtotal ?? 0),
+    taxTotal: Number(row.tax_total ?? 0),
+    discountType: (row.discount_type ?? 'NONE') as DiscountType,
+    discountValue: row.discount_value ? Number(row.discount_value) : 0,
+    poNumber: row.po_number ?? '',
+    internalNotes: row.internal_notes ?? '',
+    calculatorSnapshot: row.calculator_snapshot ?? null,
+    paidAt: row.paid_at ? new Date(row.paid_at) : null,
+    stripeCheckoutUrl: row.stripe_checkout_url ?? null,
     client: {
-      id: invoice.clientId,
-      name: invoice.client.name,
+      id: row.client_id,
+      name: client?.name ?? '',
     },
-    paymentTerms: resolvedTerm,
-    issueDate: invoice.issueDate,
-    dueDate: invoice.dueDate,
-    taxRate: invoice.taxRate ? decimalToNumber(invoice.taxRate) : 0,
-    discountType: invoice.discountType,
-    discountValue: decimalToNumber(invoice.discountValue),
-    shippingCost: decimalToNumber(invoice.shippingCost),
-    shippingLabel: invoice.shippingLabel ?? "",
-    notes: invoice.notes ?? "",
-    terms: invoice.terms ?? "",
-    subtotal: decimalToNumber(invoice.subtotal),
-    total: decimalToNumber(invoice.total),
-    balanceDue: decimalToNumber(invoice.balanceDue),
-    taxTotal: decimalToNumber(invoice.taxTotal),
-    paidAt: invoice.paidAt,
-    lines: invoice.items.map((item) => ({
+    paymentTerms: paymentTerm ? { ...paymentTerm } : null,
+    attachments: (row.attachments ?? []).map((att) => ({
+      id: att.id,
+      filename: att.filename,
+      filetype: att.filetype,
+      size: att.size_bytes,
+      storageKey: att.storage_key,
+      uploadedAt: new Date(att.uploaded_at ?? row.updated_at ?? row.created_at ?? new Date().toISOString()),
+    })),
+    lines: (row.items ?? []).map((item) => ({
       id: item.id,
-      productTemplateId: item.productTemplateId ?? null,
+      productTemplateId: item.product_template_id ?? undefined,
       name: item.name,
-      description: item.description ?? "",
-      quantity: decimalToNumber(item.quantity),
-      unit: item.unit ?? "",
-      unitPrice: decimalToNumber(item.unitPrice),
-      discountType: item.discountType,
-      discountValue: decimalToNumber(item.discountValue),
-      orderIndex: item.orderIndex,
-      total: decimalToNumber(item.total),
-      calculatorBreakdown: item.calculatorBreakdown as Record<
-        string,
-        unknown
-      > | null,
+      description: item.description ?? '',
+      quantity: Number(item.quantity ?? 0),
+      unit: item.unit ?? '',
+      unitPrice: Number(item.unit_price ?? 0),
+      discountType: (item.discount_type ?? 'NONE') as DiscountType,
+      discountValue: item.discount_value ? Number(item.discount_value) : 0,
+      total: Number(item.total ?? 0),
+      orderIndex: item.order_index,
+      calculatorBreakdown: item.calculator_breakdown as Record<string, unknown> | null,
     })),
-    payments: invoice.payments.map((payment) => ({
+    payments: (row.payments ?? []).map((payment) => ({
       id: payment.id,
-      amount: decimalToNumber(payment.amount),
-      method: payment.method,
-      reference: payment.reference ?? "",
-      processor: payment.processor ?? "",
-      processorId: payment.processorId ?? "",
-      notes: payment.notes ?? "",
-      paidAt: payment.paidAt,
+      amount: Number(payment.amount ?? 0),
+      method: (payment.method ?? PaymentMethod.OTHER) as PaymentMethod,
+      reference: payment.reference ?? '',
+      processor: payment.processor ?? '',
+      processorId: payment.processor_id ?? '',
+      notes: payment.notes ?? '',
+      paidAt: payment.paid_at ? new Date(payment.paid_at) : new Date(),
     })),
-    jobs: invoice.jobs.map((job) => ({
+    jobs: (row.jobs ?? []).map((job) => ({
       id: job.id,
       title: job.title,
-      status: job.status,
-      priority: job.priority,
-      printerName: job.printer?.name ?? null,
-      notes: job.notes ?? "",
-      createdAt: job.createdAt,
-      updatedAt: job.updatedAt,
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
+      status: (job.status ?? 'PRE_PROCESSING') as JobStatus,
+      printerId: job.printer_id ?? null,
+      printerName: job.printers?.name ?? null,
+      notes: job.notes ?? '',
+      updatedAt: new Date(job.updated_at),
     })),
-    attachments: invoice.attachments.map((attachment) => ({
-      id: attachment.id,
-      filename: attachment.filename,
-      filetype: attachment.filetype,
-      size: attachment.size,
-      uploadedAt: attachment.uploadedAt,
-    })),
-    stripeCheckoutUrl: invoice.stripeCheckoutUrl ?? null,
   };
 }
 
-export type InvoiceDetail = Awaited<ReturnType<typeof getInvoiceDetail>>;
+export async function getInvoice(id: number) {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(`*, attachments(id, filename, filetype, size_bytes, storage_key, uploaded_at), items:invoice_items(*), payments(*), clients(*), jobs(*, printers(name))`)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load invoice: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error('Invoice not found');
+  }
+  const paymentTerm = await resolveClientPaymentTerm((data as InvoiceDetailRow).client_id);
+  return mapInvoiceDetail(data as InvoiceDetailRow, paymentTerm);
+}
+
+export async function getInvoiceDetail(id: number) {
+  return getInvoice(id);
+}
+
+export type InvoiceDetail = ReturnType<typeof mapInvoiceDetail>;
+
+async function insertInvoiceActivities(invoiceId: number, clientId: number, action: string, message: string, metadata?: Record<string, unknown>) {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase.from('activity_logs').insert({
+    invoice_id: invoiceId,
+    client_id: clientId,
+    action,
+    message,
+    metadata: metadata ?? null,
+  });
+  if (error) {
+    throw new Error(`Failed to insert activity: ${error.message}`);
+  }
+}
 
 export async function createInvoice(payload: unknown) {
   const parsed = invoiceInputSchema.parse(payload);
+  const supabase = getServiceSupabase();
   const totals = computeTotals(parsed);
+  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(parsed.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, parsed.dueDate ? new Date(parsed.dueDate) : null);
+  const number = await nextDocumentNumber('invoice');
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const number = await nextDocumentNumber("invoice", tx);
-    const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
-    const explicitDueDate = parsed.dueDate ? new Date(parsed.dueDate) : null;
-    const paymentTerm = await resolveClientPaymentTerm(tx, parsed.clientId);
-    const dueDate = deriveDueDate(issueDate, paymentTerm, explicitDueDate);
+  const invoiceRecord = {
+    number,
+    client_id: parsed.clientId,
+    status: InvoiceStatus.PENDING,
+    issue_date: issueDate.toISOString(),
+    due_date: dueDate?.toISOString() ?? '',
+    tax_rate: toDecimal(parsed.taxRate) ?? '',
+    discount_type: parsed.discountType,
+    discount_value: toDecimal(parsed.discountValue) ?? '',
+    shipping_cost: toDecimal(parsed.shippingCost) ?? '',
+    shipping_label: parsed.shippingLabel ?? '',
+    notes: parsed.notes ?? '',
+    terms: parsed.terms ?? '',
+    po_number: parsed.poNumber ?? '',
+    subtotal: String(totals.subtotal),
+    total: String(totals.total),
+    tax_total: String(totals.taxTotal),
+    balance_due: String(totals.total),
+  };
 
-    const created = await tx.invoice.create({
-      data: {
-        number,
-        clientId: parsed.clientId,
-        status: InvoiceStatus.PENDING,
-        issueDate,
-        dueDate,
-        taxRate: toDecimal(parsed.taxRate) ?? "0",
-        discountType: mapDiscount(parsed.discountType),
-        discountValue: toDecimal(parsed.discountValue) ?? "0",
-        shippingCost: toDecimal(parsed.shippingCost) ?? "0",
-        shippingLabel: parsed.shippingLabel || null,
-        notes: parsed.notes || null,
-        terms: parsed.terms || null,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        balanceDue: String(totals.total),
-        stripeSessionId: null,
-        stripeCheckoutUrl: null,
-        items: {
-          create: parsed.lines.map((line, index) => ({
-            productTemplateId: line.productTemplateId ?? undefined,
-            name: line.name,
-            description: line.description || null,
-            quantity: String(line.quantity),
-            unit: line.unit || null,
-            unitPrice: String(line.unitPrice),
-            discountType: mapLineDiscount(line.discountType),
-            discountValue: toDecimal(line.discountValue) ?? "0",
-            total: String(totals.lineTotals[index].total),
-            orderIndex: line.orderIndex ?? index,
-            calculatorBreakdown: line.calculatorBreakdown
-              ? (line.calculatorBreakdown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          })),
-        },
-      },
-      include: {
-        client: true,
-        items: true,
-      },
-    });
+  const lineInserts = parsed.lines.map((line, index) => ({
+    product_template_id: line.productTemplateId ?? '',
+    name: line.name,
+    description: line.description ?? '',
+    quantity: String(line.quantity),
+    unit: line.unit ?? '',
+    unit_price: String(line.unitPrice),
+    discount_type: line.discountType,
+    discount_value: toDecimal(line.discountValue) ?? '',
+    total: String(totals.lineTotals[index].total),
+    order_index: String(line.orderIndex ?? index),
+    calculator_breakdown: line.calculatorBreakdown ?? null,
+  }));
 
-    await tx.activityLog.create({
-      data: {
-        clientId: created.clientId,
-        invoiceId: created.id,
-        action: "INVOICE_CREATED",
-        message: `Invoice ${created.number} created`,
-      },
-    });
-
-    return created;
+  const { data, error } = await supabase.rpc('create_invoice_with_items', {
+    payload: {
+      invoice: invoiceRecord,
+      lines: lineInserts,
+    },
   });
 
-  logger.info({ scope: "invoices.create", data: { id: invoice.id } });
-
-  const policy = await getJobCreationPolicy();
-  if (policy === JobCreationPolicy.ON_INVOICE) {
-    await ensureJobForInvoice(invoice.id);
+  if (error || !data?.invoice) {
+    throw new Error(`Failed to create invoice: ${error?.message ?? 'Unknown error'}`);
   }
 
-  return invoice;
+  const invoiceId = (data.invoice as { id: number }).id;
+
+  await insertInvoiceActivities(invoiceId, parsed.clientId, 'INVOICE_CREATED', `Invoice ${number} created`);
+
+  const policy = await getJobCreationPolicy();
+  if (policy === 'ON_INVOICE') {
+    await ensureJobForInvoice(invoiceId);
+  }
+
+  logger.info({ scope: 'invoices.create', data: { id: invoiceId } });
+
+  return getInvoice(invoiceId);
 }
 
 export async function updateInvoice(id: number, payload: unknown) {
   const parsed = invoiceInputSchema.parse(payload);
+  const supabase = getServiceSupabase();
   const totals = computeTotals(parsed);
+  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(parsed.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, parsed.dueDate ? new Date(parsed.dueDate) : null);
 
-  const invoice = await prisma.$transaction(async (tx) => {
-    const existing = await tx.invoice.findUnique({
-      where: { id },
-      select: {
-        issueDate: true,
-        dueDate: true,
-        clientId: true,
-      },
-    });
+  const invoiceRecord = {
+    client_id: parsed.clientId,
+    issue_date: issueDate.toISOString(),
+    due_date: dueDate?.toISOString() ?? '',
+    tax_rate: toDecimal(parsed.taxRate) ?? '',
+    discount_type: parsed.discountType,
+    discount_value: toDecimal(parsed.discountValue) ?? '',
+    shipping_cost: toDecimal(parsed.shippingCost) ?? '',
+    shipping_label: parsed.shippingLabel ?? '',
+    notes: parsed.notes ?? '',
+    terms: parsed.terms ?? '',
+    po_number: parsed.poNumber ?? '',
+    subtotal: String(totals.subtotal),
+    total: String(totals.total),
+    tax_total: String(totals.taxTotal),
+    balance_due: String(totals.total),
+  };
 
-    if (!existing) {
-      throw new Error("Invoice not found");
-    }
+  const lineInserts = parsed.lines.map((line, index) => ({
+    product_template_id: line.productTemplateId ?? '',
+    name: line.name,
+    description: line.description ?? '',
+    quantity: String(line.quantity),
+    unit: line.unit ?? '',
+    unit_price: String(line.unitPrice),
+    discount_type: line.discountType,
+    discount_value: toDecimal(line.discountValue) ?? '',
+    total: String(totals.lineTotals[index].total),
+    order_index: String(line.orderIndex ?? index),
+    calculator_breakdown: line.calculatorBreakdown ?? null,
+  }));
 
-    const issueDate = parsed.issueDate
-      ? new Date(parsed.issueDate)
-      : existing.issueDate;
-    const explicitDueDate = parsed.dueDate ? new Date(parsed.dueDate) : null;
-    const paymentTerm = await resolveClientPaymentTerm(tx, parsed.clientId);
-    const dueDate = deriveDueDate(issueDate, paymentTerm, explicitDueDate);
-
-    const updated = await tx.invoice.update({
-      where: { id },
-      data: {
-        clientId: parsed.clientId,
-        issueDate,
-        dueDate,
-        taxRate: toDecimal(parsed.taxRate) ?? "0",
-        discountType: mapDiscount(parsed.discountType),
-        discountValue: toDecimal(parsed.discountValue) ?? "0",
-        shippingCost: toDecimal(parsed.shippingCost) ?? "0",
-        shippingLabel: parsed.shippingLabel || null,
-        notes: parsed.notes || null,
-        terms: parsed.terms || null,
-        subtotal: String(totals.subtotal),
-        total: String(totals.total),
-        taxTotal: String(totals.taxTotal),
-        balanceDue: String(totals.total),
-        stripeSessionId: null,
-        stripeCheckoutUrl: null,
-        items: {
-          deleteMany: {},
-          create: parsed.lines.map((line, index) => ({
-            productTemplateId: line.productTemplateId ?? undefined,
-            name: line.name,
-            description: line.description || null,
-            quantity: String(line.quantity),
-            unit: line.unit || null,
-            unitPrice: String(line.unitPrice),
-            discountType: mapLineDiscount(line.discountType),
-            discountValue: toDecimal(line.discountValue) ?? "0",
-            total: String(totals.lineTotals[index].total),
-            orderIndex: line.orderIndex ?? index,
-            calculatorBreakdown: line.calculatorBreakdown
-              ? (line.calculatorBreakdown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
-          })),
-        },
-      },
-      include: {
-        client: true,
-        payments: true,
-        // Include current paidAt so we can preserve historical paid date on edits
-        _count: { select: { payments: true } },
-      },
-    });
-
-    const paidAmount = updated.payments.reduce(
-      (sum, payment) => sum + decimalToNumber(payment.amount),
-      0,
-    );
-
-    const rawBalance = decimalToNumber(updated.total) - paidAmount;
-    const balance = Math.max(rawBalance, 0);
-    const isZero = Math.abs(rawBalance) < 0.005; // tolerance for rounding
-
-    const existingPaidAt = (
-      await tx.invoice.findUnique({ where: { id }, select: { paidAt: true } })
-    )?.paidAt ?? null;
-
-    await tx.invoice.update({
-      where: { id },
-      data: {
-        balanceDue: String(isZero ? 0 : balance),
-        status:
-          isZero
-            ? InvoiceStatus.PAID
-            : updated.status === InvoiceStatus.PAID
-              ? InvoiceStatus.PENDING
-              : updated.status,
-        paidAt: isZero ? (existingPaidAt ?? new Date()) : null,
-      },
-    });
-
-    await tx.activityLog.create({
-      data: {
-        clientId: updated.clientId,
-        invoiceId: updated.id,
-        action: "INVOICE_UPDATED",
-        message: `Invoice ${updated.number} updated`,
-      },
-    });
-
-    return updated;
+  const { data, error } = await supabase.rpc('update_invoice_with_items', {
+    p_invoice_id: id,
+    payload: {
+      invoice: invoiceRecord,
+      lines: lineInserts,
+    },
   });
 
-  logger.info({ scope: "invoices.update", data: { id } });
+  if (error || !data?.invoice) {
+    throw new Error(`Failed to update invoice: ${error?.message ?? 'Unknown error'}`);
+  }
 
-  return invoice;
+  const updatedInvoice = data.invoice as { number?: string };
+  await insertInvoiceActivities(id, parsed.clientId, 'INVOICE_UPDATED', `Invoice ${updatedInvoice?.number ?? id} updated`);
+
+  logger.info({ scope: 'invoices.update', data: { id } });
+  return getInvoice(id);
 }
 
 export async function deleteInvoice(id: number) {
-  const invoice = await prisma.$transaction(async (tx) => {
-    const removed = await tx.invoice.delete({ where: { id } });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', id)
+    .select('id, client_id, number')
+    .single();
 
-    await tx.activityLog.create({
-      data: {
-        clientId: removed.clientId,
-        invoiceId: removed.id,
-        action: "INVOICE_DELETED",
-        message: `Invoice ${removed.number} deleted`,
-      },
-    });
+  if (error || !data) {
+    throw new Error(`Failed to delete invoice: ${error?.message ?? 'Unknown error'}`);
+  }
 
-    return removed;
-  });
-
-  logger.info({ scope: "invoices.delete", data: { id } });
-
-  return invoice;
+  await insertInvoiceActivities(id, data.client_id, 'INVOICE_DELETED', `Invoice ${data.number} deleted`);
+  logger.info({ scope: 'invoices.delete', data: { id } });
+  return data;
 }
 
 export async function addManualPayment(invoiceId: number, payload: unknown) {
   const parsed = paymentInputSchema.parse(payload);
+  const supabase = getServiceSupabase();
 
-  const result = await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { id: true, clientId: true, number: true, total: true },
-    });
-    if (!invoice) throw new Error("Invoice not found");
+  const paymentPayload = {
+    amount: String(parsed.amount),
+    method: parsed.method,
+    reference: parsed.reference ?? '',
+    processor: parsed.processor ?? '',
+    processor_id: parsed.processorId ?? '',
+    notes: parsed.notes ?? '',
+    paid_at: parsed.paidAt ? new Date(parsed.paidAt).toISOString() : new Date().toISOString(),
+  };
 
-    const created = await tx.payment.create({
-      data: {
-        invoiceId,
-        amount: String(parsed.amount),
-        method: parsed.method as PaymentMethod,
-        reference: parsed.reference || null,
-        processor: parsed.processor || null,
-        processorId: parsed.processorId || null,
-        notes: parsed.notes || null,
-        paidAt: parsed.paidAt ? new Date(parsed.paidAt) : new Date(),
-      },
-    });
-
-    const payments = await tx.payment.findMany({ where: { invoiceId } });
-    const paidAmount = payments.reduce(
-      (sum, item) => sum + decimalToNumber(item.amount),
-      0,
-    );
-    const total = decimalToNumber(invoice.total);
-    const balance = Math.max(total - paidAmount, 0);
-    const isPaid = balance <= 0;
-
-    await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        balanceDue: String(balance),
-        status: isPaid ? InvoiceStatus.PAID : InvoiceStatus.PENDING,
-        paidAt: isPaid ? new Date() : null,
-      },
-    });
-
-    await tx.activityLog.create({
-      data: {
-        clientId: invoice.clientId,
-        invoiceId,
-        action: "INVOICE_PAYMENT_ADDED",
-        message: `Payment recorded for invoice ${invoice.number}`,
-        metadata: { paymentId: created.id },
-      },
-    });
-
-    return { payment: created, invoice, balance };
+  const { data, error } = await supabase.rpc('add_invoice_payment', {
+    payload: {
+      invoice_id: invoiceId,
+      payment: paymentPayload,
+    },
   });
 
-  logger.info({
-    scope: "invoices.payment.add",
-    data: { invoiceId, paymentId: result.payment.id },
-  });
+  if (error || !data?.payment || !data?.invoice) {
+    throw new Error(`Failed to record payment: ${error?.message ?? 'Unknown error'}`);
+  }
 
-  if (result.balance <= 0) {
+  const payment = data.payment as { id: number };
+  const updatedInvoice = data.invoice as { id: number; client_id: number; number: string; status: string };
+
+  await insertInvoiceActivities(
+    invoiceId,
+    updatedInvoice.client_id,
+    'INVOICE_PAYMENT_ADDED',
+    `Payment recorded for invoice ${updatedInvoice.number}`,
+    { paymentId: payment.id },
+  );
+  logger.info({ scope: 'invoices.payment.add', data: { invoiceId, paymentId: payment.id } });
+
+  if (updatedInvoice.status === InvoiceStatus.PAID) {
     const policy = await getJobCreationPolicy();
-    if (policy === JobCreationPolicy.ON_PAYMENT) {
-      await ensureJobForInvoice(result.invoice.id);
+    if (policy === 'ON_PAYMENT') {
+      await ensureJobForInvoice(invoiceId);
     }
   }
 
-  return result.payment;
+  return payment;
 }
 
 export async function deletePayment(paymentId: number) {
-  const payment = await prisma.$transaction(async (tx) => {
-    const removed = await tx.payment.delete({ where: { id: paymentId } });
-    const invoice = await tx.invoice.findUnique({
-      where: { id: removed.invoiceId },
-    });
-    if (!invoice) throw new Error("Invoice not found");
-
-    const payments = await tx.payment.findMany({
-      where: { invoiceId: removed.invoiceId },
-    });
-    const paidAmount = payments.reduce(
-      (sum, item) => sum + decimalToNumber(item.amount),
-      0,
-    );
-    const total = decimalToNumber(invoice.total);
-    const balance = Math.max(total - paidAmount, 0);
-
-    await tx.invoice.update({
-      where: { id: removed.invoiceId },
-      data: {
-        balanceDue: String(balance),
-        status: balance <= 0 ? InvoiceStatus.PAID : InvoiceStatus.PENDING,
-        paidAt: balance <= 0 ? (invoice.paidAt ?? new Date()) : null,
-      },
-    });
-
-    await tx.activityLog.create({
-      data: {
-        clientId: invoice.clientId,
-        invoiceId: invoice.id,
-        action: "INVOICE_PAYMENT_DELETED",
-        message: `Payment removed from invoice ${invoice.number}`,
-        metadata: { paymentId: removed.id },
-      },
-    });
-
-    return removed;
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase.rpc('delete_invoice_payment', {
+    p_payment_id: paymentId,
   });
 
-  logger.info({ scope: "invoices.payment.delete", data: { paymentId } });
+  if (error || !data?.payment || !data?.invoice) {
+    throw new Error(`Failed to delete payment: ${error?.message ?? 'Unknown error'}`);
+  }
 
+  const payment = data.payment as { id: number; invoice_id: number };
+  const updatedInvoice = data.invoice as { id: number; client_id: number; number: string };
+
+  await insertInvoiceActivities(
+    updatedInvoice.id,
+    updatedInvoice.client_id,
+    'INVOICE_PAYMENT_DELETED',
+    `Payment removed from invoice ${updatedInvoice.number}`,
+    { paymentId },
+  );
   return payment;
 }
 
@@ -652,440 +589,355 @@ export async function addInvoiceAttachment(
     buffer: Buffer;
   },
 ) {
-  await ensureStorage();
-
-  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
-  if (!invoice) throw new Error("Invoice not found");
-
-  function sanitizeName(name: string) {
-    return name.replaceAll("\\", "/").split("/").pop()!.replace(/[^\w.\-]+/g, "_");
+  const supabase = getServiceSupabase();
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('id, client_id, number')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (invoiceError) {
+    throw new Error(`Failed to load invoice: ${invoiceError.message}`);
+  }
+  if (!invoice) {
+    throw new Error('Invoice not found');
   }
 
-  const safeName = sanitizeName(file.name || "upload.bin");
-  const storedPath = await saveInvoiceFile(invoiceId, safeName, file.buffer);
-  const stats = await fileInfo(storedPath);
+  const safeName = file.name.replaceAll('\\', '/').split('/').pop()!.replace(/[^^\w.\-]+/g, '_');
+  const storageKey = await uploadInvoiceAttachment(invoiceId, safeName, file.buffer, file.type);
 
-  const attachment = await prisma.attachment.create({
-    data: {
-      invoiceId,
+  const { data, error } = await supabase
+    .from('attachments')
+    .insert({
+      invoice_id: invoiceId,
       filename: safeName,
-      filepath: storedPath,
+      storage_key: storageKey,
       filetype: file.type,
-      size: Number(stats.size),
-    },
-  });
+      size_bytes: file.buffer.length,
+    })
+    .select('*')
+    .single();
+  if (error || !data) {
+    throw new Error(`Failed to record attachment: ${error?.message ?? 'Unknown error'}`);
+  }
 
-  await prisma.activityLog.create({
-    data: {
-      clientId: invoice.clientId,
-      invoiceId,
-      action: "INVOICE_ATTACHMENT_ADDED",
-      message: `Attachment added to invoice ${invoice.number}`,
-      metadata: { attachmentId: attachment.id },
-    },
-  });
-
-  logger.info({
-    scope: "invoices.attachments.add",
-    data: { invoiceId, attachmentId: attachment.id },
-  });
-
-  return attachment;
+  await insertInvoiceActivities(invoiceId, invoice.client_id, 'INVOICE_ATTACHMENT_ADDED', `Attachment added to invoice ${invoice.number}`, { attachmentId: data.id });
+  logger.info({ scope: 'invoices.attachments.add', data: { invoiceId, attachmentId: data.id } });
+  return data;
 }
 
 export async function removeInvoiceAttachment(attachmentId: number) {
-  const attachment = await prisma.attachment.findUnique({
-    where: { id: attachmentId },
-  });
-  if (!attachment) throw new Error("Attachment not found");
+  const supabase = getServiceSupabase();
+  const { data: attachment, error } = await supabase
+    .from('attachments')
+    .delete()
+    .eq('id', attachmentId)
+    .select('id, invoice_id, filename, storage_key')
+    .single();
+  if (error || !attachment) {
+    throw new Error(`Attachment not found: ${error?.message ?? 'Unknown error'}`);
+  }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.attachment.delete({ where: { id: attachmentId } });
-    await deleteInvoiceFile(attachment.invoiceId, attachment.filename);
-    await tx.activityLog.create({
-      data: {
-        invoiceId: attachment.invoiceId,
-        action: "INVOICE_ATTACHMENT_DELETED",
-        message: `Attachment removed`,
-        metadata: { attachmentId },
-      },
-    });
-  });
+  await deleteInvoiceAttachment(attachment.storage_key);
 
-  logger.info({ scope: "invoices.attachments.remove", data: { attachmentId } });
+  const { data: invoice } = await supabase
+    .from('invoices')
+    .select('client_id, number')
+    .eq('id', attachment.invoice_id)
+    .maybeSingle();
 
+  if (invoice) {
+    await insertInvoiceActivities(attachment.invoice_id, invoice.client_id, 'INVOICE_ATTACHMENT_DELETED', 'Attachment removed', { attachmentId });
+  }
+
+  logger.info({ scope: 'invoices.attachments.remove', data: { attachmentId } });
   return attachment;
 }
 
 export async function readInvoiceAttachment(attachmentId: number) {
-  const attachment = await prisma.attachment.findUnique({
-    where: { id: attachmentId },
-  });
-  if (!attachment) throw new Error("Attachment not found");
-  const stream = await readInvoiceFile(
-    attachment.invoiceId,
-    attachment.filename,
-  );
-  return { stream, attachment };
-}
-
-export async function markInvoicePaid(
-  invoiceId: number,
-  options?: {
-    method?: PaymentMethod;
-    amount?: number;
-    reference?: string;
-    processor?: string;
-    processorId?: string;
-    note?: string;
-    paidAt?: Date;
-  },
-) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    select: {
-      id: true,
-      number: true,
-      clientId: true,
-      balanceDue: true,
-      total: true,
-    },
-  });
-  if (!invoice) {
-    throw new Error("Invoice not found");
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('attachments')
+    .select('id, invoice_id, filename, filetype, storage_key, size_bytes')
+    .eq('id', attachmentId)
+    .maybeSingle();
+  if (error || !data) {
+    throw new Error(`Attachment not found: ${error?.message ?? 'Unknown error'}`);
   }
 
-  if (options?.processorId) {
-    const existing = await prisma.payment.findFirst({
-      where: { processorId: options.processorId },
-    });
-    if (existing) {
-      logger.info({
-        scope: "invoices.markPaid",
-        data: {
-          invoiceId,
-          note: "payment already recorded",
-          processorId: options.processorId,
-        },
-      });
-      return existing;
-    }
-  }
-
-  const outstanding = decimalToNumber(invoice.balanceDue);
-  const amount = options?.amount ?? outstanding;
-
-  if (amount <= 0) {
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: InvoiceStatus.PAID,
-        balanceDue: "0",
-        paidAt: options?.paidAt ?? new Date(),
-      },
-    });
-
-    await prisma.activityLog.create({
-      data: {
-        clientId: invoice.clientId,
-        invoiceId,
-        action: "INVOICE_MARKED_PAID",
-        message: `Invoice ${invoice.number} marked as paid`,
-        metadata: {
-          method: options?.method ?? PaymentMethod.OTHER,
-          amount: 0,
-        },
-      },
-    });
-
-    logger.info({
-      scope: "invoices.markPaid",
-      data: { invoiceId, amount: 0 },
-    });
-
-    return null;
-  }
-
-  const payment = await addManualPayment(invoiceId, {
-    amount,
-    method: options?.method ?? PaymentMethod.OTHER,
-    reference: options?.reference ?? "",
-    processor: options?.processor ?? "",
-    processorId: options?.processorId ?? "",
-    notes: options?.note ?? "",
-    paidAt: (options?.paidAt ?? new Date()).toISOString(),
-  });
-
-  await prisma.activityLog.create({
-    data: {
-      clientId: invoice.clientId,
-      invoiceId,
-      action: "INVOICE_MARKED_PAID",
-      message: `Invoice ${invoice.number} marked as paid`,
-      metadata: {
-        method: payment.method,
-        amount,
-      },
-    },
-  });
-
-  logger.info({
-    scope: "invoices.markPaid",
-    data: { invoiceId, amount, processorId: options?.processorId ?? null },
-  });
-
-  return payment;
+  const url = await getAttachmentSignedUrl(data.storage_key, 60);
+  return { url, attachment: data };
 }
 
 export async function markInvoiceUnpaid(invoiceId: number) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    select: {
-      id: true,
-      number: true,
-      clientId: true,
-      total: true,
-      payments: {
-        select: {
-          id: true,
-          amount: true,
-        },
-      },
-    },
-  });
-
+  const supabase = getServiceSupabase();
+  const { data: invoice, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('id, client_id, number, total')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (invoiceError) {
+    throw new Error(`Failed to load invoice: ${invoiceError.message}`);
+  }
   if (!invoice) {
-    throw new Error("Invoice not found");
+    throw new Error('Invoice not found');
   }
 
-  const removedCount = invoice.payments.length;
-  const removedAmount = invoice.payments.reduce(
-    (sum, item) => sum + decimalToNumber(item.amount),
-    0,
-  );
-
-  await prisma.$transaction(async (tx) => {
-    if (removedCount > 0) {
-      await tx.payment.deleteMany({ where: { invoiceId } });
-    }
-
-    await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: InvoiceStatus.PENDING,
-        balanceDue: invoice.total,
-        paidAt: null,
-      },
-    });
-
-    await tx.activityLog.create({
-      data: {
-        clientId: invoice.clientId,
-        invoiceId,
-        action: "INVOICE_MARKED_UNPAID",
-        message: `Invoice ${invoice.number} marked as unpaid`,
-        metadata: {
-          removedPayments: removedCount,
-          amount: removedAmount,
-        },
-      },
-    });
-  });
-
-  logger.info({
-    scope: "invoices.markUnpaid",
-    data: { invoiceId, removedPayments: removedCount, amount: removedAmount },
-  });
-}
-
-export async function revertInvoiceToQuote(invoiceId: number) {
-  const invoice = await prisma.invoice.findUnique({
-    where: { id: invoiceId },
-    include: {
-      payments: true,
-      items: true,
-      attachments: { select: { id: true } },
-      sourceQuote: {
-        include: {
-          items: true,
-        },
-      },
-    },
-  });
-
-  if (!invoice) {
-    throw new Error("Invoice not found");
+  const { data: payments, error: paymentsError } = await supabase
+    .from('payments')
+    .select('amount')
+    .eq('invoice_id', invoiceId);
+  if (paymentsError) {
+    throw new Error(`Failed to load payments: ${paymentsError.message}`);
   }
 
-  if (invoice.status === InvoiceStatus.PAID) {
-    throw new Error("Paid invoices cannot be reverted");
+  const paidAmount = (payments ?? []).reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+  const total = Number(invoice.total ?? 0);
+  const balanceDue = Math.max(total - paidAmount, 0);
+
+  const { data: updated, error: updateError } = await supabase
+    .from('invoices')
+    .update({
+      status: 'PENDING',
+      balance_due: String(balanceDue),
+      paid_at: null,
+    })
+    .eq('id', invoiceId)
+    .select('id, client_id, number')
+    .single();
+
+  if (updateError || !updated) {
+    throw new Error(`Failed to mark unpaid: ${updateError?.message ?? 'Unknown error'}`);
   }
 
-  if (invoice.payments.length > 0) {
-    throw new Error("Remove payments before reverting the invoice");
-  }
-
-  const attachmentIds = invoice.attachments.map((attachment) => attachment.id);
-  for (const attachmentId of attachmentIds) {
-    await removeInvoiceAttachment(attachmentId);
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.job.deleteMany({ where: { invoiceId } });
-
-    let quoteId: number;
-
-    if (invoice.sourceQuoteId) {
-      const quote = await tx.quote.update({
-        where: { id: invoice.sourceQuoteId },
-        data: {
-          status: QuoteStatus.PENDING,
-          issueDate: invoice.issueDate,
-          expiryDate: invoice.dueDate,
-          taxRate: invoice.taxRate,
-          discountType: invoice.discountType,
-          discountValue: invoice.discountValue,
-          shippingCost: invoice.shippingCost,
-          shippingLabel: invoice.shippingLabel,
-          subtotal: invoice.subtotal,
-          taxTotal: invoice.taxTotal,
-          total: invoice.total,
-          notes: invoice.notes,
-          terms: invoice.terms,
-          convertedInvoiceId: null,
-          items: {
-            deleteMany: {},
-            create: invoice.items.map((item, index) => ({
-              productTemplateId: item.productTemplateId ?? undefined,
-              name: item.name,
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unitPrice: item.unitPrice,
-              discountType: item.discountType,
-              discountValue: item.discountValue,
-              total: item.total,
-              orderIndex: item.orderIndex ?? index,
-              calculatorBreakdown:
-                item.calculatorBreakdown ?? Prisma.JsonNull,
-            })),
-          },
-        },
-      });
-      quoteId = quote.id;
-    } else {
-      const quoteNumber = await nextDocumentNumber("quote", tx);
-      const quote = await tx.quote.create({
-        data: {
-          number: quoteNumber,
-          clientId: invoice.clientId,
-          status: QuoteStatus.PENDING,
-          issueDate: invoice.issueDate,
-          expiryDate: invoice.dueDate,
-          taxRate: invoice.taxRate,
-          discountType: invoice.discountType,
-          discountValue: invoice.discountValue,
-          shippingCost: invoice.shippingCost,
-          shippingLabel: invoice.shippingLabel,
-          subtotal: invoice.subtotal,
-          taxTotal: invoice.taxTotal,
-          total: invoice.total,
-          notes: invoice.notes,
-          terms: invoice.terms,
-          items: {
-            create: invoice.items.map((item, index) => ({
-              productTemplateId: item.productTemplateId ?? undefined,
-              name: item.name,
-              description: item.description,
-              quantity: item.quantity,
-              unit: item.unit,
-              unitPrice: item.unitPrice,
-              discountType: item.discountType,
-              discountValue: item.discountValue,
-              total: item.total,
-              orderIndex: item.orderIndex ?? index,
-              calculatorBreakdown:
-                item.calculatorBreakdown ?? Prisma.JsonNull,
-            })),
-          },
-        },
-      });
-      quoteId = quote.id;
-    }
-
-    await tx.invoice.delete({ where: { id: invoiceId } });
-
-    await tx.activityLog.create({
-      data: {
-        clientId: invoice.clientId,
-        quoteId,
-        action: "INVOICE_REVERTED_TO_QUOTE",
-        message: `Invoice ${invoice.number} reverted to quote`,
-        metadata: {
-          invoiceId,
-        },
-      },
-    });
-  });
-
-  logger.info({
-    scope: "invoices.revertToQuote",
-    data: { invoiceId },
-  });
-}
-
-export async function voidInvoice(id: number, reason?: string) {
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
-  if (!invoice) throw new Error("Invoice not found");
-  if (invoice.status === InvoiceStatus.PAID) {
-    throw new Error("Cannot void a paid invoice");
-  }
-  const updated = await prisma.invoice.update({
-    where: { id },
-    data: {
-      voidedAt: new Date(),
-      voidReason: reason ?? null,
-      status: InvoiceStatus.PAID,
-      balanceDue: "0",
-      paidAt: new Date(),
-    },
-  });
-  await prisma.activityLog.create({
-    data: {
-      clientId: updated.clientId,
-      invoiceId: updated.id,
-      action: "INVOICE_VOIDED",
-      message: `Invoice ${updated.number} voided`,
-      metadata: reason ? { reason } : undefined,
-    },
-  });
+  await insertInvoiceActivities(invoiceId, updated.client_id, 'INVOICE_MARKED_UNPAID', `Invoice ${updated.number} marked unpaid`);
   return updated;
+}
+
+export async function markInvoicePaid(invoiceId: number, options?: {
+  method?: string;
+  amount?: number;
+  reference?: string;
+  processor?: string;
+  processorId?: string;
+  note?: string;
+  paidAt?: Date;
+}) {
+  const amount = options?.amount ?? 0;
+  if (amount > 0) {
+    return addManualPayment(invoiceId, {
+      amount,
+      method: options?.method ?? PaymentMethod.OTHER,
+      reference: options?.reference ?? '',
+      processor: options?.processor ?? '',
+      processorId: options?.processorId ?? '',
+      notes: options?.note ?? '',
+      paidAt: options?.paidAt?.toISOString(),
+    });
+  }
+  const supabase = getServiceSupabase();
+  const paidAt = options?.paidAt ?? new Date();
+  const { data: invoice, error } = await supabase
+    .from('invoices')
+    .update({
+      status: 'PAID',
+      balance_due: '0',
+      paid_at: paidAt.toISOString(),
+    })
+    .eq('id', invoiceId)
+    .select('id, client_id, number')
+    .single();
+  if (error || !invoice) {
+    throw new Error(`Failed to mark invoice paid: ${error?.message ?? 'Unknown error'}`);
+  }
+  await insertInvoiceActivities(invoiceId, invoice.client_id, 'INVOICE_MARKED_PAID', `Invoice ${invoice.number} marked as paid`, {
+    method: options?.method ?? 'OTHER',
+    amount: 0,
+  });
+  logger.info({ scope: 'invoices.markPaid', data: { invoiceId, amount: 0 } });
+  return null;
 }
 
 export async function writeOffInvoice(id: number, reason?: string) {
-  const invoice = await prisma.invoice.findUnique({ where: { id } });
-  if (!invoice) throw new Error("Invoice not found");
-  if (invoice.status === InvoiceStatus.PAID) {
-    return invoice;
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .update({
+      status: 'PAID',
+      balance_due: '0',
+      write_off_reason: reason ?? null,
+      written_off_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, client_id, number')
+    .single();
+  if (error || !data) {
+    throw new Error(`Failed to write off invoice: ${error?.message ?? 'Unknown error'}`);
   }
-  const updated = await prisma.invoice.update({
-    where: { id },
-    data: {
-      writtenOffAt: new Date(),
-      writeOffReason: reason ?? null,
-      status: InvoiceStatus.PAID,
-      balanceDue: "0",
-      paidAt: new Date(),
-    },
+  await insertInvoiceActivities(id, data.client_id, 'INVOICE_WRITTEN_OFF', `Invoice ${data.number} written off`, reason ? { reason } : undefined);
+  return data;
+}
+
+export async function voidInvoice(id: number, reason?: string) {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .update({
+      status: 'PENDING',
+      void_reason: reason ?? null,
+      voided_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id, client_id, number')
+    .single();
+  if (error || !data) {
+    throw new Error(`Failed to void invoice: ${error?.message ?? 'Unknown error'}`);
+  }
+  await insertInvoiceActivities(id, data.client_id, 'INVOICE_VOIDED', `Invoice ${data.number} voided`, reason ? { reason } : undefined);
+  return data;
+}
+
+export async function revertInvoiceToQuote(invoiceId: number) {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from('invoices')
+    .select(
+      `id, number, client_id, status, issue_date, due_date, tax_rate, discount_type, discount_value,
+       shipping_cost, shipping_label, subtotal, tax_total, total, notes, terms, calculator_snapshot,
+       invoice_items(id, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown),
+       payments(id, amount),
+       attachments(id, storage_key)`
+    )
+    .eq('id', invoiceId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load invoice: ${error.message}`);
+  }
+  if (!data) {
+    throw new Error('Invoice not found');
+  }
+
+  const invoice = data as InvoiceRevertRow;
+
+  if (invoice.status === 'PAID') {
+    throw new Error('Paid invoices cannot be reverted to quotes');
+  }
+
+  const hasPayments = (invoice.payments ?? []).length > 0;
+  if (hasPayments) {
+    throw new Error('Invoice has payments recorded and cannot be reverted');
+  }
+
+  const { count: jobCount, error: jobError } = await supabase
+    .from('jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('invoice_id', invoiceId);
+  if (jobError) {
+    throw new Error(`Failed to verify job linkage: ${jobError.message}`);
+  }
+  if ((jobCount ?? 0) > 0) {
+    throw new Error('Invoice has associated jobs and cannot be reverted');
+  }
+
+  const quoteNumber = await nextDocumentNumber('quote');
+  const nowIso = new Date().toISOString();
+
+  const { data: quote, error: quoteError } = await supabase
+    .from('quotes')
+    .insert({
+      number: quoteNumber,
+      client_id: invoice.client_id,
+      status: 'DRAFT',
+      issue_date: invoice.issue_date ?? nowIso,
+      expiry_date: invoice.due_date,
+      tax_rate: invoice.tax_rate,
+      discount_type: invoice.discount_type,
+      discount_value: invoice.discount_value,
+      shipping_cost: invoice.shipping_cost,
+      shipping_label: invoice.shipping_label,
+      subtotal: invoice.subtotal,
+      tax_total: invoice.tax_total,
+      total: invoice.total,
+      notes: invoice.notes,
+      terms: invoice.terms,
+      calculator_snapshot: invoice.calculator_snapshot,
+      source_data: { revertedFromInvoice: invoice.id },
+      converted_invoice_id: invoice.id,
+      created_at: nowIso,
+      updated_at: nowIso,
+    })
+    .select('id, number')
+    .single();
+
+  if (quoteError || !quote) {
+    throw new Error(`Failed to create quote: ${quoteError?.message ?? 'Unknown error'}`);
+  }
+
+  const quoteItems = (invoice.invoice_items ?? []).map((item, index) => ({
+    quote_id: quote.id,
+    product_template_id: item.product_template_id,
+    name: item.name,
+    description: item.description,
+    quantity: item.quantity,
+    unit: item.unit,
+    unit_price: item.unit_price,
+    discount_type: item.discount_type,
+    discount_value: item.discount_value,
+    total: item.total,
+    order_index: item.order_index ?? index,
+    calculator_breakdown: item.calculator_breakdown ?? null,
+  }));
+
+  if (quoteItems.length > 0) {
+    const { error: itemsError } = await supabase.from('quote_items').insert(quoteItems);
+    if (itemsError) {
+      await supabase.from('quotes').delete().eq('id', quote.id);
+      throw new Error(`Failed to copy invoice lines to quote: ${itemsError.message}`);
+    }
+  }
+
+  await insertInvoiceActivities(invoice.id, invoice.client_id, 'INVOICE_REVERTED_TO_QUOTE', `Invoice ${invoice.number} reverted to quote ${quote.number}`, {
+    quoteId: quote.id,
   });
-  await prisma.activityLog.create({
-    data: {
-      clientId: updated.clientId,
-      invoiceId: updated.id,
-      action: "INVOICE_WRITTEN_OFF",
-      message: `Invoice ${updated.number} written off`,
-      metadata: reason ? { reason } : undefined,
-    },
+
+  const { error: quoteActivityError } = await supabase.from('activity_logs').insert({
+    client_id: invoice.client_id,
+    quote_id: quote.id,
+    action: 'QUOTE_RESTORED_FROM_INVOICE',
+    message: `Quote ${quote.number} restored from invoice ${invoice.number}`,
+    metadata: { invoiceId: invoice.id },
   });
-  return updated;
+  if (quoteActivityError) {
+    logger.warn({
+      scope: 'invoices.revert.activity',
+      message: 'Failed to record quote activity during revert',
+      error: quoteActivityError,
+    });
+  }
+
+  const attachments = invoice.attachments ?? [];
+  for (const attachment of attachments) {
+    if (!attachment?.storage_key) {
+      continue;
+    }
+    try {
+      await deleteInvoiceAttachment(attachment.storage_key);
+    } catch (storageError) {
+      logger.warn({
+        scope: 'invoices.revert.cleanup',
+        message: 'Failed to remove attachment from storage; manual cleanup required',
+        data: { attachmentId: attachment.id },
+        error: storageError,
+      });
+    }
+  }
+
+  const { error: deleteError } = await supabase.from('invoices').delete().eq('id', invoiceId);
+  if (deleteError) {
+    await supabase.from('quotes').delete().eq('id', quote.id);
+    throw new Error(`Failed to delete invoice during revert: ${deleteError.message}`);
+  }
+
+  logger.info({ scope: 'invoices.revert', data: { invoiceId, quoteId: quote.id } });
+  return quote;
 }

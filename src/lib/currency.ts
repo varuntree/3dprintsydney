@@ -1,21 +1,34 @@
-import { type Decimal } from "@prisma/client/runtime/library";
+export type NumericLike = number | string | { toNumber?: () => number; toString?: () => string };
 
-export function toAmount(value: Decimal | number | string | null | undefined) {
+function coerceNumber(value: NumericLike | null | undefined): number {
   if (value === null || value === undefined) return 0;
   if (typeof value === "number") return value;
-  const asNumber = Number(value);
-  return Number.isNaN(asNumber) ? 0 : asNumber;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value.toNumber === "function") {
+    const parsed = Number(value.toNumber());
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value.toString === "function") {
+    const parsed = Number(value.toString());
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  const parsed = Number(value as unknown as number);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
-export function formatCurrency(
-  value: Decimal | number | string,
-  currency = "AUD",
-) {
+export function toAmount(value: NumericLike | null | undefined) {
+  return coerceNumber(value);
+}
+
+export function formatCurrency(value: NumericLike | number | string, currency = "AUD") {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
-  }).format(toAmount(value));
+  }).format(coerceNumber(value));
 }
 
 export function clampCurrency(value: number) {

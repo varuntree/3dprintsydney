@@ -9,8 +9,6 @@ import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
 
 type DashboardStats = {
   totalOrders: number;
@@ -38,13 +36,6 @@ type JobRow = {
   updatedAt: string;
 };
 
-type PreferenceResponse = {
-  data?: {
-    notifyOnJobStatus?: boolean;
-  };
-  error?: string;
-};
-
 /**
  * Client Dashboard
  *
@@ -62,7 +53,6 @@ export function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [prefsSaving, setPrefsSaving] = useState(false);
 
   useEffect(() => {
     loadDashboard();
@@ -103,48 +93,7 @@ export function ClientDashboard() {
     }
   }
 
-  async function handleNotificationToggle(next: boolean) {
-    const previous = notifyOnJobStatus;
-    setNotifyOnJobStatus(next);
-    setPrefsSaving(true);
-    try {
-      const res = await fetch("/api/client/preferences", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ notifyOnJobStatus: next }),
-      });
-      const payload = (await res
-        .json()
-        .catch(() => ({}))) as PreferenceResponse;
-      if (!res.ok) {
-        const message =
-          typeof payload?.error === "string"
-            ? payload.error
-            : "Unable to update preference";
-        throw new Error(message);
-      }
-      const resolved = Boolean(
-        payload?.data && typeof payload.data.notifyOnJobStatus === "boolean"
-          ? payload.data.notifyOnJobStatus
-          : next,
-      );
-      setNotifyOnJobStatus(resolved);
-      toast.success(
-        resolved
-          ? "Job status email notifications enabled."
-          : "Job status email notifications disabled.",
-      );
-    } catch (error) {
-      setNotifyOnJobStatus(previous);
-      toast.error(
-        error instanceof Error ? error.message : "Unable to update preference",
-      );
-    } finally {
-      setPrefsSaving(false);
-    }
-  }
+  // Email notification toggle temporarily disabled while delivery is paused.
 
   return (
     <div className="space-y-6">
@@ -152,33 +101,41 @@ export function ClientDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage your orders and communicate with our team
+          <p className="text-sm text-muted-foreground">
+            Manage your orders and communicate with our team
+          </p>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
+            <p className="text-[11px] leading-snug">
+              We’re tuning the email system this week—SMS and portal messages still work, and we’ll re-enable emails soon.
+              {" "}
+              {prefsLoaded ? (
+                <span className="font-medium">
+                  Your email preference is safely set to {notifyOnJobStatus ? "on" : "off"}.
+                </span>
+              ) : null}
             </p>
           </div>
-          <div className="flex items-center gap-3 rounded-full border border-border/60 bg-surface-overlay px-4 py-2">
-          <div className="text-left">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Job status emails
-            </p>
-            <p className="text-[11px] text-muted-foreground/80">
-              {prefsLoaded
-                ? notifyOnJobStatus
-                  ? "We'll email you as production progresses (when email alerts are enabled)."
-                  : "Turn on to receive job progress emails (requires email notifications to be enabled)."
-                : "Loading preference..."}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 shadow-sm shadow-primary/20">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-primary">Need something printed fast?</p>
+            <p className="text-xs text-primary/80">
+              Jump into Quick Order to upload files and lock in pricing in minutes.
             </p>
           </div>
-          <Switch
-            id="notify-job-status"
-            checked={notifyOnJobStatus}
-            disabled={loading || !prefsLoaded || prefsSaving}
-            onCheckedChange={(checked) => {
-              if (prefsSaving) return;
-              void handleNotificationToggle(checked);
-            }}
-            aria-label="Toggle job status email notifications"
-          />
+          <Link
+            href="/quick-order"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90"
+          >
+            Open Quick Order
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
 

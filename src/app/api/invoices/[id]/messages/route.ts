@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/server/db/client";
 import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
+import { getServiceSupabase } from "@/server/supabase/service-client";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -17,18 +17,30 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const invoiceId = await parseId(context.params);
     await requireInvoiceAccess(req, invoiceId);
 
-    // Get all messages for the client user associated with this invoice (unified thread)
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { clientId: true },
-    });
+    const supabase = getServiceSupabase();
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("client_id")
+      .eq("id", invoiceId)
+      .maybeSingle();
+    if (invoiceError) {
+      throw Object.assign(new Error(`Failed to fetch invoice: ${invoiceError.message}`), { status: 500 });
+    }
     if (!invoice) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
     }
 
-    const clientUser = await prisma.user.findFirst({
-      where: { clientId: invoice.clientId },
-    });
+    const { data: clientUser, error: clientUserError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("client_id", invoice.client_id)
+      .eq("role", "CLIENT")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (clientUserError) {
+      throw Object.assign(new Error(`Failed to fetch client user: ${clientUserError.message}`), { status: 500 });
+    }
     if (!clientUser) {
       return NextResponse.json({ error: "No client user" }, { status: 400 });
     }
@@ -40,14 +52,21 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const take = Number.isFinite(limit) && limit > 0 ? limit : 50;
     const skip = Number.isFinite(offset) && offset >= 0 ? offset : 0;
 
-    // Fetch all messages for this client user (unified thread across all invoices)
-    const messages = await prisma.userMessage.findMany({
-      where: { userId: clientUser.id },
-      orderBy: { createdAt: order },
-      take,
-      skip,
-      select: { id: true, sender: true, content: true, createdAt: true },
-    });
+    const { data: rows, error: messagesError } = await supabase
+      .from("user_messages")
+      .select("id, sender, content, created_at")
+      .eq("user_id", clientUser.id)
+      .order("created_at", { ascending: order === "asc" })
+      .range(skip, skip + take - 1);
+    if (messagesError) {
+      throw Object.assign(new Error(`Failed to fetch messages: ${messagesError.message}`), { status: 500 });
+    }
+    const messages = (rows ?? []).map((row) => ({
+      id: row.id,
+      sender: row.sender,
+      content: row.content,
+      createdAt: row.created_at,
+    }));
     return NextResponse.json({ data: messages });
   } catch (error) {
     const e = error as Error & { status?: number };
@@ -66,33 +85,65 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     if (!content) {
       return NextResponse.json({ error: "Invalid content" }, { status: 400 });
     }
-    // Resolve target userId for message row
+    const supabase = getServiceSupabase();
     let targetUserId: number | null = null;
     if (user.role === "CLIENT") {
       targetUserId = user.id;
     } else {
-      // ADMIN: attach to a client user associated with this invoice's client
-      const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: { clientId: true } });
-      if (!inv) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-      const clientUser = await prisma.user.findFirst({ where: { clientId: inv.clientId }, orderBy: { createdAt: "asc" } });
-      if (!clientUser) return NextResponse.json({ error: "No client user for this invoice" }, { status: 400 });
+      const { data: inv, error: invError } = await supabase
+        .from("invoices")
+        .select("client_id")
+        .eq("id", invoiceId)
+        .maybeSingle();
+      if (invError) {
+        throw Object.assign(new Error(`Failed to fetch invoice: ${invError.message}`), { status: 500 });
+      }
+      if (!inv) {
+        return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      }
+      const { data: clientUser, error: clientUserError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("client_id", inv.client_id)
+        .eq("role", "CLIENT")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (clientUserError) {
+        throw Object.assign(new Error(`Failed to fetch client user: ${clientUserError.message}`), { status: 500 });
+      }
+      if (!clientUser) {
+        return NextResponse.json({ error: "No client user for this invoice" }, { status: 400 });
+      }
       targetUserId = clientUser.id;
     }
 
-    const msg = await prisma.userMessage.create({
-      data: {
-        userId: targetUserId!,
-        invoiceId,
+    const { data, error } = await supabase
+      .from("user_messages")
+      .insert({
+        user_id: targetUserId!,
+        invoice_id: invoiceId,
         sender: user.role,
         content: content.slice(0, 5000),
+      })
+      .select("id, sender, content, created_at")
+      .single();
+
+    if (error || !data) {
+      throw Object.assign(new Error(error?.message ?? "Failed to create message"), { status: 500 });
+    }
+
+    return NextResponse.json({
+      data: {
+        id: data.id,
+        sender: data.sender,
+        content: data.content,
+        createdAt: data.created_at,
       },
-      select: { id: true, sender: true, content: true, createdAt: true },
     });
-    return NextResponse.json({ data: msg });
   } catch (error) {
     const e = error as Error & { status?: number };
     const status = e?.status ?? 400;
     return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
   }
 }
-

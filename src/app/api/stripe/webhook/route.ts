@@ -7,9 +7,18 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
-    await getStripeEnvironment();
+    const env = await getStripeEnvironment();
     const bodyBuffer = Buffer.from(await request.arrayBuffer());
-    const event = JSON.parse(bodyBuffer.toString("utf8")) as Stripe.Event;
+    let event: Stripe.Event;
+    if (env.webhookSecret) {
+      const signature = request.headers.get("stripe-signature");
+      if (!signature) {
+        throw new Error("Missing Stripe signature header");
+      }
+      event = env.stripe.webhooks.constructEvent(bodyBuffer, signature, env.webhookSecret);
+    } else {
+      event = JSON.parse(bodyBuffer.toString("utf8")) as Stripe.Event;
+    }
     await handleStripeEvent(event);
 
     return NextResponse.json({ received: true });

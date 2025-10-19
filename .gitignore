@@ -25,6 +25,10 @@
 *.pem
 data/
 prisma/data/
+AI_docs/
+.claude/
+docs_implementation_docs/
+.mcp.json
 
 # debug
 npm-debug.log*

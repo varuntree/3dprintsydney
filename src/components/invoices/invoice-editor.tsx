@@ -100,6 +100,7 @@ export type InvoiceFormValues = {
   discountValue?: number;
   shippingCost?: number;
   shippingLabel?: string;
+  poNumber?: string;
   notes?: string;
   terms?: string;
   lines: InvoiceLineFormValue[];
@@ -132,6 +133,7 @@ export function InvoiceEditor({
     discountValue: 0,
     shippingCost: defaultShippingRegion?.baseAmount ?? 0,
     shippingLabel: defaultShippingRegion?.label ?? "",
+    poNumber: "",
     notes: "",
     terms: "",
     lines: [
@@ -248,6 +250,7 @@ export function InvoiceEditor({
         terms: initialValues.terms ?? "",
         discountValue: initialValues.discountValue ?? 0,
         shippingCost: initialValues.shippingCost ?? 0,
+        poNumber: initialValues.poNumber ?? "",
         lines: initialValues.lines.map((line) => ({
           ...line,
           discountValue: line.discountValue ?? 0,
@@ -293,6 +296,8 @@ export function InvoiceEditor({
           orderIndex: index,
         })),
       };
+      const trimmedPo = values.poNumber?.trim();
+      payload.poNumber = trimmedPo ? trimmedPo : undefined;
       if (mode === "create") {
         return mutateJson<{ id: number }>("/api/invoices", {
           method: "POST",
@@ -535,6 +540,28 @@ export function InvoiceEditor({
                       {dueDateTouched
                         ? "Manually overridden. Reset to align with payment terms."
                         : "Auto-calculated from payment terms."}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="poNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>PO number</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        maxLength={120}
+                        autoComplete="off"
+                        placeholder="PO-12345"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Optional client purchase order reference. Shown on the invoice and PDF when provided.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

@@ -1,50 +1,65 @@
-import puppeteer from "puppeteer";
 import { existsSync, readFileSync } from "fs";
 import { join, extname } from "path";
-import { ensureStorage, savePdf, resolvePdfPath } from "@/server/files/storage";
+import { ensurePdfCache, cachePdf, resolvePdfPath } from "@/server/files/storage";
 import { getQuoteDetail } from "@/server/services/quotes";
 import { getInvoiceDetail } from "@/server/services/invoices";
 import { getSettings } from "@/server/services/settings";
 import { createStripeCheckoutSession } from "@/server/services/stripe";
 import { renderProductionQuoteHtml, renderProductionInvoiceHtml } from "@/server/pdf/templates/production";
 import { logger } from "@/lib/logger";
+import { uploadPdf } from "@/server/storage/supabase";
+import type { Browser } from "puppeteer-core";
 
 // Production template - single high-quality template
 const getQuoteTemplate = () => renderProductionQuoteHtml;
 
 const getInvoiceTemplate = () => renderProductionInvoiceHtml;
 
+async function launchPdfBrowser(): Promise<Browser> {
+  try {
+    const [{ default: chromium }, { default: puppeteerCore }] = await Promise.all([
+      import("@sparticuz/chromium"),
+      import("puppeteer-core"),
+    ]);
+
+    const executablePath = await chromium.executablePath();
+    const browser = await puppeteerCore.launch({
+      args: [...chromium.args, "--font-render-hinting=none"],
+      defaultViewport: chromium.defaultViewport,
+      executablePath,
+      headless: chromium.headless,
+    });
+    return browser;
+  } catch (error) {
+    logger.warn({
+      scope: "pdf.browser",
+      message: "Falling back to bundled Puppeteer",
+      error,
+    });
+    const { default: puppeteer } = await import("puppeteer");
+    return puppeteer.launch({
+      headless: true,
+      args: ["--font-render-hinting=none"],
+    });
+  }
+}
+
 async function renderPdf(html: string, filename: string) {
-  await ensureStorage();
+  await ensurePdfCache();
 
-  // Enhanced Puppeteer configuration for better PDF rendering
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-web-security",
-      "--disable-features=VizDisplayCompositor",
-      // Enhanced rendering flags
-      "--disable-extensions",
-      "--disable-gpu",
-      "--disable-dev-shm-usage",
-      "--disable-ipc-flooding-protection",
-      "--enable-font-antialiasing",
-      "--force-color-profile=sRGB",
-      // Memory and performance optimizations
-      "--memory-pressure-off",
-      "--max_old_space_size=4096",
-      // PDF-specific optimizations
-      "--run-all-compositor-stages-before-draw",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-renderer-backgrounding"
-    ],
-    // Increased timeout and memory
-    timeout: 60000,
-  });
+  let browser: Browser | null = null;
 
-  const page = await browser.newPage();
+  try {
+    browser = await launchPdfBrowser();
+  } catch (error) {
+    logger.error({ scope: "pdf.browser", message: "Failed to launch browser", error });
+    throw error;
+  }
+
+  let pdfBuffer: Buffer;
+
+  try {
+    const page = await browser.newPage();
 
   // Enhanced viewport configuration for PDF generation
   await page.setViewport({
@@ -89,10 +104,10 @@ async function renderPdf(html: string, filename: string) {
   await new Promise(resolve => setTimeout(resolve, 500));
 
   // Enhanced PDF generation with quality optimizations
-  const pdfData = await page.pdf({
-    format: "A4",
-    printBackground: true,
-    preferCSSPageSize: true,
+    const pdfData = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
     displayHeaderFooter: false,
     margin: {
       top: "20mm",
@@ -107,12 +122,39 @@ async function renderPdf(html: string, filename: string) {
     scale: 1.0,
     width: '210mm', // A4 width
     height: '297mm', // A4 height
-  });
+    });
 
-  await browser.close();
-  const buffer = Buffer.from(pdfData);
-  await savePdf(filename, buffer);
-  return { buffer, path: resolvePdfPath(filename) };
+    pdfBuffer = Buffer.from(pdfData);
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+
+  let storageKey: string | null = null;
+  try {
+    storageKey = await uploadPdf(filename, pdfBuffer);
+  } catch (error) {
+    logger.warn({
+      scope: "pdf.storage.upload",
+      message: "Failed to upload PDF to Supabase storage",
+      error,
+      data: { filename },
+    });
+  }
+
+  try {
+    await cachePdf(filename, pdfBuffer);
+  } catch (error) {
+    logger.warn({
+      scope: "pdf.storage.cache",
+      message: "Failed to cache PDF locally",
+      error,
+      data: { filename },
+    });
+  }
+
+  return { buffer: pdfBuffer, filename, storageKey, path: resolvePdfPath(filename) };
 }
 
 export async function generateQuotePdf(id: number) {
@@ -152,8 +194,9 @@ export async function generateQuotePdf(id: number) {
 
   // Route to appropriate template based on style
   const html = getQuoteTemplate()(quote, templateData);
-  const { buffer, path } = await renderPdf(html, `quote-${quote.number}.pdf`);
-  return { buffer, filename: `quote-${quote.number}.pdf`, path };
+  const filename = `quote-${quote.number}.pdf`;
+  const { buffer, path, storageKey } = await renderPdf(html, filename);
+  return { buffer, filename, path, storageKey };
 }
 
 export async function generateInvoicePdf(id: number) {
@@ -222,6 +265,7 @@ export async function generateInvoicePdf(id: number) {
   };
 
   const html = getInvoiceTemplate()(invoiceForTemplate, templateData);
-  const { buffer, path } = await renderPdf(html, `invoice-${invoice.number}.pdf`);
-  return { buffer, filename: `invoice-${invoice.number}.pdf`, path };
+  const filename = `invoice-${invoice.number}.pdf`;
+  const { buffer, path, storageKey } = await renderPdf(html, filename);
+  return { buffer, filename, path, storageKey };
 }

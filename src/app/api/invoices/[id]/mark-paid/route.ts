@@ -1,7 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { markInvoicePaid } from "@/server/services/invoices";
 import { paymentInputSchema } from "@/lib/schemas/invoices";
-import type { PaymentMethod } from "@prisma/client";
+import type { PaymentMethod } from "@/lib/constants/enums";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
 

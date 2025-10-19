@@ -1,84 +1,83 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { randomBytes } from "crypto";
-import { prisma } from "@/server/db/client";
+import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
+import { getServiceSupabase } from "@/server/supabase/service-client";
+import type { LegacyUser } from "@/lib/types/user";
+import { logger } from "@/lib/logger";
 
-export const SESSION_COOKIE = "session";
-const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ACCESS_COOKIE = "sb:token";
 
-export async function createSession(userId: number) {
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await prisma.session.create({ data: { token, userId, expiresAt } });
-  return { token, expiresAt };
-}
-
-export async function deleteSessionByToken(token: string) {
-  await prisma.session.deleteMany({ where: { token } });
-}
-
-export async function getUserFromRequest(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: { user: true },
+function createAuthClient() {
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: {
+      persistSession: false,
+    },
   });
-  if (!session) return null;
-  if (session.expiresAt.getTime() < Date.now()) {
-    await prisma.session.delete({ where: { id: session.id } });
+}
+
+async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, role, client_id")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load user profile: ${error.message}`);
+  }
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    email: data.email,
+    role: data.role,
+    clientId: data.client_id,
+    name: null,
+    phone: null,
+  };
+}
+
+async function getAuthUserFromToken(token: string | undefined) {
+  if (!token) return null;
+  const supabase = createAuthClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+  if (error) {
+    logger.warn({ scope: "auth.session", message: "Failed to fetch auth user", error });
     return null;
   }
-  return session.user;
+  return user;
 }
 
-export async function requireUser(req: NextRequest) {
+export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser | null> {
+  const token = req.cookies.get(ACCESS_COOKIE)?.value;
+  const authUser = await getAuthUserFromToken(token);
+  if (!authUser) return null;
+  return loadLegacyUser(authUser.id);
+}
+
+export async function requireUser(req: NextRequest): Promise<LegacyUser> {
   const user = await getUserFromRequest(req);
   if (!user) throw Object.assign(new Error("Unauthorized"), { status: 401 });
   return user;
 }
 
-export async function requireAdmin(req: NextRequest) {
+export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
-  if (user.role !== "ADMIN")
+  if (user.role !== "ADMIN") {
     throw Object.assign(new Error("Forbidden"), { status: 403 });
+  }
   return user;
 }
 
-export async function setSessionCookie(token: string, expiresAt: Date) {
-  const c = await cookies();
-  c.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
-}
-
-export async function clearSessionCookie() {
-  const c = await cookies();
-  c.set(SESSION_COOKIE, "", {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: new Date(0),
-  });
-}
-
-export async function getUserFromCookies() {
-  const c = await cookies();
-  const token = c.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = await prisma.session.findUnique({
-    where: { token },
-    include: { user: true },
-  });
-  if (!session) return null;
-  if (session.expiresAt.getTime() < Date.now()) {
-    await prisma.session.delete({ where: { id: session.id } });
-    return null;
-  }
-  return session.user;
+export async function getUserFromCookies(): Promise<LegacyUser | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(ACCESS_COOKIE)?.value;
+  const authUser = await getAuthUserFromToken(token);
+  if (!authUser) return null;
+  return loadLegacyUser(authUser.id);
 }

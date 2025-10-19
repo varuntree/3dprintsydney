@@ -5,7 +5,11 @@ import path from "path";
 export type SliceOptions = {
   layerHeight: number; // mm
   infill: number; // percent
-  supports: boolean;
+  supports: {
+    enabled: boolean;
+    angle?: number;
+    pattern?: "normal" | "tree";
+  };
 };
 
 export type SliceResult = {
@@ -64,7 +68,17 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
   args.push("--export-gcode");
   args.push("--layer-height", String(opts.layerHeight));
   args.push("--fill-density", `${opts.infill}%`);
-  if (opts.supports) args.push("--support-material");
+  if (opts.supports?.enabled) {
+    args.push("--support-material");
+    const angle = Number.isFinite(opts.supports.angle)
+      ? Math.max(1, Math.min(89, Math.round(Number(opts.supports.angle))))
+      : 45;
+    args.push("--support-material-angle", String(angle));
+    if (opts.supports.pattern === "tree") {
+      // Organic (tree) supports in PrusaSlicer 2.5+
+      args.push("--support-material-style", "organic");
+    }
+  }
   args.push("--output", outDir);
   args.push(inputPath);
 
@@ -73,9 +87,11 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
   let child: ChildProcess | null = null;
   try {
     child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
-  } catch (e) {
+  } catch (error) {
     release();
-    return { timeSec: 3600, grams: 80, fallback: true };
+    const err = new Error(`Failed to start slicer: ${(error as Error).message}`);
+    (err as Error & { stderr?: string }).stderr = (error as Error).message;
+    throw err;
   }
   const res = await new Promise<{ code: number; stderr: string }>((resolve) => {
     const timeoutMs = Math.max(30_000, Math.min(300_000, Number(process.env.SLICER_TIMEOUT_MS || 120_000)));
@@ -92,12 +108,15 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
   }).finally(release);
 
   if (res.code !== 0) {
-    return { timeSec: 3600, grams: 80, fallback: true }; // crude fallback
+    const err = new Error(`Slicer exited with code ${res.code}`);
+    (err as Error & { stderr?: string }).stderr = res.stderr;
+    throw err;
   }
 
   const metrics = await parseGcodeMetrics(outPath).catch(() => ({ timeSec: 0, grams: 0 }));
   if (!metrics.timeSec || !metrics.grams) {
-    return { timeSec: 3600, grams: 80, fallback: true };
+    const err = new Error("Unable to parse slicer output");
+    throw err;
   }
   return { ...metrics, gcodePath: outPath };
 }

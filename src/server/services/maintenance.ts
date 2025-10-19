@@ -1,58 +1,67 @@
 import { addDays, startOfDay } from "date-fns";
-import { prisma } from "@/server/db/client";
-import { InvoiceStatus, QuoteStatus } from "@prisma/client";
 import { logger } from "@/lib/logger";
+import { getServiceSupabase } from "@/server/supabase/service-client";
+import { InvoiceStatus, QuoteStatus } from "@/lib/constants/enums";
 
 async function getSettings() {
-  const s = await prisma.settings.findUnique({ where: { id: 1 } });
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("settings")
+    .select("overdue_days, reminder_cadence_days, auto_archive_completed_jobs_after_days")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Failed to load maintenance settings: ${error.message}`);
+  }
   return {
-    overdueDays: s?.overdueDays ?? 0,
-    reminderCadenceDays: s?.reminderCadenceDays ?? 7,
-    autoArchiveCompletedJobsAfterDays: s?.autoArchiveCompletedJobsAfterDays ?? 7,
+    overdueDays: data?.overdue_days ?? 0,
+    reminderCadenceDays: data?.reminder_cadence_days ?? 7,
+    autoArchiveCompletedJobsAfterDays: data?.auto_archive_completed_jobs_after_days ?? 7,
   };
 }
 
 export async function runDailyMaintenance(now: Date = new Date()) {
   const settings = await getSettings();
-  const tasks: Array<Promise<unknown>> = [];
+  const supabase = getServiceSupabase();
+  let actions = 0;
 
-  // Overdue invoices
   if (settings.overdueDays >= 0) {
-    const cutoff = addDays(startOfDay(now), -settings.overdueDays);
-    tasks.push(
-      prisma.invoice.updateMany({
-        where: { status: { in: [InvoiceStatus.PENDING] }, dueDate: { lte: cutoff } },
-        data: { status: InvoiceStatus.OVERDUE },
-      }),
-    );
+    const cutoff = addDays(startOfDay(now), -settings.overdueDays).toISOString();
+    const { error } = await supabase
+      .from("invoices")
+      .update({ status: InvoiceStatus.OVERDUE })
+      .eq("status", InvoiceStatus.PENDING)
+      .lte("due_date", cutoff);
+    if (error) {
+      throw new Error(`Failed to mark overdue invoices: ${error.message}`);
+    }
+    actions += 1;
   }
 
-  // Expire quotes (treat expiryDate/expiresAt equivalently)
-  tasks.push(
-    prisma.quote.updateMany({
-      where: {
-        status: QuoteStatus.PENDING,
-        OR: [
-          { expiryDate: { lte: now } },
-          { expiresAt: { lte: now } },
-        ],
-      },
-      data: { status: QuoteStatus.DECLINED },
-    }),
-  );
+  {
+    const { error } = await supabase
+      .from("quotes")
+      .update({ status: QuoteStatus.DECLINED })
+      .eq("status", QuoteStatus.PENDING)
+      .or(`expiry_date.lte.${now.toISOString()},expires_at.lte.${now.toISOString()}`);
+    if (error) {
+      throw new Error(`Failed to expire quotes: ${error.message}`);
+    }
+    actions += 1;
+  }
 
-  // Auto-archive completed jobs older than N days
   if (settings.autoArchiveCompletedJobsAfterDays > 0) {
-    const cutoff = addDays(startOfDay(now), -settings.autoArchiveCompletedJobsAfterDays);
-    tasks.push(
-      prisma.job.updateMany({
-        where: { completedAt: { lte: cutoff }, archivedAt: null },
-        data: { archivedAt: now, archivedReason: "auto-archive" },
-      }),
-    );
+    const cutoff = addDays(startOfDay(now), -settings.autoArchiveCompletedJobsAfterDays).toISOString();
+    const { error } = await supabase
+      .from("jobs")
+      .update({ archived_at: now.toISOString(), archived_reason: "auto-archive" })
+      .lte("completed_at", cutoff)
+      .is("archived_at", null);
+    if (error) {
+      throw new Error(`Failed to archive completed jobs: ${error.message}`);
+    }
+    actions += 1;
   }
 
-  await Promise.all(tasks);
-  logger.info({ scope: "maintenance.run", data: { tasks: tasks.length } });
+  logger.info({ scope: "maintenance.run", data: { tasks: actions } });
 }
-

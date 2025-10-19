@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Conversation } from "@/components/messages/conversation";
 import { formatDistanceToNow } from "date-fns";
-import type { JobStatus } from "@prisma/client";
+import type { JobStatus } from "@/lib/constants/enums";
 import { CheckCircle2, Circle, Loader2, PauseCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PayOnlineButton } from "@/components/client/pay-online-button";

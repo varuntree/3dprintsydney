@@ -1,71 +1,188 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
-import { resolveTmpPath, saveTmpFile } from "@/server/files/tmp";
+import {
+  saveTmpFile,
+  requireTmpFile,
+  updateTmpFile,
+  downloadTmpFileToBuffer,
+  type TmpFileMetadata,
+} from "@/server/services/tmp-files";
 import { sliceFileWithCli } from "@/server/slicer/runner";
 import path from "path";
 import { promises as fsp } from "fs";
+import { logger } from "@/lib/logger";
+import os from "os";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/quick-order/slice
  *
- * Slices multiple 3D model files in parallel for performance
- * Uses Promise.all to process all files concurrently
+ * Processes a single file per request. Keeps things simple and reliable for
+ * the small business use case while still surfacing detailed progress/errors.
  */
 export async function POST(req: NextRequest) {
+  let tmpDir: string | null = null;
+  let baseMeta: TmpFileMetadata = {};
+  let attempts = 1;
   try {
-    await requireUser(req);
+    const user = await requireUser(req);
     const body = await req.json();
-    const items: { id: string; layerHeight: number; infill: number; supports?: boolean }[] = body?.files ?? [];
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "No files provided" }, { status: 400 });
+    const item = body?.file;
+    if (!item || typeof item.id !== "string") {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    const fileUserKey = item.id.split("/")[0];
+    if (fileUserKey !== String(user.id)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // OPTIMIZATION: Slice all files in parallel using Promise.all
-    // This dramatically improves performance when processing multiple files
-    const slicePromises = items.map(async (it) => {
-      try {
-        const src = resolveTmpPath(it.id);
-        const metrics = await sliceFileWithCli(src, {
-          layerHeight: it.layerHeight,
-          infill: it.infill,
-          supports: Boolean(it.supports),
-        });
+    const supports = item.supports ?? { enabled: true, pattern: "normal", angle: 45 };
 
-        let gcodeId: string | undefined;
-        if (metrics.gcodePath) {
-          const buf = await fsp.readFile(metrics.gcodePath);
-          const userKey = it.id.split("/")[0] ?? "u";
-          const saved = await saveTmpFile(userKey, path.basename(metrics.gcodePath), buf);
-          gcodeId = saved.tmpId;
-        }
+    const record = await requireTmpFile(user.id, item.id);
+    baseMeta = (record.metadata ?? {}) as Record<string, unknown>;
+    attempts = typeof baseMeta.attempts === "number" ? (baseMeta.attempts as number) + 1 : 1;
 
-        return {
-          id: it.id,
-          timeSec: metrics.timeSec,
-          grams: metrics.grams,
-          gcodeId,
-          fallback: metrics.fallback ?? false,
-        };
-      } catch (error) {
-        // Return fallback metrics for failed slices
-        console.error(`[Slice] Failed to slice ${it.id}:`, error);
-        return {
-          id: it.id,
-          timeSec: 3600,
-          grams: 80,
-          gcodeId: undefined,
-          fallback: true,
-        };
-      }
+    await updateTmpFile(user.id, item.id, {
+      status: "running",
+      metadata: {
+        ...baseMeta,
+        attempts,
+        settings: {
+          layerHeight: item.layerHeight,
+          infill: item.infill,
+          supports,
+        },
+        fallback: false,
+        error: null,
+      },
     });
 
-    // Wait for all slicing operations to complete
-    const results = await Promise.all(slicePromises);
+    const buffer = await downloadTmpFileToBuffer(item.id);
+    tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "slice-"));
+    const src = path.join(tmpDir, path.basename(item.id) || `input-${Date.now()}.stl`);
+    await fsp.writeFile(src, buffer);
 
-    return NextResponse.json({ data: results });
+    const maxAttempts = 2;
+    let attempt = 0;
+    let lastError: Error & { stderr?: string } | null = null;
+    let metrics: { timeSec: number; grams: number; gcodePath?: string } | null = null;
+
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      try {
+        const result = await sliceFileWithCli(src, {
+          layerHeight: Number(item.layerHeight),
+          infill: Number(item.infill),
+          supports: {
+            enabled: Boolean(supports.enabled),
+            angle: supports?.angle ?? 45,
+            pattern: supports?.pattern === "tree" ? "tree" : "normal",
+          },
+        });
+        metrics = result;
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error as Error & { stderr?: string };
+        logger.error({
+          scope: "quick-order.slice",
+          message: "Slicer run failed",
+          data: {
+            tmpId: item.id,
+            attempt,
+            layerHeight: item.layerHeight,
+            infill: item.infill,
+            supports,
+          },
+          error: lastError.stderr || lastError.message,
+        });
+        if (attempt >= maxAttempts) {
+          break;
+        }
+      }
+    }
+
+    if (!metrics) {
+      const fallbackMetrics = {
+        id: item.id,
+        timeSec: 3600,
+        grams: 80,
+        gcodeId: undefined as string | undefined,
+        fallback: true,
+        error: lastError?.stderr || lastError?.message || "Slicer failed",
+      };
+      await updateTmpFile(user.id, item.id, {
+        status: "failed",
+        metadata: {
+          ...baseMeta,
+          attempts,
+          settings: {
+            layerHeight: item.layerHeight,
+            infill: item.infill,
+            supports,
+          },
+          metrics: { timeSec: fallbackMetrics.timeSec, grams: fallbackMetrics.grams },
+          fallback: true,
+          error: fallbackMetrics.error,
+        },
+      });
+      if (tmpDir) {
+        await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+      }
+      return NextResponse.json({ data: fallbackMetrics });
+    }
+
+    let gcodeId: string | undefined;
+    if (metrics.gcodePath) {
+      const buf = await fsp.readFile(metrics.gcodePath);
+      const { tmpId } = await saveTmpFile(
+        Number(fileUserKey),
+        path.basename(metrics.gcodePath),
+        buf,
+        "text/plain",
+        {
+          derivedFrom: item.id,
+          type: "gcode",
+        },
+      );
+      gcodeId = tmpId;
+    }
+
+    await updateTmpFile(user.id, item.id, {
+      status: "completed",
+      metadata: {
+        ...baseMeta,
+        attempts,
+        settings: {
+          layerHeight: item.layerHeight,
+          infill: item.infill,
+          supports,
+        },
+        metrics: { timeSec: metrics.timeSec, grams: metrics.grams },
+        fallback: false,
+        error: null,
+        output: gcodeId ?? null,
+      },
+    });
+
+    if (tmpDir) {
+      await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+
+    return NextResponse.json({
+      data: {
+        id: item.id,
+        timeSec: metrics.timeSec,
+        grams: metrics.grams,
+        gcodeId,
+        fallback: false,
+      },
+    });
   } catch (error) {
+    if (tmpDir) {
+      await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
     const e = error as Error & { status?: number };
     return NextResponse.json({ error: e?.message ?? "Slice failed" }, { status: e?.status ?? 400 });
   }
