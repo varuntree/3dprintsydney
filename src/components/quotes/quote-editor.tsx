@@ -127,7 +127,7 @@ export function QuoteEditor({
   const router = useRouter();
   const { navigate } = useNavigation();
   const queryClient = useQueryClient();
-  const shippingRegions = settings.shippingRegions ?? [];
+  const shippingRegions = useMemo(() => settings.shippingRegions ?? [], [settings.shippingRegions]);
   const defaultShippingRegion =
     shippingRegions.find(
       (region) => region.code === settings.defaultShippingRegion,

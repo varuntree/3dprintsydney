@@ -23,7 +23,6 @@ export interface STLViewerRef {
 
 function Model({
   url,
-  onTransformChange,
   onLoadComplete,
   onError,
   meshRef,
@@ -75,7 +74,7 @@ function ErrorFallback({ error, onRetry }: { error: Error; onRetry?: () => void 
   );
 }
 
-function Scene({ url, onTransformChange, onLoadComplete, onError, meshRef }: STLViewerProps & {
+function Scene({ url, onLoadComplete, onError, meshRef }: STLViewerProps & {
   meshRef: React.MutableRefObject<THREE.Mesh | null>;
 }) {
   const { camera } = useThree();
@@ -113,7 +112,6 @@ function Scene({ url, onTransformChange, onLoadComplete, onError, meshRef }: STL
       <Suspense fallback={null}>
         <Model
           url={url}
-          onTransformChange={onTransformChange}
           onLoadComplete={onLoadComplete}
           onError={onError}
           meshRef={meshRef}
@@ -127,7 +125,7 @@ function Scene({ url, onTransformChange, onLoadComplete, onError, meshRef }: STL
 }
 
 const STLViewer = forwardRef<STLViewerRef, STLViewerProps>(
-  ({ url, onTransformChange, onLoadComplete, onError }, ref) => {
+  ({ url, onLoadComplete, onError }, ref) => {
     const meshRef = useRef<THREE.Mesh | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const [key, setKey] = useState(0); // For retry mechanism
@@ -141,13 +139,11 @@ const STLViewer = forwardRef<STLViewerRef, STLViewerProps>(
           meshRef.current.position.set(0, 0, 0);
           meshRef.current.scale.set(1, 1, 1);
           centerModelOnBed(meshRef.current);
-          onTransformChange?.(meshRef.current.matrix.clone());
         }
       },
       centerModel: () => {
         if (meshRef.current) {
           centerModelOnBed(meshRef.current);
-          onTransformChange?.(meshRef.current.matrix.clone());
         }
       },
       rotateModel: (axis: "x" | "y" | "z", degrees: number) => {
@@ -167,7 +163,6 @@ const STLViewer = forwardRef<STLViewerRef, STLViewerProps>(
           // Re-center model on build plate after rotation
           centerModelOnBed(meshRef.current);
           meshRef.current.updateMatrix();
-          onTransformChange?.(meshRef.current.matrix.clone());
         }
       },
     }));
@@ -196,7 +191,6 @@ const STLViewer = forwardRef<STLViewerRef, STLViewerProps>(
         >
           <Scene
             url={url}
-            onTransformChange={onTransformChange}
             onLoadComplete={onLoadComplete}
             onError={handleError}
             meshRef={meshRef}

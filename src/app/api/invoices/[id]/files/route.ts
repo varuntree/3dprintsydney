@@ -9,10 +9,11 @@ import { getOrderFilesByInvoice } from "@/server/services/order-files";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const invoiceId = parseInt(params.id, 10);
+    const resolvedParams = await params;
+    const invoiceId = parseInt(resolvedParams.id, 10);
 
     if (isNaN(invoiceId)) {
       return NextResponse.json({ error: "Invalid invoice ID" }, { status: 400 });

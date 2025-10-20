@@ -1,9 +1,5 @@
 import { getServiceSupabase } from '@/server/supabase/service-client';
 
-function pad(value: number) {
-  return value.toString().padStart(4, '0');
-}
-
 export async function nextDocumentNumber(kind: 'quote' | 'invoice') {
   const supabase = getServiceSupabase();
   const defaultPrefix = kind === 'quote' ? 'QT-' : 'INV-';

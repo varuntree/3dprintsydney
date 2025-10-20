@@ -4,11 +4,12 @@ import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-f
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireUser(request);
-    const fileId = parseInt(params.id, 10);
+    const resolvedParams = await params;
+    const fileId = parseInt(resolvedParams.id, 10);
 
     if (isNaN(fileId)) {
       return NextResponse.json({ error: "Invalid file ID" }, { status: 400 });
