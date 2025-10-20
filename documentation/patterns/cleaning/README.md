@@ -28,16 +28,18 @@ cleaning/
 
 ## Phase Order (Execute in Order)
 
-1. **Error Handling** - Foundation for all error handling
-2. **Type Organization** - Standardize all types
-3. **API Response Format** - Standard response envelope
-4. **Database Access** - Services-only pattern
-5. **Service Layer** - Business logic organization
-6. **Authentication** - Auth helper standardization
-7. **Validation** - Zod schema patterns
-8. **Logging** - Structured logging
-9. **Import Organization** - Import order
-10. **File Naming** - Rename files to conventions
+**Strategy:** Big architectural moves first, then add polish layers.
+
+1. **Database Access** ⚠️ - Move queries to services (Architecture)
+2. **Service Layer** ⚠️ - Structure service code (Architecture)
+3. **Error Handling** - Add typed errors (Foundation)
+4. **Type Organization** - Standardize all types (Foundation)
+5. **API Response Format** - Standard envelope (Foundation)
+6. **Validation** - Zod schema patterns (Pattern)
+7. **Authentication** - Auth helper standardization (Pattern)
+8. **Logging** - Structured logging (Quality)
+9. **Import Organization** - Import order (Quality)
+10. **File Naming** - Rename files (Quality)
 
 ## How to Use
 
@@ -59,20 +61,20 @@ cleaning/
 
 ## Current Phase
 
-**None started yet** - Begin with Phase 1: Error Handling
+**None started yet** - Begin with Phase 1: Database Access ⚠️
 
 ## Phase Status
 
-- [ ] Phase 1: Error Handling
-- [ ] Phase 2: Type Organization
-- [ ] Phase 3: API Response Format
-- [ ] Phase 4: Database Access
-- [ ] Phase 5: Service Layer
-- [ ] Phase 6: Authentication
-- [ ] Phase 7: Validation
-- [ ] Phase 8: Logging
-- [ ] Phase 9: Import Organization
-- [ ] Phase 10: File Naming
+- [ ] Phase 1: Database Access ⚠️ (Architecture)
+- [ ] Phase 2: Service Layer ⚠️ (Architecture)
+- [ ] Phase 3: Error Handling (Foundation)
+- [ ] Phase 4: Type Organization (Foundation)
+- [ ] Phase 5: API Response Format (Foundation)
+- [ ] Phase 6: Validation (Pattern)
+- [ ] Phase 7: Authentication (Pattern)
+- [ ] Phase 8: Logging (Quality)
+- [ ] Phase 9: Import Organization (Quality)
+- [ ] Phase 10: File Naming (Quality)
 
 ---
 

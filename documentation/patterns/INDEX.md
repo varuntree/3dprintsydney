@@ -32,20 +32,51 @@ Before starting ANY cleanup work:
 
 Each phase MUST be completed fully before moving to the next.
 
-### Phase 1: Error Handling (Foundation)
-**Why first:** Error handling affects all layers
+**Strategy:** Do big architectural moves first, then add polish layers on top.
 
-**Folder:** `/documentation/patterns/cleaning/01-error-handling/`
+### Phase 1: Database Access ⚠️ (Architecture)
+**Why first:** Get architecture right - move code to correct layer
+
+**Folder:** `/documentation/patterns/cleaning/01-database-access/`
+
+**Changes:**
+- Move ALL database queries from API routes to services
+- Ensure NO API route queries database directly
+- Remove all `getServiceSupabase()` calls from API routes
+- Don't worry about perfection yet, just move code
+
+**Impact:** CRITICAL - This restructures where database code lives
+
+### Phase 2: Service Layer ⚠️ (Architecture)
+**Why second:** Structure the moved code properly
+
+**Folder:** `/documentation/patterns/cleaning/02-service-layer/`
+
+**Changes:**
+- Ensure all services follow standard structure
+- Extract business logic from API routes to services
+- Standardize service function signatures
+- Add proper DTO mapping
+- Clean up and organize service code
+
+**Impact:** CRITICAL - Now all business logic is in the right place
+
+### Phase 3: Error Handling (Foundation)
+**Why third:** Add to already-structured services
+
+**Folder:** `/documentation/patterns/cleaning/03-error-handling/`
 
 **Files to create:**
 - `lib/errors.ts` - Custom error classes
 - Update all services to throw typed errors
 - Update all API routes to catch typed errors
 
-### Phase 2: Type Organization (Foundation)
-**Why second:** Types are used everywhere
+**Impact:** Foundation - Services and routes exist, now add proper errors
 
-**Folder:** `/documentation/patterns/cleaning/02-type-organization/`
+### Phase 4: Type Organization (Foundation)
+**Why fourth:** Add to already-structured services
+
+**Folder:** `/documentation/patterns/cleaning/04-type-organization/`
 
 **Files to create:**
 - `/lib/types/clients.ts`
@@ -55,51 +86,23 @@ Each phase MUST be completed fully before moving to the next.
 - `/lib/types/common.ts`
 - `/lib/types/index.ts`
 
-### Phase 3: API Response Format (Foundation)
-**Why third:** Standardize all API responses
+**Impact:** Foundation - Services structured, now add proper types
 
-**Folder:** `/documentation/patterns/cleaning/03-api-responses/`
+### Phase 5: API Response Format (Foundation)
+**Why fifth:** Routes are simple now, standardize responses
+
+**Folder:** `/documentation/patterns/cleaning/05-api-responses/`
 
 **Files to create:**
 - `server/api/respond.ts` - success() and fail() helpers
 - Update all API routes to use standard responses
 
-### Phase 4: Database Access (Critical)
-**Why fourth:** Most important architectural pattern
+**Impact:** Foundation - Routes just call services, standardize responses
 
-**Folder:** `/documentation/patterns/cleaning/04-database-access/`
+### Phase 6: Validation (Pattern)
+**Why sixth:** Add to routes (types and errors exist now)
 
-**Changes:**
-- Move ALL database queries from API routes to services
-- Ensure NO API route queries database directly
-- Remove all `getServiceSupabase()` calls from API routes
-
-### Phase 5: Service Layer (Critical)
-**Why fifth:** Centralize all business logic
-
-**Folder:** `/documentation/patterns/cleaning/05-service-layer/`
-
-**Changes:**
-- Ensure all services follow standard structure
-- Extract business logic from API routes to services
-- Standardize service function signatures
-- Add proper DTO mapping
-
-### Phase 6: Authentication (Important)
-**Why sixth:** Standardize auth patterns
-
-**Folder:** `/documentation/patterns/cleaning/06-authentication/`
-
-**Changes:**
-- Consolidate auth helpers
-- Standardize naming (requireAdmin, requireAuth, etc.)
-- Remove duplicate auth functions
-- Update all API routes to use standard helpers
-
-### Phase 7: Validation (Important)
-**Why seventh:** Consistent validation patterns
-
-**Folder:** `/documentation/patterns/cleaning/07-validation/`
+**Folder:** `/documentation/patterns/cleaning/06-validation/`
 
 **Changes:**
 - Ensure all Zod schemas in `/lib/schemas/`
@@ -107,8 +110,23 @@ Each phase MUST be completed fully before moving to the next.
 - Remove validation from services
 - Standardize validation error handling
 
+**Impact:** Pattern - Use typed errors and responses
+
+### Phase 7: Authentication (Pattern)
+**Why seventh:** Standardize (uses errors and types)
+
+**Folder:** `/documentation/patterns/cleaning/07-authentication/`
+
+**Changes:**
+- Consolidate auth helpers
+- Standardize naming (requireAdmin, requireAuth, etc.)
+- Remove duplicate auth functions
+- Update all API routes to use standard helpers
+
+**Impact:** Pattern - Use typed errors
+
 ### Phase 8: Logging (Quality)
-**Why eighth:** Improve observability
+**Why eighth:** Add throughout (all structure in place)
 
 **Folder:** `/documentation/patterns/cleaning/08-logging/`
 
@@ -117,8 +135,10 @@ Each phase MUST be completed fully before moving to the next.
 - Add consistent scope naming
 - Remove console.log, use logger
 
+**Impact:** Quality - Just add logging to existing code
+
 ### Phase 9: Import Organization (Quality)
-**Why ninth:** Code cleanliness
+**Why ninth:** Clean up imports
 
 **Folder:** `/documentation/patterns/cleaning/09-import-organization/`
 
@@ -127,8 +147,10 @@ Each phase MUST be completed fully before moving to the next.
 - Use `import type` for types
 - Remove unused imports
 
+**Impact:** Quality - Cosmetic cleanup
+
 ### Phase 10: File Naming (Quality)
-**Why last:** Cosmetic but important
+**Why last:** Rename files (everything else is perfect)
 
 **Folder:** `/documentation/patterns/cleaning/10-file-naming/`
 
@@ -136,6 +158,8 @@ Each phase MUST be completed fully before moving to the next.
 - Rename files to follow conventions
 - Update all imports
 - Ensure no broken references
+
+**Impact:** Quality - Final polish
 
 ---
 
@@ -426,11 +450,11 @@ git push
 
 ---
 
-## Example: Phase 1 Execution
+## Example: Phase 1 Execution (Database Access)
 
 ### Workspace.md (Initial)
 ```markdown
-# Phase 1: Error Handling
+# Phase 1: Database Access
 
 ## Status
 - [ ] Analysis Complete
@@ -446,46 +470,40 @@ Starting analysis with 3 explore agents
 
 ### Deploy Explore Agents (Parallel)
 ```
-Agent 1: Find all error throwing code
-Agent 2: Find all error catching code
-Agent 3: Find all error response code
+Agent 1: Find all API routes that query database
+Agent 2: Find all getServiceSupabase() calls
+Agent 3: Find existing service functions
 ```
 
 ### Write Plan
 ```markdown
 ## Files to Change
-1. Create `lib/errors.ts` - NEW FILE
-2. Update `server/services/clients.ts` - Add typed errors
-3. Update `server/services/invoices.ts` - Add typed errors
-...
-20. Update `app/api/clients/route.ts` - Catch typed errors
+1. Update `app/api/clients/route.ts` - Move queries to service
+2. Update `server/services/clients.ts` - Add service functions
+3. Update `app/api/invoices/[id]/route.ts` - Move queries to service
+4. Update `server/services/invoices.ts` - Add service functions
 ...
 ```
 
 ### Implement
 ```bash
-# Step 1: Create errors.ts
-[Create file]
+# Step 1: Move clients API queries to service
+[Update both files]
 npm run typecheck  # ✅
 npm run build      # ✅
 
-# Step 2: Update clients service
-[Update file]
+# Step 2: Move invoices API queries to service
+[Update both files]
 npm run typecheck  # ✅
 npm run build      # ✅
 
-# Step 3: Update clients API route
-[Update file]
-npm run typecheck  # ✅
-npm run build      # ✅
-
-git commit -m "Phase 1: Update clients to use typed errors"
+git commit -m "Phase 1: Move clients and invoices queries to services"
 ```
 
 ### Review
 ```
 Deploy review agent
-→ Finds issue in invoices.ts (missing import)
+→ Finds issue in quotes route (still has direct query)
 → Fix issue
 → Deploy review agent again
 → PASS ✅
@@ -535,8 +553,8 @@ Before marking a phase complete:
 
 ## Next Steps
 
-1. Start with **Phase 1: Error Handling**
-2. Create folder: `/documentation/patterns/cleaning/01-error-handling/`
+1. Start with **Phase 1: Database Access** ⚠️
+2. Create folder: `/documentation/patterns/cleaning/01-database-access/`
 3. Create `workspace.md` in that folder
 4. Deploy 3 explore agents in parallel
 5. Follow the cleanup cycle process

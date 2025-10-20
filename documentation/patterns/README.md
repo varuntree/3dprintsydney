@@ -102,20 +102,22 @@ patterns/
 
 ## 📊 Phase Order
 
+**Strategy:** Do big architectural moves first, then add polish layers.
+
 Phases must be completed in this order:
 
-1. **Error Handling** - Foundation for all errors
-2. **Type Organization** - Standardize all types
-3. **API Response Format** - Standard envelope
-4. **Database Access** - Services-only pattern ⚠️ Critical
-5. **Service Layer** - Business logic organization ⚠️ Critical
-6. **Authentication** - Auth helper standardization
-7. **Validation** - Zod schema patterns
-8. **Logging** - Structured logging
-9. **Import Organization** - Import order
-10. **File Naming** - Rename to conventions
+1. **Database Access** ⚠️ - Move queries to services (Architecture)
+2. **Service Layer** ⚠️ - Structure service code (Architecture)
+3. **Error Handling** - Add typed errors (Foundation)
+4. **Type Organization** - Standardize all types (Foundation)
+5. **API Response Format** - Standard envelope (Foundation)
+6. **Validation** - Zod schema patterns (Pattern)
+7. **Authentication** - Auth helper standardization (Pattern)
+8. **Logging** - Structured logging (Quality)
+9. **Import Organization** - Import order (Quality)
+10. **File Naming** - Rename to conventions (Quality)
 
-⚠️ **Critical phases** affect architecture - be extra careful
+⚠️ **Architecture phases (1-2)** are critical - they restructure where code lives
 
 ## 🔍 Quick Reference
 
