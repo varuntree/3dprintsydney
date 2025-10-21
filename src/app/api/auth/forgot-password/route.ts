@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";

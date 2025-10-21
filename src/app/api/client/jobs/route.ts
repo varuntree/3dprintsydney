@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireClientWithId } from "@/server/auth/api-helpers";
 import { listJobsForClient } from "@/server/services/jobs";
 import { ok, fail } from "@/server/api/respond";

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getOrderFilesByInvoice } from "@/server/services/order-files";
 import { ok, fail } from "@/server/api/respond";

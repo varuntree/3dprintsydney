@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-files";
 import { ok, fail } from "@/server/api/respond";

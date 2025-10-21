@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { deleteUserAndData } from "@/server/services/users";
 import { ok, handleError } from "@/server/api/respond";

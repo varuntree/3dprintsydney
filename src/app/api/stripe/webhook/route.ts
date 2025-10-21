@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { handleStripeEvent, getStripeEnvironment } from "@/server/services/stripe";
 import { logger } from "@/lib/logger";
-import { fail } from "@/server/api/respond";
+import { fail, ok } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
     }
     await handleStripeEvent(event);
 
-    return NextResponse.json({ received: true });
+    return ok({ received: true });
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

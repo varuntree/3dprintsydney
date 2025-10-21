@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-import { fail } from "@/server/api/respond";
+import { fail, ok } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 export async function POST() {
   try {
-    const response = NextResponse.json({ data: { success: true } });
+    const response = ok({ success: true });
     response.cookies.set("sb:token", "", {
       httpOnly: true,
       sameSite: "lax",
