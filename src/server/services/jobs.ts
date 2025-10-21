@@ -217,6 +217,12 @@ function applyCompletedTodayMetric(card: JobCardDTO, today: Date): boolean {
   );
 }
 
+/**
+ * Retrieves the job board snapshot with all columns and summary metrics
+ * @param filters - Optional filters for the job board
+ * @returns Complete job board snapshot with columns and summary
+ * @throws AppError if database query fails
+ */
 export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardSnapshotDTO> {
   const supabase = getServiceSupabase();
 
@@ -368,6 +374,13 @@ async function fetchJobWithRelations(id: number): Promise<JobWithRelationsRow> {
   return data as JobWithRelationsRow;
 }
 
+/**
+ * Ensures a job exists for the given invoice, creating one if necessary
+ * @param invoiceId - The invoice ID to ensure job for
+ * @returns The job record with full relations
+ * @throws AppError if database operations fail
+ * @throws NotFoundError if invoice not found
+ */
 export async function ensureJobForInvoice(invoiceId: number) {
   const supabase = getServiceSupabase();
   const invoiceRes = await supabase
@@ -444,6 +457,13 @@ export async function ensureJobForInvoice(invoiceId: number) {
   return fetchJobWithRelations(created.id);
 }
 
+/**
+ * Lists all jobs for a specific client
+ * @param clientId - The client ID
+ * @param options - Optional filters
+ * @returns Array of client job summaries
+ * @throws AppError if database query fails
+ */
 export async function listJobsForClient(
   clientId: number,
   options?: { includeArchived?: boolean },
@@ -467,6 +487,14 @@ export async function listJobsForClient(
   return (data as JobWithRelationsRow[]).map(mapClientJob);
 }
 
+/**
+ * Updates job details and optionally reassigns to a different printer
+ * @param id - The job ID
+ * @param updates - Fields to update
+ * @returns Updated job record with relations
+ * @throws AppError if database update fails
+ * @throws NotFoundError if job not found
+ */
 export async function updateJob(
   id: number,
   updates: {
@@ -519,6 +547,17 @@ export async function updateJob(
   return fetchJobWithRelations(id);
 }
 
+/**
+ * Updates job status and handles automatic state transitions
+ * @param id - The job ID
+ * @param status - The new status
+ * @param note - Optional note for the status change
+ * @returns Updated job record with relations
+ * @throws AppError if database update fails
+ * @throws BadRequestError if status transition is invalid
+ * @throws ConflictError if printer capacity exceeded
+ * @throws NotFoundError if job not found
+ */
 export async function updateJobStatus(id: number, status: JobStatus, note?: string) {
   const supabase = getServiceSupabase();
   const jobRecord = await fetchJobWithRelations(id);
@@ -632,6 +671,11 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
   return updatedJob;
 }
 
+/**
+ * Clears all queued and paused jobs from a printer, moving them to unassigned
+ * @param printerId - The printer ID
+ * @throws AppError if database operations fail
+ */
 export async function clearPrinterQueue(printerId: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -672,6 +716,11 @@ export async function clearPrinterQueue(printerId: number) {
   logger.info({ scope: "jobs.printer.clear_queue", data: { printerId, count: queue.length } });
 }
 
+/**
+ * Reorders jobs by updating queue positions and printer assignments
+ * @param entries - Array of job reorder entries
+ * @throws AppError if database operations fail
+ */
 export async function reorderJobs(entries: { id: number; queuePosition: number; printerId: number | null }[]) {
   const supabase = getServiceSupabase();
   for (const entry of entries) {
@@ -691,6 +740,11 @@ export async function reorderJobs(entries: { id: number; queuePosition: number; 
   logger.info({ scope: "jobs.reorder", data: { count: entries.length } });
 }
 
+/**
+ * Retrieves the current job creation policy setting
+ * @returns The job creation policy
+ * @throws AppError if database query fails
+ */
 export async function getJobCreationPolicy(): Promise<JobCreationPolicy> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -704,6 +758,13 @@ export async function getJobCreationPolicy(): Promise<JobCreationPolicy> {
   return (data?.job_creation_policy ?? JobCreationPolicy.ON_PAYMENT) as JobCreationPolicy;
 }
 
+/**
+ * Archives a job with an optional reason
+ * @param id - The job ID
+ * @param reason - Optional archive reason
+ * @returns The archived job record with relations
+ * @throws AppError if database update fails
+ */
 export async function archiveJob(id: number, reason?: string) {
   const supabase = getServiceSupabase();
   const { error } = await supabase
@@ -737,6 +798,13 @@ export async function archiveJob(id: number, reason?: string) {
   return job;
 }
 
+/**
+ * Archives multiple jobs in bulk with an optional reason
+ * @param ids - Array of job IDs to archive
+ * @param reason - Optional archive reason
+ * @returns Number of jobs archived
+ * @throws AppError if database update fails
+ */
 export async function bulkArchiveJobs(ids: number[], reason?: string) {
   if (ids.length === 0) return 0;
   const supabase = getServiceSupabase();
