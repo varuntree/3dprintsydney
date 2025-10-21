@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     return ok(user, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid request data", 422, { errors: error.errors });
+      return fail("VALIDATION_ERROR", "Invalid request data", 422, { issues: error.issues });
     }
     return handleError(error, 'admin.users.post');
   }

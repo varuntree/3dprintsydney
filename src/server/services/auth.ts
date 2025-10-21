@@ -111,9 +111,10 @@ export async function signupClient(
 
   if (profileError || !profile) {
     // Rollback client and auth user
-    await supabase.from('clients').delete().eq('id', client.id).catch((error) => {
-      logger.warn({ scope: 'auth.signup', message: 'Failed to cleanup client during rollback', error });
-    });
+    const { error: clientDeleteError } = await supabase.from('clients').delete().eq('id', client.id);
+    if (clientDeleteError) {
+      logger.warn({ scope: 'auth.signup', message: 'Failed to cleanup client during rollback', error: clientDeleteError });
+    }
     await supabase.auth.admin.deleteUser(authUserId).catch(() => undefined);
     throw new AppError(
       profileError?.message ?? 'Failed to create user',
