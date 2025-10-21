@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { materialInputSchema } from "@/lib/schemas/catalog";
+import type { MaterialInput } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 
@@ -99,18 +99,17 @@ async function insertActivity(action: string, message: string, materialId: numbe
   }
 }
 
-export async function createMaterial(payload: unknown) {
-  const parsed = materialInputSchema.parse(payload);
+export async function createMaterial(input: MaterialInput) {
   const supabase = getServiceSupabase();
 
   const { data, error } = await supabase
     .from("materials")
     .insert({
-      name: parsed.name,
-      color: parsed.color || null,
-      category: parsed.category || null,
-      cost_per_gram: String(parsed.costPerGram),
-      notes: parsed.notes || null,
+      name: input.name,
+      color: input.color || null,
+      category: input.category || null,
+      cost_per_gram: String(input.costPerGram),
+      notes: input.notes || null,
     })
     .select("*")
     .single();
@@ -129,18 +128,17 @@ export async function createMaterial(payload: unknown) {
   return mapMaterial(data as MaterialRow);
 }
 
-export async function updateMaterial(id: number, payload: unknown) {
-  const parsed = materialInputSchema.parse(payload);
+export async function updateMaterial(id: number, input: MaterialInput) {
   const supabase = getServiceSupabase();
 
   const { data, error } = await supabase
     .from("materials")
     .update({
-      name: parsed.name,
-      color: parsed.color || null,
-      category: parsed.category || null,
-      cost_per_gram: String(parsed.costPerGram),
-      notes: parsed.notes || null,
+      name: input.name,
+      color: input.color || null,
+      category: input.category || null,
+      cost_per_gram: String(input.costPerGram),
+      notes: input.notes || null,
     })
     .eq("id", id)
     .select("*")

@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listMaterials, createMaterial } from "@/server/services/materials";
+import { materialInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -37,8 +38,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const payload = await request.json();
-    const material = await createMaterial(payload);
+    const body = await request.json();
+    const validated = materialInputSchema.parse(body);
+    const material = await createMaterial(validated);
     return ok(material, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

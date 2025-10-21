@@ -1,5 +1,5 @@
 import { logger } from "@/lib/logger";
-import { printerInputSchema } from "@/lib/schemas/catalog";
+import type { PrinterInput } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { PrinterStatus } from "@/lib/constants/enums";
 import { AppError, NotFoundError } from "@/lib/errors";
@@ -95,18 +95,17 @@ export async function listPrinters(options?: {
   return (data as PrinterRow[]).map(mapPrinter);
 }
 
-export async function createPrinter(payload: unknown) {
-  const parsed = printerInputSchema.parse(payload);
+export async function createPrinter(input: PrinterInput) {
   const supabase = getServiceSupabase();
 
   const { data, error } = await supabase
     .from("printers")
     .insert({
-      name: parsed.name,
-      model: parsed.model || null,
-      build_volume: parsed.buildVolume || null,
-      status: parsed.status,
-      notes: parsed.notes || null,
+      name: input.name,
+      model: input.model || null,
+      build_volume: input.buildVolume || null,
+      status: input.status,
+      notes: input.notes || null,
     })
     .select("*")
     .single();
@@ -125,18 +124,17 @@ export async function createPrinter(payload: unknown) {
   return mapPrinter(data as PrinterRow);
 }
 
-export async function updatePrinter(id: number, payload: unknown) {
-  const parsed = printerInputSchema.parse(payload);
+export async function updatePrinter(id: number, input: PrinterInput) {
   const supabase = getServiceSupabase();
 
   const { data, error } = await supabase
     .from("printers")
     .update({
-      name: parsed.name,
-      model: parsed.model || null,
-      build_volume: parsed.buildVolume || null,
-      status: parsed.status,
-      notes: parsed.notes || null,
+      name: input.name,
+      model: input.model || null,
+      build_volume: input.buildVolume || null,
+      status: input.status,
+      notes: input.notes || null,
     })
     .eq("id", id)
     .select("*")
