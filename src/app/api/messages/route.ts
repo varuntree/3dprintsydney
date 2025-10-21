@@ -5,6 +5,7 @@ import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { parsePaginationParams } from "@/lib/utils/api-params";
+import { getSenderType } from "@/lib/utils/auth-helpers";
 import { messageInputSchema } from "@/lib/schemas/messages";
 
 export async function GET(req: NextRequest) {
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       await requireInvoiceAccess(req, validated.invoiceId);
     }
 
-    const sender = user.role === "ADMIN" ? "ADMIN" : "CLIENT";
+    const sender = getSenderType(user);
     const message = await createMessage(
       user.id,
       validated.content,

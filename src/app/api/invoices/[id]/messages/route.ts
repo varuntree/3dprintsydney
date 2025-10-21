@@ -5,6 +5,7 @@ import { getInvoiceMessages, createInvoiceMessage } from "@/server/services/mess
 import { ok, fail, handleError } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 import { parsePaginationParams, parseNumericId } from "@/lib/utils/api-params";
+import { getSenderType } from "@/lib/utils/auth-helpers";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return fail("VALIDATION_ERROR", "Invalid content", 422);
     }
 
-    const sender = user.role === "ADMIN" ? "ADMIN" : "CLIENT";
+    const sender = getSenderType(user);
     const message = await createInvoiceMessage(invoiceId, content, sender);
 
     // Return simplified format (without userId)

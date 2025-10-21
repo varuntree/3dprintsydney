@@ -1,0 +1,84 @@
+File Path,Auth Import Source,Function Used,File Type,Directory,Purpose
+/src/app/api/admin/clients/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,admin,List/create admin clients
+/src/app/api/admin/users/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,admin,List/create admin users
+/src/app/api/admin/users/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,admin,Update/delete admin user
+/src/app/api/admin/users/[id]/messages/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,admin,Get user messages
+/src/app/api/attachments/[id]/route.ts,@/server/auth/permissions,requireAttachmentAccess,API Route,attachments,Get attachment
+/src/app/api/auth/change-password/route.ts,@/server/auth/api-helpers,requireAuth,API Route,auth,Change user password
+/src/app/api/auth/me/route.ts,@/server/auth/api-helpers,getAuthUser,API Route,auth,Get current user (optional auth)
+/src/app/api/client/dashboard/route.ts,@/server/auth/api-helpers,requireClientWithId,API Route,client,Get client dashboard
+/src/app/api/client/invoices/route.ts,@/server/auth/api-helpers,requireAuth,API Route,client,List client invoices
+/src/app/api/client/jobs/route.ts,@/server/auth/api-helpers,requireClientWithId,API Route,client,List client jobs
+/src/app/api/client/materials/route.ts,@/server/auth/api-helpers,requireAuth,API Route,client,List client materials
+/src/app/api/client/preferences/route.ts,@/server/auth/api-helpers,requireClientWithId,API Route,client,Get/update client preferences
+/src/app/api/clients/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,clients,List/create clients
+/src/app/api/clients/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,clients,Update/delete client
+/src/app/api/clients/[id]/notes/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,clients,Get/create client notes
+/src/app/api/dashboard/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,dashboard,Get admin dashboard
+/src/app/api/dashboard/activity/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,dashboard,Get dashboard activity
+/src/app/api/export/ar-aging/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export AR aging report
+/src/app/api/export/invoices/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export invoices
+/src/app/api/export/jobs/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export jobs
+/src/app/api/export/material-usage/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export material usage
+/src/app/api/export/payments/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export payments
+/src/app/api/export/printer-utilization/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,export,Export printer utilization
+/src/app/api/invoices/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,List/create invoices
+/src/app/api/invoices/[id]/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Get invoice
+/src/app/api/invoices/[id]/activity/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,Get invoice activity
+/src/app/api/invoices/[id]/attachments/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,List/upload invoice attachments
+/src/app/api/invoices/[id]/attachments/[attachmentId]/route.ts,@/server/auth/api-helpers + @/server/auth/permissions,requireAdmin + requireAttachmentAccess,API Route,invoices,Delete invoice attachment
+/src/app/api/invoices/[id]/files/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Get invoice files
+/src/app/api/invoices/[id]/mark-paid/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Mark invoice as paid
+/src/app/api/invoices/[id]/mark-unpaid/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Mark invoice as unpaid
+/src/app/api/invoices/[id]/messages/route.ts,@/server/auth/api-helpers + @/server/auth/permissions,requireAuth + requireInvoiceAccess,API Route,invoices,Get/post invoice messages
+/src/app/api/invoices/[id]/payments/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Get/record invoice payments
+/src/app/api/invoices/[id]/payments/[paymentId]/route.ts,@/server/auth/permissions,requirePaymentAccess,API Route,invoices,Update/delete payment
+/src/app/api/invoices/[id]/pdf/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Generate invoice PDF
+/src/app/api/invoices/[id]/revert/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,Revert invoice status
+/src/app/api/invoices/[id]/stripe-session/route.ts,@/server/auth/permissions,requireInvoiceAccess,API Route,invoices,Create Stripe payment session
+/src/app/api/invoices/[id]/void/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,Void invoice
+/src/app/api/invoices/[id]/write-off/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,invoices,Write off invoice
+/src/app/api/jobs/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,List/create jobs
+/src/app/api/jobs/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,Update/delete job
+/src/app/api/jobs/[id]/status/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,Update job status
+/src/app/api/jobs/[id]/archive/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,Archive job
+/src/app/api/jobs/archive/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,Archive multiple jobs
+/src/app/api/jobs/reorder/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,jobs,Reorder jobs
+/src/app/api/maintenance/run/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,maintenance,Run maintenance tasks
+/src/app/api/materials/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,materials,List/create materials
+/src/app/api/materials/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,materials,Update/delete material
+/src/app/api/messages/route.ts,@/server/auth/api-helpers + @/server/auth/permissions,requireAuth + requireInvoiceAccess,API Route,messages,List/post messages
+/src/app/api/order-files/[id]/route.ts,@/server/auth/api-helpers,requireAuth,API Route,order-files,Get order file
+/src/app/api/printers/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,printers,List/create printers
+/src/app/api/printers/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,printers,Update/delete printer
+/src/app/api/printers/[id]/clear-queue/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,printers,Clear printer queue
+/src/app/api/product-templates/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,product-templates,List/create product templates
+/src/app/api/product-templates/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,product-templates,Update/delete product template
+/src/app/api/quick-order/upload/route.ts,@/server/auth/api-helpers,requireAuth,API Route,quick-order,Upload order file
+/src/app/api/quick-order/price/route.ts,@/server/auth/api-helpers,requireAuth,API Route,quick-order,Get price estimate
+/src/app/api/quick-order/orient/route.ts,@/server/auth/api-helpers,requireAuth,API Route,quick-order,Orient 3D model
+/src/app/api/quick-order/slice/route.ts,@/server/auth/api-helpers,requireAuth,API Route,quick-order,Slice 3D model
+/src/app/api/quick-order/checkout/route.ts,@/server/auth/api-helpers,requireAuth,API Route,quick-order,Create quick order checkout
+/src/app/api/quotes/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,List/create quotes
+/src/app/api/quotes/[id]/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Get/update quote
+/src/app/api/quotes/[id]/accept/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Accept quote
+/src/app/api/quotes/[id]/convert/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Convert quote to invoice
+/src/app/api/quotes/[id]/decline/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Decline quote
+/src/app/api/quotes/[id]/duplicate/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Duplicate quote
+/src/app/api/quotes/[id]/pdf/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Generate quote PDF
+/src/app/api/quotes/[id]/send/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Send quote
+/src/app/api/quotes/[id]/status/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,quotes,Update quote status
+/src/app/api/settings/route.ts,@/server/auth/api-helpers,requireAdmin,API Route,settings,Get/update settings
+/src/app/api/stripe/test/route.ts,@/server/auth/api-helpers,requireAuth,API Route,stripe,Test Stripe configuration
+/src/app/api/tmp-file/[...id]/route.ts,@/server/auth/api-helpers,requireAuth,API Route,tmp-file,Get temporary file
+/src/app/(admin)/layout.tsx,@/lib/auth-utils,requireAdmin,Layout,admin,Admin layout wrapper
+/src/app/(admin)/me/page.tsx,@/server/auth/session,getUserFromCookies,Page,admin,Admin profile page
+/src/app/(admin)/page.tsx,@/server/auth/session,getUserFromCookies,Page,admin,Admin home page
+/src/app/(client)/layout.tsx,@/lib/auth-utils,requireClient,Layout,client,Client layout wrapper
+/src/app/(client)/client/page.tsx,@/server/auth/session,getUserFromCookies,Page,client,Client home page
+/src/app/(client)/client/orders/[id]/page.tsx,@/server/auth/session,getUserFromCookies,Page,client,Client order details
+/src/app/(public)/layout.tsx,@/lib/auth-utils,getOptionalUser,Layout,public,Public layout with optional auth
+/src/app/account/page.tsx,@/lib/auth-utils,requireAuth,Page,account,Account page
+/src/lib/auth-utils.ts,@/server/auth/session,getUserFromCookies,Library,lib,Auth utility wrapper
+/src/server/auth/api-helpers.ts,@/server/auth/session,requireUser,Helper,server,API route helpers
+/src/server/auth/permissions.ts,@/server/auth/session,getUserFromRequest,Helper,server,Resource access helpers

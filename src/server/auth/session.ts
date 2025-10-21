@@ -54,6 +54,16 @@ async function getAuthUserFromToken(token: string | undefined) {
   return user;
 }
 
+/**
+ * Get authenticated user from NextRequest (internal helper)
+ *
+ * **Internal use only** - Prefer using helpers from @/server/auth/api-helpers instead.
+ * This is a low-level function that extracts and validates the user from request cookies.
+ *
+ * @internal
+ * @param req - Next.js request object
+ * @returns User if authenticated, null otherwise
+ */
 export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser | null> {
   const token = req.cookies.get(ACCESS_COOKIE)?.value;
   const authUser = await getAuthUserFromToken(token);
@@ -61,13 +71,32 @@ export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser |
   return loadLegacyUser(authUser.id);
 }
 
+/**
+ * Require authenticated user from NextRequest (internal helper)
+ *
+ * **Internal use only** - Prefer using requireAuth from @/server/auth/api-helpers instead.
+ * This is a low-level function that throws UnauthorizedError if not authenticated.
+ *
+ * @internal
+ * @param req - Next.js request object
+ * @returns Authenticated user
+ * @throws UnauthorizedError if not authenticated (401)
+ */
 export async function requireUser(req: NextRequest): Promise<LegacyUser> {
   const user = await getUserFromRequest(req);
   if (!user) throw new UnauthorizedError();
   return user;
 }
 
-
+/**
+ * Get authenticated user from cookies (Server Component helper)
+ *
+ * **Internal use only** - Prefer using helpers from @/lib/auth-utils for Server Components.
+ * This is a low-level function that extracts user from cookies in Server Components.
+ *
+ * @internal
+ * @returns User if authenticated, null otherwise
+ */
 export async function getUserFromCookies(): Promise<LegacyUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(ACCESS_COOKIE)?.value;
