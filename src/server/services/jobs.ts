@@ -9,59 +9,14 @@ import {
 } from "@/lib/constants/enums";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
+import type {
+  JobCardDTO,
+  JobBoardColumnDTO,
+  JobBoardSnapshotDTO,
+  JobFilters,
+} from '@/lib/types/jobs';
 
-export type JobCard = {
-  id: number;
-  title: string;
-  description: string | null;
-  status: JobStatus;
-  priority: JobPriority;
-  printerId: number | null;
-  printerName: string | null;
-  queuePosition: number;
-  clientName: string;
-  invoiceId: number;
-  invoiceNumber: string;
-  invoiceStatus: InvoiceStatus;
-  createdAt: Date;
-  startedAt: Date | null;
-  completedAt: Date | null;
-  estimatedHours: number | null;
-  actualHours: number | null;
-  notes: string | null;
-};
-
-export type JobBoardColumn = {
-  key: string;
-  printerId: number | null;
-  printerName: string;
-  printerStatus: PrinterStatus | "UNASSIGNED";
-  jobs: JobCard[];
-  metrics: {
-    queuedCount: number;
-    activeCount: number;
-    totalEstimatedHours: number;
-  };
-};
-
-export type JobBoardSnapshot = {
-  columns: JobBoardColumn[];
-  summary: {
-    totalJobs: number;
-    queued: number;
-    active: number;
-    completedToday: number;
-    unassigned: number;
-    totalEstimatedHours: number;
-    printersWithWork: number;
-  };
-};
-
-type BoardFilters = {
-  includeArchived?: boolean;
-  completedSince?: Date | null;
-  statuses?: JobStatus[] | null;
-};
+type BoardFilters = JobFilters;
 
 type SettingsOptions = {
   autoDetachJobOnComplete: boolean;
@@ -161,7 +116,7 @@ function toNumber(value: string | number | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function mapJobCard(row: JobWithRelationsRow): JobCard {
+function mapJobCard(row: JobWithRelationsRow): JobCardDTO {
   const printer = row.printers ?? null;
   const client = row.clients ?? null;
   const invoice = row.invoices ?? null;
@@ -253,7 +208,7 @@ async function ensurePrinterAssignable(printerId: number | null | undefined) {
   }
 }
 
-function applyCompletedTodayMetric(card: JobCard, today: Date): boolean {
+function applyCompletedTodayMetric(card: JobCardDTO, today: Date): boolean {
   if (!card.completedAt) return false;
   return (
     card.completedAt.getFullYear() === today.getFullYear() &&
@@ -262,7 +217,7 @@ function applyCompletedTodayMetric(card: JobCard, today: Date): boolean {
   );
 }
 
-export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardSnapshot> {
+export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardSnapshotDTO> {
   const supabase = getServiceSupabase();
 
   let jobsQuery = supabase
@@ -298,7 +253,7 @@ export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardS
   const jobRows: JobWithRelationsRow[] = jobsRes.data ?? [];
 
   const cards = jobRows.map(mapJobCard);
-  const columnMap = new Map<number | null, JobBoardColumn>();
+  const columnMap = new Map<number | null, JobBoardColumnDTO>();
 
   columnMap.set(null, {
     key: "unassigned",
