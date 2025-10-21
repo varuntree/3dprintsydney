@@ -15,6 +15,7 @@ import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
 import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
+import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -63,10 +64,10 @@ async function resolveClientPaymentTerm(clientId: number): Promise<ResolvedPayme
     .eq('id', clientId)
     .maybeSingle();
   if (clientError) {
-    throw new Error(`Failed to fetch client: ${clientError.message}`);
+    throw new AppError(`Failed to fetch client: ${clientError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!client) {
-    throw new Error('Client not found');
+    throw new NotFoundError('Client', clientId);
   }
   const { paymentTerms, defaultPaymentTerms } = await resolvePaymentTermsOptions();
   if (paymentTerms.length === 0) {
@@ -250,7 +251,7 @@ export async function listInvoices(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list invoices: ${error.message}`);
+    throw new AppError(`Failed to list invoices: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data ?? []).map((row) => mapInvoiceSummary(row as InvoiceRow));
 }
@@ -337,10 +338,10 @@ export async function getInvoice(id: number) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load invoice: ${error.message}`);
+    throw new AppError(`Failed to load invoice: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', id);
   }
   const paymentTerm = await resolveClientPaymentTerm((data as InvoiceDetailRow).client_id);
   return mapInvoiceDetail(data as InvoiceDetailRow, paymentTerm);
@@ -362,7 +363,7 @@ async function insertInvoiceActivities(invoiceId: number, clientId: number, acti
     metadata: metadata ?? null,
   });
   if (error) {
-    throw new Error(`Failed to insert activity: ${error.message}`);
+    throw new AppError(`Failed to insert activity: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 }
 
@@ -417,7 +418,7 @@ export async function createInvoice(payload: unknown) {
   });
 
   if (error || !data?.invoice) {
-    throw new Error(`Failed to create invoice: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to create invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const invoiceId = (data.invoice as { id: number }).id;
@@ -483,7 +484,7 @@ export async function updateInvoice(id: number, payload: unknown) {
   });
 
   if (error || !data?.invoice) {
-    throw new Error(`Failed to update invoice: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to update invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const updatedInvoice = data.invoice as { number?: string };
@@ -503,7 +504,7 @@ export async function deleteInvoice(id: number) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to delete invoice: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to delete invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertInvoiceActivities(id, data.client_id, 'INVOICE_DELETED', `Invoice ${data.number} deleted`);
@@ -533,7 +534,7 @@ export async function addManualPayment(invoiceId: number, payload: unknown) {
   });
 
   if (error || !data?.payment || !data?.invoice) {
-    throw new Error(`Failed to record payment: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to record payment: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const payment = data.payment as { id: number };
@@ -565,7 +566,7 @@ export async function deletePayment(paymentId: number) {
   });
 
   if (error || !data?.payment || !data?.invoice) {
-    throw new Error(`Failed to delete payment: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to delete payment: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const payment = data.payment as { id: number; invoice_id: number };
@@ -596,10 +597,10 @@ export async function addInvoiceAttachment(
     .eq('id', invoiceId)
     .maybeSingle();
   if (invoiceError) {
-    throw new Error(`Failed to load invoice: ${invoiceError.message}`);
+    throw new AppError(`Failed to load invoice: ${invoiceError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoice) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const safeName = file.name.replaceAll('\\', '/').split('/').pop()!.replace(/[^^\w.\-]+/g, '_');
@@ -617,7 +618,7 @@ export async function addInvoiceAttachment(
     .select('*')
     .single();
   if (error || !data) {
-    throw new Error(`Failed to record attachment: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to record attachment: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertInvoiceActivities(invoiceId, invoice.client_id, 'INVOICE_ATTACHMENT_ADDED', `Attachment added to invoice ${invoice.number}`, { attachmentId: data.id });
@@ -634,7 +635,7 @@ export async function removeInvoiceAttachment(attachmentId: number) {
     .select('id, invoice_id, filename, storage_key')
     .single();
   if (error || !attachment) {
-    throw new Error(`Attachment not found: ${error?.message ?? 'Unknown error'}`);
+    throw new NotFoundError('Attachment', attachmentId);
   }
 
   await deleteInvoiceAttachment(attachment.storage_key);
@@ -661,7 +662,7 @@ export async function readInvoiceAttachment(attachmentId: number) {
     .eq('id', attachmentId)
     .maybeSingle();
   if (error || !data) {
-    throw new Error(`Attachment not found: ${error?.message ?? 'Unknown error'}`);
+    throw new NotFoundError('Attachment', attachmentId);
   }
 
   const url = await getAttachmentSignedUrl(data.storage_key, 60);
@@ -676,10 +677,10 @@ export async function markInvoiceUnpaid(invoiceId: number) {
     .eq('id', invoiceId)
     .maybeSingle();
   if (invoiceError) {
-    throw new Error(`Failed to load invoice: ${invoiceError.message}`);
+    throw new AppError(`Failed to load invoice: ${invoiceError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoice) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const { data: payments, error: paymentsError } = await supabase
@@ -687,7 +688,7 @@ export async function markInvoiceUnpaid(invoiceId: number) {
     .select('amount')
     .eq('invoice_id', invoiceId);
   if (paymentsError) {
-    throw new Error(`Failed to load payments: ${paymentsError.message}`);
+    throw new AppError(`Failed to load payments: ${paymentsError.message}`, 'DATABASE_ERROR', 500);
   }
 
   const paidAmount = (payments ?? []).reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
@@ -706,7 +707,7 @@ export async function markInvoiceUnpaid(invoiceId: number) {
     .single();
 
   if (updateError || !updated) {
-    throw new Error(`Failed to mark unpaid: ${updateError?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to mark unpaid: ${updateError?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertInvoiceActivities(invoiceId, updated.client_id, 'INVOICE_MARKED_UNPAID', `Invoice ${updated.number} marked unpaid`);
@@ -732,11 +733,11 @@ export async function markInvoicePaid(invoiceId: number, options?: {
     .single();
 
   if (!currentInvoice) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   if (currentInvoice.status === 'PAID') {
-    throw new Error('Invoice is already paid');
+    throw new BadRequestError('Invoice is already paid');
   }
 
   const amount = options?.amount ?? 0;
@@ -764,7 +765,7 @@ export async function markInvoicePaid(invoiceId: number, options?: {
     .select('id, client_id, number')
     .single();
   if (error || !invoice) {
-    throw new Error(`Failed to mark invoice paid: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to mark invoice paid: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
   await insertInvoiceActivities(invoiceId, invoice.client_id, 'INVOICE_MARKED_PAID', `Invoice ${invoice.number} marked as paid`, {
     method: options?.method ?? 'OTHER',
@@ -785,11 +786,11 @@ export async function writeOffInvoice(id: number, reason?: string) {
     .single();
 
   if (!currentInvoice) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', id);
   }
 
   if (currentInvoice.status === 'PAID' && Number(currentInvoice.balance_due) === 0) {
-    throw new Error('Invoice is already fully paid');
+    throw new BadRequestError('Invoice is already fully paid');
   }
 
   const { data, error } = await supabase
@@ -804,7 +805,7 @@ export async function writeOffInvoice(id: number, reason?: string) {
     .select('id, client_id, number')
     .single();
   if (error || !data) {
-    throw new Error(`Failed to write off invoice: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to write off invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
   await insertInvoiceActivities(id, data.client_id, 'INVOICE_WRITTEN_OFF', `Invoice ${data.number} written off`, reason ? { reason } : undefined);
   return data;
@@ -821,11 +822,11 @@ export async function voidInvoice(id: number, reason?: string) {
     .single();
 
   if (!currentInvoice) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', id);
   }
 
   if (currentInvoice.status === 'PAID') {
-    throw new Error('Cannot void a paid invoice');
+    throw new BadRequestError('Cannot void a paid invoice');
   }
 
   const { data, error } = await supabase
@@ -839,7 +840,7 @@ export async function voidInvoice(id: number, reason?: string) {
     .select('id, client_id, number')
     .single();
   if (error || !data) {
-    throw new Error(`Failed to void invoice: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to void invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
   await insertInvoiceActivities(id, data.client_id, 'INVOICE_VOIDED', `Invoice ${data.number} voided`, reason ? { reason } : undefined);
   return data;
@@ -860,21 +861,21 @@ export async function revertInvoiceToQuote(invoiceId: number) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load invoice: ${error.message}`);
+    throw new AppError(`Failed to load invoice: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error('Invoice not found');
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const invoice = data as InvoiceRevertRow;
 
   if (invoice.status === 'PAID') {
-    throw new Error('Paid invoices cannot be reverted to quotes');
+    throw new BadRequestError('Paid invoices cannot be reverted to quotes');
   }
 
   const hasPayments = (invoice.payments ?? []).length > 0;
   if (hasPayments) {
-    throw new Error('Invoice has payments recorded and cannot be reverted');
+    throw new BadRequestError('Invoice has payments recorded and cannot be reverted');
   }
 
   const { count: jobCount, error: jobError } = await supabase
@@ -882,10 +883,10 @@ export async function revertInvoiceToQuote(invoiceId: number) {
     .select('id', { count: 'exact', head: true })
     .eq('invoice_id', invoiceId);
   if (jobError) {
-    throw new Error(`Failed to verify job linkage: ${jobError.message}`);
+    throw new AppError(`Failed to verify job linkage: ${jobError.message}`, 'DATABASE_ERROR', 500);
   }
   if ((jobCount ?? 0) > 0) {
-    throw new Error('Invoice has associated jobs and cannot be reverted');
+    throw new BadRequestError('Invoice has associated jobs and cannot be reverted');
   }
 
   const quoteNumber = await nextDocumentNumber('quote');
@@ -919,7 +920,7 @@ export async function revertInvoiceToQuote(invoiceId: number) {
     .single();
 
   if (quoteError || !quote) {
-    throw new Error(`Failed to create quote: ${quoteError?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to create quote: ${quoteError?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const quoteItems = (invoice.invoice_items ?? []).map((item, index) => ({
@@ -941,7 +942,7 @@ export async function revertInvoiceToQuote(invoiceId: number) {
     const { error: itemsError } = await supabase.from('quote_items').insert(quoteItems);
     if (itemsError) {
       await supabase.from('quotes').delete().eq('id', quote.id);
-      throw new Error(`Failed to copy invoice lines to quote: ${itemsError.message}`);
+      throw new AppError(`Failed to copy invoice lines to quote: ${itemsError.message}`, 'DATABASE_ERROR', 500);
     }
   }
 
@@ -984,7 +985,7 @@ export async function revertInvoiceToQuote(invoiceId: number) {
   const { error: deleteError } = await supabase.from('invoices').delete().eq('id', invoiceId);
   if (deleteError) {
     await supabase.from('quotes').delete().eq('id', quote.id);
-    throw new Error(`Failed to delete invoice during revert: ${deleteError.message}`);
+    throw new AppError(`Failed to delete invoice during revert: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
   logger.info({ scope: 'invoices.revert', data: { invoiceId, quoteId: quote.id } });

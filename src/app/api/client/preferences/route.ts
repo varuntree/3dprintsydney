@@ -5,6 +5,9 @@ import {
   getClientNotificationPreference,
   updateClientNotificationPreference,
 } from "@/server/services/clients";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 const preferenceSchema = z.object({
   notifyOnJobStatus: z.boolean(),
@@ -16,11 +19,11 @@ export async function GET(req: NextRequest) {
     const notifyOnJobStatus = await getClientNotificationPreference(user.clientId);
     return NextResponse.json({ data: { notifyOnJobStatus } });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to load preferences" },
-      { status: e?.status ?? 400 },
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'client.preferences', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
 
@@ -41,10 +44,10 @@ export async function PATCH(req: NextRequest) {
         { status: 422 },
       );
     }
-    const e = error as Error & { status?: number };
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to update preferences" },
-      { status: e?.status ?? 400 },
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'client.preferences', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

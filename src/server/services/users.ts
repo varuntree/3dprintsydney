@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import { deleteInvoiceAttachments } from '@/server/storage/supabase';
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { AppError, NotFoundError } from '@/lib/errors';
 
 async function collectClientAttachmentKeys(clientId: number): Promise<string[]> {
   const supabase = getServiceSupabase();
@@ -9,7 +10,7 @@ async function collectClientAttachmentKeys(clientId: number): Promise<string[]> 
     .select("id")
     .eq("client_id", clientId);
   if (invoiceError) {
-    throw new Error(`Failed to load client invoices: ${invoiceError.message}`);
+    throw new AppError(`Failed to load client invoices: ${invoiceError.message}`, 'DATABASE_ERROR', 500);
   }
   const invoiceIds = (invoices ?? []).map((row) => row.id);
   if (invoiceIds.length === 0) {
@@ -20,7 +21,7 @@ async function collectClientAttachmentKeys(clientId: number): Promise<string[]> 
     .select("storage_key")
     .in("invoice_id", invoiceIds);
   if (attachmentError) {
-    throw new Error(`Failed to load attachment keys: ${attachmentError.message}`);
+    throw new AppError(`Failed to load attachment keys: ${attachmentError.message}`, 'DATABASE_ERROR', 500);
   }
   return (attachments ?? [])
     .map((row) => row.storage_key)
@@ -49,10 +50,10 @@ export async function deleteUserAndData(userId: number) {
     .eq("id", userId)
     .maybeSingle();
   if (userError) {
-    throw new Error(`Failed to lookup user: ${userError.message}`);
+    throw new AppError(`Failed to lookup user: ${userError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!user) {
-    throw new Error("User not found");
+    throw new NotFoundError("User", userId);
   }
 
   const authIdsToRemove: string[] = [];
@@ -67,7 +68,7 @@ export async function deleteUserAndData(userId: number) {
       .select("auth_user_id")
       .eq("client_id", clientId);
     if (clientUsersError) {
-      throw new Error(`Failed to load client users: ${clientUsersError.message}`);
+      throw new AppError(`Failed to load client users: ${clientUsersError.message}`, 'DATABASE_ERROR', 500);
     }
     for (const u of clientUsers ?? []) {
       if (u.auth_user_id) authIdsToRemove.push(u.auth_user_id);
@@ -80,7 +81,7 @@ export async function deleteUserAndData(userId: number) {
       .delete()
       .eq("id", clientId);
     if (deleteClientError) {
-      throw new Error(`Failed to delete client: ${deleteClientError.message}`);
+      throw new AppError(`Failed to delete client: ${deleteClientError.message}`, 'DATABASE_ERROR', 500);
     }
 
     await deleteAttachmentFiles(attachmentKeys);
@@ -88,7 +89,7 @@ export async function deleteUserAndData(userId: number) {
   } else {
     const { error: deleteUserError } = await supabase.from("users").delete().eq("id", userId);
     if (deleteUserError) {
-      throw new Error(`Failed to delete user: ${deleteUserError.message}`);
+      throw new AppError(`Failed to delete user: ${deleteUserError.message}`, 'DATABASE_ERROR', 500);
     }
     logger.info({ scope: "users.delete", message: "Deleted admin user", data: { userId } });
   }

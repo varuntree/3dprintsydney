@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireClientWithIdAPI } from "@/server/auth/api-helpers";
 import { listJobsForClient } from "@/server/services/jobs";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,10 +11,10 @@ export async function GET(req: NextRequest) {
     const jobs = await listJobsForClient(user.clientId);
     return NextResponse.json({ data: jobs });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to load jobs" },
-      { status: e?.status ?? 400 },
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'client.jobs', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-files";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   request: NextRequest,
@@ -39,10 +42,10 @@ export async function GET(
       },
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to get order file" },
-      { status: e?.status ?? 500 }
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'order-files.get', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

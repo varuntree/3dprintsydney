@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +29,7 @@ export async function GET(req: NextRequest) {
     }
     const { data, error } = await query.range(skip, skip + take - 1);
     if (error) {
-      throw Object.assign(new Error(error.message), { status: 500 });
+      throw new AppError(error.message, 'MESSAGE_ERROR', 500);
     }
     const messages = (data ?? []).map((row) => ({
       id: row.id,
@@ -38,9 +41,11 @@ export async function GET(req: NextRequest) {
     }));
     return NextResponse.json({ data: messages });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'messages.get', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
 
@@ -69,7 +74,7 @@ export async function POST(req: NextRequest) {
       .select("id, user_id, invoice_id, sender, content, created_at")
       .single();
     if (error || !data) {
-      throw Object.assign(new Error(error?.message ?? "Failed"), { status: 500 });
+      throw new AppError(error?.message ?? "Failed", 'MESSAGE_ERROR', 500);
     }
     return NextResponse.json({ data: {
       id: data.id,
@@ -80,8 +85,10 @@ export async function POST(req: NextRequest) {
       createdAt: data.created_at,
     }});
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'messages.post', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

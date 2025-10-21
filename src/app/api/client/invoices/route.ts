@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 function decimalToNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -15,7 +18,7 @@ function decimalToNumber(value: unknown): number {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req);
-    if (!user.clientId) throw Object.assign(new Error("No client"), { status: 400 });
+    if (!user.clientId) throw new AppError("No client", 'CLIENT_INVOICE_ERROR', 400);
 
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") ?? "50");
@@ -32,7 +35,7 @@ export async function GET(req: NextRequest) {
       .range(skip, skip + take - 1);
 
     if (error) {
-      throw Object.assign(new Error(`Failed to load invoices: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load invoices: ${error.message}`, 'CLIENT_INVOICE_ERROR', 500);
     }
 
     return NextResponse.json({
@@ -47,8 +50,10 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'client.invoices', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { requireTmpFile, downloadTmpFileToBuffer } from "@/server/services/tmp-files";
 import path from "path";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -45,13 +48,10 @@ export async function GET(
       },
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    if (e?.message === "Unauthorized") {
-      return NextResponse.json({ error: e.message }, { status: e.status ?? 403 });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to load file" },
-      { status: e?.status ?? 500 }
-    );
+    logger.error({ scope: 'tmp-file.get', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

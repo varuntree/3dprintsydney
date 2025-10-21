@@ -5,6 +5,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { LegacyUser } from "@/lib/types/user";
 import { logger } from "@/lib/logger";
+import { UnauthorizedError, ForbiddenError, AppError } from "@/lib/errors";
 
 const ACCESS_COOKIE = "sb:token";
 
@@ -25,7 +26,7 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load user profile: ${error.message}`);
+    throw new AppError(`Failed to load user profile: ${error.message}`, 'USER_PROFILE_ERROR', 500);
   }
   if (!data) return null;
 
@@ -62,14 +63,14 @@ export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser |
 
 export async function requireUser(req: NextRequest): Promise<LegacyUser> {
   const user = await getUserFromRequest(req);
-  if (!user) throw Object.assign(new Error("Unauthorized"), { status: 401 });
+  if (!user) throw new UnauthorizedError();
   return user;
 }
 
 export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
   if (user.role !== "ADMIN") {
-    throw Object.assign(new Error("Forbidden"), { status: 403 });
+    throw new ForbiddenError();
   }
   return user;
 }

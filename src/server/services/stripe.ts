@@ -10,6 +10,7 @@ import {
   getStripeCurrency,
   getStripeWebhookSecret,
 } from "@/lib/env";
+import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
 
 type StripeConfig = {
   secretKey: string;
@@ -45,7 +46,7 @@ function resolveStripeConfig(): StripeConfig | null {
 function getStripeConfigOrThrow(): StripeConfig {
   const config = resolveStripeConfig();
   if (!config) {
-    throw new Error("Stripe is not configured");
+    throw new AppError("Stripe is not configured", 'STRIPE_NOT_CONFIGURED', 500);
   }
   if (!cachedConfig || cachedConfig.secretKey !== config.secretKey) {
     cachedStripe = new Stripe(config.secretKey);
@@ -90,14 +91,14 @@ export async function createStripeCheckoutSession(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load invoice: ${error.message}`);
+    throw new AppError(`Failed to load invoice: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoiceRecord) {
-    throw new Error("Invoice not found");
+    throw new NotFoundError("Invoice", invoiceId);
   }
 
   if ((invoiceRecord.status ?? InvoiceStatus.PENDING) === InvoiceStatus.PAID) {
-    throw new Error("Invoice is already paid");
+    throw new BadRequestError("Invoice is already paid");
   }
 
   if (!options?.refresh && invoiceRecord.stripe_checkout_url) {
@@ -110,12 +111,12 @@ export async function createStripeCheckoutSession(
   const detail = await getInvoiceDetail(invoiceId);
   const balanceDue = detail.balanceDue;
   if (balanceDue <= 0) {
-    throw new Error("Invoice is already paid");
+    throw new BadRequestError("Invoice is already paid");
   }
 
   const amountInMinor = Math.round(balanceDue * 100);
   if (amountInMinor <= 0) {
-    throw new Error("Invalid amount for checkout");
+    throw new BadRequestError("Invalid amount for checkout");
   }
 
   const session = await env.stripe.checkout.sessions.create({
@@ -143,7 +144,7 @@ export async function createStripeCheckoutSession(
   });
 
   if (!session.url) {
-    throw new Error("Stripe checkout session missing URL");
+    throw new AppError("Stripe checkout session missing URL", 'STRIPE_ERROR', 500);
   }
 
   const { error: updateError } = await supabase
@@ -154,7 +155,7 @@ export async function createStripeCheckoutSession(
     })
     .eq("id", invoiceId);
   if (updateError) {
-    throw new Error(`Failed to store Stripe session: ${updateError.message}`);
+    throw new AppError(`Failed to store Stripe session: ${updateError.message}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({

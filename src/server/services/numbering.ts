@@ -1,4 +1,5 @@
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { AppError } from '@/lib/errors';
 
 export async function nextDocumentNumber(kind: 'quote' | 'invoice') {
   const supabase = getServiceSupabase();
@@ -9,7 +10,7 @@ export async function nextDocumentNumber(kind: 'quote' | 'invoice') {
   });
 
   if (error || typeof data !== 'string') {
-    throw new Error(`Failed to generate document number: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to generate document number: ${error?.message ?? 'Unknown error'}`, 'NUMBERING_ERROR', 500);
   }
 
   return data;

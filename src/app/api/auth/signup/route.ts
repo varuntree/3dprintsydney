@@ -4,6 +4,8 @@ import { signupSchema } from "@/lib/schemas/auth";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getSupabaseAnonKey, getSupabaseUrl, getSupabaseServiceRoleKey } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (existsError) {
-      throw Object.assign(new Error(`Failed to check user: ${existsError.message}`), { status: 500 });
+      throw new AppError(`Failed to check user: ${existsError.message}`, 'SIGNUP_ERROR', 500);
     }
     if (exists) {
       return NextResponse.json({ error: "Email already in use" }, { status: 400 });
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (authError || !authUser.user) {
-      throw Object.assign(new Error(authError?.message ?? "Failed to create auth user"), { status: 500 });
+      throw new AppError(authError?.message ?? "Failed to create auth user", 'USER_CREATE_ERROR', 500);
     }
 
     const authUserId = authUser.user.id;
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     if (clientError || !client) {
       await service.auth.admin.deleteUser(authUserId).catch(() => undefined);
-      throw Object.assign(new Error(clientError?.message ?? "Failed to create client"), { status: 500 });
+      throw new AppError(clientError?.message ?? "Failed to create client", 'SIGNUP_ERROR', 500);
     }
 
     const { data: profile, error: profileError } = await service
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
         logger.warn({ scope: "auth.signup", message: "Failed to cleanup client during rollback", error: cleanupClientError });
       }
       await service.auth.admin.deleteUser(authUserId).catch(() => undefined);
-      throw Object.assign(new Error(profileError?.message ?? "Failed to create user"), { status: 500 });
+      throw new AppError(profileError?.message ?? "Failed to create user", 'USER_CREATE_ERROR', 500);
     }
 
     const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
       password,
     });
     if (signInError || !sessionData.session) {
-      throw Object.assign(new Error(signInError?.message ?? "Failed to sign in"), { status: 500 });
+      throw new AppError(signInError?.message ?? "Failed to sign in", 'SIGNUP_ERROR', 500);
     }
 
     const response = NextResponse.json({
@@ -119,8 +121,10 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Invalid request" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'auth.signup', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

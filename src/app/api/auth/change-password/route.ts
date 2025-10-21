@@ -5,6 +5,8 @@ import { requireUser } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 const schema = z.object({
   currentPassword: z.string().min(8, "Password must be at least 8 characters"),
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (profileError) {
-      throw Object.assign(new Error(`Failed to load user profile: ${profileError.message}`), { status: 500 });
+      throw new AppError(`Failed to load user profile: ${profileError.message}`, 'PASSWORD_CHANGE_ERROR', 500);
     }
     if (!profile) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateError } = await authClient.auth.updateUser({ password: newPassword });
     if (updateError) {
-      throw Object.assign(new Error(updateError.message ?? "Failed to update password"), { status: 500 });
+      throw new AppError(updateError.message ?? "Failed to update password", 'PASSWORD_CHANGE_ERROR', 500);
     }
 
     await authClient.auth.signOut();
@@ -59,8 +61,10 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues.map((issue) => issue.message).join(", ") }, { status: 400 });
     }
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 500;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'auth.change-password', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -24,7 +27,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .eq("id", invoiceId)
       .maybeSingle();
     if (invoiceError) {
-      throw Object.assign(new Error(`Failed to fetch invoice: ${invoiceError.message}`), { status: 500 });
+      throw new AppError(`Failed to fetch invoice: ${invoiceError.message}`, 'MESSAGE_LOAD_ERROR', 500);
     }
     if (!invoice) {
       return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .limit(1)
       .maybeSingle();
     if (clientUserError) {
-      throw Object.assign(new Error(`Failed to fetch client user: ${clientUserError.message}`), { status: 500 });
+      throw new AppError(`Failed to fetch client user: ${clientUserError.message}`, 'MESSAGE_LOAD_ERROR', 500);
     }
     if (!clientUser) {
       return NextResponse.json({ error: "No client user" }, { status: 400 });
@@ -59,7 +62,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .order("created_at", { ascending: order === "asc" })
       .range(skip, skip + take - 1);
     if (messagesError) {
-      throw Object.assign(new Error(`Failed to fetch messages: ${messagesError.message}`), { status: 500 });
+      throw new AppError(`Failed to fetch messages: ${messagesError.message}`, 'MESSAGE_LOAD_ERROR', 500);
     }
     const messages = (rows ?? []).map((row) => ({
       id: row.id,
@@ -69,9 +72,11 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     }));
     return NextResponse.json({ data: messages });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'invoices.messages', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
 
@@ -96,7 +101,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         .eq("id", invoiceId)
         .maybeSingle();
       if (invError) {
-        throw Object.assign(new Error(`Failed to fetch invoice: ${invError.message}`), { status: 500 });
+        throw new AppError(`Failed to fetch invoice: ${invError.message}`, 'MESSAGE_CREATE_ERROR', 500);
       }
       if (!inv) {
         return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -110,7 +115,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         .limit(1)
         .maybeSingle();
       if (clientUserError) {
-        throw Object.assign(new Error(`Failed to fetch client user: ${clientUserError.message}`), { status: 500 });
+        throw new AppError(`Failed to fetch client user: ${clientUserError.message}`, 'MESSAGE_CREATE_ERROR', 500);
       }
       if (!clientUser) {
         return NextResponse.json({ error: "No client user for this invoice" }, { status: 400 });
@@ -130,7 +135,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       .single();
 
     if (error || !data) {
-      throw Object.assign(new Error(error?.message ?? "Failed to create message"), { status: 500 });
+      throw new AppError(error?.message ?? "Failed to create message", 'MESSAGE_CREATE_ERROR', 500);
     }
 
     return NextResponse.json({
@@ -142,8 +147,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       },
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'invoices.messages', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

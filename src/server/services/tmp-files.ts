@@ -4,6 +4,7 @@ import {
   deleteTmpFile as deleteFromStorage,
   downloadTmpFile,
 } from "@/server/storage/supabase";
+import { AppError, NotFoundError, ForbiddenError } from "@/lib/errors";
 
 export type TmpFileStatus = "idle" | "running" | "completed" | "failed";
 
@@ -58,7 +59,7 @@ export async function saveTmpFile(
 
   if (error || !data) {
     await deleteFromStorage(key).catch(() => undefined);
-    throw new Error(error?.message ?? "Failed to register tmp file");
+    throw new AppError(error?.message ?? "Failed to register tmp file", 'DATABASE_ERROR', 500);
   }
 
   return {
@@ -76,12 +77,13 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load tmp file: ${error.message}`);
+    throw new AppError(`Failed to load tmp file: ${error.message}`, 'DATABASE_ERROR', 500);
   }
-  if (!data || data.user_id !== userId) {
-    const err = new Error("Unauthorized");
-    (err as Error & { status?: number }).status = data ? 403 : 404;
-    throw err;
+  if (!data) {
+    throw new NotFoundError("Tmp file", tmpId);
+  }
+  if (data.user_id !== userId) {
+    throw new ForbiddenError("Unauthorized");
   }
   return data as TmpFileRecord;
 }
@@ -113,7 +115,7 @@ export async function updateTmpFile(
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Failed to update tmp file");
+    throw new AppError(error?.message ?? "Failed to update tmp file", 'DATABASE_ERROR', 500);
   }
 
   return data as TmpFileRecord;
@@ -137,7 +139,7 @@ export async function deleteTmpFile(userId: number, tmpId: string) {
   const supabase = getServiceSupabase();
   const { error } = await supabase.from("tmp_files").delete().eq("storage_key", tmpId);
   if (error) {
-    throw new Error(`Failed to delete tmp file record: ${error.message}`);
+    throw new AppError(`Failed to delete tmp file record: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   await deleteFromStorage(tmpId).catch(() => undefined);
 }

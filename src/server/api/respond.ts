@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { AppError } from "@/lib/errors";
 
 interface Success<T> {
   data: T;
@@ -33,6 +34,13 @@ export function fail(
 
 export function handleError(error: unknown, scope: string) {
   logger.error({ scope, error });
+
+  // Handle AppError instances with proper code, message, status, and details
+  if (error instanceof AppError) {
+    return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+  }
+
+  // Handle generic errors with status property (legacy pattern)
   const message = error instanceof Error ? error.message : "Unexpected error";
   const status =
     error &&

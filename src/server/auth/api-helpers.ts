@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import type { LegacyUser } from "@/lib/types/user";
+import { ForbiddenError } from "@/lib/errors";
 
 /**
  * API Route helper: Require authenticated user of any role
@@ -17,7 +18,7 @@ export async function requireAuthAPI(req: NextRequest): Promise<LegacyUser> {
 export async function requireAdminAPI(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
   if (user.role !== "ADMIN") {
-    throw Object.assign(new Error("Forbidden: Admin access required"), { status: 403 });
+    throw new ForbiddenError("Admin access required");
   }
   return user;
 }
@@ -29,7 +30,7 @@ export async function requireAdminAPI(req: NextRequest): Promise<LegacyUser> {
 export async function requireClientAPI(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
   if (user.role !== "CLIENT") {
-    throw Object.assign(new Error("Forbidden: Client access required"), { status: 403 });
+    throw new ForbiddenError("Client access required");
   }
   return user;
 }
@@ -41,7 +42,7 @@ export async function requireClientAPI(req: NextRequest): Promise<LegacyUser> {
 export async function requireClientWithIdAPI(req: NextRequest): Promise<LegacyUser & { clientId: number }> {
   const user = await requireClientAPI(req);
   if (!user.clientId) {
-    throw Object.assign(new Error("Forbidden: Client ID not found"), { status: 403 });
+    throw new ForbiddenError("Client ID not found");
   }
   return user as LegacyUser & { clientId: number };
 }

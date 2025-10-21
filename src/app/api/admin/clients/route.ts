@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { AppError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
       .order("name", { ascending: true });
 
     if (error) {
-      throw Object.assign(new Error(`Failed to load clients: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load clients: ${error.message}`, 'CLIENT_LOAD_ERROR', 500);
     }
 
     return NextResponse.json({ data: data ?? [] });

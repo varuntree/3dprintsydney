@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAPI } from "@/server/auth/api-helpers";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -36,7 +39,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .order("created_at", { ascending: false })
       .range(skip, skip + take - 1);
     if (error) {
-      throw Object.assign(new Error(`Failed to load activity: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load activity: ${error.message}`, 'ACTIVITY_LOAD_ERROR', 500);
     }
     const rows = (data ?? []).map((row) => ({
       id: row.id,
@@ -46,8 +49,10 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     }));
     return NextResponse.json({ data: rows });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'invoices.activity', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
