@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listPrinters, createPrinter } from "@/server/services/printers";
+import { printerInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -37,8 +38,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const payload = await request.json();
-    const printer = await createPrinter(payload);
+    const body = await request.json();
+    const validated = printerInputSchema.parse(body);
+    const printer = await createPrinter(validated);
     return ok(printer, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

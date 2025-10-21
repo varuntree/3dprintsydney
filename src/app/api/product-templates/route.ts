@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listProductTemplates, createProductTemplate } from "@/server/services/product-templates";
+import { productTemplateInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -37,8 +38,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const payload = await request.json();
-    const template = await createProductTemplate(payload);
+    const body = await request.json();
+    const validated = productTemplateInputSchema.parse(body);
+    const template = await createProductTemplate(validated);
     return ok(template, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

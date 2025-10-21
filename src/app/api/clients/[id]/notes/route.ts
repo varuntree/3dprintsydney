@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { addClientNote } from "@/server/services/clients";
+import { clientNoteSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -20,8 +21,9 @@ export async function POST(
   await requireAdmin(request);
   try {
     const id = await parseId(context.params);
-    const payload = await request.json();
-    const note = await addClientNote(id, payload);
+    const body = await request.json();
+    const validated = clientNoteSchema.parse(body);
+    const note = await addClientNote(id, validated);
     return ok(note, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

@@ -1,6 +1,5 @@
 import { logger } from "@/lib/logger";
 import {
-  productTemplateInputSchema,
   productCalculatorSchema,
   type ProductTemplateInput,
 } from "@/lib/schemas/catalog";
@@ -134,26 +133,25 @@ export async function listProductTemplates(options?: {
   return (data as TemplateRow[]).map((row) => mapTemplate(row));
 }
 
-export async function createProductTemplate(payload: unknown) {
-  const parsed = productTemplateInputSchema.parse(payload);
-  validateBusinessRules(parsed);
+export async function createProductTemplate(input: ProductTemplateInput) {
+  validateBusinessRules(input);
 
-  const calculatorConfig = parseCalculatorConfig(parsed.calculatorConfig);
+  const calculatorConfig = parseCalculatorConfig(input.calculatorConfig);
 
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from("product_templates")
     .insert({
-      name: parsed.name,
-      description: parsed.description || null,
-      unit: parsed.unit,
-      pricing_type: parsed.pricingType,
+      name: input.name,
+      description: input.description || null,
+      unit: input.unit,
+      pricing_type: input.pricingType,
       base_price:
-        parsed.basePrice !== undefined && parsed.basePrice !== null
-          ? String(parsed.basePrice)
+        input.basePrice !== undefined && input.basePrice !== null
+          ? String(input.basePrice)
           : null,
       calculator_config: calculatorConfig,
-      material_id: parsed.materialId ?? null,
+      material_id: input.materialId ?? null,
     })
     .select("*, material:materials(id, name, cost_per_gram)")
     .single();
@@ -172,26 +170,25 @@ export async function createProductTemplate(payload: unknown) {
   return mapTemplate(data as TemplateRow);
 }
 
-export async function updateProductTemplate(id: number, payload: unknown) {
-  const parsed = productTemplateInputSchema.parse(payload);
-  validateBusinessRules(parsed);
+export async function updateProductTemplate(id: number, input: ProductTemplateInput) {
+  validateBusinessRules(input);
 
-  const calculatorConfig = parseCalculatorConfig(parsed.calculatorConfig);
+  const calculatorConfig = parseCalculatorConfig(input.calculatorConfig);
 
   const supabase = getServiceSupabase();
-  const { data, error } = await supabase
+  const { data, error} = await supabase
     .from("product_templates")
     .update({
-      name: parsed.name,
-      description: parsed.description || null,
-      unit: parsed.unit,
-      pricing_type: parsed.pricingType,
+      name: input.name,
+      description: input.description || null,
+      unit: input.unit,
+      pricing_type: input.pricingType,
       base_price:
-        parsed.basePrice !== undefined && parsed.basePrice !== null
-          ? String(parsed.basePrice)
+        input.basePrice !== undefined && input.basePrice !== null
+          ? String(input.basePrice)
           : null,
       calculator_config: calculatorConfig,
-      material_id: parsed.materialId ?? null,
+      material_id: input.materialId ?? null,
     })
     .eq("id", id)
     .select("*, material:materials(id, name, cost_per_gram)")

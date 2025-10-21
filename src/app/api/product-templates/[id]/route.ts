@@ -4,6 +4,7 @@ import {
   updateProductTemplate,
   deleteProductTemplate,
 } from "@/server/services/product-templates";
+import { productTemplateInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -23,8 +24,9 @@ export async function PUT(
   await requireAdmin(request);
   try {
     const id = await parseId(context.params);
-    const payload = await request.json();
-    const template = await updateProductTemplate(id, payload);
+    const body = await request.json();
+    const validated = productTemplateInputSchema.parse(body);
+    const template = await updateProductTemplate(id, validated);
     return ok(template);
   } catch (error) {
     if (error instanceof ZodError) {
