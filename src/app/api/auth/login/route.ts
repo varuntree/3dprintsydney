@@ -1,8 +1,9 @@
 import { NextResponse, NextRequest } from "next/server";
+import { z } from "zod";
 import { loginSchema } from "@/lib/schemas/auth";
 import { handleLogin } from "@/server/services/auth";
 import { buildAuthCookieOptions } from "@/lib/utils/auth-cookies";
-import { handleError } from "@/server/api/respond";
+import { handleError, fail } from "@/server/api/respond";
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,11 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+        issues: error.issues,
+      });
+    }
     return handleError(error, 'auth.login');
   }
 }
