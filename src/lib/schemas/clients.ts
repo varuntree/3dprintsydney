@@ -19,4 +19,9 @@ export const clientNoteSchema = z.object({
   body: z.string().min(1),
 });
 
+export const clientPreferenceSchema = z.object({
+  notifyOnJobStatus: z.boolean(),
+});
+
 export type ClientNoteInput = z.infer<typeof clientNoteSchema>;
+export type ClientPreferenceInput = z.infer<typeof clientPreferenceSchema>;

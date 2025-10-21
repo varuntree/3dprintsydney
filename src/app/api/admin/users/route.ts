@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { listUsers, createAdminUser } from "@/server/services/users";
 import { ok, fail, handleError } from "@/server/api/respond";
+import { userInviteSchema } from "@/lib/schemas/users";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,16 +15,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const inviteSchema = z.object({
-  email: z.string().email(),
-  role: z.enum(["ADMIN", "CLIENT"]).default("CLIENT"),
-  clientId: z.number().optional(),
-});
-
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin(req);
-    const payload = inviteSchema.parse(await req.json());
+    const payload = userInviteSchema.parse(await req.json());
 
     if (payload.role === "CLIENT" && !payload.clientId) {
       return fail("VALIDATION_ERROR", "clientId required for client role", 422);

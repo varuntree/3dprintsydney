@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updateJobStatus } from "@/server/services/jobs";
 import { jobStatusSchema } from "@/lib/schemas/jobs";
@@ -25,6 +26,11 @@ export async function POST(
     const job = await updateJobStatus(id, parsed.status, parsed.note || undefined);
     return ok(job);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+        issues: error.issues,
+      });
+    }
     if (error instanceof Error && error.message === "Invalid job id") {
       return fail("INVALID_ID", error.message, 400);
     }
