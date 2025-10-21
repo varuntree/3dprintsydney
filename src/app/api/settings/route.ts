@@ -2,6 +2,7 @@ import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { getSettings, updateSettings } from "@/server/services/settings";
 import { requireAdmin } from "@/server/auth/api-helpers";
+import { settingsInputSchema } from "@/lib/schemas/settings";
 import type { NextRequest } from "next/server";
 
 /**
@@ -26,7 +27,8 @@ export async function PUT(request: NextRequest) {
   try {
     await requireAdmin(request);
     const payload = await request.json();
-    const settings = await updateSettings(payload);
+    const validated = settingsInputSchema.parse(payload); // Validate at boundary
+    const settings = await updateSettings(validated);
     return ok(settings);
   } catch (error) {
     if (error instanceof ZodError) {

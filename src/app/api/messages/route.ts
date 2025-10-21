@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { ZodError } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
@@ -52,8 +52,8 @@ export async function POST(req: NextRequest) {
 
     return ok(message);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid message payload", 422, {
         issues: error.issues,
       });
     }

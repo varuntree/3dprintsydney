@@ -1,332 +1,565 @@
 # Phase 7: Validation - Implementation Plan
 
 **Created:** 2025-10-21
-**Pattern Reference:** STANDARDS.md Pattern 7
+**Status:** Ready for Execution
 
 ---
 
-## Goal
+## Executive Summary
 
-Achieve 100% compliance with Pattern 7: Validation at API boundary with Zod schemas.
+Phase 7 will standardize validation patterns to ensure 100% consistency. The explore agents found that the validation architecture is **already well-organized** but has **critical anti-patterns from Phase 5** and **inconsistent error handling** that need fixing.
 
-**Current State:**
-- 28 routes (51%) have proper Zod validation
-- 27 routes (49%) missing or improperly validated
-- 4 inline schemas (not centralized)
-- 10 routes return 500 instead of 422 for validation errors
-- 7 services validate inputs (anti-pattern)
+**Key Finding:** All 10 Zod schema files are already in `/lib/schemas/` (100% correctly organized), but 4 services still perform validation (should have been fixed in Phase 5).
 
-**Target State:**
-- 100% of API routes validate inputs with Zod
-- All schemas centralized in `/lib/schemas/`
-- Consistent 422 error responses with issue details
-- Services trust input (no validation in service layer)
+**Scope:** MEDIUM (4 service files + 26 routes with error handling standardization)
+**Risk Level:** LOW-MEDIUM (fixing Phase 5 violations + standardization)
+**Estimated Duration:** 2-3 hours
 
 ---
 
-## Analysis Summary
+## Analysis Summary from 3 Explore Agents
 
-### Schema Coverage
-- ✅ **Complete:** Clients, Invoices, Quotes, Jobs, Materials, Printers, Product Templates, Settings
-- ❌ **Missing:** Quick-Order (5 endpoints), Messages (3 endpoints), Attachments (1 endpoint)
-- ❌ **Action Endpoints:** 12 endpoints (invoice/quote/job actions)
-- ⚠️ **Inline Schemas:** 4 locations (auth, preferences, users)
+### Agent 1: Schema Organization
+- **10 schema files**, all in `/lib/schemas/` ✅
+- **540 lines** of schema code total
+- **0 scattered schemas** ✅
+- **1 cross-file dependency** (acceptable - invoices → quotes)
+- **Missing:** index.ts barrel export (opportunity)
 
-### Validation Issues
-- **10 routes:** Return 500 for validation errors (should be 422)
-- **4 routes:** Manual validation instead of Zod
-- **2 routes:** No validation at all
-- **7 services:** Validate inputs (should trust API routes)
+### Agent 2: Validation Patterns
+- **27 routes** using `.parse()` at API boundary ✅ GOOD
+- **4 services** using `.parse()` ❌ ANTI-PATTERN (Phase 5 violation)
+- **26 routes** with ZodError handling (some inconsistent)
+- **5+ routes** with manual validation (should use Zod)
+- **1 route** using `.safeParse()` (inconsistent)
 
----
-
-## Implementation Steps
-
-### Step 1: Centralize Inline Schemas (4 files)
-
-Move inline schemas to centralized `/lib/schemas/`:
-
-**1.1 Auth Schemas → `/lib/schemas/auth.ts`**
-- Add `changePasswordSchema` from `/api/auth/change-password/route.ts:7-10`
-- Add `forgotPasswordSchema` from `/api/auth/forgot-password/route.ts:9`
-
-**1.2 User Schemas → Create `/lib/schemas/users.ts`**
-- Move `inviteSchema` from `/api/admin/users/route.ts:17-21`
-
-**1.3 Client Preference → `/lib/schemas/clients.ts`**
-- Move `preferenceSchema` from `/api/client/preferences/route.ts:12-14`
-
-**Files to Modify:** 4 API routes + 3 schema files
-**Estimated Time:** 30 minutes
+### Agent 3: Validation Usage
+- **26 API routes** with Zod validation
+- **51 routes** without validation (mostly GET/DELETE - OK)
+- **6 services** import schema types (good)
+- **1 service** performs validation (bad - Phase 5 violation)
+- **9 components** use Zod via react-hook-form (good)
 
 ---
 
-### Step 2: Create Missing Schema Files (3 new files)
+## Current State Assessment
 
-**2.1 Create `/lib/schemas/quick-order.ts`**
+### ✅ What's Working Well:
+
+1. **Schema organization:**
+   - All schemas in `/lib/schemas/` (100% organized)
+   - Logical file grouping (auth, clients, invoices, etc.)
+   - Consistent naming (`*InputSchema`, `*Input` types)
+   - Minimal cross-file dependencies
+
+2. **Most routes validate correctly:**
+   - 27 routes use `.parse()` at API boundary
+   - Most catch `ZodError` properly
+   - Return `VALIDATION_ERROR` with `issues`
+
+3. **Clean type usage:**
+   - Services import types, not Zod itself
+   - Components use `zodResolver` for forms
+
+### ❌ What Needs Fixing:
+
+1. **CRITICAL: Phase 5 Violations (4 services still validate):**
+   - `settings.ts` - Calls `settingsInputSchema.parse()` (line 117, 190)
+   - `product-templates.ts` - Calls `productCalculatorSchema.parse()` (line 57)
+   - These should validate at API boundary, not in services
+
+2. **Inconsistent ZodError handling (26 routes):**
+   - Some: `import { ZodError } from "zod"`
+   - Others: `import { z } from "zod"` then `z.ZodError`
+   - Some use `.format()` instead of `.issues`
+   - Need standardization
+
+3. **Manual validation in routes (5 routes):**
+   - `invoices/[id]/void` - Manual reason validation
+   - `quick-order/slice` - Manual type checks
+   - Should use Zod schemas
+
+4. **Missing index.ts:**
+   - No barrel export for easier imports
+   - Would simplify consumer code
+
+---
+
+## Goals & Success Criteria
+
+### Goals:
+1. ✅ Fix Phase 5 violations (move validation from services to routes)
+2. ✅ Standardize ZodError handling across all routes
+3. ✅ Create index.ts for easier schema imports
+4. ✅ Optional: Replace manual validation with Zod
+5. ✅ Maintain 100% build success
+6. ✅ No functionality changes
+
+### Success Criteria:
+- [ ] ZERO services perform validation (all at API boundary)
+- [ ] 100% consistent ZodError handling pattern
+- [ ] index.ts created for clean imports
+- [ ] Build passes with zero TypeScript errors
+- [ ] Review agent approval
+- [ ] All routes follow STANDARDS.md Pattern 7
+
+---
+
+## Implementation Strategy
+
+**Conservative Approach:** Fix violations + standardize handling + improve imports
+
+**Priority Order:**
+1. **CRITICAL:** Fix Phase 5 violations (services validating)
+2. **HIGH:** Standardize ZodError handling
+3. **MEDIUM:** Create index.ts
+4. **OPTIONAL:** Replace manual validation
+
+We will NOT:
+- ❌ Reorganize schema files (already perfect)
+- ❌ Change validation logic (only move location)
+- ❌ Break existing functionality
+
+We WILL:
+- ✅ Move `.parse()` from services to API routes
+- ✅ Standardize error handling patterns
+- ✅ Create barrel export for schemas
+- ✅ Optional: Add schemas for manual validation
+
+---
+
+## Detailed Implementation Plan
+
+### Task 1: Fix Phase 5 Violations - Move Validation to Routes (1 hour)
+
+**CRITICAL:** 4 service files violate Phase 5 requirement
+
+#### File 1: `src/server/services/settings.ts`
+
+**Current (Lines 117, 190):**
 ```typescript
-export const quickOrderUploadSchema = z.object({...});
-export const quickOrderPriceSchema = z.object({...});
-export const quickOrderOrientSchema = z.object({...});
-export const quickOrderSliceSchema = z.object({...});
-export const quickOrderCheckoutSchema = z.object({...});
+// IN SERVICE - WRONG!
+const parsed = settingsInputSchema.parse(payload);
 ```
 
-**2.2 Create `/lib/schemas/messages.ts`**
+**Fix:**
+1. Remove `.parse()` from service
+2. Move to `/src/app/api/settings/route.ts` (PUT handler)
+3. Pass pre-validated object to service
+
+**API Route Update:**
 ```typescript
-export const messageInputSchema = z.object({
-  content: z.string().min(1).max(5000),
-  // Additional fields as needed
-});
-```
-
-**2.3 Create `/lib/schemas/users.ts`** (if not created in Step 1.2)
-```typescript
-export const userInviteSchema = z.object({
-  email: z.string().email(),
-  role: z.enum(['ADMIN', 'CLIENT']),
-  clientId: z.number().optional(),
-});
-```
-
-**Files to Create:** 3 new schema files
-**Estimated Time:** 45 minutes
-
----
-
-### Step 3: Add Action Schemas (3 files)
-
-Extend existing schema files with action-specific schemas:
-
-**3.1 `/lib/schemas/invoices.ts`**
-- `invoiceVoidSchema` - Void invoice with reason
-- `invoiceWriteOffSchema` - Write off invoice
-- `invoiceRevertSchema` - Revert status
-- `invoiceMarkUnpaidSchema` - Mark unpaid with reason
-- `invoiceAttachmentSchema` - File attachment metadata
-
-**3.2 `/lib/schemas/quotes.ts`**
-- `quoteAcceptSchema` - Accept quote with optional note
-- `quoteDeclineSchema` - Decline quote with reason
-- `quoteConvertSchema` - Convert to invoice
-- `quoteDuplicateSchema` - Duplicate quote
-- `quoteSendSchema` - Send email (may be empty)
-
-**3.3 `/lib/schemas/jobs.ts`**
-- `jobArchiveSchema` - Archive single job
-- `jobBulkArchiveSchema` - Bulk archive jobs
-
-**Files to Modify:** 3 existing schema files
-**Estimated Time:** 30 minutes
-
----
-
-### Step 4: Fix Validation Error Handling (10 files)
-
-Fix routes returning 500 for validation errors:
-
-**Routes to Fix:**
-1. `/api/auth/login/route.ts`
-2. `/api/auth/signup/route.ts`
-3. `/api/auth/forgot-password/route.ts`
-4. `/api/jobs/[id]/route.ts`
-5. `/api/jobs/[id]/status/route.ts`
-6. `/api/jobs/reorder/route.ts`
-7. `/api/quotes/[id]/route.ts`
-8. `/api/admin/users/[id]/route.ts`
-9. `/api/client/preferences/route.ts`
-10. `/api/auth/change-password/route.ts`
-
-**Pattern to Apply:**
-```typescript
-import { ZodError } from "zod";
-
-try {
-  const validated = schema.parse(body);
-  // ... process
-} catch (error) {
-  if (error instanceof ZodError) {
-    return fail("VALIDATION_ERROR", "Invalid input", 422, {
-      issues: error.issues,
-    });
+// /src/app/api/settings/route.ts
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const validated = settingsInputSchema.parse(body); // ✓ At boundary
+    const settings = await updateSettings(validated);  // Pass validated
+    return ok(settings);
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid settings", 422, {
+        issues: error.issues,
+      });
+    }
+    return handleError(error, "settings.update");
   }
-  return handleError(error, 'scope');
 }
 ```
 
-**Files to Modify:** 10 API routes
-**Estimated Time:** 1 hour
+#### File 2: `src/server/services/product-templates.ts`
+
+**Current (Line 57):**
+```typescript
+// IN SERVICE - WRONG!
+return productCalculatorSchema.parse(config) as Record<string, unknown>;
+```
+
+**Fix:**
+1. Remove `.parse()` from service helper
+2. Validate in API route before calling service
+3. Trust that config is already validated
+
+**Service Update:**
+```typescript
+// Service no longer validates
+function normalizeCalculatorConfig(config: unknown): Record<string, unknown> {
+  // Remove parse, trust input is valid
+  return config as Record<string, unknown>;
+}
+```
+
+**Routes to Update:**
+- `/src/app/api/product-templates/route.ts` (POST, PUT)
+- Already validates `productTemplateInputSchema` which includes calculator config
 
 ---
 
-### Step 5: Add Validation to Routes (27 files)
+### Task 2: Standardize ZodError Handling (1 hour)
 
-Add Zod schemas to routes currently missing validation:
+**Standard Pattern (from STANDARDS.md):**
+```typescript
+import { ZodError } from "zod"; // Always use this import
 
-**Batch 1 - Quick Order (5 routes):**
-- `/api/quick-order/upload/route.ts`
-- `/api/quick-order/price/route.ts`
-- `/api/quick-order/orient/route.ts`
-- `/api/quick-order/slice/route.ts`
-- `/api/quick-order/checkout/route.ts`
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const validated = schema.parse(body);
+    const result = await serviceFunction(validated);
+    return ok(result, { status: 201 });
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid [entity] payload", 422, {
+        issues: error.issues,  // NOT .format()
+      });
+    }
+    return handleError(error, "scope.action");
+  }
+}
+```
 
-**Batch 2 - Messages (3 routes):**
-- `/api/messages/route.ts`
-- `/api/invoices/[id]/messages/route.ts`
-- `/api/admin/users/[id]/messages/route.ts`
+**Routes to Update (26 total):**
 
-**Batch 3 - Invoice Actions (5 routes):**
-- `/api/invoices/[id]/mark-unpaid/route.ts`
-- `/api/invoices/[id]/void/route.ts`
-- `/api/invoices/[id]/write-off/route.ts`
-- `/api/invoices/[id]/revert/route.ts`
-- `/api/invoices/[id]/attachments/route.ts`
+#### Group 1: Already Correct (11 routes)
+These follow the standard pattern:
+- `/api/auth/login`
+- `/api/clients` (POST)
+- `/api/invoices` (POST)
+- `/api/invoices/[id]/payments`
+- `/api/quotes` (POST)
+- `/api/jobs/[id]` (PATCH)
+- `/api/jobs/reorder`
+- `/api/quotes/[id]/status`
+- `/api/settings` (PUT)
+- Several others...
 
-**Batch 4 - Quote Actions (5 routes):**
-- `/api/quotes/[id]/accept/route.ts`
-- `/api/quotes/[id]/decline/route.ts`
-- `/api/quotes/[id]/convert/route.ts`
-- `/api/quotes/[id]/send/route.ts`
-- `/api/quotes/[id]/duplicate/route.ts`
+#### Group 2: Minor Fixes Needed (15 routes)
+Import inconsistencies or message differences:
 
-**Batch 5 - Job Actions (2 routes):**
-- `/api/jobs/[id]/archive/route.ts`
-- `/api/jobs/archive/route.ts`
+1. **Using `z.ZodError` instead of `ZodError`:**
+   - `/api/auth/signup`
+   - `/api/auth/change-password`
+   - `/api/messages`
+   - `/api/materials`
+   - `/api/printers`
+   - `/api/product-templates`
 
-**Batch 6 - Settings (1 route):**
-- `/api/settings/route.ts` - Use existing `settingsInputSchema`
+   **Fix:** Change `import { z } from "zod"` → `import { ZodError } from "zod"`
+   **Fix:** Change `error instanceof z.ZodError` → `error instanceof ZodError`
 
-**Files to Modify:** 21 API routes
-**Estimated Time:** 2 hours
+2. **Using `.format()` instead of `.issues`:**
+   - `/api/invoices/[id]/mark-paid`
+
+   **Fix:** Change `error.format()` → `error.issues`
+
+3. **Wrong error code:**
+   - `/api/invoices/[id]/mark-paid` - Uses `INVALID_BODY`
+
+   **Fix:** Change to `VALIDATION_ERROR`
 
 ---
 
-### Step 6: Remove Service Layer Validation (7 files)
+### Task 3: Create Schema Index File (15 minutes)
 
-Move validation from services to API routes:
+**New File:** `/src/lib/schemas/index.ts`
 
-**6.1 `/server/services/settings.ts`**
-- Remove lines 72-84: `shippingRegionSchema.safeParse()`
-- Remove lines 91-103: `paymentTermSchema.safeParse()`
-- Remove line 117: `calculatorConfigSchema.parse()`
-- Remove line 190: `settingsInputSchema.parse()`
-- Move these validations to `/api/settings/route.ts`
+```typescript
+// Central export for all validation schemas
+// Simplifies imports: from '@/lib/schemas' instead of '@/lib/schemas/auth'
 
-**6.2 `/server/services/product-templates.ts`**
-- Remove lines 41-51: `validateBusinessRules()` function
-- Remove line 57: `productCalculatorSchema.parse()`
-- Move to `/api/product-templates/route.ts`
+// Auth schemas
+export * from "./auth";
 
-**6.3 `/server/services/clients.ts`**
-- Remove lines 15-39: `normalizePaymentTermsCode()` validation
-- Move to `/api/clients/route.ts` and related routes
+// Catalog schemas (materials, printers, product templates)
+export * from "./catalog";
 
-**6.4 `/server/services/materials.ts`**
-- Remove line 199: Reference check validation
-- Move to DELETE `/api/materials/[id]/route.ts`
+// Client schemas
+export * from "./clients";
 
-**6.5 `/server/services/invoices.ts`**
-- Remove line 660: `validateInvoiceAttachment()` call
-- Move to `/api/invoices/[id]/attachments/route.ts`
+// Invoice schemas  
+export * from "./invoices";
 
-**6.6 `/server/services/jobs.ts`**
-- Remove lines 98-108: Printer status validation
-- Move to `/api/jobs/[id]/route.ts`
+// Job schemas
+export * from "./jobs";
 
-**6.7 `/server/services/auth.ts`**
-- Remove lines 62-64: Email existence check
-- Remove lines 155-164: `validatePasswordChange()` call
-- Move to respective API routes
+// Message schemas
+export * from "./messages";
 
-**Files to Modify:** 7 service files + their corresponding API routes
-**Estimated Time:** 2 hours
+// Quick order schemas
+export * from "./quick-order";
+
+// Quote schemas
+export * from "./quotes";
+
+// Settings schemas
+export * from "./settings";
+
+// User schemas
+export * from "./users";
+```
+
+**Benefit:** Simpler imports
+```typescript
+// Before
+import { clientInputSchema } from "@/lib/schemas/clients";
+import { invoiceInputSchema } from "@/lib/schemas/invoices";
+
+// After (optional migration)
+import { clientInputSchema, invoiceInputSchema } from "@/lib/schemas";
+```
+
+**Note:** Existing imports will still work - this is additive only
+
+---
+
+### Task 4: Optional - Replace Manual Validation (30 minutes)
+
+**5 routes using manual validation that could use Zod:**
+
+#### 1. `/api/invoices/[id]/void/route.ts` (Line 17-18)
+**Current:**
+```typescript
+const reason = typeof body?.reason === "string" ? body.reason : undefined;
+```
+
+**Should use:**
+```typescript
+const validated = invoiceVoidSchema.parse(body);
+const reason = validated.reason;
+```
+
+#### 2. `/api/invoices/[id]/mark-paid/route.ts` (Line 42-46)
+**Current:**
+```typescript
+const parsed = paymentInputSchema.partial().safeParse(payload);
+if (!parsed.success) {
+  return fail("INVALID_BODY", ...);
+}
+```
+
+**Should be:**
+```typescript
+// Either use full schema or create explicit partial schema
+const validated = paymentInputSchema.parse(payload);
+// OR
+const markPaidSchema = paymentInputSchema.partial();
+const validated = markPaidSchema.parse(payload);
+```
+
+#### 3-5. Quick-order routes
+**Decision:** Skip for Phase 7 (complex FormData handling, low priority)
+
+---
+
+## Implementation Order
+
+### Step 1: Fix Phase 5 Violations (1 hour)
+1. Update `settings.ts` service - Remove `.parse()` calls
+2. Update `/api/settings/route.ts` - Add `.parse()` at boundary
+3. Update `product-templates.ts` service - Remove `.parse()` helper
+4. Verify both route handlers validate properly
+5. Run build verification
+
+### Step 2: Standardize ZodError Handling (1 hour)
+1. Create checklist of 26 routes with validation
+2. Update imports: `z.ZodError` → `ZodError`
+3. Fix error codes: `INVALID_BODY` → `VALIDATION_ERROR`
+4. Fix error details: `.format()` → `.issues`
+5. Verify consistent pattern across all routes
+6. Run build verification
+
+### Step 3: Create Index File (15 minutes)
+1. Create `/src/lib/schemas/index.ts`
+2. Add barrel exports for all schema files
+3. Test import works correctly
+4. Run build verification
+
+### Step 4: Optional - Manual Validation (30 minutes)
+1. Update void route to use schema
+2. Update mark-paid route to use consistent pattern
+3. Run build verification
+
+### Step 5: Final Verification (30 minutes)
+1. Run full build
+2. Deploy review agent
+3. Fix any issues found
+4. Update workspace
+5. Commit changes
+
+**Total Estimated Time: 2.5-3 hours**
+
+---
+
+## Files to Change
+
+### Modified Files (Core):
+1. `src/server/services/settings.ts` - Remove validation
+2. `src/server/services/product-templates.ts` - Remove validation
+3. `src/app/api/settings/route.ts` - Add validation at boundary
+
+### Modified Files (Error Handling - 15 routes):
+4. `src/app/api/auth/signup/route.ts`
+5. `src/app/api/auth/change-password/route.ts`
+6. `src/app/api/messages/route.ts`
+7. `src/app/api/materials/route.ts`
+8. `src/app/api/materials/[id]/route.ts`
+9. `src/app/api/printers/route.ts`
+10. `src/app/api/printers/[id]/route.ts`
+11. `src/app/api/product-templates/route.ts`
+12. `src/app/api/product-templates/[id]/route.ts`
+13. `src/app/api/invoices/[id]/mark-paid/route.ts`
+... (15 total)
+
+### New Files:
+14. `src/lib/schemas/index.ts` - Barrel export
+
+### Optional Files:
+15. `src/app/api/invoices/[id]/void/route.ts` - Use schema
+16. `src/app/api/invoices/[id]/mark-paid/route.ts` - Fix pattern
+
+**Total: 17-19 files**
 
 ---
 
 ## Risk Assessment
 
-### Low Risk
-- Step 1: Centralizing schemas (no logic change)
-- Step 2: Creating new schemas (additive)
-- Step 3: Adding action schemas (additive)
+### MEDIUM RISK:
+- **Settings service validation removal**
+  - Impact: Could break settings update if not moved correctly
+  - Mitigation: Thorough testing of settings API
+  - Rollback: Per-file commits allow granular rollback
 
-### Medium Risk
-- Step 4: Fixing error handling (changes error responses)
-- Step 5: Adding validation (could reject previously accepted payloads)
+### LOW RISK:
+- **ZodError handling standardization**
+  - Impact: Minimal - just import/error message changes
+  - Mitigation: Pattern is proven to work in existing routes
 
-### High Risk
-- Step 6: Removing service validation (must ensure API routes validate first)
+- **Product templates validation removal**
+  - Impact: Low - routes already validate
+  - Mitigation: Verify calculator config validation
+
+### NEGLIGIBLE RISK:
+- **Creating index.ts**
+  - Impact: None - additive only
+  - No existing code changes required
+
+- **Manual validation replacement**
+  - Impact: Low - optional task
 
 ---
 
 ## Testing Strategy
 
-**After Each Step:**
-1. Run `npm run typecheck` to verify no type errors
-2. Test affected API routes manually or with existing tests
-3. Verify error responses match expected format
+### Build Verification:
+```bash
+npm run typecheck  # Must pass
+npm run build      # Must pass
+npm run lint       # Must pass
+```
 
-**After Step 4:**
-- Verify validation errors return 422 (not 500)
-- Verify `issues` array is included in response
+### Manual Testing Required:
+- **Settings update** - Test PUT /api/settings with valid and invalid payloads
+- **Product template** - Test POST/PUT with calculator configurations
+- **Routes with updated error handling** - Test validation failures return correct format
 
-**After Step 5:**
-- Test each route with invalid payloads
-- Verify proper validation error responses
-
-**After Step 6:**
-- Verify services still function correctly
-- Ensure API routes now perform all validation
-- No validation logic should remain in services
-
----
-
-## Success Criteria
-
-- ✅ All schemas centralized in `/lib/schemas/` (0 inline schemas)
-- ✅ 100% of POST/PUT/PATCH routes validate with Zod
-- ✅ All validation errors return 422 with issue details
-- ✅ 0 services validate inputs (trust API boundary)
-- ✅ Build passes with no type errors
-- ✅ All routes tested with invalid payloads
+### Test Cases:
+1. Valid settings payload → Should save
+2. Invalid settings payload → Should return 422 with `issues`
+3. Valid product template → Should save
+4. Invalid calculator config → Should return 422 with `issues`
+5. Any validation error → Should have `VALIDATION_ERROR` code
+6. Schema imports from index → Should work
 
 ---
 
-## Estimated Timeline
+## Success Metrics
 
-| Step | Task | Time | Risk |
-|------|------|------|------|
-| 1 | Centralize inline schemas | 30min | Low |
-| 2 | Create missing schema files | 45min | Low |
-| 3 | Add action schemas | 30min | Low |
-| 4 | Fix error handling | 1hr | Medium |
-| 5 | Add validation to routes | 2hr | Medium |
-| 6 | Remove service validation | 2hr | High |
-| **Total** | | **6.75hr** | |
+**Quantitative:**
+- 4 service validation violations fixed (100% Phase 5 compliance)
+- 26 routes with standardized error handling
+- 1 index.ts created
+- 0-2 manual validations replaced with Zod
+- 0 build errors
+- 100% pattern compliance
+
+**Qualitative:**
+- ✅ All validation at API boundary (no service validation)
+- ✅ Consistent ZodError handling everywhere
+- ✅ Easier schema imports via index
+- ✅ Clear error responses with `issues` array
+- ✅ Improved developer experience
 
 ---
 
-## Files Summary
+## Commit Strategy
 
-**New Files (3):**
-- `/src/lib/schemas/quick-order.ts`
-- `/src/lib/schemas/messages.ts`
-- `/src/lib/schemas/users.ts`
+```bash
+# Commit 1: Fix Phase 5 violations
+git commit -m "Phase 7: Fix service validation violations (Phase 5)
 
-**Modified Schema Files (3):**
-- `/src/lib/schemas/auth.ts`
-- `/src/lib/schemas/invoices.ts`
-- `/src/lib/schemas/quotes.ts`
-- `/src/lib/schemas/jobs.ts`
-- `/src/lib/schemas/clients.ts`
+- Move validation from settings service to API route
+- Move validation from product-templates service to API route
+- Services now trust pre-validated input
+- All validation at API boundary
 
-**Modified API Routes (~35 files):**
-- 4 routes: Centralize inline schemas
-- 10 routes: Fix error handling
-- 21 routes: Add validation
-- ~7 routes: Accept validation moved from services
+Files: services/settings.ts, services/product-templates.ts, api/settings/route.ts"
 
-**Modified Services (7):**
-- All service validation removed
+# Commit 2: Standardize error handling
+git commit -m "Phase 7: Standardize Zod error handling
 
-**Total Files Changed:** ~50 files
+- Use consistent ZodError import
+- Fix error codes (INVALID_BODY → VALIDATION_ERROR)
+- Use .issues instead of .format()
+- Standard error message format
+
+Files: 15 API routes"
+
+# Commit 3: Create index
+git commit -m "Phase 7: Create schema barrel export
+
+- Add lib/schemas/index.ts
+- Re-export all schemas from single location
+- Simplifies imports across codebase
+
+Files: lib/schemas/index.ts"
+
+# Commit 4 (Optional): Manual validation
+git commit -m "Phase 7: Replace manual validation with Zod
+
+- Use invoiceVoidSchema in void route
+- Fix mark-paid validation pattern
+
+Files: api/invoices/[id]/void/route.ts, api/invoices/[id]/mark-paid/route.ts"
+
+# Final commit message format
+git commit -m "Phase 7: Standardize validation patterns
+
+Summary of all changes...
+
+Pattern compliance: 100%
+Phase 5 violations fixed: 4
+Routes standardized: 26
+Build verified: ✅
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+---
+
+## Notes for Implementation
+
+1. **Settings service** is complex - test thoroughly
+2. **Product templates** calculator config needs validation preserved
+3. **Keep existing imports working** - index.ts is additive
+4. **ZodError changes** are import-only, no logic changes
+5. **Test validation errors** to ensure `issues` format is correct
+6. **Mark-paid route** has unusual `.partial().safeParse()` - standardize
+
+---
+
+**Ready to Execute:** Yes ✅
+**Estimated Duration:** 2.5-3 hours
+**Risk Level:** LOW-MEDIUM
+**Last Updated:** 2025-10-21

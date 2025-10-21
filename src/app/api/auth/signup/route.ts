@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { z } from "zod";
+import { ZodError } from "zod";
 import { signupSchema } from "@/lib/schemas/auth";
 import { handleSignup } from "@/server/services/auth";
 import { buildAuthCookieOptions } from "@/lib/utils/auth-cookies";
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid signup payload", 422, {
         issues: error.issues,
       });
     }

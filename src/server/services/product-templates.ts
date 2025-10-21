@@ -1,6 +1,5 @@
 import { logger } from "@/lib/logger";
 import {
-  productCalculatorSchema,
   type ProductTemplateInput,
 } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
@@ -50,11 +49,12 @@ function validateBusinessRules(payload: ProductTemplateInput) {
   }
 }
 
-function parseCalculatorConfig(
+function normalizeCalculatorConfig(
   config: ProductTemplateInput["calculatorConfig"],
 ): Record<string, unknown> | null {
   if (!config) return null;
-  return productCalculatorSchema.parse(config) as Record<string, unknown>;
+  // Config is already validated at API boundary, just cast for DB storage
+  return config as Record<string, unknown>;
 }
 
 function mapTemplate(row: TemplateRow | null): ProductTemplateDTO {
@@ -149,7 +149,7 @@ export async function listProductTemplates(options?: {
 export async function createProductTemplate(input: ProductTemplateInput) {
   validateBusinessRules(input);
 
-  const calculatorConfig = parseCalculatorConfig(input.calculatorConfig);
+  const calculatorConfig = normalizeCalculatorConfig(input.calculatorConfig);
 
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -194,7 +194,7 @@ export async function createProductTemplate(input: ProductTemplateInput) {
 export async function updateProductTemplate(id: number, input: ProductTemplateInput) {
   validateBusinessRules(input);
 
-  const calculatorConfig = parseCalculatorConfig(input.calculatorConfig);
+  const calculatorConfig = normalizeCalculatorConfig(input.calculatorConfig);
 
   const supabase = getServiceSupabase();
   const { data, error} = await supabase

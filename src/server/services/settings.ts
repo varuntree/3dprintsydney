@@ -1,8 +1,6 @@
 import { logger } from '@/lib/logger';
 import {
-  settingsInputSchema,
   type SettingsInput,
-  calculatorConfigSchema,
   shippingRegionSchema,
   paymentTermSchema,
   DEFAULT_PAYMENT_TERMS,
@@ -114,7 +112,8 @@ function serializeSettings(row: SettingsRow | null): SerializedSettings | null {
     ? row.default_payment_terms
     : DEFAULT_PAYMENT_TERMS[0].code;
 
-  const calculator = calculatorConfigSchema.parse(row.calculator_config ?? {});
+  // Calculator config is already validated when written to DB at API boundary
+  const calculator = (row.calculator_config ?? {}) as SettingsInput['calculatorConfig'];
 
   return {
     businessName: row.business_name,
@@ -181,44 +180,43 @@ export async function getSettings(): Promise<SerializedSettings | null> {
 }
 
 /**
- * Update system settings with validation and number sequence updates
- * @param payload - Settings update payload (will be validated against schema)
+ * Update system settings and number sequence updates
+ * @param payload - Pre-validated settings update payload (validated at API boundary)
  * @returns Updated settings
- * @throws AppError if validation fails or database operation fails
+ * @throws AppError if database operation fails
  */
-export async function updateSettings(payload: unknown): Promise<SerializedSettings | null> {
-  const parsed = settingsInputSchema.parse(payload);
+export async function updateSettings(payload: SettingsInput): Promise<SerializedSettings | null> {
   const supabase = getServiceSupabase();
 
   const updatePayload = {
-    business_name: parsed.businessName,
-    business_email: parsed.businessEmail || null,
-    business_phone: parsed.businessPhone || null,
-    business_address: parsed.businessAddress || null,
-    abn: parsed.abn || null,
-    tax_rate: parsed.taxRate !== undefined ? String(parsed.taxRate) : null,
-    numbering_quote_prefix: parsed.numberingQuotePrefix,
-    numbering_invoice_prefix: parsed.numberingInvoicePrefix,
-    default_payment_terms: parsed.defaultPaymentTerms.trim(),
-    bank_details: parsed.bankDetails || null,
-    job_creation_policy: parsed.jobCreationPolicy,
-    default_currency: parsed.defaultCurrency,
-    shipping_regions: parsed.shippingRegions,
-    default_shipping_region: parsed.defaultShippingRegion,
-    payment_terms: parsed.paymentTerms.map((term) => ({
+    business_name: payload.businessName,
+    business_email: payload.businessEmail || null,
+    business_phone: payload.businessPhone || null,
+    business_address: payload.businessAddress || null,
+    abn: payload.abn || null,
+    tax_rate: payload.taxRate !== undefined ? String(payload.taxRate) : null,
+    numbering_quote_prefix: payload.numberingQuotePrefix,
+    numbering_invoice_prefix: payload.numberingInvoicePrefix,
+    default_payment_terms: payload.defaultPaymentTerms.trim(),
+    bank_details: payload.bankDetails || null,
+    job_creation_policy: payload.jobCreationPolicy,
+    default_currency: payload.defaultCurrency,
+    shipping_regions: payload.shippingRegions,
+    default_shipping_region: payload.defaultShippingRegion,
+    payment_terms: payload.paymentTerms.map((term) => ({
       code: term.code.trim(),
       label: term.label.trim(),
       days: term.days,
     })),
-    calculator_config: parsed.calculatorConfig,
-    auto_detach_job_on_complete: parsed.autoDetachJobOnComplete,
-    auto_archive_completed_jobs_after_days: parsed.autoArchiveCompletedJobsAfterDays,
-    prevent_assign_to_offline: parsed.preventAssignToOffline,
-    prevent_assign_to_maintenance: parsed.preventAssignToMaintenance,
-    max_active_printing_per_printer: parsed.maxActivePrintingPerPrinter,
-    overdue_days: parsed.overdueDays,
-    reminder_cadence_days: parsed.reminderCadenceDays,
-    enable_email_send: parsed.enableEmailSend,
+    calculator_config: payload.calculatorConfig,
+    auto_detach_job_on_complete: payload.autoDetachJobOnComplete,
+    auto_archive_completed_jobs_after_days: payload.autoArchiveCompletedJobsAfterDays,
+    prevent_assign_to_offline: payload.preventAssignToOffline,
+    prevent_assign_to_maintenance: payload.preventAssignToMaintenance,
+    max_active_printing_per_printer: payload.maxActivePrintingPerPrinter,
+    overdue_days: payload.overdueDays,
+    reminder_cadence_days: payload.reminderCadenceDays,
+    enable_email_send: payload.enableEmailSend,
   };
 
   const { data, error } = await supabase
@@ -232,8 +230,8 @@ export async function updateSettings(payload: unknown): Promise<SerializedSettin
   }
 
   const sequenceUpdates = [
-    { kind: 'quote', prefix: parsed.numberingQuotePrefix },
-    { kind: 'invoice', prefix: parsed.numberingInvoicePrefix },
+    { kind: 'quote', prefix: payload.numberingQuotePrefix },
+    { kind: 'invoice', prefix: payload.numberingInvoicePrefix },
   ].map((entry) => ({ ...entry, current: 1 }));
 
   const { error: sequenceError } = await supabase
@@ -252,7 +250,7 @@ export async function updateSettings(payload: unknown): Promise<SerializedSettin
 
   logger.info({
     scope: 'settings.update',
-    data: { jobCreationPolicy: parsed.jobCreationPolicy },
+    data: { jobCreationPolicy: payload.jobCreationPolicy },
   });
 
   return serializeSettings(data as SettingsRow);

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
+import { ZodError } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { handlePasswordChange } from "@/server/services/auth";
 import { ok, fail, handleError } from "@/server/api/respond";
@@ -16,8 +16,10 @@ export async function POST(req: NextRequest) {
 
     return ok({ success: true });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", error.issues.map((issue) => issue.message).join(", "), 422);
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid password change payload", 422, {
+        issues: error.issues,
+      });
     }
     return handleError(error, 'auth.change-password');
   }

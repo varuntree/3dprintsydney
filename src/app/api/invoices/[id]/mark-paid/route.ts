@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { markInvoicePaid } from "@/server/services/invoices";
 import { paymentInputSchema } from "@/lib/schemas/invoices";
@@ -39,18 +40,13 @@ export async function POST(
     let note: string | undefined;
 
     if (payload) {
-      const parsed = paymentInputSchema.partial().safeParse(payload);
-      if (!parsed.success) {
-        return fail("INVALID_BODY", "Invalid payment payload", 422, {
-          issues: parsed.error.format(),
-        });
-      }
-      amount = parsed.data.amount;
-      method = parsed.data.method as PaymentMethod | undefined;
-      reference = parsed.data.reference ?? undefined;
-      processor = parsed.data.processor ?? undefined;
-      processorId = parsed.data.processorId ?? undefined;
-      note = parsed.data.notes ?? undefined;
+      const parsed = paymentInputSchema.partial().parse(payload);
+      amount = parsed.amount;
+      method = parsed.method as PaymentMethod | undefined;
+      reference = parsed.reference ?? undefined;
+      processor = parsed.processor ?? undefined;
+      processorId = parsed.processorId ?? undefined;
+      note = parsed.notes ?? undefined;
     }
 
     await markInvoicePaid(invoiceId, {
@@ -64,6 +60,11 @@ export async function POST(
 
     return ok({ success: true });
   } catch (error) {
+    if (error instanceof ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid payment payload", 422, {
+        issues: error.issues,
+      });
+    }
     if (error instanceof Error && error.message === "Invalid invoice id") {
       return fail("INVALID_ID", error.message, 400);
     }
