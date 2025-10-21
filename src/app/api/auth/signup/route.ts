@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { createClient } from "@/supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { signupSchema } from "@/lib/schemas/auth";
 import { signupClient } from "@/server/services/auth";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";

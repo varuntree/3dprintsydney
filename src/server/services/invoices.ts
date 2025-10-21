@@ -28,6 +28,13 @@ function toDecimal(value: number | undefined | null) {
   return Number.isFinite(value) ? String(value) : '0';
 }
 
+function decimalToNumber(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === "number") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function computeTotals(payload: InvoiceInput) {
   const lineTotals = payload.lines.map((line) => ({
     total: calculateLineTotal({
