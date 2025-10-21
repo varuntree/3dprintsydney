@@ -1,6 +1,7 @@
 import { ok, handleError } from "@/server/api/respond";
 import { getRecentActivity } from "@/server/services/dashboard";
 import { requireAdmin } from "@/server/auth/session";
+import { parsePaginationParams } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
 
 /**
@@ -11,8 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request);
     const { searchParams } = new URL(request.url);
-    const limit = Number(searchParams.get("limit") ?? "12");
-    const offset = Number(searchParams.get("offset") ?? "0");
+    const { limit, offset } = parsePaginationParams(searchParams);
 
     const result = await getRecentActivity({ limit, offset });
     return ok(result);

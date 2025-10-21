@@ -4,11 +4,9 @@ import { saveTmpFile } from "@/server/services/tmp-files";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { validateOrderFile } from "@/lib/utils/validators";
 
 export const runtime = "nodejs";
-
-const MAX_SIZE = 100 * 1024 * 1024; // 100MB per file
-const ALLOWED = new Set([".stl", ".3mf"]);
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,13 +20,15 @@ export async function POST(req: NextRequest) {
     for (const entry of entries) {
       if (!(entry instanceof File)) continue;
       const name = entry.name || "upload.stl";
-      const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
-      if (!ALLOWED.has(ext)) {
-        return fail("INVALID_FILE_TYPE", `Invalid file type: ${ext}`, 400);
+
+      // Validate file using utility function
+      try {
+        validateOrderFile({ size: entry.size, type: entry.type, name });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Invalid file";
+        return fail("VALIDATION_ERROR", message, 400);
       }
-      if (entry.size > MAX_SIZE) {
-        return fail("FILE_TOO_LARGE", `File too large: ${name}`, 400);
-      }
+
       const buf = Buffer.from(await entry.arrayBuffer());
       const { record, tmpId } = await saveTmpFile(
         user.id,

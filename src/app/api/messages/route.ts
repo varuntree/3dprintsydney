@@ -3,14 +3,14 @@ import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
+import { parsePaginationParams } from "@/lib/utils/api-params";
 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req);
     const { searchParams } = new URL(req.url);
 
-    const limit = Number(searchParams.get("limit") ?? "50");
-    const offset = Number(searchParams.get("offset") ?? "0");
+    const { limit, offset } = parsePaginationParams(searchParams);
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
     const invoiceIdRaw = searchParams.get("invoiceId");
     const invoiceId = invoiceIdRaw ? Number(invoiceIdRaw) : undefined;
