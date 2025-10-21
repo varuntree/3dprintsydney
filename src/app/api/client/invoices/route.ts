@@ -18,7 +18,7 @@ function decimalToNumber(value: unknown): number {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser(req);
-    if (!user.clientId) throw Object.assign(new Error("No client"), { status: 400 });
+    if (!user.clientId) throw new AppError("No client", 'CLIENT_INVOICE_ERROR', 400);
 
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") ?? "50");
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       .range(skip, skip + take - 1);
 
     if (error) {
-      throw Object.assign(new Error(`Failed to load invoices: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load invoices: ${error.message}`, 'CLIENT_INVOICE_ERROR', 500);
     }
 
     return NextResponse.json({

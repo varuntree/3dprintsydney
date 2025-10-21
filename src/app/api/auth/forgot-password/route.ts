@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
     if (error) {
-      throw Object.assign(new Error(error.message ?? "Failed to send reset email"), { status: error.status ?? 400 });
+      throw new AppError(error.message ?? "Failed to send reset email", 'PASSWORD_RESET_ERROR', error.status ?? 400);
     }
 
     return NextResponse.json({ ok: true });

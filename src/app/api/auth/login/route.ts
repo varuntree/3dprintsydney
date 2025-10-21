@@ -32,9 +32,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (profileError) {
-      throw Object.assign(new Error(`Failed to load profile: ${profileError.message}`), {
-        status: 500,
-      });
+      throw new AppError(`Failed to load profile: ${profileError.message}`, 'AUTH_ERROR', 500);
     }
     if (!profile) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });

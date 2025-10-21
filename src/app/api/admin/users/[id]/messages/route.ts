@@ -24,7 +24,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .order("created_at", { ascending: order === "asc" })
       .range(skip, skip + take - 1);
     if (error) {
-      throw Object.assign(new Error(`Failed to load messages: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load messages: ${error.message}`, 'USER_MESSAGE_ERROR', 500);
     }
     return NextResponse.json({
       data: (data ?? []).map((row) => ({
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       .select("id, user_id, invoice_id, sender, content, created_at")
       .single();
     if (error || !data) {
-      throw Object.assign(new Error(error?.message ?? "Failed to create message"), { status: 500 });
+      throw new AppError(error?.message ?? "Failed to create message", 'USER_MESSAGE_ERROR', 500);
     }
     return NextResponse.json({
       data: {

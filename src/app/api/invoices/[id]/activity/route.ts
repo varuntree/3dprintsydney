@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       .order("created_at", { ascending: false })
       .range(skip, skip + take - 1);
     if (error) {
-      throw Object.assign(new Error(`Failed to load activity: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load activity: ${error.message}`, 'ACTIVITY_LOAD_ERROR', 500);
     }
     const rows = (data ?? []).map((row) => ({
       id: row.id,

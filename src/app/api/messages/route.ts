@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     }
     const { data, error } = await query.range(skip, skip + take - 1);
     if (error) {
-      throw Object.assign(new Error(error.message), { status: 500 });
+      throw new AppError(error.message, 'MESSAGE_ERROR', 500);
     }
     const messages = (data ?? []).map((row) => ({
       id: row.id,
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       .select("id, user_id, invoice_id, sender, content, created_at")
       .single();
     if (error || !data) {
-      throw Object.assign(new Error(error?.message ?? "Failed"), { status: 500 });
+      throw new AppError(error?.message ?? "Failed", 'MESSAGE_ERROR', 500);
     }
     return NextResponse.json({ data: {
       id: data.id,

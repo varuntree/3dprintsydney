@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { InvoiceStatus } from "@/lib/constants/enums";
 import { requireClientWithIdAPI } from "@/server/auth/api-helpers";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { AppError } from "@/lib/errors";
 
 function decimalToNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -42,16 +43,16 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (totalRes.error) {
-      throw Object.assign(new Error(`Failed to count invoices: ${totalRes.error.message}`), { status: 500 });
+      throw new AppError(`Failed to count invoices: ${totalRes.error.message}`, 'DASHBOARD_ERROR', 500);
     }
     if (pendingRes.error) {
-      throw Object.assign(new Error(`Failed to count pending invoices: ${pendingRes.error.message}`), { status: 500 });
+      throw new AppError(`Failed to count pending invoices: ${pendingRes.error.message}`, 'DASHBOARD_ERROR', 500);
     }
     if (paidRes.error) {
-      throw Object.assign(new Error(`Failed to count paid invoices: ${paidRes.error.message}`), { status: 500 });
+      throw new AppError(`Failed to count paid invoices: ${paidRes.error.message}`, 'DASHBOARD_ERROR', 500);
     }
     if (paidInvoicesRes.error) {
-      throw Object.assign(new Error(`Failed to fetch paid invoices: ${paidInvoicesRes.error.message}`), { status: 500 });
+      throw new AppError(`Failed to fetch paid invoices: ${paidInvoicesRes.error.message}`, 'DASHBOARD_ERROR', 500);
     }
 
     const totalOrders = totalRes.count ?? 0;

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { logger } from "@/lib/logger";
+import { AppError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
       .select("id, email, role, client_id, created_at")
       .order("created_at", { ascending: false });
     if (error) {
-      throw Object.assign(new Error(`Failed to load users: ${error.message}`), { status: 500 });
+      throw new AppError(`Failed to load users: ${error.message}`, 'USER_LOAD_ERROR', 500);
     }
 
     const userIds = (users ?? []).map((user) => user.id);
@@ -26,9 +27,7 @@ export async function GET(req: NextRequest) {
           .select("id", { count: "exact", head: true })
           .eq("user_id", id);
         if (countError) {
-          throw Object.assign(new Error(`Failed to count messages for user ${id}: ${countError.message}`), {
-            status: 500,
-          });
+          throw new AppError(`Failed to count messages for user ${id}: ${countError.message}`, 'USER_LOAD_ERROR', 500);
         }
         messageCounts.set(id, count ?? 0);
       }),
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
       .eq("email", payload.email)
       .maybeSingle();
     if (existsError) {
-      throw Object.assign(new Error(`Failed to check user: ${existsError.message}`), { status: 500 });
+      throw new AppError(`Failed to check user: ${existsError.message}`, 'USER_CREATE_ERROR', 500);
     }
     if (existingUser) {
       return NextResponse.json({ error: "User already exists" }, { status: 409 });
@@ -87,7 +86,7 @@ export async function POST(req: NextRequest) {
         .eq("id", payload.clientId)
         .maybeSingle();
       if (clientError) {
-        throw Object.assign(new Error(`Failed to verify client: ${clientError.message}`), { status: 500 });
+        throw new AppError(`Failed to verify client: ${clientError.message}`, 'USER_CREATE_ERROR', 500);
       }
       if (!client) {
         return NextResponse.json({ error: "Client not found" }, { status: 404 });
@@ -102,7 +101,7 @@ export async function POST(req: NextRequest) {
       email_confirm: true,
     });
     if (authError || !authUser.user) {
-      throw Object.assign(new Error(authError?.message ?? "Failed to create auth user"), { status: 500 });
+      throw new AppError(authError?.message ?? "Failed to create auth user", 'USER_CREATE_ERROR', 500);
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -120,7 +119,7 @@ export async function POST(req: NextRequest) {
       await supabase.auth.admin.deleteUser(authUser.user.id).catch((error) => {
         logger.warn({ scope: "admin.users.invite", message: "Rollback auth user failed", error });
       });
-      throw Object.assign(new Error(profileError?.message ?? "Failed to create user profile"), { status: 500 });
+      throw new AppError(profileError?.message ?? "Failed to create user profile", 'USER_CREATE_ERROR', 500);
     }
 
     return NextResponse.json(

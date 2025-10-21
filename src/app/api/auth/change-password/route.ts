@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (profileError) {
-      throw Object.assign(new Error(`Failed to load user profile: ${profileError.message}`), { status: 500 });
+      throw new AppError(`Failed to load user profile: ${profileError.message}`, 'PASSWORD_CHANGE_ERROR', 500);
     }
     if (!profile) {
       return NextResponse.json({ error: "User profile not found" }, { status: 404 });
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
     const { error: updateError } = await authClient.auth.updateUser({ password: newPassword });
     if (updateError) {
-      throw Object.assign(new Error(updateError.message ?? "Failed to update password"), { status: 500 });
+      throw new AppError(updateError.message ?? "Failed to update password", 'PASSWORD_CHANGE_ERROR', 500);
     }
 
     await authClient.auth.signOut();
