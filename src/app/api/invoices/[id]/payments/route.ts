@@ -1,5 +1,6 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { addManualPayment } from "@/server/services/invoices";
+import { paymentInputSchema } from "@/lib/schemas/invoices";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
@@ -20,8 +21,9 @@ export async function POST(
   try {
     const id = await parseId(context.params);
     await requireInvoiceAccess(request, id);
-    const payload = await request.json();
-    const payment = await addManualPayment(id, payload);
+    const body = await request.json();
+    const validated = paymentInputSchema.parse(body);
+    const payment = await addManualPayment(id, validated);
     return ok(payment, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

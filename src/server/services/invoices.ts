@@ -6,9 +6,8 @@ import {
   calculateDocumentTotals,
 } from '@/lib/calculations';
 import {
-  invoiceInputSchema,
-  paymentInputSchema,
   type InvoiceInput,
+  type PaymentInput,
 } from '@/lib/schemas/invoices';
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
@@ -366,36 +365,35 @@ async function insertInvoiceActivities(invoiceId: number, clientId: number, acti
   }
 }
 
-export async function createInvoice(payload: unknown) {
-  const parsed = invoiceInputSchema.parse(payload);
+export async function createInvoice(input: InvoiceInput) {
   const supabase = getServiceSupabase();
-  const totals = computeTotals(parsed);
-  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
-  const paymentTerm = await resolveClientPaymentTerm(parsed.clientId);
-  const dueDate = deriveDueDate(issueDate, paymentTerm, parsed.dueDate ? new Date(parsed.dueDate) : null);
+  const totals = computeTotals(input);
+  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(input.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, input.dueDate ? new Date(input.dueDate) : null);
   const number = await nextDocumentNumber('invoice');
 
   const invoiceRecord = {
     number,
-    client_id: parsed.clientId,
+    client_id: input.clientId,
     status: InvoiceStatus.PENDING,
     issue_date: issueDate.toISOString(),
     due_date: dueDate?.toISOString() ?? '',
-    tax_rate: toDecimal(parsed.taxRate) ?? '',
-    discount_type: parsed.discountType,
-    discount_value: toDecimal(parsed.discountValue) ?? '',
-    shipping_cost: toDecimal(parsed.shippingCost) ?? '',
-    shipping_label: parsed.shippingLabel ?? '',
-    notes: parsed.notes ?? '',
-    terms: parsed.terms ?? '',
-    po_number: parsed.poNumber ?? '',
+    tax_rate: toDecimal(input.taxRate) ?? '',
+    discount_type: input.discountType,
+    discount_value: toDecimal(input.discountValue) ?? '',
+    shipping_cost: toDecimal(input.shippingCost) ?? '',
+    shipping_label: input.shippingLabel ?? '',
+    notes: input.notes ?? '',
+    terms: input.terms ?? '',
+    po_number: input.poNumber ?? '',
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
   };
 
-  const lineInserts = parsed.lines.map((line, index) => ({
+  const lineInserts = input.lines.map((line, index) => ({
     product_template_id: line.productTemplateId ?? '',
     name: line.name,
     description: line.description ?? '',
@@ -422,7 +420,7 @@ export async function createInvoice(payload: unknown) {
 
   const invoiceId = (data.invoice as { id: number }).id;
 
-  await insertInvoiceActivities(invoiceId, parsed.clientId, 'INVOICE_CREATED', `Invoice ${number} created`);
+  await insertInvoiceActivities(invoiceId, input.clientId, 'INVOICE_CREATED', `Invoice ${number} created`);
 
   const policy = await getJobCreationPolicy();
   if (policy === 'ON_INVOICE') {
@@ -434,33 +432,32 @@ export async function createInvoice(payload: unknown) {
   return getInvoice(invoiceId);
 }
 
-export async function updateInvoice(id: number, payload: unknown) {
-  const parsed = invoiceInputSchema.parse(payload);
+export async function updateInvoice(id: number, input: InvoiceInput) {
   const supabase = getServiceSupabase();
-  const totals = computeTotals(parsed);
-  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
-  const paymentTerm = await resolveClientPaymentTerm(parsed.clientId);
-  const dueDate = deriveDueDate(issueDate, paymentTerm, parsed.dueDate ? new Date(parsed.dueDate) : null);
+  const totals = computeTotals(input);
+  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(input.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, input.dueDate ? new Date(input.dueDate) : null);
 
   const invoiceRecord = {
-    client_id: parsed.clientId,
+    client_id: input.clientId,
     issue_date: issueDate.toISOString(),
     due_date: dueDate?.toISOString() ?? '',
-    tax_rate: toDecimal(parsed.taxRate) ?? '',
-    discount_type: parsed.discountType,
-    discount_value: toDecimal(parsed.discountValue) ?? '',
-    shipping_cost: toDecimal(parsed.shippingCost) ?? '',
-    shipping_label: parsed.shippingLabel ?? '',
-    notes: parsed.notes ?? '',
-    terms: parsed.terms ?? '',
-    po_number: parsed.poNumber ?? '',
+    tax_rate: toDecimal(input.taxRate) ?? '',
+    discount_type: input.discountType,
+    discount_value: toDecimal(input.discountValue) ?? '',
+    shipping_cost: toDecimal(input.shippingCost) ?? '',
+    shipping_label: input.shippingLabel ?? '',
+    notes: input.notes ?? '',
+    terms: input.terms ?? '',
+    po_number: input.poNumber ?? '',
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
   };
 
-  const lineInserts = parsed.lines.map((line, index) => ({
+  const lineInserts = input.lines.map((line, index) => ({
     product_template_id: line.productTemplateId ?? '',
     name: line.name,
     description: line.description ?? '',
@@ -487,7 +484,7 @@ export async function updateInvoice(id: number, payload: unknown) {
   }
 
   const updatedInvoice = data.invoice as { number?: string };
-  await insertInvoiceActivities(id, parsed.clientId, 'INVOICE_UPDATED', `Invoice ${updatedInvoice?.number ?? id} updated`);
+  await insertInvoiceActivities(id, input.clientId, 'INVOICE_UPDATED', `Invoice ${updatedInvoice?.number ?? id} updated`);
 
   logger.info({ scope: 'invoices.update', data: { id } });
   return getInvoice(id);
@@ -511,18 +508,17 @@ export async function deleteInvoice(id: number) {
   return data;
 }
 
-export async function addManualPayment(invoiceId: number, payload: unknown) {
-  const parsed = paymentInputSchema.parse(payload);
+export async function addManualPayment(invoiceId: number, input: PaymentInput) {
   const supabase = getServiceSupabase();
 
   const paymentPayload = {
-    amount: String(parsed.amount),
-    method: parsed.method,
-    reference: parsed.reference ?? '',
-    processor: parsed.processor ?? '',
-    processor_id: parsed.processorId ?? '',
-    notes: parsed.notes ?? '',
-    paid_at: parsed.paidAt ? new Date(parsed.paidAt).toISOString() : new Date().toISOString(),
+    amount: String(input.amount),
+    method: input.method,
+    reference: input.reference ?? '',
+    processor: input.processor ?? '',
+    processor_id: input.processorId ?? '',
+    notes: input.notes ?? '',
+    paid_at: input.paidAt ? new Date(input.paidAt).toISOString() : new Date().toISOString(),
   };
 
   const { data, error } = await supabase.rpc('add_invoice_payment', {

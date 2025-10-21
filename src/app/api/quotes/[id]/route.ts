@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { getQuote, updateQuote, deleteQuote } from "@/server/services/quotes";
+import { quoteInputSchema } from "@/lib/schemas/quotes";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -45,8 +46,9 @@ export async function PUT(
   try {
     await requireAdmin(request);
     const id = await parseId(context.params);
-    const payload = await request.json();
-    const quote = await updateQuote(id, payload);
+    const body = await request.json();
+    const validated = quoteInputSchema.parse(body);
+    const quote = await updateQuote(id, validated);
     return ok(quote);
   } catch (error) {
     if (error instanceof ZodError) {
