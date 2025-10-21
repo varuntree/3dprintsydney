@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-	export async function POST() {
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
+
+export async function POST() {
   try {
     const response = NextResponse.json({ ok: true });
     response.cookies.set("sb:token", "", {
@@ -18,6 +22,10 @@ import { NextResponse } from "next/server";
     });
     return response;
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message ?? "Failed to logout" }, { status: 400 });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'auth.logout', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

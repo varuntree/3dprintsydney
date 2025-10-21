@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { saveTmpFile } from "@/server/services/tmp-files";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -42,7 +45,10 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ data: results });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json({ error: e?.message ?? "Upload failed" }, { status: e?.status ?? 400 });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'quick-order.upload', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

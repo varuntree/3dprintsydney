@@ -5,6 +5,8 @@ import { requireUser } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 const schema = z.object({
   currentPassword: z.string().min(8, "Password must be at least 8 characters"),
@@ -59,8 +61,10 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues.map((issue) => issue.message).join(", ") }, { status: 400 });
     }
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 500;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'auth.change-password', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
