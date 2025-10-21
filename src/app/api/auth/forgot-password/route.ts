@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -24,10 +24,10 @@ export async function POST(req: Request) {
       throw new AppError(error.message ?? "Failed to send reset email", 'PASSWORD_RESET_ERROR', error.status ?? 400);
     }
 
-    return NextResponse.json({ ok: true });
+    return ok({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "Enter a valid email address", 422);
     }
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 
 export async function POST() {
   try {
-    const response = NextResponse.json({ ok: true });
+    const response = NextResponse.json({ data: { success: true } });
     response.cookies.set("sb:token", "", {
       httpOnly: true,
       sameSite: "lax",

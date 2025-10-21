@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(`Failed to check user: ${existsError.message}`, 'SIGNUP_ERROR', 500);
     }
     if (exists) {
-      return NextResponse.json({ error: "Email already in use" }, { status: 400 });
+      return fail("EMAIL_IN_USE", "Email already in use", 400);
     }
 
     const { data: authUser, error: authError } = await service.auth.admin.createUser({

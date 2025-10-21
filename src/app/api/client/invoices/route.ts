@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -38,17 +38,15 @@ export async function GET(req: NextRequest) {
       throw new AppError(`Failed to load invoices: ${error.message}`, 'CLIENT_INVOICE_ERROR', 500);
     }
 
-    return NextResponse.json({
-      data: (data ?? []).map((row) => ({
-        id: row.id,
-        number: row.number,
-        status: row.status,
-        total: decimalToNumber(row.total),
-        issueDate: row.issue_date,
-        balanceDue: decimalToNumber(row.balance_due),
-        stripeCheckoutUrl: row.stripe_checkout_url,
-      })),
-    });
+    return ok((data ?? []).map((row) => ({
+      id: row.id,
+      number: row.number,
+      status: row.status,
+      total: decimalToNumber(row.total),
+      issueDate: row.issue_date,
+      balanceDue: decimalToNumber(row.balance_due),
+      stripeCheckoutUrl: row.stripe_checkout_url,
+    })));
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

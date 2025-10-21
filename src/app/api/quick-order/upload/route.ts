@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { saveTmpFile } from "@/server/services/tmp-files";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const entries = form.getAll("files");
     if (!entries.length) {
-      return NextResponse.json({ error: "No files" }, { status: 400 });
+      return fail("NO_FILES", "No files", 400);
     }
     const results: Array<{ id: string; filename: string; size: number; type: string }> = [];
     for (const entry of entries) {
@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
       const name = entry.name || "upload.stl";
       const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
       if (!ALLOWED.has(ext)) {
-        return NextResponse.json({ error: `Invalid file type: ${ext}` }, { status: 400 });
+        return fail("INVALID_FILE_TYPE", `Invalid file type: ${ext}`, 400);
       }
       if (entry.size > MAX_SIZE) {
-        return NextResponse.json({ error: `File too large: ${name}` }, { status: 400 });
+        return fail("FILE_TOO_LARGE", `File too large: ${name}`, 400);
       }
       const buf = Buffer.from(await entry.arrayBuffer());
       const { record, tmpId } = await saveTmpFile(
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         type: record.mime_type || "application/octet-stream",
       });
     }
-    return NextResponse.json({ data: results });
+    return ok(results);
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { saveTmpFile, requireTmpFile } from "@/server/services/tmp-files";
 import { logger } from "@/lib/logger";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -23,10 +23,7 @@ export async function POST(req: NextRequest) {
 
     // Validation
     if (!fileId || !orientedSTL) {
-      return NextResponse.json(
-        { error: "Missing required fields: fileId and orientedSTL" },
-        { status: 400 }
-      );
+      return fail("VALIDATION_ERROR", "Missing required fields: fileId and orientedSTL", 422);
     }
 
     // Verify original file exists and belongs to user
@@ -62,13 +59,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
-      data: {
-        success: true,
-        newFileId: tmpId,
-        filename: record.filename,
-        size: record.size_bytes,
-      },
+    return ok({
+      success: true,
+      newFileId: tmpId,
+      filename: record.filename,
+      size: record.size_bytes,
     });
   } catch (error) {
     if (error instanceof AppError) {

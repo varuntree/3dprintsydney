@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/server/auth/session";
 import { deleteUserAndData } from "@/server/services/users";
+import { ok, handleError } from "@/server/api/respond";
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -8,10 +9,8 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     const { id } = await context.params;
     const userId = Number(id);
     await deleteUserAndData(userId);
-    return NextResponse.json({ ok: true });
+    return ok({ success: true });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    return handleError(error, 'admin.users.delete');
   }
 }

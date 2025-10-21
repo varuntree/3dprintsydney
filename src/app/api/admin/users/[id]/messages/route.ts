@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -26,16 +26,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (error) {
       throw new AppError(`Failed to load messages: ${error.message}`, 'USER_MESSAGE_ERROR', 500);
     }
-    return NextResponse.json({
-      data: (data ?? []).map((row) => ({
-        id: row.id,
-        userId: row.user_id,
-        invoiceId: row.invoice_id,
-        sender: row.sender,
-        content: row.content,
-        createdAt: row.created_at,
-      })),
-    });
+    return ok((data ?? []).map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      invoiceId: row.invoice_id,
+      sender: row.sender,
+      content: row.content,
+      createdAt: row.created_at,
+    })));
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
@@ -52,7 +50,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const userId = Number(id);
     const { content } = await req.json();
     if (!content || typeof content !== "string") {
-      return NextResponse.json({ error: "Invalid content" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "Invalid content", 422);
     }
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
@@ -68,15 +66,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     if (error || !data) {
       throw new AppError(error?.message ?? "Failed to create message", 'USER_MESSAGE_ERROR', 500);
     }
-    return NextResponse.json({
-      data: {
-        id: data.id,
-        userId: data.user_id,
-        invoiceId: data.invoice_id,
-        sender: data.sender,
-        content: data.content,
-        createdAt: data.created_at,
-      },
+    return ok({
+      id: data.id,
+      userId: data.user_id,
+      invoiceId: data.invoice_id,
+      sender: data.sender,
+      content: data.content,
+      createdAt: data.created_at,
     });
   } catch (error) {
     if (error instanceof AppError) {

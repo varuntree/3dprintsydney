@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       content: row.content,
       createdAt: row.created_at,
     }));
-    return NextResponse.json({ data: messages });
+    return ok(messages);
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const content = body?.content;
     const invoiceId = body?.invoiceId ? Number(body.invoiceId) : null;
     if (!content || typeof content !== "string") {
-      return NextResponse.json({ error: "Invalid content" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "Invalid content", 400);
     }
     if (invoiceId && Number.isFinite(invoiceId)) {
       // Ensure the sender has access to this invoice
@@ -76,14 +76,14 @@ export async function POST(req: NextRequest) {
     if (error || !data) {
       throw new AppError(error?.message ?? "Failed", 'MESSAGE_ERROR', 500);
     }
-    return NextResponse.json({ data: {
+    return ok({
       id: data.id,
       userId: data.user_id,
       invoiceId: data.invoice_id,
       sender: data.sender,
       content: data.content,
       createdAt: data.created_at,
-    }});
+    });
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

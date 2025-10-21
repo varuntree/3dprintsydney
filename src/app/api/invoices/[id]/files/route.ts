@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getOrderFilesByInvoice } from "@/server/services/order-files";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -19,7 +19,7 @@ export async function GET(
     const invoiceId = parseInt(resolvedParams.id, 10);
 
     if (isNaN(invoiceId)) {
-      return NextResponse.json({ error: "Invalid invoice ID" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "Invalid invoice ID", 400);
     }
 
     // Check access permissions (admin or invoice owner)
@@ -28,17 +28,15 @@ export async function GET(
     // Get all order files for this invoice
     const files = await getOrderFilesByInvoice(invoiceId);
 
-    return NextResponse.json({
-      data: files.map((file) => ({
-        id: file.id,
-        filename: file.filename,
-        fileType: file.file_type,
-        mimeType: file.mime_type,
-        sizeBytes: file.size_bytes,
-        metadata: file.metadata,
-        uploadedAt: file.uploaded_at,
-      })),
-    });
+    return ok(files.map((file) => ({
+      id: file.id,
+      filename: file.filename,
+      fileType: file.file_type,
+      mimeType: file.mime_type,
+      sizeBytes: file.size_bytes,
+      metadata: file.metadata,
+      uploadedAt: file.uploaded_at,
+    })));
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

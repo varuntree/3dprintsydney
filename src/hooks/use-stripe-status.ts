@@ -12,10 +12,12 @@ export function useStripeStatus() {
     queryFn: async () => {
       const response = await fetch("/api/stripe/test", { method: "POST" });
       if (!response.ok) {
-        const { message } = await response.json().catch(() => ({ message: "Stripe unavailable" }));
-        throw new Error(message ?? "Stripe unavailable");
+        const body = await response.json().catch(() => ({ error: { message: "Stripe unavailable" } }));
+        const error = body?.error ?? { message: "Stripe unavailable" };
+        throw new Error(error.message ?? "Stripe unavailable");
       }
-      return (await response.json()) as StripeStatusResponse;
+      const body = await response.json();
+      return body.data as StripeStatusResponse;
     },
     staleTime: 1000 * 60 * 5,
   });
