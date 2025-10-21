@@ -59,29 +59,3 @@ export async function getAuthUser(req: NextRequest): Promise<LegacyUser | null> 
   }
 }
 
-// Deprecated aliases for backwards compatibility during migration
-// TODO: Remove these after all routes are migrated
-/**
- * @deprecated Use requireAuth instead
- */
-export const requireAuthAPI = requireAuth;
-
-/**
- * @deprecated Use requireAdmin instead
- */
-export const requireAdminAPI = requireAdmin;
-
-/**
- * @deprecated Use requireClient instead
- */
-export const requireClientAPI = requireClient;
-
-/**
- * @deprecated Use requireClientWithId instead
- */
-export const requireClientWithIdAPI = requireClientWithId;
-
-/**
- * @deprecated Use getAuthUser instead
- */
-export const getOptionalUserAPI = getAuthUser;
