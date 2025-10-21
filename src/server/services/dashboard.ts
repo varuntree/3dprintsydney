@@ -74,6 +74,12 @@ function buildActivityContext(activity: ActivityRow): string {
   return "";
 }
 
+/**
+ * Get recent activity log entries with pagination
+ * @param options - Pagination options (limit and offset)
+ * @returns Recent activity items with next offset for pagination
+ * @throws AppError if database query fails
+ */
 export async function getRecentActivity(options?: {
   limit?: number;
   offset?: number;
@@ -121,6 +127,12 @@ type QuoteRow = { status: string | null };
 type JobGroupRow = { printer_id: number | null; status: string | null };
 type PrinterRow = { id: number; name: string; status?: string | null };
 
+/**
+ * Get comprehensive dashboard snapshot with metrics, trends, and activity
+ * @param options - Date range, activity pagination, and filter options
+ * @returns Complete dashboard data including revenue, jobs, quotes, and activity
+ * @throws AppError if any database query fails
+ */
 export async function getDashboardSnapshot(options?: {
   range?: string;
   from?: string;

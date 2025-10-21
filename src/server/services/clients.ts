@@ -5,6 +5,13 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 import type { ClientSummaryDTO, ClientDetailDTO, ClientFilters } from '@/lib/types/clients';
 
+/**
+ * Normalize and validate payment terms code against system settings
+ * @param term - Payment terms code to validate
+ * @returns Validated payment terms code or null if empty
+ * @throws BadRequestError if payment terms code is invalid
+ * @throws AppError if unable to load settings
+ */
 async function normalizePaymentTermsCode(term: string | null | undefined): Promise<string | null> {
   const trimmed = term?.trim();
   if (!trimmed) {
@@ -31,6 +38,11 @@ async function normalizePaymentTermsCode(term: string | null | undefined): Promi
   return trimmed;
 }
 
+/**
+ * Insert an activity log entry
+ * @param entry - Activity log entry details
+ * @throws AppError if unable to insert activity log
+ */
 async function insertActivity(entry: {
   clientId?: number | null;
   quoteId?: number | null;
@@ -57,6 +69,11 @@ async function insertActivity(entry: {
   }
 }
 
+/**
+ * Parse and normalize text input, converting empty strings to null
+ * @param value - Text value to parse
+ * @returns Trimmed text or null if empty
+ */
 function parseNullableText(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
@@ -80,6 +97,11 @@ type ClientRow = {
   quotes?: Array<{ id: number }> | null;
 };
 
+/**
+ * Map database row to client summary DTO
+ * @param row - Client database row
+ * @returns Client summary DTO with calculated outstanding balance
+ */
 function mapClientSummary(row: ClientRow): ClientSummaryDTO {
   const invoices = row.invoices ?? [];
   const outstanding = invoices.reduce((sum, invoice) => {
@@ -104,6 +126,12 @@ function mapClientSummary(row: ClientRow): ClientSummaryDTO {
   };
 }
 
+/**
+ * List all clients with optional filtering, sorting, and pagination
+ * @param options - Optional filters for search, sorting, and pagination
+ * @returns Array of client summary DTOs with outstanding balances
+ * @throws AppError if database query fails
+ */
 export async function listClients(options?: ClientFilters): Promise<ClientSummaryDTO[]> {
   const supabase = getServiceSupabase();
   let query = supabase
@@ -136,6 +164,13 @@ export async function listClients(options?: ClientFilters): Promise<ClientSummar
   return (data ?? []).map((row) => mapClientSummary(row as ClientRow));
 }
 
+/**
+ * Create a new client
+ * @param input - Client creation input (already validated)
+ * @returns Created client data
+ * @throws BadRequestError if payment terms are invalid
+ * @throws AppError if database operation fails
+ */
 export async function createClient(input: ClientInput) {
   const supabase = getServiceSupabase();
 
@@ -176,6 +211,14 @@ export async function createClient(input: ClientInput) {
   };
 }
 
+/**
+ * Update an existing client
+ * @param id - Client ID
+ * @param input - Client update input (already validated)
+ * @returns Updated client data
+ * @throws BadRequestError if payment terms are invalid
+ * @throws AppError if database operation fails
+ */
 export async function updateClient(id: number, input: ClientInput) {
   const supabase = getServiceSupabase();
 
@@ -217,6 +260,12 @@ export async function updateClient(id: number, input: ClientInput) {
   };
 }
 
+/**
+ * Delete a client and record activity
+ * @param id - Client ID to delete
+ * @returns Deleted client data (id and name)
+ * @throws AppError if database operation fails
+ */
 export async function deleteClient(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -241,6 +290,13 @@ export async function deleteClient(id: number) {
   return data;
 }
 
+/**
+ * Get client's job status notification preference
+ * @param clientId - Client ID
+ * @returns Boolean indicating if client wants job status notifications
+ * @throws NotFoundError if client doesn't exist
+ * @throws AppError if database operation fails
+ */
 export async function getClientNotificationPreference(clientId: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -259,6 +315,13 @@ export async function getClientNotificationPreference(clientId: number) {
   return Boolean(data.notify_on_job_status);
 }
 
+/**
+ * Update client's job status notification preference
+ * @param clientId - Client ID
+ * @param notifyOnJobStatus - New notification preference value
+ * @returns Updated preference value
+ * @throws AppError if database operation fails
+ */
 export async function updateClientNotificationPreference(
   clientId: number,
   notifyOnJobStatus: boolean,
@@ -290,6 +353,13 @@ export async function updateClientNotificationPreference(
   return Boolean(data.notify_on_job_status);
 }
 
+/**
+ * Get comprehensive client details including invoices, quotes, jobs, and activity
+ * @param id - Client ID
+ * @returns Complete client details with related data and calculated totals
+ * @throws NotFoundError if client doesn't exist
+ * @throws AppError if database operation fails
+ */
 export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -455,6 +525,13 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
   };
 }
 
+/**
+ * Add a note to client's activity log
+ * @param id - Client ID
+ * @param input - Note input (already validated)
+ * @returns Created activity log entry
+ * @throws AppError if database operation fails
+ */
 export async function addClientNote(id: number, input: ClientNoteInput) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase

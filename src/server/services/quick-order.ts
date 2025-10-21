@@ -134,6 +134,14 @@ function resolveShippingRegion(
   };
 }
 
+/**
+ * Calculate pricing for quick order items including materials, time, shipping, and tax
+ * @param items - Array of items to price with metrics and material info
+ * @param location - Shipping location for region-based shipping calculation
+ * @returns Detailed pricing breakdown with item totals, subtotal, and shipping
+ * @throws BadRequestError if settings not configured
+ * @throws AppError if materials cannot be loaded
+ */
 export async function priceQuickOrder(
   items: QuickOrderItemInput[],
   location: ShippingLocation = {},

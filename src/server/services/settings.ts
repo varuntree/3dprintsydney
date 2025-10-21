@@ -171,11 +171,21 @@ async function ensureSettingsRow(): Promise<SettingsRow> {
 
 export type PaymentTermOption = SettingsInput['paymentTerms'][number];
 
+/**
+ * Get system settings with all configuration options
+ * @returns Serialized settings with all configuration, or null if not found
+ */
 export async function getSettings(): Promise<SerializedSettings | null> {
   const row = await ensureSettingsRow();
   return serializeSettings(row);
 }
 
+/**
+ * Update system settings with validation and number sequence updates
+ * @param payload - Settings update payload (will be validated against schema)
+ * @returns Updated settings
+ * @throws AppError if validation fails or database operation fails
+ */
 export async function updateSettings(payload: unknown): Promise<SerializedSettings | null> {
   const parsed = settingsInputSchema.parse(payload);
   const supabase = getServiceSupabase();
@@ -248,6 +258,11 @@ export async function updateSettings(payload: unknown): Promise<SerializedSettin
   return serializeSettings(data as SettingsRow);
 }
 
+/**
+ * Resolve available payment terms options from settings
+ * @returns Payment terms options and default selection
+ * @throws AppError if unable to load payment terms from settings
+ */
 export async function resolvePaymentTermsOptions(
   _unused?: unknown,
 ): Promise<{

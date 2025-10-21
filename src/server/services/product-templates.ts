@@ -97,6 +97,12 @@ async function insertActivity(action: string, message: string, templateId: numbe
   }
 }
 
+/**
+ * List all product templates with optional filtering, sorting, and pagination
+ * @param options - Query options for search, sorting, and pagination
+ * @returns Array of product template DTOs with material details
+ * @throws AppError if database query fails
+ */
 export async function listProductTemplates(options?: {
   q?: string;
   limit?: number;
@@ -133,6 +139,13 @@ export async function listProductTemplates(options?: {
   return (data as TemplateRow[]).map((row) => mapTemplate(row));
 }
 
+/**
+ * Create a new product template with validated pricing configuration
+ * @param input - Product template creation input (already validated)
+ * @returns Created product template DTO with material details
+ * @throws BadRequestError if business rules are violated
+ * @throws AppError if database operation fails
+ */
 export async function createProductTemplate(input: ProductTemplateInput) {
   validateBusinessRules(input);
 
@@ -170,6 +183,14 @@ export async function createProductTemplate(input: ProductTemplateInput) {
   return mapTemplate(data as TemplateRow);
 }
 
+/**
+ * Update an existing product template with validated pricing configuration
+ * @param id - Product template ID
+ * @param input - Product template update input (already validated)
+ * @returns Updated product template DTO with material details
+ * @throws BadRequestError if business rules are violated
+ * @throws AppError if database operation fails
+ */
 export async function updateProductTemplate(id: number, input: ProductTemplateInput) {
   validateBusinessRules(input);
 
@@ -208,6 +229,13 @@ export async function updateProductTemplate(id: number, input: ProductTemplateIn
   return mapTemplate(data as TemplateRow);
 }
 
+/**
+ * Delete a product template after verifying it's not referenced by quotes or invoices
+ * @param id - Product template ID to delete
+ * @returns Deleted product template DTO
+ * @throws ValidationError if template is referenced by quotes or invoices
+ * @throws AppError if database operation fails
+ */
 export async function deleteProductTemplate(id: number) {
   const supabase = getServiceSupabase();
 

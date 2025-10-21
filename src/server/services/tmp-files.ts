@@ -5,6 +5,7 @@ import {
   downloadTmpFile,
 } from "@/server/storage/supabase";
 import { AppError, NotFoundError, ForbiddenError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export type TmpFileStatus = "idle" | "running" | "completed" | "failed";
 
@@ -30,6 +31,12 @@ export type TmpFileRecord = {
   updated_at: string;
 };
 
+/**
+ * Save a temporary file to storage and database
+ * @param params - Temporary file save parameters (user ID, buffer, filename, mime type, metadata)
+ * @returns Created temporary file record
+ * @throws AppError if file upload or database operation fails
+ */
 export async function saveTmpFile(
   userId: number,
   filename: string,
@@ -62,12 +69,21 @@ export async function saveTmpFile(
     throw new AppError(error?.message ?? "Failed to register tmp file", 'DATABASE_ERROR', 500);
   }
 
+  logger.info({ scope: 'tmpFiles.save', data: { tmpId: data.storage_key, filename } });
   return {
     record: data as TmpFileRecord,
     tmpId: data.storage_key,
   };
 }
 
+/**
+ * Get a temporary file by ID with user ownership validation
+ * @param userId - User ID for ownership check
+ * @param tmpId - Temporary file ID
+ * @returns Temporary file record
+ * @throws NotFoundError if file not found or user doesn't own the file
+ * @throws AppError if database query fails
+ */
 export async function requireTmpFile(userId: number, tmpId: string): Promise<TmpFileRecord> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -88,6 +104,13 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
   return data as TmpFileRecord;
 }
 
+/**
+ * Update a temporary file's metadata
+ * @param params - Update parameters (user ID, tmp ID, metadata)
+ * @returns Updated temporary file record
+ * @throws NotFoundError if file not found
+ * @throws AppError if database operation fails
+ */
 export async function updateTmpFile(
   userId: number,
   tmpId: string,
@@ -121,6 +144,13 @@ export async function updateTmpFile(
   return data as TmpFileRecord;
 }
 
+/**
+ * Get temporary file metadata with user ownership validation
+ * @param userId - User ID for ownership check
+ * @param tmpId - Temporary file ID
+ * @returns Temporary file metadata
+ * @throws NotFoundError if file not found
+ */
 export async function getTmpFileMetadata(userId: number, tmpId: string) {
   const record = await requireTmpFile(userId, tmpId);
   return {
@@ -129,10 +159,23 @@ export async function getTmpFileMetadata(userId: number, tmpId: string) {
   };
 }
 
+/**
+ * Download a temporary file to a buffer
+ * @param tmpId - Temporary file ID
+ * @returns File buffer
+ * @throws AppError if download fails
+ */
 export async function downloadTmpFileToBuffer(tmpId: string) {
   return downloadTmpFile(tmpId);
 }
 
+/**
+ * Delete a temporary file from storage and database
+ * @param userId - User ID for ownership check
+ * @param tmpId - Temporary file ID to delete
+ * @throws NotFoundError if file not found
+ * @throws AppError if deletion fails
+ */
 export async function deleteTmpFile(userId: number, tmpId: string) {
   // Ensure ownership first
   await requireTmpFile(userId, tmpId);
@@ -142,4 +185,5 @@ export async function deleteTmpFile(userId: number, tmpId: string) {
     throw new AppError(`Failed to delete tmp file record: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   await deleteFromStorage(tmpId).catch(() => undefined);
+  logger.info({ scope: 'tmpFiles.delete', data: { tmpId, userId } });
 }

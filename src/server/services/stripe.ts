@@ -63,6 +63,11 @@ export type StripeEnvironment = {
   webhookSecret: string | null;
 };
 
+/**
+ * Get Stripe environment configuration and initialized client instance
+ * @returns Stripe client with environment configuration (currency, URLs, webhook secret)
+ * @throws AppError if Stripe is not configured
+ */
 export async function getStripeEnvironment(): Promise<StripeEnvironment> {
   const config = getStripeConfigOrThrow();
   if (!cachedStripe) {
@@ -77,6 +82,15 @@ export async function getStripeEnvironment(): Promise<StripeEnvironment> {
   };
 }
 
+/**
+ * Create or retrieve Stripe checkout session for an invoice
+ * @param invoiceId - Invoice ID to create checkout for
+ * @param options - Optional settings (refresh to force new session creation)
+ * @returns Checkout URL and session ID
+ * @throws NotFoundError if invoice not found
+ * @throws BadRequestError if invoice is already paid or invalid amount
+ * @throws AppError if Stripe operation or database update fails
+ */
 export async function createStripeCheckoutSession(
   invoiceId: number,
   options?: { refresh?: boolean },
@@ -187,6 +201,11 @@ export async function createStripeCheckoutSession(
 
 
 
+/**
+ * Handle Stripe webhook events with idempotency and payment processing
+ * @param event - Stripe webhook event
+ * @throws AppError if event handling or payment processing fails
+ */
 export async function handleStripeEvent(event: Stripe.Event) {
   const supabase = getServiceSupabase();
 
