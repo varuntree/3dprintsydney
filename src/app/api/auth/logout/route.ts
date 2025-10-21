@@ -25,7 +25,7 @@ export async function POST() {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'auth.logout', error: error as Error });
+    logger.error({ scope: 'auth.logout', message: 'Logout failed', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

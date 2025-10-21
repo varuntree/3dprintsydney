@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         error.details as Record<string, unknown> | undefined,
       );
     }
-    logger.error({ scope: "quick-order.orient", error: error as Error });
+    logger.error({ scope: "quick-order.orient", message: 'Orientation failed', error });
     return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

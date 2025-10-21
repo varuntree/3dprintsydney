@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    logger.error({ scope: "export.printer_utilization", error });
+    logger.error({ scope: "export.printer-utilization", message: "Printer utilization export failed", error });
     return new Response(JSON.stringify({ error: { message: "Failed to export printer utilization" } }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

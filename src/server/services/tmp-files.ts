@@ -69,7 +69,7 @@ export async function saveTmpFile(
     throw new AppError(error?.message ?? "Failed to register tmp file", 'DATABASE_ERROR', 500);
   }
 
-  logger.info({ scope: 'tmpFiles.save', data: { tmpId: data.storage_key, filename } });
+  logger.info({ scope: 'tmp-files.save', data: { tmpId: data.storage_key, filename } });
   return {
     record: data as TmpFileRecord,
     tmpId: data.storage_key,
@@ -185,5 +185,5 @@ export async function deleteTmpFile(userId: number, tmpId: string) {
     throw new AppError(`Failed to delete tmp file record: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   await deleteFromStorage(tmpId).catch(() => undefined);
-  logger.info({ scope: 'tmpFiles.delete', data: { tmpId, userId } });
+  logger.info({ scope: 'tmp-files.delete', data: { tmpId, userId } });
 }

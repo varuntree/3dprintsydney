@@ -51,7 +51,7 @@ export async function GET(
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'tmp-file.get', error: error as Error });
+    logger.error({ scope: 'tmp-file.get', message: 'Temp file retrieval failed', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

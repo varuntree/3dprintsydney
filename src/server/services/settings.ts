@@ -70,7 +70,7 @@ function parseShippingRegions(payload: unknown): SettingsInput['shippingRegions'
       const result = shippingRegionSchema.safeParse(item);
       if (!result.success) {
         logger.warn({
-          scope: 'settings.shippingRegions.parse',
+          scope: 'settings.shipping-regions.parse',
           message: 'Invalid shipping region encountered; skipping',
           error: result.error,
         });
@@ -89,7 +89,7 @@ function parsePaymentTerms(payload: unknown): SettingsInput['paymentTerms'] {
       const result = paymentTermSchema.safeParse(item);
       if (!result.success) {
         logger.warn({
-          scope: 'settings.paymentTerms.parse',
+          scope: 'settings.payment-terms.parse',
           message: 'Invalid payment term encountered; skipping',
           error: result.error,
         });

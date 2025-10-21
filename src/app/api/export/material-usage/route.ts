@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    logger.error({ scope: "export.material_usage", error });
+    logger.error({ scope: "export.material-usage", message: "Material usage export failed", error });
     return new Response(JSON.stringify({ error: { message: "Failed to export material usage" } }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         error.details as Record<string, unknown> | undefined,
       );
     }
-    logger.error({ scope: "quick-order.checkout", error: error as Error });
+    logger.error({ scope: "quick-order.checkout", message: 'Checkout failed', error });
     return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

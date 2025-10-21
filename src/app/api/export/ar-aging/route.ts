@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    logger.error({ scope: "export.ar_aging", error });
+    logger.error({ scope: "export.ar-aging", message: "AR aging export failed", error });
     return new Response(JSON.stringify({ error: { message: "Failed to export AR aging" } }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

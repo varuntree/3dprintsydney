@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'auth.me', error: error as Error });
+    logger.error({ scope: 'auth.me', message: 'Failed to fetch user profile', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

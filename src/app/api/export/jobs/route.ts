@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    logger.error({ scope: "export.jobs", error });
+    logger.error({ scope: "export.jobs", message: 'Jobs export failed', error });
     return new Response(JSON.stringify({ error: { message: "Failed to export jobs" } }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

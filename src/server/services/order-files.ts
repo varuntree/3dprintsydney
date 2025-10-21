@@ -90,7 +90,7 @@ export async function saveOrderFile(params: {
     throw new AppError(error?.message ?? "Failed to save order file record", 'DATABASE_ERROR', 500);
   }
 
-  logger.info({ scope: 'orderFiles.save', data: { id: data.id, filename, invoiceId, quoteId } });
+  logger.info({ scope: 'order-files.save', data: { id: data.id, filename, invoiceId, quoteId } });
   return data as OrderFileRecord;
 }
 
@@ -199,5 +199,5 @@ export async function deleteOrderFile(id: number): Promise<void> {
   // Delete from storage
   await deleteFromStorage(file.storage_key).catch(() => undefined);
 
-  logger.info({ scope: 'orderFiles.delete', data: { id, filename: file.filename } });
+  logger.info({ scope: 'order-files.delete', data: { id, filename: file.filename } });
 }

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         error.details as Record<string, unknown> | undefined,
       );
     }
-    logger.error({ scope: "quick-order.slice", error: error as Error });
+    logger.error({ scope: "quick-order.slice", message: 'Slicing failed', error });
     return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

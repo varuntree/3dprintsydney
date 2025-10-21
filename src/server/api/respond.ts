@@ -33,7 +33,7 @@ export function fail(
 }
 
 export function handleError(error: unknown, scope: string) {
-  logger.error({ scope, error });
+  logger.error({ scope, message: 'Request handler error', error });
 
   // Handle AppError instances with proper code, message, status, and details
   if (error instanceof AppError) {

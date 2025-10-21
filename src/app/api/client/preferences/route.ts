@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'client.preferences', error: error as Error });
+    logger.error({ scope: 'client.preferences', message: 'Failed to update client preferences', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'client.preferences', error: error as Error });
+    logger.error({ scope: 'client.preferences', message: 'Failed to update client preferences', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

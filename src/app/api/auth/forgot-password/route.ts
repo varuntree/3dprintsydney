@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'auth.forgot-password', error: error as Error });
+    logger.error({ scope: 'auth.forgot-password', message: 'Password reset failed', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

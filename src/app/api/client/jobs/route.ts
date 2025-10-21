@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
-    logger.error({ scope: 'client.jobs', error: error as Error });
+    logger.error({ scope: 'client.jobs', message: 'Failed to fetch client jobs', error });
     return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
