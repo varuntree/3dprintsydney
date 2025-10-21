@@ -1,6 +1,7 @@
 import { format, startOfMonth, subDays, subMonths } from "date-fns";
 import { InvoiceStatus, JobStatus, QuoteStatus } from "@/lib/constants/enums";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { AppError } from "@/lib/errors";
 
 type ActivityRow = {
   id: number;
@@ -92,7 +93,7 @@ export async function getRecentActivity(options?: {
     .range(start, end);
 
   if (error) {
-    throw new Error(`Failed to load activity: ${error.message}`);
+    throw new AppError(`Failed to load activity: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const rows = (data ?? []) as ActivityRow[];
@@ -188,24 +189,26 @@ export async function getDashboardSnapshot(options?: {
   ]);
 
   if (paymentsLast60Res.error) {
-    throw new Error(`Failed to load payments: ${paymentsLast60Res.error.message}`);
+    throw new AppError(`Failed to load payments: ${paymentsLast60Res.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (outstandingInvoicesRes.error) {
-    throw new Error(
+    throw new AppError(
       `Failed to load outstanding invoices: ${outstandingInvoicesRes.error.message}`,
+      'DATABASE_ERROR',
+      500,
     );
   }
   if (quotesRes.error) {
-    throw new Error(`Failed to load quote stats: ${quotesRes.error.message}`);
+    throw new AppError(`Failed to load quote stats: ${quotesRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (jobsRes.error) {
-    throw new Error(`Failed to load job summary: ${jobsRes.error.message}`);
+    throw new AppError(`Failed to load job summary: ${jobsRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (printersRes.error) {
-    throw new Error(`Failed to load printers: ${printersRes.error.message}`);
+    throw new AppError(`Failed to load printers: ${printersRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (paymentsTrendRes.error) {
-    throw new Error(`Failed to load revenue trend: ${paymentsTrendRes.error.message}`);
+    throw new AppError(`Failed to load revenue trend: ${paymentsTrendRes.error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const paymentsLast60 = (paymentsLast60Res.data ?? []) as PaymentRow[];

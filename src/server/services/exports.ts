@@ -2,6 +2,7 @@ import { Parser } from "json2csv";
 import { endOfDay, parseISO, startOfDay } from "date-fns";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { InvoiceStatus, JobStatus, JobPriority } from "@/lib/constants/enums";
+import { AppError } from "@/lib/errors";
 
 function decimalToNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -55,7 +56,7 @@ export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> 
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export invoices: ${error.message}`);
+    throw new AppError(`Failed to export invoices: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const rows = (data ?? []).map((invoice) => {
@@ -91,7 +92,7 @@ export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> 
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export payments: ${error.message}`);
+    throw new AppError(`Failed to export payments: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const rows = (data ?? []).map((payment) => {
@@ -127,7 +128,7 @@ export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export jobs: ${error.message}`);
+    throw new AppError(`Failed to export jobs: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const rows = (data ?? []).map((job) => {
@@ -167,7 +168,7 @@ export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export A/R aging: ${error.message}`);
+    throw new AppError(`Failed to export A/R aging: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const invoices = data ?? [];
@@ -210,7 +211,7 @@ export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayl
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export material usage: ${error.message}`);
+    throw new AppError(`Failed to export material usage: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const agg = new Map<string, { count: number; amount: number }>();
@@ -247,7 +248,7 @@ export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<Cs
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to export printer utilization: ${error.message}`);
+    throw new AppError(`Failed to export printer utilization: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const agg = new Map<string, { jobs: number; hours: number }>();

@@ -1,6 +1,7 @@
 import { logger } from "@/lib/logger";
 import { materialInputSchema } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 
 export type MaterialDTO = {
   id: number;
@@ -26,7 +27,7 @@ type MaterialRow = {
 
 function mapMaterial(row: MaterialRow | null): MaterialDTO {
   if (!row) {
-    throw new Error("Material not found");
+    throw new NotFoundError("Material", "unknown");
   }
   return {
     id: row.id,
@@ -76,7 +77,7 @@ export async function listMaterials(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list materials: ${error.message}`);
+    throw new AppError(`Failed to list materials: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data as MaterialRow[]).map(mapMaterial);
 }
@@ -115,7 +116,7 @@ export async function createMaterial(payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create material: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create material: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -146,7 +147,7 @@ export async function updateMaterial(id: number, payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update material: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to update material: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -167,15 +168,13 @@ export async function deleteMaterial(id: number) {
     .eq("material_id", id);
 
   if (countError) {
-    throw new Error(`Failed to verify material usage: ${countError.message}`);
+    throw new AppError(`Failed to verify material usage: ${countError.message}`, 'DATABASE_ERROR', 500);
   }
 
   if ((count ?? 0) > 0) {
-    const err = new Error(
+    throw new ValidationError(
       "Cannot delete material: it is referenced by product templates",
     );
-    (err as HttpError).status = 422;
-    throw err;
   }
 
   const { data, error } = await supabase
@@ -186,7 +185,7 @@ export async function deleteMaterial(id: number) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to delete material: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to delete material: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -198,5 +197,3 @@ export async function deleteMaterial(id: number) {
   logger.info({ scope: "materials.delete", data: { id } });
   return mapMaterial(data as MaterialRow);
 }
-
-type HttpError = Error & { status?: number };

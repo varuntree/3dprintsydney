@@ -5,6 +5,7 @@ import {
   downloadOrderFile,
   getOrderFileSignedUrl,
 } from "@/server/storage/supabase";
+import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
 
 export type OrderFileType = "model" | "settings";
 
@@ -47,7 +48,7 @@ export async function saveOrderFile(params: {
   } = params;
 
   if (!invoiceId && !quoteId) {
-    throw new Error("Either invoiceId or quoteId must be provided");
+    throw new BadRequestError("Either invoiceId or quoteId must be provided");
   }
 
   // Upload to storage
@@ -79,7 +80,7 @@ export async function saveOrderFile(params: {
   if (error || !data) {
     // Cleanup storage if DB insert fails
     await deleteFromStorage(storageKey).catch(() => undefined);
-    throw new Error(error?.message ?? "Failed to save order file record");
+    throw new AppError(error?.message ?? "Failed to save order file record", 'DATABASE_ERROR', 500);
   }
 
   return data as OrderFileRecord;
@@ -94,7 +95,7 @@ export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFi
     .order("uploaded_at", { ascending: true });
 
   if (error) {
-    throw new Error(`Failed to get order files: ${error.message}`);
+    throw new AppError(`Failed to get order files: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   return (data ?? []) as OrderFileRecord[];
@@ -109,7 +110,7 @@ export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRe
     .order("uploaded_at", { ascending: true });
 
   if (error) {
-    throw new Error(`Failed to get order files: ${error.message}`);
+    throw new AppError(`Failed to get order files: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   return (data ?? []) as OrderFileRecord[];
@@ -124,7 +125,7 @@ export async function getOrderFile(id: number): Promise<OrderFileRecord> {
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Order file not found");
+    throw new NotFoundError("Order file", id);
   }
 
   return data as OrderFileRecord;
@@ -147,7 +148,7 @@ export async function deleteOrderFile(id: number): Promise<void> {
   // Delete database record
   const { error } = await supabase.from("order_files").delete().eq("id", id);
   if (error) {
-    throw new Error(`Failed to delete order file record: ${error.message}`);
+    throw new AppError(`Failed to delete order file record: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   // Delete from storage
