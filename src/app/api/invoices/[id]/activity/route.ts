@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAPI } from "@/server/auth/api-helpers";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       message: row.message,
       createdAt: row.created_at,
     }));
-    return NextResponse.json({ data: rows });
+    return ok(rows);
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

@@ -12,7 +12,7 @@ import path from "path";
 import { promises as fsp } from "fs";
 import { logger } from "@/lib/logger";
 import os from "os";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
@@ -32,11 +32,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const item = body?.file;
     if (!item || typeof item.id !== "string") {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return fail("NO_FILE", "No file provided", 400);
     }
     const fileUserKey = item.id.split("/")[0];
     if (fileUserKey !== String(user.id)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      return fail("UNAUTHORIZED", "Unauthorized", 403);
     }
 
     const supports = item.supports ?? { enabled: true, pattern: "normal", angle: 45 };
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       if (tmpDir) {
         await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
       }
-      return NextResponse.json({ data: fallbackMetrics });
+      return ok(fallbackMetrics);
     }
 
     let gcodeId: string | undefined;
@@ -172,14 +172,12 @@ export async function POST(req: NextRequest) {
       await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
     }
 
-    return NextResponse.json({
-      data: {
-        id: item.id,
-        timeSec: metrics.timeSec,
-        grams: metrics.grams,
-        gcodeId,
-        fallback: false,
-      },
+    return ok({
+      id: item.id,
+      timeSec: metrics.timeSec,
+      grams: metrics.grams,
+      gcodeId,
+      fallback: false,
     });
   } catch (error) {
     if (tmpDir) {

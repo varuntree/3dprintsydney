@@ -5,7 +5,7 @@ import { requireUser } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { logger } from "@/lib/logger";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 const schema = z.object({
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const { currentPassword, newPassword } = schema.parse(body);
 
     if (currentPassword === newPassword) {
-      return NextResponse.json({ error: "New password must be different" }, { status: 400 });
+      return fail("INVALID_PASSWORD", "New password must be different", 400);
     }
 
     const service = getServiceSupabase();
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(`Failed to load user profile: ${profileError.message}`, 'PASSWORD_CHANGE_ERROR', 500);
     }
     if (!profile) {
-      return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+      return fail("PROFILE_NOT_FOUND", "User profile not found", 404);
     }
 
     const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       password: currentPassword,
     });
     if (signInError || !authData.session) {
-      return NextResponse.json({ error: "Incorrect current password" }, { status: 401 });
+      return fail("INCORRECT_PASSWORD", "Incorrect current password", 401);
     }
 
     const { error: updateError } = await authClient.auth.updateUser({ password: newPassword });
@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
 
     await authClient.auth.signOut();
     logger.info({ scope: "auth.change_password", data: { userId: user.id } });
-    return NextResponse.json({ ok: true });
+    return ok({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues.map((issue) => issue.message).join(", ") }, { status: 400 });
+      return fail("VALIDATION_ERROR", error.issues.map((issue) => issue.message).join(", "), 422);
     }
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

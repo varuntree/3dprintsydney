@@ -10,7 +10,7 @@ import {
 } from "@/server/services/tmp-files";
 import { saveOrderFile } from "@/server/services/order-files";
 import path from "path";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -18,13 +18,13 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireUser(req);
     if (!user.clientId) {
-      return NextResponse.json({ error: "User not linked to client" }, { status: 400 });
+      return fail("NO_CLIENT", "User not linked to client", 400);
     }
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
     const address = body?.address ?? {};
     if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "No items" }, { status: 400 });
+      return fail("NO_ITEMS", "No items", 400);
     }
 
     // Recompute price server-side
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
       checkoutUrl = null;
     }
 
-    return NextResponse.json({ data: { invoiceId: invoice.id, checkoutUrl } });
+    return ok({ invoiceId: invoice.id, checkoutUrl });
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

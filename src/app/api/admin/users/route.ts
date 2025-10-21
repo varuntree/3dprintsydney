@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/server/auth/session";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { logger } from "@/lib/logger";
+import { ok, fail, handleError } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
@@ -33,20 +34,16 @@ export async function GET(req: NextRequest) {
       }),
     );
 
-    return NextResponse.json({
-      data: (users ?? []).map((u) => ({
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        clientId: u.client_id,
-        createdAt: u.created_at,
-        messageCount: messageCounts.get(u.id) ?? 0,
-      })),
-    });
+    return ok((users ?? []).map((u) => ({
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      clientId: u.client_id,
+      createdAt: u.created_at,
+      messageCount: messageCounts.get(u.id) ?? 0,
+    })));
   } catch (error) {
-    const e = error as Error & { status?: number };
-    const status = e?.status ?? 400;
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status });
+    return handleError(error, 'admin.users.get');
   }
 }
 
@@ -72,11 +69,11 @@ export async function POST(req: NextRequest) {
       throw new AppError(`Failed to check user: ${existsError.message}`, 'USER_CREATE_ERROR', 500);
     }
     if (existingUser) {
-      return NextResponse.json({ error: "User already exists" }, { status: 409 });
+      return fail("USER_EXISTS", "User already exists", 409);
     }
 
     if (payload.role === "CLIENT" && !payload.clientId) {
-      return NextResponse.json({ error: "clientId required for client role" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "clientId required for client role", 422);
     }
 
     if (payload.clientId) {
@@ -89,7 +86,7 @@ export async function POST(req: NextRequest) {
         throw new AppError(`Failed to verify client: ${clientError.message}`, 'USER_CREATE_ERROR', 500);
       }
       if (!client) {
-        return NextResponse.json({ error: "Client not found" }, { status: 404 });
+        return fail("CLIENT_NOT_FOUND", "Client not found", 404);
       }
     }
 
@@ -122,21 +119,18 @@ export async function POST(req: NextRequest) {
       throw new AppError(profileError?.message ?? "Failed to create user profile", 'USER_CREATE_ERROR', 500);
     }
 
-    return NextResponse.json(
+    return ok(
       {
-        data: {
-          id: profile.id,
-          email: profile.email,
-          role: profile.role,
-          clientId: profile.client_id,
-          createdAt: profile.created_at,
-          temporaryPassword,
-        },
+        id: profile.id,
+        email: profile.email,
+        role: profile.role,
+        clientId: profile.client_id,
+        createdAt: profile.created_at,
+        temporaryPassword,
       },
       { status: 201 },
     );
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json({ error: e?.message ?? "Failed" }, { status: e?.status ?? 400 });
+    return handleError(error, 'admin.users.post');
   }
 }

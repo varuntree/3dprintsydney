@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       password,
     });
     if (authError || !authData.user || !authData.session) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return fail("INVALID_CREDENTIALS", "Invalid credentials", 401);
     }
 
     const service = getServiceSupabase();
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       throw new AppError(`Failed to load profile: ${profileError.message}`, 'AUTH_ERROR', 500);
     }
     if (!profile) {
-      return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+      return fail("PROFILE_NOT_FOUND", "User profile not found", 404);
     }
 
     const response = NextResponse.json({

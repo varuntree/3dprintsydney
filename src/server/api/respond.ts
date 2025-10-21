@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
 
-interface Success<T> {
+export interface Success<T> {
   data: T;
   error?: undefined;
 }
 
-interface Failure {
+export interface Failure {
   data?: undefined;
   error: {
     code: string;

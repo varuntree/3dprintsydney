@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { fail } from "@/server/api/respond";
+import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       throw new AppError(`Failed to fetch invoice: ${invoiceError.message}`, 'MESSAGE_LOAD_ERROR', 500);
     }
     if (!invoice) {
-      return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+      return fail("NOT_FOUND", "Invoice not found", 404);
     }
 
     const { data: clientUser, error: clientUserError } = await supabase
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       throw new AppError(`Failed to fetch client user: ${clientUserError.message}`, 'MESSAGE_LOAD_ERROR', 500);
     }
     if (!clientUser) {
-      return NextResponse.json({ error: "No client user" }, { status: 400 });
+      return fail("BAD_REQUEST", "No client user", 400);
     }
 
     const { searchParams } = new URL(req.url);
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       content: row.content,
       createdAt: row.created_at,
     }));
-    return NextResponse.json({ data: messages });
+    return ok(messages);
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const body = await req.json();
     const content = (body?.content ?? "").trim();
     if (!content) {
-      return NextResponse.json({ error: "Invalid content" }, { status: 400 });
+      return fail("VALIDATION_ERROR", "Invalid content", 400);
     }
     const supabase = getServiceSupabase();
     let targetUserId: number | null = null;
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         throw new AppError(`Failed to fetch invoice: ${invError.message}`, 'MESSAGE_CREATE_ERROR', 500);
       }
       if (!inv) {
-        return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+        return fail("NOT_FOUND", "Invoice not found", 404);
       }
       const { data: clientUser, error: clientUserError } = await supabase
         .from("users")
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         throw new AppError(`Failed to fetch client user: ${clientUserError.message}`, 'MESSAGE_CREATE_ERROR', 500);
       }
       if (!clientUser) {
-        return NextResponse.json({ error: "No client user for this invoice" }, { status: 400 });
+        return fail("BAD_REQUEST", "No client user for this invoice", 400);
       }
       targetUserId = clientUser.id;
     }
@@ -138,13 +138,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       throw new AppError(error?.message ?? "Failed to create message", 'MESSAGE_CREATE_ERROR', 500);
     }
 
-    return NextResponse.json({
-      data: {
-        id: data.id,
-        sender: data.sender,
-        content: data.content,
-        createdAt: data.created_at,
-      },
+    return ok({
+      id: data.id,
+      sender: data.sender,
+      content: data.content,
+      createdAt: data.created_at,
     });
   } catch (error) {
     if (error instanceof AppError) {
