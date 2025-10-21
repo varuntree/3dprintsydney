@@ -8,10 +8,7 @@ import {
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-
-const preferenceSchema = z.object({
-  notifyOnJobStatus: z.boolean(),
-});
+import { clientPreferenceSchema } from "@/lib/schemas/clients";
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,7 +28,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireClientWithId(req);
     const payload = await req.json();
-    const parsed = preferenceSchema.parse(payload);
+    const parsed = clientPreferenceSchema.parse(payload);
     const notifyOnJobStatus = await updateClientNotificationPreference(
       user.clientId,
       parsed.notifyOnJobStatus,

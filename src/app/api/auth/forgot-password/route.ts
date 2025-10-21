@@ -5,13 +5,12 @@ import { getAppUrl, getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-
-const schema = z.object({ email: z.string().email() });
+import { forgotPasswordSchema } from "@/lib/schemas/auth";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email } = schema.parse(body);
+    const { email } = forgotPasswordSchema.parse(body);
 
     const supabase = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: { persistSession: false },

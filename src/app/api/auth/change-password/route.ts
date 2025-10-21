@@ -3,17 +3,13 @@ import { z } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { handlePasswordChange } from "@/server/services/auth";
 import { ok, fail, handleError } from "@/server/api/respond";
-
-const schema = z.object({
-  currentPassword: z.string().min(8, "Password must be at least 8 characters"),
-  newPassword: z.string().min(8, "Password must be at least 8 characters"),
-});
+import { changePasswordSchema } from "@/lib/schemas/auth";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     const body = await req.json();
-    const { currentPassword, newPassword } = schema.parse(body);
+    const { currentPassword, newPassword } = changePasswordSchema.parse(body);
 
     // Handle complete password change workflow
     await handlePasswordChange(user.id, currentPassword, newPassword);
