@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import { saveTmpFile, requireTmpFile } from "@/server/services/tmp-files";
 import { logger } from "@/lib/logger";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -31,11 +33,11 @@ export async function POST(req: NextRequest) {
     try {
       await requireTmpFile(user.id, fileId);
     } catch (error) {
-      const e = error as Error & { status?: number };
-      return NextResponse.json(
-        { error: e?.message ?? "Original file not found" },
-        { status: e?.status ?? 404 }
-      );
+      if (error instanceof AppError) {
+        return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      }
+      logger.error({ scope: 'quick-order.orient', error: error as Error });
+      return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
     }
 
     // Save oriented STL as new tmp file
@@ -69,16 +71,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-
-    logger.error({
-      scope: "quick-order.orient",
-      error: e.message,
-    });
-
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to save oriented file" },
-      { status: e?.status ?? 500 }
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'quick-order.orient', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

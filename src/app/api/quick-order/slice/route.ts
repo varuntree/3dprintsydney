@@ -12,6 +12,8 @@ import path from "path";
 import { promises as fsp } from "fs";
 import { logger } from "@/lib/logger";
 import os from "os";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -183,7 +185,10 @@ export async function POST(req: NextRequest) {
     if (tmpDir) {
       await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
     }
-    const e = error as Error & { status?: number };
-    return NextResponse.json({ error: e?.message ?? "Slice failed" }, { status: e?.status ?? 400 });
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'quick-order.slice', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

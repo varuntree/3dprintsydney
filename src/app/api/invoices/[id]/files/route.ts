@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getOrderFilesByInvoice } from "@/server/services/order-files";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 /**
  * GET /api/invoices/[id]/files
@@ -37,10 +40,10 @@ export async function GET(
       })),
     });
   } catch (error) {
-    const e = error as Error & { status?: number };
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to list order files" },
-      { status: e?.status ?? 500 }
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'invoices.files', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

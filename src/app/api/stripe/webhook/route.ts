@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { handleStripeEvent, getStripeEnvironment } from "@/server/services/stripe";
 import { logger } from "@/lib/logger";
+import { fail } from "@/server/api/respond";
+import { AppError } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
@@ -23,10 +25,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    logger.error({ scope: "stripe.webhook", error });
-    return NextResponse.json(
-      { error: { message: "Webhook processing failed" } },
-      { status: 500 },
-    );
+    if (error instanceof AppError) {
+      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    }
+    logger.error({ scope: 'stripe.webhook', error: error as Error });
+    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
