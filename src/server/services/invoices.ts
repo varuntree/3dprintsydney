@@ -13,8 +13,9 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
-import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
+import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
+import { validateInvoiceAttachment } from '@/lib/utils/validators';
 import type {
   InvoiceDetailDTO,
   InvoiceSummaryDTO,
@@ -630,6 +631,46 @@ export async function deletePayment(paymentId: number) {
 }
 
 /**
+ * Validates and uploads an attachment file to an invoice
+ * @param invoiceId - The invoice ID
+ * @param file - File object from multipart upload
+ * @param userId - User ID performing the upload (for future authorization)
+ * @returns Created attachment record
+ * @throws Error if file validation fails
+ * @throws AppError if upload or database operations fail
+ * @throws NotFoundError if invoice not found
+ */
+export async function uploadInvoiceAttachment(
+  invoiceId: number,
+  file: File,
+  userId?: number
+) {
+  // Define allowed types and max size for invoice attachments
+  const MAX_FILE_SIZE_MB = 200;
+  const ALLOWED_TYPES = [
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'text/plain',
+    'application/zip',
+  ];
+
+  // Validate file using validator utility
+  validateInvoiceAttachment(file, MAX_FILE_SIZE_MB, ALLOWED_TYPES);
+
+  // Convert File to Buffer
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Use existing attachment logic
+  return addInvoiceAttachment(invoiceId, {
+    name: file.name,
+    type: file.type,
+    buffer,
+  });
+}
+
+/**
  * Uploads and attaches a file to an invoice
  * @param invoiceId - The invoice ID
  * @param file - File data to attach
@@ -659,7 +700,7 @@ export async function addInvoiceAttachment(
   }
 
   const safeName = file.name.replaceAll('\\', '/').split('/').pop()!.replace(/[^^\w.\-]+/g, '_');
-  const storageKey = await uploadInvoiceAttachment(invoiceId, safeName, file.buffer, file.type);
+  const storageKey = await uploadToStorage(invoiceId, safeName, file.buffer, file.type);
 
   const { data, error } = await supabase
     .from('attachments')

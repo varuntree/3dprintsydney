@@ -1,66 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/server/auth/session";
-import { priceQuickOrder, type QuickOrderItemInput } from "@/server/services/quick-order";
-import { createInvoice, addInvoiceAttachment } from "@/server/services/invoices";
 import {
-  requireTmpFile,
-  downloadTmpFileToBuffer,
-  deleteTmpFile,
-} from "@/server/services/tmp-files";
-import { saveOrderFile } from "@/server/services/order-files";
-import path from "path";
+  createQuickOrderInvoice,
+  type QuickOrderItemInput,
+} from "@/server/services/quick-order";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
+/**
+ * POST /api/quick-order/checkout
+ *
+ * Creates an invoice for a quick order with all files and settings
+ * Delegates business logic to createQuickOrderInvoice service function
+ */
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser(req);
     if (!user.clientId) {
       return fail("NO_CLIENT", "User not linked to client", 400);
     }
+
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
     const address = body?.address ?? {};
+
     if (!Array.isArray(items) || items.length === 0) {
       return fail("NO_ITEMS", "No items", 400);
     }
 
-    // Recompute price server-side
-    const priced = await priceQuickOrder(items, {
-      state: typeof address?.state === "string" ? address.state : undefined,
-      postcode: typeof address?.postcode === "string" ? address.postcode : undefined,
-    });
-    const shippingQuote = priced.shipping;
-    const shippingCost = shippingQuote.amount;
-
-    // Build invoice lines
-    const lines = priced.items.map((p, idx) => ({
-      name: `3D Print: ${p.filename}`,
-      description: [
-        `Qty ${p.quantity}`,
-        `Material ${items[idx]?.materialName ?? "Custom"}`,
-        `Layer ${items[idx]?.layerHeight ?? 0}mm`,
-        `Infill ${items[idx]?.infill ?? 0}%`,
-        items[idx]?.supports?.enabled
-          ? `Supports ${items[idx]?.supports?.pattern === "tree" ? "Organic" : "Standard"}`
-          : "Supports off",
-      ].join(" • "),
-      quantity: p.quantity,
-      unit: "part",
-      unitPrice: p.unitPrice,
-      orderIndex: idx,
-      discountType: "NONE" as const,
-      calculatorBreakdown: p.breakdown,
-    }));
-
-    const invoice = await createInvoice({
-      clientId: user.clientId,
-      shippingCost,
-      shippingLabel: shippingQuote.label,
-      lines,
-    });
+    // Delegate business logic to service
+    const result = await createQuickOrderInvoice(
+      items,
+      user.id,
+      user.clientId,
+      address,
+    );
 
     // Ensure admin/client dashboards reflect new invoice promptly
     await Promise.all([
@@ -72,90 +48,17 @@ export async function POST(req: NextRequest) {
       // best-effort; ignore revalidation failures
     });
 
-    // Save 3D model files permanently to order_files bucket
-    // This replaces the old attachments approach for better organization
-    for (const it of items) {
-      if (!it.fileId) continue;
-      const tmpRecord = await requireTmpFile(user.id, it.fileId).catch(() => null);
-      if (tmpRecord) {
-        const buffer = await downloadTmpFileToBuffer(it.fileId);
-
-        // Save 3D model file permanently (admins can now download these)
-        await saveOrderFile({
-          invoiceId: invoice.id,
-          clientId: user.clientId,
-          userId: user.id,
-          filename: tmpRecord.filename,
-          fileType: "model",
-          contents: buffer,
-          mimeType: tmpRecord.mime_type || "application/octet-stream",
-          metadata: {
-            originalSize: tmpRecord.size_bytes,
-            uploadedFrom: "quick-order",
-          },
-        });
-
-        // Also keep a copy in attachments for backward compatibility
-        await addInvoiceAttachment(invoice.id, {
-          name: tmpRecord.filename,
-          type: tmpRecord.mime_type || "application/octet-stream",
-          buffer,
-        });
-
-        // Clean up temporary file
-        await deleteTmpFile(user.id, it.fileId).catch(() => undefined);
-      }
-
-      // Save print settings as a separate order file
-      const settingsData = {
-        filename: it.filename,
-        materialId: it.materialId,
-        materialName: it.materialName,
-        layerHeight: it.layerHeight,
-        infill: it.infill,
-        quantity: it.quantity,
-        metrics: it.metrics,
-        supports: it.supports,
-        address,
-        shipping: shippingQuote,
-      };
-      const settingsJson = Buffer.from(JSON.stringify(settingsData, null, 2));
-
-      await saveOrderFile({
-        invoiceId: invoice.id,
-        clientId: user.clientId,
-        userId: user.id,
-        filename: `${path.parse(it.filename).name}.settings.json`,
-        fileType: "settings",
-        contents: settingsJson,
-        mimeType: "application/json",
-        metadata: settingsData,
-      });
-
-      // Also keep settings in attachments for backward compatibility
-      await addInvoiceAttachment(invoice.id, {
-        name: `${path.parse(it.filename).name}.settings.json`,
-        type: "application/json",
-        buffer: settingsJson
-      });
-    }
-
-    // Stripe checkout
-    let checkoutUrl: string | null = null;
-    try {
-      const stripe = await import("@/server/services/stripe");
-      const res = await stripe.createStripeCheckoutSession(invoice.id);
-      checkoutUrl = res.url ?? null;
-    } catch {
-      checkoutUrl = null;
-    }
-
-    return ok({ invoiceId: invoice.id, checkoutUrl });
+    return ok(result);
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return fail(
+        error.code,
+        error.message,
+        error.status,
+        error.details as Record<string, unknown> | undefined,
+      );
     }
-    logger.error({ scope: 'quick-order.checkout', error: error as Error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    logger.error({ scope: "quick-order.checkout", error: error as Error });
+    return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }
