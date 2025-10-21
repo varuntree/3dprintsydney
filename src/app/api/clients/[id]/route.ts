@@ -5,6 +5,7 @@ import {
   updateClient,
   deleteClient,
 } from "@/server/services/clients";
+import { clientInputSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -49,8 +50,9 @@ export async function PUT(
   try {
     await requireAdmin(request);
     const id = await parseId(context.params);
-    const payload = await request.json();
-    const client = await updateClient(id, payload);
+    const body = await request.json();
+    const validated = clientInputSchema.parse(body);
+    const client = await updateClient(id, validated);
     return ok(client);
   } catch (error) {
     if (error instanceof ZodError) {

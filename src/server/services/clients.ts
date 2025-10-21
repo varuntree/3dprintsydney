@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { clientInputSchema, clientNoteSchema } from '@/lib/schemas/clients';
+import type { ClientInput, ClientNoteInput } from '@/lib/schemas/clients';
 import { DEFAULT_PAYMENT_TERMS } from '@/lib/schemas/settings';
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
@@ -136,25 +136,24 @@ export async function listClients(options?: ClientFilters): Promise<ClientSummar
   return (data ?? []).map((row) => mapClientSummary(row as ClientRow));
 }
 
-export async function createClient(payload: unknown) {
-  const parsed = clientInputSchema.parse(payload);
+export async function createClient(input: ClientInput) {
   const supabase = getServiceSupabase();
 
-  const paymentTermsCode = await normalizePaymentTermsCode(parsed.paymentTerms ?? null);
+  const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
 
   const { data, error } = await supabase
     .from('clients')
     .insert({
-      name: parsed.name,
-      company: parseNullableText(parsed.company),
-      abn: parseNullableText(parsed.abn),
-      email: parseNullableText(parsed.email),
-      phone: parseNullableText(parsed.phone),
-      address: parsed.address ? { raw: parsed.address } : null,
+      name: input.name,
+      company: parseNullableText(input.company),
+      abn: parseNullableText(input.abn),
+      email: parseNullableText(input.email),
+      phone: parseNullableText(input.phone),
+      address: input.address ? { raw: input.address } : null,
       payment_terms: paymentTermsCode,
-      notify_on_job_status: parsed.notifyOnJobStatus ?? false,
-      notes: parseNullableText(parsed.notes),
-      tags: parsed.tags ?? [],
+      notify_on_job_status: input.notifyOnJobStatus ?? false,
+      notes: parseNullableText(input.notes),
+      tags: input.tags ?? [],
     })
     .select()
     .single();
@@ -173,29 +172,28 @@ export async function createClient(payload: unknown) {
 
   return {
     ...data,
-    address: parsed.address ? { raw: parsed.address } : null,
+    address: input.address ? { raw: input.address } : null,
   };
 }
 
-export async function updateClient(id: number, payload: unknown) {
-  const parsed = clientInputSchema.parse(payload);
+export async function updateClient(id: number, input: ClientInput) {
   const supabase = getServiceSupabase();
 
-  const paymentTermsCode = await normalizePaymentTermsCode(parsed.paymentTerms ?? null);
+  const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
 
   const { data, error } = await supabase
     .from('clients')
     .update({
-      name: parsed.name,
-      company: parseNullableText(parsed.company),
-      abn: parseNullableText(parsed.abn),
-      email: parseNullableText(parsed.email),
-      phone: parseNullableText(parsed.phone),
-      address: parsed.address ? { raw: parsed.address } : null,
+      name: input.name,
+      company: parseNullableText(input.company),
+      abn: parseNullableText(input.abn),
+      email: parseNullableText(input.email),
+      phone: parseNullableText(input.phone),
+      address: input.address ? { raw: input.address } : null,
       payment_terms: paymentTermsCode,
-      notify_on_job_status: parsed.notifyOnJobStatus ?? false,
-      notes: parseNullableText(parsed.notes),
-      tags: parsed.tags ?? [],
+      notify_on_job_status: input.notifyOnJobStatus ?? false,
+      notes: parseNullableText(input.notes),
+      tags: input.tags ?? [],
     })
     .eq('id', id)
     .select()
@@ -215,7 +213,7 @@ export async function updateClient(id: number, payload: unknown) {
 
   return {
     ...data,
-    address: parsed.address ? { raw: parsed.address } : null,
+    address: input.address ? { raw: input.address } : null,
   };
 }
 
@@ -457,15 +455,14 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
   };
 }
 
-export async function addClientNote(id: number, payload: unknown) {
-  const parsed = clientNoteSchema.parse(payload);
+export async function addClientNote(id: number, input: ClientNoteInput) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from('activity_logs')
     .insert({
       client_id: id,
       action: 'CLIENT_NOTE',
-      message: parsed.body,
+      message: input.body,
     })
     .select()
     .single();

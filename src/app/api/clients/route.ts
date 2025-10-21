@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listClients, createClient } from "@/server/services/clients";
+import { clientInputSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -37,8 +38,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const payload = await request.json();
-    const client = await createClient(payload);
+    const body = await request.json();
+    const validated = clientInputSchema.parse(body);
+    const client = await createClient(validated);
     return ok(client, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
