@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-files";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireUser(request);
+    const user = await requireAuth(request);
     const resolvedParams = await params;
 
     let fileId: number;

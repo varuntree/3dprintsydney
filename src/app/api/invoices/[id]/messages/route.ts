@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getInvoiceMessages, createInvoiceMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const invoiceId = await parseId(context.params);
     await requireInvoiceAccess(req, invoiceId);
 

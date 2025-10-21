@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { listClients } from "@/server/services/clients";
 import { ok, handleError } from "@/server/api/respond";
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireClientWithIdAPI } from "@/server/auth/api-helpers";
+import { requireClientWithId } from "@/server/auth/api-helpers";
 import { listJobsForClient } from "@/server/services/jobs";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireClientWithIdAPI(req);
+    const user = await requireClientWithId(req);
     const jobs = await listJobsForClient(user.clientId);
     return ok(jobs);
   } catch (error) {

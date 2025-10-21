@@ -6,7 +6,7 @@ import {
   deleteClient,
 } from "@/server/services/clients";
 import { clientInputSchema } from "@/lib/schemas/clients";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

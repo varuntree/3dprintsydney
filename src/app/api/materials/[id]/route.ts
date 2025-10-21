@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updateMaterial, deleteMaterial } from "@/server/services/materials";
 import { materialInputSchema } from "@/lib/schemas/catalog";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

@@ -1,6 +1,6 @@
 import { ok, handleError } from "@/server/api/respond";
 import { runDailyMaintenance } from "@/server/services/maintenance";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**

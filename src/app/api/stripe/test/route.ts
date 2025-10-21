@@ -1,10 +1,10 @@
 import { ok, fail } from "@/server/api/respond";
 import { getStripeEnvironment } from "@/server/services/stripe";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {
-  await requireUser(request);
+  await requireAuth(request);
   try {
     const env = await getStripeEnvironment();
     // Basic sanity checks — avoid brittle SDK shape assertions across versions

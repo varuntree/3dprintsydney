@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { listUsers, createAdminUser } from "@/server/services/users";
 import { ok, fail, handleError } from "@/server/api/respond";
 

@@ -2,7 +2,7 @@ import { ok, fail, handleError } from "@/server/api/respond";
 import { updateQuoteStatus } from "@/server/services/quotes";
 import { quoteStatusSchema } from "@/lib/schemas/quotes";
 import { ZodError } from "zod";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

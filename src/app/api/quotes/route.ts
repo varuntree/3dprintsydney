@@ -2,7 +2,7 @@ import { ok, fail, handleError } from "@/server/api/respond";
 import { createQuote, listQuotes } from "@/server/services/quotes";
 import { quoteInputSchema } from "@/lib/schemas/quotes";
 import { ZodError } from "zod";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**

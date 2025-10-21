@@ -1,6 +1,6 @@
 import { ok, handleError } from "@/server/api/respond";
 import { listMaterials } from "@/server/services/materials";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**
@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
  */
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(request);
+    await requireAuth(request);
     const materials = await listMaterials({ sort: "name", order: "asc" });
     // Expose only safe fields to clients
     const safe = materials.map((m) => ({ id: m.id, name: m.name, color: m.color }));

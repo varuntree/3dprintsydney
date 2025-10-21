@@ -1,5 +1,5 @@
 import { ok, fail, handleError } from "@/server/api/respond";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { clearPrinterQueue } from "@/server/services/jobs";
 import type { NextRequest } from "next/server";
 

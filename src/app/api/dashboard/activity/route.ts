@@ -1,6 +1,6 @@
 import { ok, handleError } from "@/server/api/respond";
 import { getRecentActivity } from "@/server/services/dashboard";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { parsePaginationParams } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
 

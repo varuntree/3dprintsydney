@@ -1,7 +1,7 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updateJob } from "@/server/services/jobs";
 import { jobUpdateSchema } from "@/lib/schemas/jobs";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireClientWithIdAPI } from "@/server/auth/api-helpers";
+import { requireClientWithId } from "@/server/auth/api-helpers";
 import {
   getClientNotificationPreference,
   updateClientNotificationPreference,
@@ -15,7 +15,7 @@ const preferenceSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireClientWithIdAPI(req);
+    const user = await requireClientWithId(req);
     const notifyOnJobStatus = await getClientNotificationPreference(user.clientId);
     return ok({ notifyOnJobStatus });
   } catch (error) {
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = await requireClientWithIdAPI(req);
+    const user = await requireClientWithId(req);
     const payload = await req.json();
     const parsed = preferenceSchema.parse(payload);
     const notifyOnJobStatus = await updateClientNotificationPreference(

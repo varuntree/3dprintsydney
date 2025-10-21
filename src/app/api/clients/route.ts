@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listClients, createClient } from "@/server/services/clients";
 import { clientInputSchema } from "@/lib/schemas/clients";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**

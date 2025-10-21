@@ -1,6 +1,6 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { removeInvoiceAttachment } from "@/server/services/invoices";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { requireAttachmentAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
 

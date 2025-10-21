@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { handlePasswordChange } from "@/server/services/auth";
 import { ok, fail, handleError } from "@/server/api/respond";
 
@@ -11,7 +11,7 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const body = await req.json();
     const { currentPassword, newPassword } = schema.parse(body);
 

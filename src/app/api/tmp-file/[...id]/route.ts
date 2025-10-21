@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { requireTmpFile, downloadTmpFileToBuffer } from "@/server/services/tmp-files";
 import path from "path";
 import { fail } from "@/server/api/respond";
@@ -20,7 +20,7 @@ export async function GET(
   context: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const { id: segments } = await context.params;
 
     // Join segments to reconstruct the full file ID (e.g., "3/bd3739aa/filename.stl")
