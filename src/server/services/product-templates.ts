@@ -6,6 +6,7 @@ import {
 } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { PricingType } from "@/lib/constants/enums";
+import { AppError, NotFoundError, BadRequestError, ValidationError } from "@/lib/errors";
 
 export type ProductTemplateDTO = {
   id: number;
@@ -43,10 +44,10 @@ function validateBusinessRules(payload: ProductTemplateInput) {
     payload.pricingType === "FIXED" &&
     (payload.basePrice === undefined || payload.basePrice === null)
   ) {
-    throw new Error("Base price required for fixed templates");
+    throw new BadRequestError("Base price required for fixed templates");
   }
   if (payload.pricingType === "CALCULATED" && !payload.calculatorConfig) {
-    throw new Error("Calculator config required for calculated templates");
+    throw new BadRequestError("Calculator config required for calculated templates");
   }
 }
 
@@ -59,7 +60,7 @@ function parseCalculatorConfig(
 
 function mapTemplate(row: TemplateRow | null): ProductTemplateDTO {
   if (!row) {
-    throw new Error("Product template not found");
+    throw new NotFoundError("Product template", "unknown");
   }
   const material = row.material ?? null;
   return {
@@ -128,7 +129,7 @@ export async function listProductTemplates(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list product templates: ${error.message}`);
+    throw new AppError(`Failed to list product templates: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data as TemplateRow[]).map((row) => mapTemplate(row));
 }
@@ -158,7 +159,7 @@ export async function createProductTemplate(payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create product template: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create product template: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -197,7 +198,7 @@ export async function updateProductTemplate(id: number, payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update product template: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to update product template: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -225,17 +226,15 @@ export async function deleteProductTemplate(id: number) {
   ]);
 
   if (quoteCountRes.error) {
-    throw new Error(`Failed to verify quote usage: ${quoteCountRes.error.message}`);
+    throw new AppError(`Failed to verify quote usage: ${quoteCountRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (invoiceCountRes.error) {
-    throw new Error(`Failed to verify invoice usage: ${invoiceCountRes.error.message}`);
+    throw new AppError(`Failed to verify invoice usage: ${invoiceCountRes.error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const inUse = (quoteCountRes.count ?? 0) + (invoiceCountRes.count ?? 0);
   if (inUse > 0) {
-    const err = new Error("Cannot delete template: it is referenced by quotes or invoices");
-    (err as HttpError).status = 422;
-    throw err;
+    throw new ValidationError("Cannot delete template: it is referenced by quotes or invoices");
   }
 
   const { data, error } = await supabase
@@ -246,7 +245,7 @@ export async function deleteProductTemplate(id: number) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to delete product template: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to delete product template: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -258,5 +257,3 @@ export async function deleteProductTemplate(id: number) {
   logger.info({ scope: "templates.delete", data: { id } });
   return mapTemplate(data as TemplateRow);
 }
-
-type HttpError = Error & { status?: number };

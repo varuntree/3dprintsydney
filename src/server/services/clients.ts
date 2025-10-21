@@ -2,6 +2,7 @@ import { logger } from '@/lib/logger';
 import { clientInputSchema, clientNoteSchema } from '@/lib/schemas/clients';
 import { DEFAULT_PAYMENT_TERMS } from '@/lib/schemas/settings';
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 
 export type ClientSummaryDTO = {
   id: number;
@@ -31,13 +32,13 @@ async function normalizePaymentTermsCode(term: string | null | undefined): Promi
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Unable to resolve payment terms: ${error.message}`);
+    throw new AppError(`Unable to resolve payment terms: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const paymentTerms = Array.isArray(data?.payment_terms) ? data?.payment_terms : DEFAULT_PAYMENT_TERMS;
   const isValid = paymentTerms.some((option) => option.code === trimmed);
   if (!isValid) {
-    throw new Error('Invalid payment terms selection');
+    throw new BadRequestError('Invalid payment terms selection');
   }
 
   return trimmed;
@@ -65,7 +66,7 @@ async function insertActivity(entry: {
     metadata: entry.metadata ?? null,
   });
   if (error) {
-    throw new Error(`Failed to record activity: ${error.message}`);
+    throw new AppError(`Failed to record activity: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 }
 
@@ -148,7 +149,7 @@ export async function listClients(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list clients: ${error.message}`);
+    throw new AppError(`Failed to list clients: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   return (data ?? []).map((row) => mapClientSummary(row as ClientRow));
@@ -178,7 +179,7 @@ export async function createClient(payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create client: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to create client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity({
@@ -220,7 +221,7 @@ export async function updateClient(id: number, payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update client: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to update client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity({
@@ -247,7 +248,7 @@ export async function deleteClient(id: number) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to delete client: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to delete client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity({
@@ -270,12 +271,10 @@ export async function getClientNotificationPreference(clientId: number) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load client preference: ${error.message}`);
+    throw new AppError(`Failed to load client preference: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    const err: Error & { status?: number } = new Error('Client not found');
-    err.status = 404;
-    throw err;
+    throw new NotFoundError('Client', clientId);
   }
 
   return Boolean(data.notify_on_job_status);
@@ -294,7 +293,7 @@ export async function updateClientNotificationPreference(
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update client preference: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to update client preference: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity({
@@ -384,10 +383,10 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load client: ${error.message}`);
+    throw new AppError(`Failed to load client: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error('Client not found');
+    throw new NotFoundError('Client', id);
   }
 
   const invoices = (data.invoices ?? []).map((invoice) => ({
@@ -451,7 +450,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     .limit(50);
 
   if (activityError) {
-    throw new Error(`Failed to load client activity: ${activityError.message}`);
+    throw new AppError(`Failed to load client activity: ${activityError.message}`, 'DATABASE_ERROR', 500);
   }
 
   const invoiceMap = new Map(invoices.map((invoice) => [invoice.id, invoice.number]));
@@ -486,7 +485,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     .maybeSingle();
 
   if (clientUserError) {
-    throw new Error(`Failed to load client user: ${clientUserError.message}`);
+    throw new AppError(`Failed to load client user: ${clientUserError.message}`, 'DATABASE_ERROR', 500);
   }
 
   let clientUser: ClientDetailDTO['clientUser'] = null;
@@ -496,7 +495,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', clientUserRow.id);
     if (messageCountError) {
-      throw new Error(`Failed to count client messages: ${messageCountError.message}`);
+      throw new AppError(`Failed to count client messages: ${messageCountError.message}`, 'DATABASE_ERROR', 500);
     }
     clientUser = {
       id: clientUserRow.id,
@@ -549,7 +548,7 @@ export async function addClientNote(id: number, payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to add client note: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to add client note: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   logger.info({ scope: 'clients.note', data: { id } });
