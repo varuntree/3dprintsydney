@@ -983,3 +983,94 @@ export async function revertInvoiceToQuote(invoiceId: number) {
   logger.info({ scope: 'invoices.revert', data: { invoiceId, quoteId: quote.id } });
   return quote;
 }
+
+/**
+ * List invoices for a specific client (client portal view)
+ * @param clientId - The client ID
+ * @param options - Optional pagination options
+ */
+export async function listClientInvoices(
+  clientId: number,
+  options?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<import('@/lib/types/invoices').ClientInvoiceDTO[]> {
+  const supabase = getServiceSupabase();
+
+  const limit = options?.limit && Number.isFinite(options.limit) && options.limit > 0
+    ? options.limit
+    : 50;
+  const offset = options?.offset && Number.isFinite(options.offset) && options.offset >= 0
+    ? options.offset
+    : 0;
+
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('id, number, status, total, issue_date, balance_due, stripe_checkout_url')
+    .eq('client_id', clientId)
+    .order('issue_date', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new AppError(
+      `Failed to load client invoices: ${error.message}`,
+      'CLIENT_INVOICE_ERROR',
+      500
+    );
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    number: row.number,
+    status: row.status,
+    total: decimalToNumber(row.total),
+    issueDate: row.issue_date,
+    balanceDue: decimalToNumber(row.balance_due),
+    stripeCheckoutUrl: row.stripe_checkout_url,
+  }));
+}
+
+/**
+ * Get activity logs for a specific invoice
+ * @param invoiceId - The invoice ID
+ * @param options - Optional pagination options
+ */
+export async function getInvoiceActivity(
+  invoiceId: number,
+  options?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<import('@/lib/types/invoices').ActivityDTO[]> {
+  const supabase = getServiceSupabase();
+
+  const limit = options?.limit && Number.isFinite(options.limit) && options.limit > 0
+    ? options.limit
+    : 50;
+  const offset = options?.offset && Number.isFinite(options.offset) && options.offset >= 0
+    ? options.offset
+    : 0;
+
+  const { data, error } = await supabase
+    .from('activity_logs')
+    .select('id, action, message, created_at')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new AppError(
+      `Failed to load invoice activity: ${error.message}`,
+      'ACTIVITY_LOAD_ERROR',
+      500
+    );
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    action: row.action,
+    message: row.message,
+    createdAt: row.created_at,
+  }));
+}
