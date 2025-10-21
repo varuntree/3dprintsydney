@@ -1,6 +1,6 @@
 import { logger } from "@/lib/logger";
 import { exportInvoicesCsv } from "@/server/services/exports";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**

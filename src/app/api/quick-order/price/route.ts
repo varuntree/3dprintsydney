@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { priceQuickOrder } from "@/server/services/quick-order";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   try {
-    await requireUser(req);
+    await requireAuth(req);
     const body = await req.json();
     const items = body?.items ?? [];
     if (!Array.isArray(items) || items.length === 0) {

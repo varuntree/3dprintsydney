@@ -1,6 +1,6 @@
 import { ok, handleError } from "@/server/api/respond";
 import { bulkArchiveJobs } from "@/server/services/jobs";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 export async function POST(request: NextRequest) {

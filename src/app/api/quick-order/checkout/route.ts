@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import {
   createQuickOrderInvoice,
   type QuickOrderItemInput,
@@ -17,7 +17,7 @@ import { logger } from "@/lib/logger";
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     if (!user.clientId) {
       return fail("NO_CLIENT", "User not linked to client", 400);
     }

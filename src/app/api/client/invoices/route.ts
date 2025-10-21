@@ -1,12 +1,12 @@
 import { NextRequest } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { listClientInvoices } from "@/server/services/invoices";
 import { ok, handleError } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
 
     if (!user.clientId) {
       throw new BadRequestError("No client associated with user");

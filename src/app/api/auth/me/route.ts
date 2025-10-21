@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromRequest } from "@/server/auth/session";
+import { getAuthUser } from "@/server/auth/api-helpers";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getUserFromRequest(req);
+    const user = await getAuthUser(req);
     if (!user) return fail("UNAUTHORIZED", "Unauthorized", 401);
     return ok({ id: user.id, email: user.email, role: user.role, clientId: user.clientId });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { saveTmpFile } from "@/server/services/tmp-files";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const form = await req.formData();
     const entries = form.getAll("files");
     if (!entries.length) {

@@ -5,7 +5,7 @@ import {
   deleteProductTemplate,
 } from "@/server/services/product-templates";
 import { productTemplateInputSchema } from "@/lib/schemas/catalog";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

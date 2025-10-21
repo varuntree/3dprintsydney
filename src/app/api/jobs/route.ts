@@ -1,7 +1,7 @@
 import { ok, handleError } from "@/server/api/respond";
 import { getJobBoard } from "@/server/services/jobs";
 import { JobStatus } from "@/lib/constants/enums";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { calculateDateWindow } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
 

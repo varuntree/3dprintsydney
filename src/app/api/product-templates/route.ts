@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listProductTemplates, createProductTemplate } from "@/server/services/product-templates";
 import { productTemplateInputSchema } from "@/lib/schemas/catalog";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 /**

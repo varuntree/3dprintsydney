@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireUser } from "@/server/auth/session";
+import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
@@ -7,7 +7,7 @@ import { parsePaginationParams } from "@/lib/utils/api-params";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const { searchParams } = new URL(req.url);
 
     const { limit, offset } = parsePaginationParams(searchParams);
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireUser(req);
+    const user = await requireAuth(req);
     const body = await req.json();
     const content = body?.content;
     const invoiceId = body?.invoiceId ? Number(body.invoiceId) : null;

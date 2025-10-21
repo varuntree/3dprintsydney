@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAdminAPI } from "@/server/auth/api-helpers";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import { getInvoiceActivity } from "@/server/services/invoices";
 import { ok, handleError } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   try {
     const invoiceId = await parseId(context.params);
     // SECURITY: Only admins can view activity logs
-    await requireAdminAPI(req);
+    await requireAdmin(req);
 
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") ?? "50");

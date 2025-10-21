@@ -1,6 +1,6 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { writeOffInvoice } from "@/server/services/invoices";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {

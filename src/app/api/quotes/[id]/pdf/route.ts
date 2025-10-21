@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fail } from "@/server/api/respond";
 import { generateQuotePdf } from "@/server/pdf/generator";
-import { requireAdmin } from "@/server/auth/session";
+import { requireAdmin } from "@/server/auth/api-helpers";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
