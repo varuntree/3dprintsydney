@@ -1,5 +1,5 @@
 import { formatMultiline } from "@/server/pdf/templates/shared/utils";
-import type { QuoteDetail } from "@/server/services/quotes";
+import type { QuoteDetailDTO } from "@/lib/types/quotes";
 import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 
 const PDF_THEME = {
@@ -1046,7 +1046,7 @@ function generateProductionHTML(content: string, title: string): string {
   `;
 }
 
-export function renderProductionQuoteHtml(quote: QuoteDetail, options: TemplateOptions = {}): string {
+export function renderProductionQuoteHtml(quote: QuoteDetailDTO, options: TemplateOptions = {}): string {
   const businessInfo: BusinessInfo = {
     logoDataUrl: options.logoDataUrl,
     businessName: options.businessName,
@@ -1090,7 +1090,7 @@ export function renderProductionQuoteHtml(quote: QuoteDetail, options: TemplateO
       subtotal: quote.subtotal,
       tax: quote.taxTotal,
       total: quote.total,
-      discountTotal: (quote as QuoteDetail & { discountTotal?: number }).discountTotal ?? 0
+      discountTotal: (quote as QuoteDetailDTO & { discountTotal?: number }).discountTotal ?? 0
     })}
     ${renderProductionTermsInfo(paymentTermsLabel)}
     ${quote.notes ? `
