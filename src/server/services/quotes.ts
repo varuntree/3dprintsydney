@@ -23,6 +23,7 @@ import type {
   QuoteStatus as QuoteStatusValue,
 } from "@/lib/constants/enums";
 import { getInvoice } from "@/server/services/invoices";
+import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -214,10 +215,10 @@ async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load quote: ${error.message}`);
+    throw new AppError(`Failed to load quote: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error("Quote not found");
+    throw new NotFoundError("Quote", id);
   }
 
   const client = (data as QuoteDetailRow).client;
@@ -289,7 +290,7 @@ export async function listQuotes(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list quotes: ${error.message}`);
+    throw new AppError(`Failed to list quotes: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data ?? []).map((row) => mapQuoteSummary(row as QuoteRow));
 }
@@ -363,7 +364,7 @@ export async function createQuote(payload: unknown) {
     .single();
 
   if (error || !created) {
-    throw new Error(`Failed to create quote: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const itemPayload = parsed.lines.map((line, index) => ({
@@ -385,7 +386,7 @@ export async function createQuote(payload: unknown) {
     const { error: itemError } = await supabase.from("quote_items").insert(itemPayload);
     if (itemError) {
       await supabase.from("quotes").delete().eq("id", created.id);
-      throw new Error(`Failed to insert quote items: ${itemError.message}`);
+      throw new AppError(`Failed to insert quote items: ${itemError.message}`, 'DATABASE_ERROR', 500);
     }
   }
 
@@ -439,7 +440,7 @@ export async function updateQuote(id: number, payload: unknown) {
     .single();
 
   if (error || !updated) {
-    throw new Error(`Failed to update quote: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to update quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: deleteError } = await supabase
@@ -447,7 +448,7 @@ export async function updateQuote(id: number, payload: unknown) {
     .delete()
     .eq("quote_id", id);
   if (deleteError) {
-    throw new Error(`Failed to reset quote items: ${deleteError.message}`);
+    throw new AppError(`Failed to reset quote items: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
   const itemPayload = parsed.lines.map((line, index) => ({
@@ -468,7 +469,7 @@ export async function updateQuote(id: number, payload: unknown) {
   if (itemPayload.length > 0) {
     const { error: insertError } = await supabase.from("quote_items").insert(itemPayload);
     if (insertError) {
-      throw new Error(`Failed to insert quote items: ${insertError.message}`);
+      throw new AppError(`Failed to insert quote items: ${insertError.message}`, 'DATABASE_ERROR', 500);
     }
   }
 
@@ -504,7 +505,7 @@ export async function updateQuoteStatus(id: number, payload: unknown) {
     .single();
 
   if (error || !quote) {
-    throw new Error(`Failed to update quote status: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to update quote status: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({
@@ -536,7 +537,7 @@ export async function deleteQuote(id: number) {
     .single();
 
   if (error || !removed) {
-    throw new Error(`Failed to delete quote: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to delete quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({
@@ -570,10 +571,10 @@ export async function convertQuoteToInvoice(id: number) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load quote: ${error.message}`);
+    throw new AppError(`Failed to load quote: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error("Quote not found");
+    throw new NotFoundError("Quote", id);
   }
 
   const quote = data as QuoteDetailRow & { client: { id: number; name: string } };
@@ -612,7 +613,7 @@ export async function convertQuoteToInvoice(id: number) {
     .single();
 
   if (invoiceError || !created) {
-    throw new Error(`Failed to create invoice: ${invoiceError?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create invoice: ${invoiceError?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const itemPayload = (quote.items ?? quote.quote_items ?? []).map((item, index) => ({
@@ -634,7 +635,7 @@ export async function convertQuoteToInvoice(id: number) {
     const { error: itemsError } = await supabase.from("invoice_items").insert(itemPayload);
     if (itemsError) {
       await supabase.from("invoices").delete().eq("id", created.id);
-      throw new Error(`Failed to copy quote items to invoice: ${itemsError.message}`);
+      throw new AppError(`Failed to copy quote items to invoice: ${itemsError.message}`, 'DATABASE_ERROR', 500);
     }
   }
 
@@ -682,7 +683,7 @@ export async function sendQuote(id: number) {
     .single();
 
   if (error || !quote) {
-    throw new Error(`Failed to mark quote sent: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to mark quote sent: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({
@@ -719,7 +720,7 @@ export async function acceptQuote(id: number, note?: string) {
     .single();
 
   if (error || !quote) {
-    throw new Error(`Failed to accept quote: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to accept quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({
@@ -757,7 +758,7 @@ export async function declineQuote(id: number, note?: string) {
     .single();
 
   if (error || !quote) {
-    throw new Error(`Failed to decline quote: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to decline quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const { error: activityError } = await supabase.from("activity_logs").insert({
@@ -791,10 +792,10 @@ export async function duplicateQuote(id: number) {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load quote: ${error.message}`);
+    throw new AppError(`Failed to load quote: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error("Quote not found");
+    throw new NotFoundError("Quote", id);
   }
 
   const quote = data as QuoteDetailRow;
@@ -824,7 +825,7 @@ export async function duplicateQuote(id: number) {
     .single();
 
   if (duplicateError || !created) {
-    throw new Error(`Failed to duplicate quote: ${duplicateError?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to duplicate quote: ${duplicateError?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const itemPayload = (quote.items ?? quote.quote_items ?? []).map((item, index) => ({
@@ -846,7 +847,7 @@ export async function duplicateQuote(id: number) {
     const { error: itemsError } = await supabase.from("quote_items").insert(itemPayload);
     if (itemsError) {
       await supabase.from("quotes").delete().eq("id", created.id);
-      throw new Error(`Failed to duplicate quote items: ${itemsError.message}`);
+      throw new AppError(`Failed to duplicate quote items: ${itemsError.message}`, 'DATABASE_ERROR', 500);
     }
   }
 

@@ -8,8 +8,7 @@ import {
   PrinterStatus,
 } from "@/lib/constants/enums";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-
-type HttpError = Error & { status?: number };
+import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
 
 export type JobCard = {
   id: number;
@@ -214,7 +213,7 @@ async function getOpsSettings(): Promise<SettingsOptions> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load ops settings: ${error.message}`);
+    throw new AppError(`Failed to load ops settings: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   return {
@@ -239,22 +238,18 @@ async function ensurePrinterAssignable(printerId: number | null | undefined) {
   ]);
 
   if (printer.error) {
-    throw new Error(`Printer lookup failed: ${printer.error.message}`);
+    throw new AppError(`Printer lookup failed: ${printer.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!printer.data) {
-    throw new Error("Printer not found");
+    throw new NotFoundError("Printer", "id");
   }
 
   const status = (printer.data.status ?? "ACTIVE") as PrinterStatus;
   if (settings.preventAssignToOffline && status === PrinterStatus.OFFLINE) {
-    const err: HttpError = new Error("Assignment blocked: printer is offline");
-    err.status = 422;
-    throw err;
+    throw new BadRequestError("Assignment blocked: printer is offline");
   }
   if (settings.preventAssignToMaintenance && status === PrinterStatus.MAINTENANCE) {
-    const err: HttpError = new Error("Assignment blocked: printer in maintenance");
-    err.status = 422;
-    throw err;
+    throw new BadRequestError("Assignment blocked: printer in maintenance");
   }
 }
 
@@ -293,10 +288,10 @@ export async function getJobBoard(filters: BoardFilters = {}): Promise<JobBoardS
   ]);
 
   if (printersRes.error) {
-    throw new Error(`Failed to load printers: ${printersRes.error.message}`);
+    throw new AppError(`Failed to load printers: ${printersRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (jobsRes.error) {
-    throw new Error(`Failed to load jobs: ${jobsRes.error.message}`);
+    throw new AppError(`Failed to load jobs: ${jobsRes.error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const printerRows: PrinterRow[] = printersRes.data ?? [];
@@ -395,7 +390,7 @@ async function getMaxQueuePosition(printerId: number | null): Promise<number> {
     .order("queue_position", { ascending: false })
     .limit(1);
   if (error) {
-    throw new Error(`Failed to compute queue position: ${error.message}`);
+    throw new AppError(`Failed to compute queue position: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return data?.[0]?.queue_position ?? -1;
 }
@@ -410,10 +405,10 @@ async function fetchJobWithRelations(id: number): Promise<JobWithRelationsRow> {
     .eq("id", id)
     .maybeSingle();
   if (error) {
-    throw new Error(`Failed to load job: ${error.message}`);
+    throw new AppError(`Failed to load job: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new Error("Job not found");
+    throw new NotFoundError("Job", id);
   }
   return data as JobWithRelationsRow;
 }
@@ -429,10 +424,10 @@ export async function ensureJobForInvoice(invoiceId: number) {
     .maybeSingle();
 
   if (invoiceRes.error) {
-    throw new Error(`Failed to load invoice: ${invoiceRes.error.message}`);
+    throw new AppError(`Failed to load invoice: ${invoiceRes.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoiceRes.data) {
-    throw new Error("Invoice not found");
+    throw new NotFoundError("Invoice", invoiceId);
   }
 
   const existing = await supabase
@@ -471,7 +466,7 @@ export async function ensureJobForInvoice(invoiceId: number) {
     .single();
 
   if (createError || !created) {
-    throw new Error(`Failed to create job: ${createError?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create job: ${createError?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   const activityError = await supabase.from("activity_logs").insert({
@@ -511,7 +506,7 @@ export async function listJobsForClient(
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list jobs: ${error.message}`);
+    throw new AppError(`Failed to list jobs: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   return (data as JobWithRelationsRow[]).map(mapClientJob);
@@ -562,7 +557,7 @@ export async function updateJob(
     .eq("id", id);
 
   if (error) {
-    throw new Error(`Failed to update job: ${error.message}`);
+    throw new AppError(`Failed to update job: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   logger.info({ scope: "jobs.update", data: { id } });
@@ -594,9 +589,7 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
 
   if (status === JobStatus.PRINTING) {
     if (!jobRecord.printer_id) {
-      const err: HttpError = new Error("Cannot start printing without a printer assignment");
-      err.status = 422;
-      throw err;
+      throw new BadRequestError("Cannot start printing without a printer assignment");
     }
     await ensurePrinterAssignable(jobRecord.printer_id);
     const { count, error: countError } = await supabase
@@ -605,12 +598,10 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
       .eq("printer_id", jobRecord.printer_id)
       .eq("status", JobStatus.PRINTING);
     if (countError) {
-      throw new Error(`Failed to inspect active jobs: ${countError.message}`);
+      throw new AppError(`Failed to inspect active jobs: ${countError.message}`, 'DATABASE_ERROR', 500);
     }
     if ((count ?? 0) >= settings.maxActivePrintingPerPrinter) {
-      const err: HttpError = new Error("Printer is busy: active job limit reached");
-      err.status = 409;
-      throw err;
+      throw new ConflictError("Printer is busy: active job limit reached");
     }
     updates.started_at = jobRecord.started_at ?? now.toISOString();
     updates.paused_at = null;
@@ -659,7 +650,7 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
 
   const { error } = await supabase.from("jobs").update(updates).eq("id", id);
   if (error) {
-    throw new Error(`Failed to update job status: ${error.message}`);
+    throw new AppError(`Failed to update job status: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const activityError = await supabase.from("activity_logs").insert({
@@ -695,7 +686,7 @@ export async function clearPrinterQueue(printerId: number) {
     .in("status", [JobStatus.QUEUED, JobStatus.PAUSED])
     .order("queue_position", { ascending: true });
   if (error) {
-    throw new Error(`Failed to load printer queue: ${error.message}`);
+    throw new AppError(`Failed to load printer queue: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const queue = data ?? [];
@@ -718,7 +709,7 @@ export async function clearPrinterQueue(printerId: number) {
       })
       .eq("id", job.id);
     if (updateError) {
-      throw new Error(`Failed to detach job ${job.id}: ${updateError.message}`);
+      throw new AppError(`Failed to detach job ${job.id}: ${updateError.message}`, 'DATABASE_ERROR', 500);
     }
     nextPosition += 1;
   }
@@ -753,7 +744,7 @@ export async function getJobCreationPolicy(): Promise<JobCreationPolicy> {
     .eq("id", 1)
     .maybeSingle();
   if (error) {
-    throw new Error(`Failed to read job creation policy: ${error.message}`);
+    throw new AppError(`Failed to read job creation policy: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data?.job_creation_policy ?? JobCreationPolicy.ON_PAYMENT) as JobCreationPolicy;
 }
@@ -768,7 +759,7 @@ export async function archiveJob(id: number, reason?: string) {
     })
     .eq("id", id);
   if (error) {
-    throw new Error(`Failed to archive job: ${error.message}`);
+    throw new AppError(`Failed to archive job: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const job = await fetchJobWithRelations(id);
@@ -802,7 +793,7 @@ export async function bulkArchiveJobs(ids: number[], reason?: string) {
     })
     .in("id", ids);
   if (error) {
-    throw new Error(`Failed to bulk archive jobs: ${error.message}`);
+    throw new AppError(`Failed to bulk archive jobs: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   logger.info({ scope: "jobs.archive.bulk", data: { count: ids.length } });
   return ids.length;
