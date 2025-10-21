@@ -42,4 +42,21 @@ export const quoteStatusSchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "ACCEPTED", "DECLINED", "CONVERTED"]),
 });
 
+// Quote action schemas
+export const quoteAcceptSchema = z.object({
+  note: z.string().optional(),
+});
+
+export const quoteDeclineSchema = z.object({
+  note: z.string().optional(),
+});
+
+export const quoteConvertSchema = z.object({});
+
+export const quoteDuplicateSchema = z.object({});
+
+export const quoteSendSchema = z.object({});
+
 export type QuoteStatusInput = z.infer<typeof quoteStatusSchema>;
+export type QuoteAcceptInput = z.infer<typeof quoteAcceptSchema>;
+export type QuoteDeclineInput = z.infer<typeof quoteDeclineSchema>;

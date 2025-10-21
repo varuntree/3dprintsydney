@@ -48,4 +48,17 @@ export const paymentInputSchema = z.object({
   paidAt: z.string().optional(),
 });
 
+// Invoice action schemas
+export const invoiceVoidSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export const invoiceWriteOffSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export const invoiceRevertSchema = z.object({});
+
 export type PaymentInput = z.infer<typeof paymentInputSchema>;
+export type InvoiceVoidInput = z.infer<typeof invoiceVoidSchema>;
+export type InvoiceWriteOffInput = z.infer<typeof invoiceWriteOffSchema>;

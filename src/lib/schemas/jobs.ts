@@ -45,3 +45,10 @@ export const jobReorderEntrySchema = z.object({
 });
 
 export const jobReorderSchema = z.array(jobReorderEntrySchema).min(1);
+
+// Job action schemas
+export const jobArchiveSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export type JobArchiveInput = z.infer<typeof jobArchiveSchema>;
