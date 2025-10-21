@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
+import { z } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { parsePaginationParams } from "@/lib/utils/api-params";
+import { messageInputSchema } from "@/lib/schemas/messages";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,23 +34,28 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     const body = await req.json();
-    const content = body?.content;
-    const invoiceId = body?.invoiceId ? Number(body.invoiceId) : null;
-
-    if (!content || typeof content !== "string") {
-      return fail("VALIDATION_ERROR", "Invalid content", 422);
-    }
+    const validated = messageInputSchema.parse(body);
 
     // Ensure the sender has access to this invoice if provided
-    if (invoiceId && Number.isFinite(invoiceId)) {
-      await requireInvoiceAccess(req, Number(invoiceId));
+    if (validated.invoiceId && Number.isFinite(validated.invoiceId)) {
+      await requireInvoiceAccess(req, validated.invoiceId);
     }
 
     const sender = user.role === "ADMIN" ? "ADMIN" : "CLIENT";
-    const message = await createMessage(user.id, content, sender, invoiceId);
+    const message = await createMessage(
+      user.id,
+      validated.content,
+      sender,
+      validated.invoiceId ?? null
+    );
 
     return ok(message);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+        issues: error.issues,
+      });
+    }
     return handleError(error, 'messages.post');
   }
 }
