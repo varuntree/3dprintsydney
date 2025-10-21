@@ -5,7 +5,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { LegacyUser } from "@/lib/types/user";
 import { logger } from "@/lib/logger";
-import { UnauthorizedError, ForbiddenError, AppError } from "@/lib/errors";
+import { UnauthorizedError, AppError } from "@/lib/errors";
 
 const ACCESS_COOKIE = "sb:token";
 
