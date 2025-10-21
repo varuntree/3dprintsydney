@@ -15,7 +15,7 @@ import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
 import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
-import { AppError, NotFoundError, BadRequestError, ConflictError } from '@/lib/errors';
+import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -600,7 +600,7 @@ export async function addInvoiceAttachment(
     throw new AppError(`Failed to load invoice: ${invoiceError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoice) {
-    throw new NotFoundError('Invoice', id);
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const safeName = file.name.replaceAll('\\', '/').split('/').pop()!.replace(/[^^\w.\-]+/g, '_');
@@ -635,7 +635,7 @@ export async function removeInvoiceAttachment(attachmentId: number) {
     .select('id, invoice_id, filename, storage_key')
     .single();
   if (error || !attachment) {
-    throw new NotFoundError('Attachment', 'id');
+    throw new NotFoundError('Attachment', attachmentId);
   }
 
   await deleteInvoiceAttachment(attachment.storage_key);
@@ -662,7 +662,7 @@ export async function readInvoiceAttachment(attachmentId: number) {
     .eq('id', attachmentId)
     .maybeSingle();
   if (error || !data) {
-    throw new NotFoundError('Attachment', 'id');
+    throw new NotFoundError('Attachment', attachmentId);
   }
 
   const url = await getAttachmentSignedUrl(data.storage_key, 60);
@@ -680,7 +680,7 @@ export async function markInvoiceUnpaid(invoiceId: number) {
     throw new AppError(`Failed to load invoice: ${invoiceError.message}`, 'DATABASE_ERROR', 500);
   }
   if (!invoice) {
-    throw new NotFoundError('Invoice', id);
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const { data: payments, error: paymentsError } = await supabase
@@ -733,7 +733,7 @@ export async function markInvoicePaid(invoiceId: number, options?: {
     .single();
 
   if (!currentInvoice) {
-    throw new NotFoundError('Invoice', id);
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   if (currentInvoice.status === 'PAID') {
@@ -864,7 +864,7 @@ export async function revertInvoiceToQuote(invoiceId: number) {
     throw new AppError(`Failed to load invoice: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
-    throw new NotFoundError('Invoice', id);
+    throw new NotFoundError('Invoice', invoiceId);
   }
 
   const invoice = data as InvoiceRevertRow;

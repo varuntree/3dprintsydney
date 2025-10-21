@@ -241,7 +241,7 @@ async function ensurePrinterAssignable(printerId: number | null | undefined) {
     throw new AppError(`Printer lookup failed: ${printer.error.message}`, 'DATABASE_ERROR', 500);
   }
   if (!printer.data) {
-    throw new NotFoundError("Printer", "id");
+    throw new NotFoundError("Printer", printerId);
   }
 
   const status = (printer.data.status ?? "ACTIVE") as PrinterStatus;
