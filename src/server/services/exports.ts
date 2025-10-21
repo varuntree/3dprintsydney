@@ -3,6 +3,7 @@ import { endOfDay, parseISO, startOfDay } from "date-fns";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { InvoiceStatus, JobStatus, JobPriority } from "@/lib/constants/enums";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 function decimalToNumber(value: unknown): number {
   if (value === null || value === undefined) return 0;
@@ -35,6 +36,7 @@ function buildCsvPayload(type: string, rows: Record<string, unknown>[]): CsvPayl
   const parser = new Parser();
   const csv = parser.parse(rows);
   const timestamp = new Date().toISOString().split("T")[0];
+  logger.info({ scope: `exports.${type}`, data: { rows: rows.length, timestamp } });
   return {
     filename: `${type}-${timestamp}.csv`,
     csv,
@@ -42,6 +44,12 @@ function buildCsvPayload(type: string, rows: Record<string, unknown>[]): CsvPayl
   };
 }
 
+/**
+ * Export invoices data to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
@@ -78,6 +86,12 @@ export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> 
   return buildCsvPayload("invoices", rows);
 }
 
+/**
+ * Export payments data to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
@@ -114,6 +128,12 @@ export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> 
   return buildCsvPayload("payments", rows);
 }
 
+/**
+ * Export jobs data to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
@@ -154,6 +174,12 @@ export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
   return buildCsvPayload("jobs", rows);
 }
 
+/**
+ * Export accounts receivable aging report to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
@@ -196,6 +222,12 @@ export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
   return buildCsvPayload("ar-aging", rows);
 }
 
+/**
+ * Export material usage statistics to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
@@ -234,6 +266,12 @@ export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayl
   return buildCsvPayload("material-usage", rows);
 }
 
+/**
+ * Export printer utilization statistics to CSV format
+ * @param range - Optional date range filter
+ * @returns CSV payload with filename and content
+ * @throws AppError if database query fails
+ */
 export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);

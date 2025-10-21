@@ -6,6 +6,7 @@ import {
   getOrderFileSignedUrl,
 } from "@/server/storage/supabase";
 import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export type OrderFileType = "model" | "settings";
 
@@ -24,6 +25,12 @@ export type OrderFileRecord = {
   uploaded_at: string;
 };
 
+/**
+ * Save an order file to storage and database
+ * @param params - File save parameters (buffer, filename, invoice/quote ID, user ID)
+ * @returns Created order file record
+ * @throws AppError if file upload or database operation fails
+ */
 export async function saveOrderFile(params: {
   invoiceId?: number;
   quoteId?: number;
@@ -83,9 +90,16 @@ export async function saveOrderFile(params: {
     throw new AppError(error?.message ?? "Failed to save order file record", 'DATABASE_ERROR', 500);
   }
 
+  logger.info({ scope: 'orderFiles.save', data: { id: data.id, filename, invoiceId, quoteId } });
   return data as OrderFileRecord;
 }
 
+/**
+ * Get all order files for a specific invoice
+ * @param invoiceId - Invoice ID
+ * @returns Array of order file records
+ * @throws AppError if database query fails
+ */
 export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFileRecord[]> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -101,6 +115,12 @@ export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFi
   return (data ?? []) as OrderFileRecord[];
 }
 
+/**
+ * Get all order files for a specific quote
+ * @param quoteId - Quote ID
+ * @returns Array of order file records
+ * @throws AppError if database query fails
+ */
 export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRecord[]> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -116,6 +136,13 @@ export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRe
   return (data ?? []) as OrderFileRecord[];
 }
 
+/**
+ * Get a single order file by ID
+ * @param id - Order file ID
+ * @returns Order file record
+ * @throws NotFoundError if file not found
+ * @throws AppError if database query fails
+ */
 export async function getOrderFile(id: number): Promise<OrderFileRecord> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -131,16 +158,34 @@ export async function getOrderFile(id: number): Promise<OrderFileRecord> {
   return data as OrderFileRecord;
 }
 
+/**
+ * Get a signed download URL for an order file
+ * @param id - Order file ID
+ * @param expiresIn - URL expiration time in seconds (default 300)
+ * @returns Signed download URL
+ * @throws AppError if URL generation fails
+ */
 export async function getOrderFileDownloadUrl(id: number, expiresIn = 300): Promise<string> {
   const file = await getOrderFile(id);
   return getOrderFileSignedUrl(file.storage_key, expiresIn);
 }
 
+/**
+ * Download an order file to a buffer
+ * @param id - Order file ID
+ * @returns File buffer
+ * @throws AppError if download fails
+ */
 export async function downloadOrderFileToBuffer(id: number): Promise<Buffer> {
   const file = await getOrderFile(id);
   return downloadOrderFile(file.storage_key);
 }
 
+/**
+ * Delete an order file from storage and database
+ * @param id - Order file ID to delete
+ * @throws AppError if deletion fails
+ */
 export async function deleteOrderFile(id: number): Promise<void> {
   const file = await getOrderFile(id);
   const supabase = getServiceSupabase();
@@ -153,4 +198,6 @@ export async function deleteOrderFile(id: number): Promise<void> {
 
   // Delete from storage
   await deleteFromStorage(file.storage_key).catch(() => undefined);
+
+  logger.info({ scope: 'orderFiles.delete', data: { id, filename: file.filename } });
 }

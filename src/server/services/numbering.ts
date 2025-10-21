@@ -1,5 +1,6 @@
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError } from '@/lib/errors';
+import { logger } from '@/lib/logger';
 
 /**
  * Generate next sequential document number for quotes or invoices
@@ -19,5 +20,6 @@ export async function nextDocumentNumber(kind: 'quote' | 'invoice') {
     throw new AppError(`Failed to generate document number: ${error?.message ?? 'Unknown error'}`, 'NUMBERING_ERROR', 500);
   }
 
+  logger.info({ scope: 'numbering.generate', data: { kind, number: data } });
   return data;
 }
