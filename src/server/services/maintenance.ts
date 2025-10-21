@@ -2,6 +2,7 @@ import { addDays, startOfDay } from "date-fns";
 import { logger } from "@/lib/logger";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { InvoiceStatus, QuoteStatus } from "@/lib/constants/enums";
+import { AppError } from "@/lib/errors";
 
 async function getSettings() {
   const supabase = getServiceSupabase();
@@ -11,7 +12,7 @@ async function getSettings() {
     .eq("id", 1)
     .maybeSingle();
   if (error) {
-    throw new Error(`Failed to load maintenance settings: ${error.message}`);
+    throw new AppError(`Failed to load maintenance settings: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return {
     overdueDays: data?.overdue_days ?? 0,
@@ -33,7 +34,7 @@ export async function runDailyMaintenance(now: Date = new Date()) {
       .eq("status", InvoiceStatus.PENDING)
       .lte("due_date", cutoff);
     if (error) {
-      throw new Error(`Failed to mark overdue invoices: ${error.message}`);
+      throw new AppError(`Failed to mark overdue invoices: ${error.message}`, 'DATABASE_ERROR', 500);
     }
     actions += 1;
   }
@@ -45,7 +46,7 @@ export async function runDailyMaintenance(now: Date = new Date()) {
       .eq("status", QuoteStatus.PENDING)
       .or(`expiry_date.lte.${now.toISOString()},expires_at.lte.${now.toISOString()}`);
     if (error) {
-      throw new Error(`Failed to expire quotes: ${error.message}`);
+      throw new AppError(`Failed to expire quotes: ${error.message}`, 'DATABASE_ERROR', 500);
     }
     actions += 1;
   }
@@ -58,7 +59,7 @@ export async function runDailyMaintenance(now: Date = new Date()) {
       .lte("completed_at", cutoff)
       .is("archived_at", null);
     if (error) {
-      throw new Error(`Failed to archive completed jobs: ${error.message}`);
+      throw new AppError(`Failed to archive completed jobs: ${error.message}`, 'DATABASE_ERROR', 500);
     }
     actions += 1;
   }

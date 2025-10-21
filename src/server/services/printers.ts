@@ -2,6 +2,7 @@ import { logger } from "@/lib/logger";
 import { printerInputSchema } from "@/lib/schemas/catalog";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { PrinterStatus } from "@/lib/constants/enums";
+import { AppError, NotFoundError } from "@/lib/errors";
 
 export type PrinterDTO = {
   id: number;
@@ -27,7 +28,7 @@ type PrinterRow = {
 
 function mapPrinter(row: PrinterRow | null): PrinterDTO {
   if (!row) {
-    throw new Error("Printer not found");
+    throw new NotFoundError("Printer", "unknown");
   }
   return {
     id: row.id,
@@ -89,7 +90,7 @@ export async function listPrinters(options?: {
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to list printers: ${error.message}`);
+    throw new AppError(`Failed to list printers: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   return (data as PrinterRow[]).map(mapPrinter);
 }
@@ -111,7 +112,7 @@ export async function createPrinter(payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to create printer: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to create printer: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -142,7 +143,7 @@ export async function updatePrinter(id: number, payload: unknown) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update printer: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to update printer: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(
@@ -165,7 +166,7 @@ export async function deletePrinter(id: number) {
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to delete printer: ${error?.message ?? "Unknown error"}`);
+    throw new AppError(`Failed to delete printer: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
   await insertActivity(

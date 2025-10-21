@@ -9,6 +9,7 @@ import {
   jobCreationPolicyValues,
 } from '@/lib/schemas/settings';
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { AppError } from '@/lib/errors';
 
 const DEFAULT_SHIPPING_REGIONS: SettingsInput['shippingRegions'] = [
   {
@@ -152,7 +153,7 @@ async function ensureSettingsRow(): Promise<SettingsRow> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
   if (error) {
-    throw new Error(`Failed to read settings: ${error.message}`);
+    throw new AppError(`Failed to read settings: ${error.message}`, 'DATABASE_ERROR', 500);
   }
   if (data) {
     return data as SettingsRow;
@@ -163,7 +164,7 @@ async function ensureSettingsRow(): Promise<SettingsRow> {
     .select('*')
     .single();
   if (insertError || !inserted) {
-    throw new Error(`Failed to initialize settings: ${insertError?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to initialize settings: ${insertError?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
   return inserted as SettingsRow;
 }
@@ -217,7 +218,7 @@ export async function updateSettings(payload: unknown): Promise<SerializedSettin
     .single();
 
   if (error || !data) {
-    throw new Error(`Failed to update settings: ${error?.message ?? 'Unknown error'}`);
+    throw new AppError(`Failed to update settings: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
   }
 
   const sequenceUpdates = [
@@ -230,7 +231,7 @@ export async function updateSettings(payload: unknown): Promise<SerializedSettin
     .upsert(sequenceUpdates, { onConflict: 'kind' });
 
   if (sequenceError) {
-    throw new Error(`Failed to update number sequences: ${sequenceError.message}`);
+    throw new AppError(`Failed to update number sequences: ${sequenceError.message}`, 'DATABASE_ERROR', 500);
   }
 
   await supabase.from('activity_logs').insert({
@@ -262,7 +263,7 @@ export async function resolvePaymentTermsOptions(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load payment terms: ${error.message}`);
+    throw new AppError(`Failed to load payment terms: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const paymentTerms = parsePaymentTerms(data?.payment_terms);
