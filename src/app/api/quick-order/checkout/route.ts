@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const result = await createQuickOrderInvoice(
       items,
       user.id,
-      user.clientId,
+      user.clientId, // TypeScript knows this is number due to guard above
       address,
     );
 

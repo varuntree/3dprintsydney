@@ -260,7 +260,7 @@ export function buildQuickOrderLines(
 export async function processQuickOrderFiles(
   items: QuickOrderItemInput[],
   invoice: { id: number },
-  user: { id: number; clientId: string },
+  user: { id: number; clientId: number },
   address: Record<string, unknown>,
   shippingQuote: QuickOrderShippingQuote,
 ) {
@@ -423,7 +423,7 @@ export async function executeSlicingWithRetry(
 export async function createQuickOrderInvoice(
   items: QuickOrderItemInput[],
   userId: number,
-  clientId: string,
+  clientId: number,
   address: Record<string, unknown> = {},
 ): Promise<{ invoiceId: number; checkoutUrl: string | null }> {
   // Recompute price server-side
