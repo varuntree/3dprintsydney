@@ -7,7 +7,7 @@ import { ForbiddenError } from "@/lib/errors";
  * API Route helper: Require authenticated user of any role
  * Throws 401 if not authenticated
  */
-export async function requireAuthAPI(req: NextRequest): Promise<LegacyUser> {
+export async function requireAuth(req: NextRequest): Promise<LegacyUser> {
   return await requireUser(req);
 }
 
@@ -15,7 +15,7 @@ export async function requireAuthAPI(req: NextRequest): Promise<LegacyUser> {
  * API Route helper: Require ADMIN role
  * Throws 401 if not authenticated, 403 if not admin
  */
-export async function requireAdminAPI(req: NextRequest): Promise<LegacyUser> {
+export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
   if (user.role !== "ADMIN") {
     throw new ForbiddenError("Admin access required");
@@ -27,7 +27,7 @@ export async function requireAdminAPI(req: NextRequest): Promise<LegacyUser> {
  * API Route helper: Require CLIENT role
  * Throws 401 if not authenticated, 403 if not client
  */
-export async function requireClientAPI(req: NextRequest): Promise<LegacyUser> {
+export async function requireClient(req: NextRequest): Promise<LegacyUser> {
   const user = await requireUser(req);
   if (user.role !== "CLIENT") {
     throw new ForbiddenError("Client access required");
@@ -39,8 +39,8 @@ export async function requireClientAPI(req: NextRequest): Promise<LegacyUser> {
  * API Route helper: Require CLIENT role with clientId
  * Throws 401 if not authenticated, 403 if not client or missing clientId
  */
-export async function requireClientWithIdAPI(req: NextRequest): Promise<LegacyUser & { clientId: number }> {
-  const user = await requireClientAPI(req);
+export async function requireClientWithId(req: NextRequest): Promise<LegacyUser & { clientId: number }> {
+  const user = await requireClient(req);
   if (!user.clientId) {
     throw new ForbiddenError("Client ID not found");
   }
@@ -51,10 +51,37 @@ export async function requireClientWithIdAPI(req: NextRequest): Promise<LegacyUs
  * API Route helper: Get user info or return null (optional auth)
  * Useful for endpoints that support both authenticated and public access
  */
-export async function getOptionalUserAPI(req: NextRequest): Promise<LegacyUser | null> {
+export async function getAuthUser(req: NextRequest): Promise<LegacyUser | null> {
   try {
     return await requireUser(req);
   } catch {
     return null;
   }
 }
+
+// Deprecated aliases for backwards compatibility during migration
+// TODO: Remove these after all routes are migrated
+/**
+ * @deprecated Use requireAuth instead
+ */
+export const requireAuthAPI = requireAuth;
+
+/**
+ * @deprecated Use requireAdmin instead
+ */
+export const requireAdminAPI = requireAdmin;
+
+/**
+ * @deprecated Use requireClient instead
+ */
+export const requireClientAPI = requireClient;
+
+/**
+ * @deprecated Use requireClientWithId instead
+ */
+export const requireClientWithIdAPI = requireClientWithId;
+
+/**
+ * @deprecated Use getAuthUser instead
+ */
+export const getOptionalUserAPI = getAuthUser;
