@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "@/server/auth/session";
-import { getServiceSupabase } from "@/server/supabase/service-client";
+import { getUserEmail } from "@/server/services/auth";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { logger } from "@/lib/logger";
-import { ok, fail } from "@/server/api/respond";
+import { ok, fail, handleError } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 
 const schema = z.object({
@@ -23,48 +23,36 @@ export async function POST(req: NextRequest) {
       return fail("INVALID_PASSWORD", "New password must be different", 400);
     }
 
-    const service = getServiceSupabase();
-    const { data: profile, error: profileError } = await service
-      .from("users")
-      .select("email")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new AppError(`Failed to load user profile: ${profileError.message}`, 'PASSWORD_CHANGE_ERROR', 500);
-    }
-    if (!profile) {
-      return fail("PROFILE_NOT_FOUND", "User profile not found", 404);
-    }
+    // Get user email for authentication
+    const email = await getUserEmail(user.id);
 
     const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
       auth: { persistSession: false },
     });
 
     const { data: authData, error: signInError } = await authClient.auth.signInWithPassword({
-      email: profile.email,
+      email,
       password: currentPassword,
     });
+
     if (signInError || !authData.session) {
       return fail("INCORRECT_PASSWORD", "Incorrect current password", 401);
     }
 
     const { error: updateError } = await authClient.auth.updateUser({ password: newPassword });
+
     if (updateError) {
       throw new AppError(updateError.message ?? "Failed to update password", 'PASSWORD_CHANGE_ERROR', 500);
     }
 
     await authClient.auth.signOut();
     logger.info({ scope: "auth.change_password", data: { userId: user.id } });
+
     return ok({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return fail("VALIDATION_ERROR", error.issues.map((issue) => issue.message).join(", "), 422);
     }
-    if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
-    }
-    logger.error({ scope: 'auth.change-password', error: error as Error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return handleError(error, 'auth.change-password');
   }
 }

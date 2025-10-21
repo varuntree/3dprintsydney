@@ -1,11 +1,9 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { loginSchema } from "@/lib/schemas/auth";
-import { getServiceSupabase } from "@/server/supabase/service-client";
+import { getUserByAuthId } from "@/server/services/auth";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
-import { fail } from "@/server/api/respond";
-import { AppError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { fail, handleError } from "@/server/api/respond";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,30 +18,20 @@ export async function POST(req: NextRequest) {
       email,
       password,
     });
+
     if (authError || !authData.user || !authData.session) {
       return fail("INVALID_CREDENTIALS", "Invalid credentials", 401);
     }
 
-    const service = getServiceSupabase();
-    const { data: profile, error: profileError } = await service
-      .from("users")
-      .select("id, email, role, client_id")
-      .eq("auth_user_id", authData.user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new AppError(`Failed to load profile: ${profileError.message}`, 'AUTH_ERROR', 500);
-    }
-    if (!profile) {
-      return fail("PROFILE_NOT_FOUND", "User profile not found", 404);
-    }
+    // Get user profile from database
+    const profile = await getUserByAuthId(authData.user.id);
 
     const response = NextResponse.json({
       data: {
         id: profile.id,
         email: profile.email,
         role: profile.role,
-        clientId: profile.client_id,
+        clientId: profile.clientId,
       },
     });
 
@@ -70,10 +58,6 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error) {
-    if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
-    }
-    logger.error({ scope: 'auth.login', error: error as Error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return handleError(error, 'auth.login');
   }
 }

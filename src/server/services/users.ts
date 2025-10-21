@@ -102,3 +102,151 @@ export async function deleteUserAndData(userId: number) {
     ),
   );
 }
+
+import type { UserDTO, UserCreateInput } from '@/lib/types/user';
+import { randomBytes } from 'crypto';
+
+/**
+ * List all users (admin view)
+ */
+export async function listUsers(): Promise<UserDTO[]> {
+  const supabase = getServiceSupabase();
+
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, email, role, client_id, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new AppError(
+      `Failed to load users: ${error.message}`,
+      'USER_LOAD_ERROR',
+      500
+    );
+  }
+
+  // Get message counts for all users
+  const userIds = (users ?? []).map((user) => user.id);
+  const messageCounts = new Map<number, number>();
+
+  await Promise.all(
+    userIds.map(async (id) => {
+      const { count, error: countError } = await supabase
+        .from('user_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', id);
+
+      if (countError) {
+        throw new AppError(
+          `Failed to count messages for user ${id}: ${countError.message}`,
+          'USER_LOAD_ERROR',
+          500
+        );
+      }
+
+      messageCounts.set(id, count ?? 0);
+    })
+  );
+
+  return (users ?? []).map((u) => ({
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    clientId: u.client_id,
+    createdAt: u.created_at,
+    messageCount: messageCounts.get(u.id) ?? 0,
+  }));
+}
+
+/**
+ * Create a new user (admin operation)
+ * @returns UserDTO with temporary password
+ */
+export async function createAdminUser(
+  input: UserCreateInput
+): Promise<UserDTO & { temporaryPassword: string }> {
+  const supabase = getServiceSupabase();
+
+  // Validate client exists if clientId provided
+  if (input.clientId) {
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', input.clientId)
+      .maybeSingle();
+
+    if (clientError) {
+      throw new AppError(
+        `Failed to verify client: ${clientError.message}`,
+        'USER_CREATE_ERROR',
+        500
+      );
+    }
+
+    if (!client) {
+      throw new NotFoundError('Client', input.clientId);
+    }
+  }
+
+  // Generate temporary password
+  const temporaryPassword = randomBytes(12).toString('base64url').slice(0, 16);
+
+  // Create auth user
+  const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+    email: input.email,
+    password: temporaryPassword,
+    email_confirm: true,
+  });
+
+  if (authError || !authUser.user) {
+    throw new AppError(
+      authError?.message ?? 'Failed to create auth user',
+      'USER_CREATE_ERROR',
+      500
+    );
+  }
+
+  // Create user profile
+  const { data: profile, error: profileError } = await supabase
+    .from('users')
+    .insert({
+      auth_user_id: authUser.user.id,
+      email: input.email,
+      role: input.role,
+      client_id: input.role === 'CLIENT' ? input.clientId ?? null : null,
+    })
+    .select('id, email, role, client_id, created_at')
+    .single();
+
+  if (profileError || !profile) {
+    // Rollback auth user creation
+    await supabase.auth.admin.deleteUser(authUser.user.id).catch((error) => {
+      logger.warn({
+        scope: 'users.create',
+        message: 'Rollback auth user failed',
+        error,
+      });
+    });
+
+    throw new AppError(
+      profileError?.message ?? 'Failed to create user profile',
+      'USER_CREATE_ERROR',
+      500
+    );
+  }
+
+  logger.info({
+    scope: 'users.create',
+    message: 'User created',
+    data: { userId: profile.id, role: profile.role },
+  });
+
+  return {
+    id: profile.id,
+    email: profile.email,
+    role: profile.role,
+    clientId: profile.client_id,
+    createdAt: profile.created_at,
+    temporaryPassword,
+  };
+}

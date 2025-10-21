@@ -355,3 +355,84 @@ function buildRevenueTrend(
 
   return Object.entries(months).map(([month, value]) => ({ month, value }));
 }
+
+/**
+ * Get dashboard statistics for a specific client
+ * @param clientId - The client ID to get stats for
+ */
+export async function getClientDashboardStats(
+  clientId: number
+): Promise<{
+  totalOrders: number;
+  pendingCount: number;
+  paidCount: number;
+  totalSpent: number;
+}> {
+  const supabase = getServiceSupabase();
+
+  const [totalRes, pendingRes, paidRes, paidInvoicesRes] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId),
+    supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("status", InvoiceStatus.PENDING),
+    supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("client_id", clientId)
+      .eq("status", InvoiceStatus.PAID),
+    supabase
+      .from("invoices")
+      .select("total")
+      .eq("client_id", clientId)
+      .eq("status", InvoiceStatus.PAID),
+  ]);
+
+  if (totalRes.error) {
+    throw new AppError(
+      `Failed to count invoices: ${totalRes.error.message}`,
+      'DASHBOARD_ERROR',
+      500
+    );
+  }
+  if (pendingRes.error) {
+    throw new AppError(
+      `Failed to count pending invoices: ${pendingRes.error.message}`,
+      'DASHBOARD_ERROR',
+      500
+    );
+  }
+  if (paidRes.error) {
+    throw new AppError(
+      `Failed to count paid invoices: ${paidRes.error.message}`,
+      'DASHBOARD_ERROR',
+      500
+    );
+  }
+  if (paidInvoicesRes.error) {
+    throw new AppError(
+      `Failed to fetch paid invoices: ${paidInvoicesRes.error.message}`,
+      'DASHBOARD_ERROR',
+      500
+    );
+  }
+
+  const totalOrders = totalRes.count ?? 0;
+  const pendingCount = pendingRes.count ?? 0;
+  const paidCount = paidRes.count ?? 0;
+  const totalSpent = (paidInvoicesRes.data ?? []).reduce(
+    (sum, row) => sum + decimalToNumber((row as { total: unknown }).total),
+    0
+  );
+
+  return {
+    totalOrders,
+    pendingCount,
+    paidCount,
+    totalSpent,
+  };
+}

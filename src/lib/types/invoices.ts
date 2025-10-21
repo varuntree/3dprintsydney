@@ -145,3 +145,28 @@ export type InvoiceFilters = {
   sort?: 'issueDate' | 'dueDate' | 'createdAt' | 'number';
   order?: 'asc' | 'desc';
 };
+
+/**
+ * Client Invoice DTO
+ * Used for client portal invoice list
+ */
+export type ClientInvoiceDTO = {
+  id: number;
+  number: string;
+  status: InvoiceStatus;
+  total: number;
+  issueDate: string;
+  balanceDue: number;
+  stripeCheckoutUrl: string | null;
+};
+
+/**
+ * Activity Log DTO
+ * Represents an activity log entry
+ */
+export type ActivityDTO = {
+  id: number;
+  action: string;
+  message: string;
+  createdAt: string;
+};
