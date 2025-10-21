@@ -212,6 +212,12 @@ async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
   return mapQuoteDetail(data as QuoteDetailRow, resolved);
 }
 
+/**
+ * Lists all quotes with optional filtering and pagination
+ * @param options - Optional filters for quotes
+ * @returns Array of quote summaries
+ * @throws AppError if database query fails
+ */
 export async function listQuotes(options?: QuoteFilters) {
   const supabase = getServiceSupabase();
   const orderColumn =
@@ -257,10 +263,24 @@ export async function listQuotes(options?: QuoteFilters) {
   return (data ?? []).map((row) => mapQuoteSummary(row as QuoteRow));
 }
 
+/**
+ * Retrieves a single quote by ID
+ * @param id - The quote ID
+ * @returns Complete quote details
+ * @throws AppError if database query fails
+ * @throws NotFoundError if quote not found
+ */
 export async function getQuote(id: number) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Retrieves detailed quote information by ID
+ * @param id - The quote ID
+ * @returns Complete quote details with lines and payment terms
+ * @throws AppError if database query fails
+ * @throws NotFoundError if quote not found
+ */
 export async function getQuoteDetail(id: number) {
   return loadQuoteDetail(id);
 }
@@ -292,6 +312,12 @@ function computeTotals(payload: QuoteInput) {
   };
 }
 
+/**
+ * Creates a new quote with line items
+ * @param input - Quote creation data
+ * @returns Created quote with full details
+ * @throws AppError if database operations fail
+ */
 export async function createQuote(input: QuoteInput) {
   const totals = computeTotals(input);
 
@@ -370,6 +396,13 @@ export async function createQuote(input: QuoteInput) {
   return loadQuoteDetail(created.id);
 }
 
+/**
+ * Updates an existing quote and replaces all line items
+ * @param id - The quote ID
+ * @param input - Updated quote data
+ * @returns Updated quote with full details
+ * @throws AppError if database operations fail
+ */
 export async function updateQuote(id: number, input: QuoteInput) {
   const totals = computeTotals(input);
   const supabase = getServiceSupabase();
@@ -452,6 +485,13 @@ export async function updateQuote(id: number, input: QuoteInput) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Updates the status of a quote
+ * @param id - The quote ID
+ * @param input - Status update data
+ * @returns Updated quote with full details
+ * @throws AppError if database update fails
+ */
 export async function updateQuoteStatus(id: number, input: QuoteStatusInput) {
   const supabase = getServiceSupabase();
   const { data: quote, error } = await supabase
@@ -484,6 +524,12 @@ export async function updateQuoteStatus(id: number, input: QuoteStatusInput) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Deletes a quote and its line items
+ * @param id - The quote ID
+ * @returns Deleted quote metadata
+ * @throws AppError if database delete fails
+ */
 export async function deleteQuote(id: number) {
   const supabase = getServiceSupabase();
   const { data: removed, error } = await supabase
@@ -518,6 +564,13 @@ export async function deleteQuote(id: number) {
   return removed;
 }
 
+/**
+ * Converts a quote to an invoice with all line items
+ * @param id - The quote ID
+ * @returns Created invoice with full details
+ * @throws AppError if database operations fail
+ * @throws NotFoundError if quote not found
+ */
 export async function convertQuoteToInvoice(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -630,6 +683,12 @@ export async function convertQuoteToInvoice(id: number) {
   return getInvoice(created.id);
 }
 
+/**
+ * Marks a quote as sent and updates status to PENDING
+ * @param id - The quote ID
+ * @returns Updated quote with full details
+ * @throws AppError if database update fails
+ */
 export async function sendQuote(id: number) {
   const supabase = getServiceSupabase();
   const { data: quote, error } = await supabase
@@ -663,6 +722,13 @@ export async function sendQuote(id: number) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Marks a quote as accepted with optional note
+ * @param id - The quote ID
+ * @param note - Optional acceptance note
+ * @returns Updated quote with full details
+ * @throws AppError if database update fails
+ */
 export async function acceptQuote(id: number, note?: string) {
   const supabase = getServiceSupabase();
   const { data: quote, error } = await supabase
@@ -701,6 +767,13 @@ export async function acceptQuote(id: number, note?: string) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Marks a quote as declined with optional note
+ * @param id - The quote ID
+ * @param note - Optional decline reason
+ * @returns Updated quote with full details
+ * @throws AppError if database update fails
+ */
 export async function declineQuote(id: number, note?: string) {
   const supabase = getServiceSupabase();
   const { data: quote, error } = await supabase
@@ -739,6 +812,13 @@ export async function declineQuote(id: number, note?: string) {
   return loadQuoteDetail(id);
 }
 
+/**
+ * Creates a duplicate of an existing quote with all line items
+ * @param id - The quote ID to duplicate
+ * @returns New quote ID and number
+ * @throws AppError if database operations fail
+ * @throws NotFoundError if quote not found
+ */
 export async function duplicateQuote(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase

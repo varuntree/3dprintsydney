@@ -3,15 +3,16 @@ import { markInvoicePaid } from "@/server/services/invoices";
 import { paymentInputSchema } from "@/lib/schemas/invoices";
 import type { PaymentMethod } from "@/lib/constants/enums";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
+import { parseNumericId } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
-  const parsed = Number(id);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  try {
+    return parseNumericId(id);
+  } catch (error) {
     throw new Error("Invalid invoice id");
   }
-  return parsed;
 }
 
 export async function POST(

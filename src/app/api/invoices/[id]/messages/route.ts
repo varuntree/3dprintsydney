@@ -4,14 +4,15 @@ import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getInvoiceMessages, createInvoiceMessage } from "@/server/services/messages";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
+import { parsePaginationParams, parseNumericId } from "@/lib/utils/api-params";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
-  const id = Number(raw);
-  if (!Number.isFinite(id) || id <= 0) {
+  try {
+    return parseNumericId(raw);
+  } catch (error) {
     throw new BadRequestError("Invalid invoice id");
   }
-  return id;
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -20,8 +21,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     await requireInvoiceAccess(req, invoiceId);
 
     const { searchParams } = new URL(req.url);
-    const limit = Number(searchParams.get("limit") ?? "50");
-    const offset = Number(searchParams.get("offset") ?? "0");
+    const { limit, offset } = parsePaginationParams(searchParams);
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
 
     const messages = await getInvoiceMessages(invoiceId, {

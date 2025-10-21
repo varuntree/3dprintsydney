@@ -2,6 +2,7 @@ import { ok, handleError } from "@/server/api/respond";
 import { getJobBoard } from "@/server/services/jobs";
 import { JobStatus } from "@/lib/constants/enums";
 import { requireAdmin } from "@/server/auth/session";
+import { calculateDateWindow } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
 
 /**
@@ -24,8 +25,8 @@ export async function GET(request: NextRequest) {
     const completedWindow = searchParams.get("completedWindow");
     let completedSince: Date | null = null;
     if (completedWindow === "today") {
-      const now = new Date();
-      completedSince = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+      const { startDate } = calculateDateWindow("today");
+      completedSince = startDate;
     }
     const board = await getJobBoard({ includeArchived, statuses, completedSince });
     return ok(board);

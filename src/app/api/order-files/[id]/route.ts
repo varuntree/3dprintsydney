@@ -4,6 +4,7 @@ import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-f
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { parseNumericId } from "@/lib/utils/api-params";
 
 export async function GET(
   request: NextRequest,
@@ -12,9 +13,11 @@ export async function GET(
   try {
     const user = await requireUser(request);
     const resolvedParams = await params;
-    const fileId = parseInt(resolvedParams.id, 10);
 
-    if (isNaN(fileId)) {
+    let fileId: number;
+    try {
+      fileId = parseNumericId(resolvedParams.id);
+    } catch (error) {
       return fail("VALIDATION_ERROR", "Invalid file ID", 400);
     }
 

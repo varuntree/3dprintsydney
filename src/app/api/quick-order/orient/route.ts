@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/server/auth/session";
-import { saveTmpFile, requireTmpFile } from "@/server/services/tmp-files";
-import { logger } from "@/lib/logger";
+import { processOrientedFile } from "@/server/services/quick-order";
 import { ok, fail } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -12,6 +12,7 @@ export const runtime = "nodejs";
  *
  * Saves an oriented STL file after client-side transformation
  * Replaces or creates new tmp file with oriented geometry
+ * Delegates business logic to processOrientedFile service function
  */
 export async function POST(req: NextRequest) {
   try {
@@ -23,53 +24,36 @@ export async function POST(req: NextRequest) {
 
     // Validation
     if (!fileId || !orientedSTL) {
-      return fail("VALIDATION_ERROR", "Missing required fields: fileId and orientedSTL", 422);
+      return fail(
+        "VALIDATION_ERROR",
+        "Missing required fields: fileId and orientedSTL",
+        422,
+      );
     }
 
-    // Verify original file exists and belongs to user
-    try {
-      await requireTmpFile(user.id, fileId);
-    } catch (error) {
-      if (error instanceof AppError) {
-        return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
-      }
-      logger.error({ scope: 'quick-order.orient', error: error as Error });
-      return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
-    }
-
-    // Save oriented STL as new tmp file
+    // Prepare file data
     const buffer = Buffer.from(await orientedSTL.arrayBuffer());
     const filename = orientedSTL.name || "oriented.stl";
+    const mimeType = orientedSTL.type || "application/octet-stream";
 
-    const { record, tmpId } = await saveTmpFile(
+    // Delegate business logic to service
+    const result = await processOrientedFile(
+      fileId,
+      { buffer, filename, mimeType },
       user.id,
-      filename,
-      buffer,
-      orientedSTL.type || "application/octet-stream",
     );
 
-    logger.info({
-      scope: "quick-order.orient",
-      data: {
-        originalFileId: fileId,
-        newFileId: tmpId,
-        originalSize: null, // Could fetch if needed
-        orientedSize: record.size_bytes,
-        userId: user.id,
-      },
-    });
-
-    return ok({
-      success: true,
-      newFileId: tmpId,
-      filename: record.filename,
-      size: record.size_bytes,
-    });
+    return ok(result);
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return fail(
+        error.code,
+        error.message,
+        error.status,
+        error.details as Record<string, unknown> | undefined,
+      );
     }
-    logger.error({ scope: 'quick-order.orient', error: error as Error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    logger.error({ scope: "quick-order.orient", error: error as Error });
+    return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

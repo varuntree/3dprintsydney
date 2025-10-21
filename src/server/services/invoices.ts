@@ -13,8 +13,9 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
-import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
+import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
+import { validateInvoiceAttachment } from '@/lib/utils/validators';
 import type {
   InvoiceDetailDTO,
   InvoiceSummaryDTO,
@@ -224,6 +225,12 @@ function mapInvoiceSummary(row: InvoiceRow): InvoiceSummaryDTO {
   };
 }
 
+/**
+ * Lists all invoices with optional filtering and pagination
+ * @param options - Optional filters for invoices
+ * @returns Array of invoice summaries
+ * @throws AppError if database query fails
+ */
 export async function listInvoices(options?: InvoiceFilters) {
   const supabase = getServiceSupabase();
   let query = supabase
@@ -329,6 +336,13 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
   };
 }
 
+/**
+ * Retrieves a complete invoice with all related data
+ * @param id - The invoice ID
+ * @returns Complete invoice details
+ * @throws AppError if database query fails
+ * @throws NotFoundError if invoice not found
+ */
 export async function getInvoice(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -347,6 +361,13 @@ export async function getInvoice(id: number) {
   return mapInvoiceDetail(data as InvoiceDetailRow, paymentTerm);
 }
 
+/**
+ * Retrieves detailed invoice information by ID
+ * @param id - The invoice ID
+ * @returns Complete invoice details with all relations
+ * @throws AppError if database query fails
+ * @throws NotFoundError if invoice not found
+ */
 export async function getInvoiceDetail(id: number) {
   return getInvoice(id);
 }
@@ -365,6 +386,12 @@ async function insertInvoiceActivities(invoiceId: number, clientId: number, acti
   }
 }
 
+/**
+ * Creates a new invoice with line items
+ * @param input - Invoice creation data
+ * @returns Created invoice with full details
+ * @throws AppError if database operations fail
+ */
 export async function createInvoice(input: InvoiceInput) {
   const supabase = getServiceSupabase();
   const totals = computeTotals(input);
@@ -432,6 +459,13 @@ export async function createInvoice(input: InvoiceInput) {
   return getInvoice(invoiceId);
 }
 
+/**
+ * Updates an existing invoice and replaces all line items
+ * @param id - The invoice ID
+ * @param input - Updated invoice data
+ * @returns Updated invoice with full details
+ * @throws AppError if database operations fail
+ */
 export async function updateInvoice(id: number, input: InvoiceInput) {
   const supabase = getServiceSupabase();
   const totals = computeTotals(input);
@@ -490,6 +524,12 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
   return getInvoice(id);
 }
 
+/**
+ * Deletes an invoice and its line items
+ * @param id - The invoice ID
+ * @returns Deleted invoice metadata
+ * @throws AppError if database delete fails
+ */
 export async function deleteInvoice(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -508,6 +548,13 @@ export async function deleteInvoice(id: number) {
   return data;
 }
 
+/**
+ * Adds a manual payment to an invoice and updates balance
+ * @param invoiceId - The invoice ID
+ * @param input - Payment details
+ * @returns Created payment record
+ * @throws AppError if database operations fail
+ */
 export async function addManualPayment(invoiceId: number, input: PaymentInput) {
   const supabase = getServiceSupabase();
 
@@ -554,6 +601,12 @@ export async function addManualPayment(invoiceId: number, input: PaymentInput) {
   return payment;
 }
 
+/**
+ * Deletes a payment and recalculates invoice balance
+ * @param paymentId - The payment ID
+ * @returns Deleted payment record
+ * @throws AppError if database operations fail
+ */
 export async function deletePayment(paymentId: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.rpc('delete_invoice_payment', {
@@ -577,6 +630,54 @@ export async function deletePayment(paymentId: number) {
   return payment;
 }
 
+/**
+ * Validates and uploads an attachment file to an invoice
+ * @param invoiceId - The invoice ID
+ * @param file - File object from multipart upload
+ * @param userId - User ID performing the upload (for future authorization)
+ * @returns Created attachment record
+ * @throws Error if file validation fails
+ * @throws AppError if upload or database operations fail
+ * @throws NotFoundError if invoice not found
+ */
+export async function uploadInvoiceAttachment(
+  invoiceId: number,
+  file: File,
+  userId?: number
+) {
+  // Define allowed types and max size for invoice attachments
+  const MAX_FILE_SIZE_MB = 200;
+  const ALLOWED_TYPES = [
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'text/plain',
+    'application/zip',
+  ];
+
+  // Validate file using validator utility
+  validateInvoiceAttachment(file, MAX_FILE_SIZE_MB, ALLOWED_TYPES);
+
+  // Convert File to Buffer
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Use existing attachment logic
+  return addInvoiceAttachment(invoiceId, {
+    name: file.name,
+    type: file.type,
+    buffer,
+  });
+}
+
+/**
+ * Uploads and attaches a file to an invoice
+ * @param invoiceId - The invoice ID
+ * @param file - File data to attach
+ * @returns Created attachment record
+ * @throws AppError if upload or database operations fail
+ * @throws NotFoundError if invoice not found
+ */
 export async function addInvoiceAttachment(
   invoiceId: number,
   file: {
@@ -599,7 +700,7 @@ export async function addInvoiceAttachment(
   }
 
   const safeName = file.name.replaceAll('\\', '/').split('/').pop()!.replace(/[^^\w.\-]+/g, '_');
-  const storageKey = await uploadInvoiceAttachment(invoiceId, safeName, file.buffer, file.type);
+  const storageKey = await uploadToStorage(invoiceId, safeName, file.buffer, file.type);
 
   const { data, error } = await supabase
     .from('attachments')
@@ -621,6 +722,12 @@ export async function addInvoiceAttachment(
   return data;
 }
 
+/**
+ * Removes an attachment from an invoice and deletes the file
+ * @param attachmentId - The attachment ID
+ * @returns Deleted attachment record
+ * @throws NotFoundError if attachment not found
+ */
 export async function removeInvoiceAttachment(attachmentId: number) {
   const supabase = getServiceSupabase();
   const { data: attachment, error } = await supabase
@@ -649,6 +756,12 @@ export async function removeInvoiceAttachment(attachmentId: number) {
   return attachment;
 }
 
+/**
+ * Retrieves a signed URL for accessing an invoice attachment
+ * @param attachmentId - The attachment ID
+ * @returns Signed URL and attachment metadata
+ * @throws NotFoundError if attachment not found
+ */
 export async function readInvoiceAttachment(attachmentId: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -664,6 +777,13 @@ export async function readInvoiceAttachment(attachmentId: number) {
   return { url, attachment: data };
 }
 
+/**
+ * Marks an invoice as unpaid and recalculates balance
+ * @param invoiceId - The invoice ID
+ * @returns Updated invoice metadata
+ * @throws AppError if database operations fail
+ * @throws NotFoundError if invoice not found
+ */
 export async function markInvoiceUnpaid(invoiceId: number) {
   const supabase = getServiceSupabase();
   const { data: invoice, error: invoiceError } = await supabase
@@ -709,6 +829,15 @@ export async function markInvoiceUnpaid(invoiceId: number) {
   return updated;
 }
 
+/**
+ * Marks an invoice as paid, optionally recording a payment
+ * @param invoiceId - The invoice ID
+ * @param options - Optional payment details
+ * @returns Created payment record or null if marked paid without payment
+ * @throws AppError if database operations fail
+ * @throws BadRequestError if invoice already paid
+ * @throws NotFoundError if invoice not found
+ */
 export async function markInvoicePaid(invoiceId: number, options?: {
   method?: string;
   amount?: number;
@@ -770,6 +899,15 @@ export async function markInvoicePaid(invoiceId: number, options?: {
   return null;
 }
 
+/**
+ * Writes off an invoice balance with optional reason
+ * @param id - The invoice ID
+ * @param reason - Optional write-off reason
+ * @returns Updated invoice metadata
+ * @throws AppError if database update fails
+ * @throws BadRequestError if invoice already paid
+ * @throws NotFoundError if invoice not found
+ */
 export async function writeOffInvoice(id: number, reason?: string) {
   const supabase = getServiceSupabase();
 
@@ -806,6 +944,15 @@ export async function writeOffInvoice(id: number, reason?: string) {
   return data;
 }
 
+/**
+ * Voids an invoice with optional reason
+ * @param id - The invoice ID
+ * @param reason - Optional void reason
+ * @returns Updated invoice metadata
+ * @throws AppError if database update fails
+ * @throws BadRequestError if invoice already paid
+ * @throws NotFoundError if invoice not found
+ */
 export async function voidInvoice(id: number, reason?: string) {
   const supabase = getServiceSupabase();
 
@@ -841,6 +988,14 @@ export async function voidInvoice(id: number, reason?: string) {
   return data;
 }
 
+/**
+ * Reverts an invoice back to a quote
+ * @param invoiceId - The invoice ID
+ * @returns Created quote metadata
+ * @throws AppError if database operations fail
+ * @throws BadRequestError if invoice has payments or jobs
+ * @throws NotFoundError if invoice not found
+ */
 export async function revertInvoiceToQuote(invoiceId: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase

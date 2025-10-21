@@ -1,12 +1,15 @@
 /**
  * Auth Service
- * Handles authentication-related database operations
- * NOTE: Session/cookie management remains in API routes
+ * Handles authentication-related database operations and workflows
+ * NOTE: Cookie setting remains in API routes
  */
 
+import { createClient } from '@supabase/supabase-js';
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/env';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
+import { validatePasswordChange } from '@/lib/utils/validators';
 
 /**
  * User profile type for auth operations
@@ -231,4 +234,171 @@ export async function getUserEmail(userId: number): Promise<string> {
   }
 
   return data.email;
+}
+
+/**
+ * Session data returned from auth operations
+ */
+export type SessionData = {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresAt: number | null;
+};
+
+/**
+ * Login result with session and profile data
+ */
+export type LoginResult = {
+  session: SessionData;
+  profile: {
+    id: number;
+    email: string;
+    role: 'ADMIN' | 'CLIENT';
+    clientId: number | null;
+  };
+};
+
+/**
+ * Signup result with session and profile data
+ */
+export type SignupWorkflowResult = {
+  session: SessionData;
+  profile: {
+    id: number;
+    email: string;
+    role: 'CLIENT';
+    clientId: number;
+  };
+};
+
+/**
+ * Handle complete login workflow
+ * Authenticates user and retrieves profile
+ * @throws AppError if authentication fails
+ */
+export async function handleLogin(
+  email: string,
+  password: string
+): Promise<LoginResult> {
+  const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: { persistSession: false },
+  });
+
+  const { data: authData, error: authError } = await authClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (authError || !authData.user || !authData.session) {
+    throw new AppError('Invalid credentials', 'INVALID_CREDENTIALS', 401);
+  }
+
+  // Get user profile from database
+  const profile = await getUserByAuthId(authData.user.id);
+
+  return {
+    session: {
+      accessToken: authData.session.access_token,
+      refreshToken: authData.session.refresh_token ?? null,
+      expiresAt: authData.session.expires_at ?? null,
+    },
+    profile: {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      clientId: profile.clientId,
+    },
+  };
+}
+
+/**
+ * Handle complete signup workflow
+ * Creates user and establishes session
+ * @throws AppError if signup or authentication fails
+ */
+export async function handleSignup(
+  email: string,
+  password: string
+): Promise<SignupWorkflowResult> {
+  // Create user (handles all database operations)
+  const result = await signupClient(email, password);
+
+  // Create auth session
+  const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: { persistSession: false },
+  });
+
+  const { data: sessionData, error: signInError } = await authClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError || !sessionData.session) {
+    throw new AppError(
+      signInError?.message ?? 'Failed to sign in',
+      'SIGNUP_ERROR',
+      500
+    );
+  }
+
+  return {
+    session: {
+      accessToken: sessionData.session.access_token,
+      refreshToken: sessionData.session.refresh_token ?? null,
+      expiresAt: sessionData.session.expires_at ?? null,
+    },
+    profile: {
+      id: result.userId,
+      email: result.email,
+      role: result.role,
+      clientId: result.clientId,
+    },
+  };
+}
+
+/**
+ * Handle complete password change workflow
+ * Validates current password and updates to new password
+ * @throws AppError if validation or update fails
+ */
+export async function handlePasswordChange(
+  userId: number,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  // Validate password requirements
+  validatePasswordChange(currentPassword, newPassword);
+
+  // Get user email for authentication
+  const email = await getUserEmail(userId);
+
+  const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    auth: { persistSession: false },
+  });
+
+  // Verify current password
+  const { data: authData, error: signInError } = await authClient.auth.signInWithPassword({
+    email,
+    password: currentPassword,
+  });
+
+  if (signInError || !authData.session) {
+    throw new AppError('Incorrect current password', 'INCORRECT_PASSWORD', 401);
+  }
+
+  // Update password
+  const { error: updateError } = await authClient.auth.updateUser({ password: newPassword });
+
+  if (updateError) {
+    throw new AppError(
+      updateError.message ?? 'Failed to update password',
+      'PASSWORD_CHANGE_ERROR',
+      500
+    );
+  }
+
+  // Clean up session
+  await authClient.auth.signOut();
+
+  logger.info({ scope: 'auth.change_password', data: { userId } });
 }
