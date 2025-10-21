@@ -5,7 +5,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { LegacyUser } from "@/lib/types/user";
 import { logger } from "@/lib/logger";
-import { UnauthorizedError, ForbiddenError } from "@/lib/errors";
+import { UnauthorizedError, ForbiddenError, AppError } from "@/lib/errors";
 
 const ACCESS_COOKIE = "sb:token";
 
@@ -26,7 +26,7 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to load user profile: ${error.message}`);
+    throw new AppError(`Failed to load user profile: ${error.message}`, 'USER_PROFILE_ERROR', 500);
   }
   if (!data) return null;
 
