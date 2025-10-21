@@ -2,6 +2,7 @@ import { getSettings } from "@/server/services/settings";
 import type { SettingsInput } from "@/lib/schemas/settings";
 import { logger } from "@/lib/logger";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { AppError, BadRequestError } from '@/lib/errors';
 
 export type QuickOrderItemInput = {
   fileId?: string;
@@ -144,7 +145,7 @@ export async function priceQuickOrder(
   }
   const settings = cachedSettings;
   if (!settings) {
-    throw new Error("Settings not configured");
+    throw new BadRequestError("Settings not configured");
   }
 
   const materialIds = Array.from(new Set(items.map((i) => i.materialId)));
@@ -155,7 +156,7 @@ export async function priceQuickOrder(
     .in("id", materialIds);
 
   if (error) {
-    throw new Error(`Failed to load materials: ${error.message}`);
+    throw new AppError(`Failed to load materials: ${error.message}`, 'MATERIALS_LOAD_ERROR', 500);
   }
 
   const materialMap = new Map<number, number>(
