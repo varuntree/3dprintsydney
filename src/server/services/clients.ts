@@ -3,20 +3,7 @@ import { clientInputSchema, clientNoteSchema } from '@/lib/schemas/clients';
 import { DEFAULT_PAYMENT_TERMS } from '@/lib/schemas/settings';
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
-
-export type ClientSummaryDTO = {
-  id: number;
-  name: string;
-  company: string;
-  email: string;
-  phone: string;
-  paymentTerms: string | null;
-  notifyOnJobStatus: boolean;
-  outstandingBalance: number;
-  totalInvoices: number;
-  totalQuotes: number;
-  createdAt: Date;
-};
+import type { ClientSummaryDTO, ClientDetailDTO, ClientFilters } from '@/lib/types/clients';
 
 async function normalizePaymentTermsCode(term: string | null | undefined): Promise<string | null> {
   const trimmed = term?.trim();
@@ -117,13 +104,7 @@ function mapClientSummary(row: ClientRow): ClientSummaryDTO {
   };
 }
 
-export async function listClients(options?: {
-  q?: string;
-  limit?: number;
-  offset?: number;
-  sort?: 'name' | 'createdAt';
-  order?: 'asc' | 'desc';
-}): Promise<ClientSummaryDTO[]> {
+export async function listClients(options?: ClientFilters): Promise<ClientSummaryDTO[]> {
   const supabase = getServiceSupabase();
   let query = supabase
     .from('clients')
@@ -310,64 +291,6 @@ export async function updateClientNotificationPreference(
 
   return Boolean(data.notify_on_job_status);
 }
-
-export type ClientDetailDTO = {
-  client: {
-    id: number;
-    name: string;
-    company: string;
-    email: string;
-    phone: string;
-    address: string;
-    paymentTerms: string;
-    notifyOnJobStatus: boolean;
-    abn: string | null;
-    notes: string;
-    tags: string[];
-    createdAt: Date;
-    updatedAt: Date;
-  };
-  invoices: {
-    id: number;
-    number: string;
-    status: string;
-    total: number;
-    balanceDue: number;
-    issueDate: Date;
-  }[];
-  quotes: {
-    id: number;
-    number: string;
-    status: string;
-    total: number;
-    issueDate: Date;
-  }[];
-  jobs: {
-    id: number;
-    title: string;
-    status: string;
-    priority: string;
-    createdAt: Date;
-  }[];
-  activity: {
-    id: number;
-    action: string;
-    message: string;
-    createdAt: Date;
-    context?: string;
-  }[];
-  totals: {
-    outstanding: number;
-    paid: number;
-    queuedJobs: number;
-  };
-  clientUser?: {
-    id: number;
-    email: string;
-    createdAt: Date;
-    messageCount: number;
-  } | null;
-};
 
 export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
   const supabase = getServiceSupabase();

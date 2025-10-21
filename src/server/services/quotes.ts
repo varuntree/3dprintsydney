@@ -24,6 +24,12 @@ import type {
 } from "@/lib/constants/enums";
 import { getInvoice } from "@/server/services/invoices";
 import { AppError, NotFoundError } from "@/lib/errors";
+import type {
+  QuoteDetailDTO,
+  QuoteSummaryDTO,
+  QuoteLineDTO,
+  QuoteFilters,
+} from '@/lib/types/quotes';
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -94,16 +100,6 @@ type QuoteDetailRow = QuoteRow & {
   quote_items?: QuoteItemRow[];
 };
 
-type QuoteSummaryDTO = {
-  id: number;
-  number: string;
-  clientName: string;
-  status: QuoteStatusValue;
-  total: number;
-  issueDate: Date;
-  expiryDate: Date | null;
-};
-
 function extractClient(row: QuoteRow | QuoteDetailRow) {
   if (row.client) return row.client;
   if (!row.clients) return null;
@@ -123,7 +119,7 @@ function mapQuoteSummary(row: QuoteRow): QuoteSummaryDTO {
   };
 }
 
-function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_items"]) {
+function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_items"]): QuoteLineDTO[] {
   const source = items ?? [];
   return source.map((item) => ({
     id: item.id,
@@ -143,32 +139,6 @@ function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_it
 
 type ResolvedPaymentTerm = Awaited<ReturnType<typeof resolvePaymentTermsOptions>>["paymentTerms"][number] & {
   source: "client" | "default";
-};
-
-type QuoteDetailDTO = {
-  id: number;
-  number: string;
-  client: { id: number; name: string };
-  status: QuoteStatusValue;
-  paymentTerms: ResolvedPaymentTerm | null;
-  issueDate: Date;
-  expiryDate: Date | null;
-  taxRate: number;
-  discountType: DiscountTypeValue;
-  discountValue: number;
-  shippingCost: number;
-  shippingLabel: string;
-  notes: string;
-  terms: string;
-  subtotal: number;
-  total: number;
-  taxTotal: number;
-  lines: ReturnType<typeof mapQuoteLines>;
-  sentAt: Date | null;
-  acceptedAt: Date | null;
-  declinedAt: Date | null;
-  decisionNote: string | null;
-  convertedInvoiceId: number | null;
 };
 
 function mapQuoteDetail(row: QuoteDetailRow, paymentTerm: ResolvedPaymentTerm | null): QuoteDetailDTO {
@@ -243,14 +213,7 @@ async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
   return mapQuoteDetail(data as QuoteDetailRow, resolved);
 }
 
-export async function listQuotes(options?: {
-  q?: string;
-  statuses?: ("DRAFT" | "PENDING" | "ACCEPTED" | "DECLINED" | "CONVERTED")[];
-  limit?: number;
-  offset?: number;
-  sort?: "issueDate" | "createdAt" | "number";
-  order?: "asc" | "desc";
-}) {
+export async function listQuotes(options?: QuoteFilters) {
   const supabase = getServiceSupabase();
   const orderColumn =
     options?.sort === "number"
@@ -302,8 +265,6 @@ export async function getQuote(id: number) {
 export async function getQuoteDetail(id: number) {
   return loadQuoteDetail(id);
 }
-
-export type QuoteDetail = Awaited<ReturnType<typeof getQuoteDetail>>;
 
 function computeTotals(payload: QuoteInput) {
   const lineTotals = payload.lines.map((line) => ({
