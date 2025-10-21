@@ -41,6 +41,12 @@ function mapMaterial(row: MaterialRow | null): MaterialDTO {
   };
 }
 
+/**
+ * List all materials with optional filtering, sorting, and pagination
+ * @param options - Query options for search, sorting, and pagination
+ * @returns Array of material DTOs
+ * @throws AppError if database query fails
+ */
 export async function listMaterials(options?: {
   q?: string;
   limit?: number;
@@ -99,6 +105,12 @@ async function insertActivity(action: string, message: string, materialId: numbe
   }
 }
 
+/**
+ * Create a new material
+ * @param input - Material creation input (already validated)
+ * @returns Created material DTO
+ * @throws AppError if database operation fails
+ */
 export async function createMaterial(input: MaterialInput) {
   const supabase = getServiceSupabase();
 
@@ -128,6 +140,13 @@ export async function createMaterial(input: MaterialInput) {
   return mapMaterial(data as MaterialRow);
 }
 
+/**
+ * Update an existing material
+ * @param id - Material ID
+ * @param input - Material update input (already validated)
+ * @returns Updated material DTO
+ * @throws AppError if database operation fails
+ */
 export async function updateMaterial(id: number, input: MaterialInput) {
   const supabase = getServiceSupabase();
 
@@ -158,6 +177,13 @@ export async function updateMaterial(id: number, input: MaterialInput) {
   return mapMaterial(data as MaterialRow);
 }
 
+/**
+ * Delete a material after verifying it's not referenced by product templates
+ * @param id - Material ID to delete
+ * @returns Deleted material DTO
+ * @throws ValidationError if material is referenced by product templates
+ * @throws AppError if database operation fails
+ */
 export async function deleteMaterial(id: number) {
   const supabase = getServiceSupabase();
   const { count, error: countError } = await supabase

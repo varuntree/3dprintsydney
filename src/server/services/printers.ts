@@ -59,6 +59,12 @@ async function insertActivity(action: string, message: string, printerId: number
   }
 }
 
+/**
+ * List all printers with optional filtering, sorting, and pagination
+ * @param options - Query options for search, sorting, and pagination
+ * @returns Array of printer DTOs
+ * @throws AppError if database query fails
+ */
 export async function listPrinters(options?: {
   q?: string;
   limit?: number;
@@ -95,6 +101,12 @@ export async function listPrinters(options?: {
   return (data as PrinterRow[]).map(mapPrinter);
 }
 
+/**
+ * Create a new printer
+ * @param input - Printer creation input (already validated)
+ * @returns Created printer DTO
+ * @throws AppError if database operation fails
+ */
 export async function createPrinter(input: PrinterInput) {
   const supabase = getServiceSupabase();
 
@@ -124,6 +136,13 @@ export async function createPrinter(input: PrinterInput) {
   return mapPrinter(data as PrinterRow);
 }
 
+/**
+ * Update an existing printer
+ * @param id - Printer ID
+ * @param input - Printer update input (already validated)
+ * @returns Updated printer DTO
+ * @throws AppError if database operation fails
+ */
 export async function updatePrinter(id: number, input: PrinterInput) {
   const supabase = getServiceSupabase();
 
@@ -154,6 +173,12 @@ export async function updatePrinter(id: number, input: PrinterInput) {
   return mapPrinter(data as PrinterRow);
 }
 
+/**
+ * Delete a printer
+ * @param id - Printer ID to delete
+ * @returns Deleted printer DTO
+ * @throws AppError if database operation fails
+ */
 export async function deletePrinter(id: number) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase

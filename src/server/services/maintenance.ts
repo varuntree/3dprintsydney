@@ -21,6 +21,11 @@ async function getSettings() {
   };
 }
 
+/**
+ * Run daily maintenance tasks: mark overdue invoices, expire quotes, archive old jobs
+ * @param now - Current date/time (defaults to current time)
+ * @throws AppError if any maintenance task fails
+ */
 export async function runDailyMaintenance(now: Date = new Date()) {
   const settings = await getSettings();
   const supabase = getServiceSupabase();
