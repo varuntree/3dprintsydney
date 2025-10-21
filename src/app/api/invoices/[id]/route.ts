@@ -5,6 +5,7 @@ import {
   updateInvoice,
   deleteInvoice,
 } from "@/server/services/invoices";
+import { invoiceInputSchema } from "@/lib/schemas/invoices";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
 
@@ -42,8 +43,9 @@ export async function PUT(
   try {
     const id = await parseId(context.params);
     await requireInvoiceAccess(request, id);
-    const payload = await request.json();
-    const invoice = await updateInvoice(id, payload);
+    const body = await request.json();
+    const validated = invoiceInputSchema.parse(body);
+    const invoice = await updateInvoice(id, validated);
     return ok(invoice);
   } catch (error) {
     if (error instanceof ZodError) {

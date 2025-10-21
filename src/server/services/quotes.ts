@@ -4,9 +4,8 @@ import {
   calculateDocumentTotals,
 } from "@/lib/calculations";
 import {
-  quoteInputSchema,
-  quoteStatusSchema,
   type QuoteInput,
+  type QuoteStatusInput,
 } from "@/lib/schemas/quotes";
 import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
@@ -293,30 +292,29 @@ function computeTotals(payload: QuoteInput) {
   };
 }
 
-export async function createQuote(payload: unknown) {
-  const parsed = quoteInputSchema.parse(payload);
-  const totals = computeTotals(parsed);
+export async function createQuote(input: QuoteInput) {
+  const totals = computeTotals(input);
 
   const supabase = getServiceSupabase();
-  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : new Date();
-  const expiryDate = parsed.expiryDate ? new Date(parsed.expiryDate) : null;
+  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
+  const expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
   const number = await nextDocumentNumber("quote");
 
   const { data: created, error } = await supabase
     .from("quotes")
     .insert({
       number,
-      client_id: parsed.clientId,
+      client_id: input.clientId,
       status: QuoteStatusEnum.DRAFT,
       issue_date: issueDate.toISOString(),
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(parsed.taxRate),
-      discount_type: mapDiscount(parsed.discountType),
-      discount_value: toDecimal(parsed.discountValue),
-      shipping_cost: toDecimal(parsed.shippingCost),
-      shipping_label: parsed.shippingLabel || null,
-      notes: parsed.notes || null,
-      terms: parsed.terms || null,
+      tax_rate: toDecimal(input.taxRate),
+      discount_type: mapDiscount(input.discountType),
+      discount_value: toDecimal(input.discountValue),
+      shipping_cost: toDecimal(input.shippingCost),
+      shipping_label: input.shippingLabel || null,
+      notes: input.notes || null,
+      terms: input.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -328,7 +326,7 @@ export async function createQuote(payload: unknown) {
     throw new AppError(`Failed to create quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = parsed.lines.map((line, index) => ({
+  const itemPayload = input.lines.map((line, index) => ({
     quote_id: created.id,
     product_template_id: line.productTemplateId ?? null,
     name: line.name,
@@ -372,26 +370,25 @@ export async function createQuote(payload: unknown) {
   return loadQuoteDetail(created.id);
 }
 
-export async function updateQuote(id: number, payload: unknown) {
-  const parsed = quoteInputSchema.parse(payload);
-  const totals = computeTotals(parsed);
+export async function updateQuote(id: number, input: QuoteInput) {
+  const totals = computeTotals(input);
   const supabase = getServiceSupabase();
-  const issueDate = parsed.issueDate ? new Date(parsed.issueDate) : undefined;
-  const expiryDate = parsed.expiryDate ? new Date(parsed.expiryDate) : null;
+  const issueDate = input.issueDate ? new Date(input.issueDate) : undefined;
+  const expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
 
   const { data: updated, error } = await supabase
     .from("quotes")
     .update({
-      client_id: parsed.clientId,
+      client_id: input.clientId,
       issue_date: issueDate ? issueDate.toISOString() : undefined,
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(parsed.taxRate),
-      discount_type: mapDiscount(parsed.discountType),
-      discount_value: toDecimal(parsed.discountValue),
-      shipping_cost: toDecimal(parsed.shippingCost),
-      shipping_label: parsed.shippingLabel || null,
-      notes: parsed.notes || null,
-      terms: parsed.terms || null,
+      tax_rate: toDecimal(input.taxRate),
+      discount_type: mapDiscount(input.discountType),
+      discount_value: toDecimal(input.discountValue),
+      shipping_cost: toDecimal(input.shippingCost),
+      shipping_label: input.shippingLabel || null,
+      notes: input.notes || null,
+      terms: input.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -412,7 +409,7 @@ export async function updateQuote(id: number, payload: unknown) {
     throw new AppError(`Failed to reset quote items: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = parsed.lines.map((line, index) => ({
+  const itemPayload = input.lines.map((line, index) => ({
     quote_id: id,
     product_template_id: line.productTemplateId ?? null,
     name: line.name,
@@ -455,12 +452,11 @@ export async function updateQuote(id: number, payload: unknown) {
   return loadQuoteDetail(id);
 }
 
-export async function updateQuoteStatus(id: number, payload: unknown) {
-  const parsed = quoteStatusSchema.parse(payload);
+export async function updateQuoteStatus(id: number, input: QuoteStatusInput) {
   const supabase = getServiceSupabase();
   const { data: quote, error } = await supabase
     .from("quotes")
-    .update({ status: parsed.status })
+    .update({ status: input.status })
     .eq("id", id)
     .select("id, client_id, number")
     .single();
@@ -473,7 +469,7 @@ export async function updateQuoteStatus(id: number, payload: unknown) {
     client_id: quote.client_id,
     quote_id: quote.id,
     action: "QUOTE_STATUS",
-    message: `Quote ${quote.number} marked ${parsed.status.toLowerCase()}`,
+    message: `Quote ${quote.number} marked ${input.status.toLowerCase()}`,
   });
 
   if (activityError) {

@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 import { ok, fail, handleError } from "@/server/api/respond";
 import { listInvoices, createInvoice } from "@/server/services/invoices";
+import { invoiceInputSchema } from "@/lib/schemas/invoices";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
 
@@ -39,8 +40,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const payload = await request.json();
-    const invoice = await createInvoice(payload);
+    const body = await request.json();
+    const validated = invoiceInputSchema.parse(body);
+    const invoice = await createInvoice(validated);
     return ok(invoice, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

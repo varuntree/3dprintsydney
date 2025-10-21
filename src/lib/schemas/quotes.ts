@@ -41,3 +41,5 @@ export type QuoteInput = z.infer<typeof quoteInputSchema>;
 export const quoteStatusSchema = z.object({
   status: z.enum(["DRAFT", "PENDING", "ACCEPTED", "DECLINED", "CONVERTED"]),
 });
+
+export type QuoteStatusInput = z.infer<typeof quoteStatusSchema>;

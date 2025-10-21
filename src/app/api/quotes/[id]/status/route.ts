@@ -1,5 +1,6 @@
 import { ok, fail, handleError } from "@/server/api/respond";
 import { updateQuoteStatus } from "@/server/services/quotes";
+import { quoteStatusSchema } from "@/lib/schemas/quotes";
 import { ZodError } from "zod";
 import { requireAdmin } from "@/server/auth/session";
 import type { NextRequest } from "next/server";
@@ -20,8 +21,9 @@ export async function POST(
   await requireAdmin(request);
   try {
     const id = await parseId(context.params);
-    const payload = await request.json();
-    const quote = await updateQuoteStatus(id, payload);
+    const body = await request.json();
+    const validated = quoteStatusSchema.parse(body);
+    const quote = await updateQuoteStatus(id, validated);
     return ok(quote);
   } catch (error) {
     if (error instanceof ZodError) {
