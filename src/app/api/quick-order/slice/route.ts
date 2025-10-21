@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Delegate business logic to service
-    const result = await sliceQuickOrderFile(user.id, item.id, {
+    const result = await sliceQuickOrderFile(String(item.id), user.id, {
       layerHeight: item.layerHeight,
       infill: item.infill,
       supports: {

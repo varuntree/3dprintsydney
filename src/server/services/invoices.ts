@@ -868,7 +868,7 @@ export async function markInvoicePaid(invoiceId: number, options?: {
   if (amount > 0) {
     return addManualPayment(invoiceId, {
       amount,
-      method: options?.method ?? PaymentMethod.OTHER,
+      method: (options?.method ?? "OTHER") as "STRIPE" | "BANK_TRANSFER" | "CASH" | "OTHER",
       reference: options?.reference ?? '',
       processor: options?.processor ?? '',
       processorId: options?.processorId ?? '',

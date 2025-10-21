@@ -245,6 +245,7 @@ export function buildQuickOrderLines(
     unitPrice: p.unitPrice,
     orderIndex: idx,
     discountType: "NONE" as const,
+    discountValue: 0,
     calculatorBreakdown: p.breakdown,
   }));
 }
@@ -440,6 +441,8 @@ export async function createQuickOrderInvoice(
   // Create invoice
   const invoice = await createInvoice({
     clientId,
+    discountType: "NONE",
+    discountValue: 0,
     shippingCost,
     shippingLabel: shippingQuote.label,
     lines,
