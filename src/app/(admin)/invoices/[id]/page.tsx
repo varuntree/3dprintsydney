@@ -14,7 +14,8 @@ import {
 } from "@/components/invoices/invoice-attachments";
 import { listClients } from "@/server/services/clients";
 import { getSettings } from "@/server/services/settings";
-import { getInvoiceDetail, type InvoiceDetail } from "@/server/services/invoices";
+import { getInvoiceDetail } from "@/server/services/invoices";
+import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 import { listProductTemplates } from "@/server/services/product-templates";
 import { listMaterials } from "@/server/services/materials";
 import { InvoiceActivity } from "@/components/invoices/invoice-activity";
@@ -182,7 +183,7 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
   }
 }
 
-function SupplementaryPanels({ detail }: { detail: InvoiceDetail }) {
+function SupplementaryPanels({ detail }: { detail: InvoiceDetailDTO }) {
   const payments: InvoicePaymentRecord[] = detail.payments.map((payment) => ({
     id: payment.id,
     amount: payment.amount,

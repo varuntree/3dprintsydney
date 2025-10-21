@@ -16,6 +16,12 @@ import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/job
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
 import { uploadInvoiceAttachment, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
+import type {
+  InvoiceDetailDTO,
+  InvoiceSummaryDTO,
+  InvoiceFilters,
+  PaymentTermDTO,
+} from '@/lib/types/invoices';
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -49,12 +55,7 @@ function computeTotals(payload: InvoiceInput) {
   };
 }
 
-type ResolvedPaymentTerm = {
-  code: string;
-  label: string;
-  days: number;
-  source: 'client' | 'default';
-};
+type ResolvedPaymentTerm = PaymentTermDTO & { source: 'client' | 'default' };
 
 async function resolveClientPaymentTerm(clientId: number): Promise<ResolvedPaymentTerm> {
   const supabase = getServiceSupabase();
@@ -202,7 +203,7 @@ type InvoiceRevertRow = {
   attachments: Array<{ id: number; storage_key: string }>;
 };
 
-function mapInvoiceSummary(row: InvoiceRow) {
+function mapInvoiceSummary(row: InvoiceRow): InvoiceSummaryDTO {
   const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
   return {
     id: row.id,
@@ -217,14 +218,7 @@ function mapInvoiceSummary(row: InvoiceRow) {
   };
 }
 
-export async function listInvoices(options?: {
-  q?: string;
-  statuses?: ('PENDING' | 'PAID' | 'OVERDUE')[];
-  limit?: number;
-  offset?: number;
-  sort?: 'issueDate' | 'dueDate' | 'createdAt' | 'number';
-  order?: 'asc' | 'desc';
-}) {
+export async function listInvoices(options?: InvoiceFilters) {
   const supabase = getServiceSupabase();
   let query = supabase
     .from('invoices')
@@ -256,7 +250,7 @@ export async function listInvoices(options?: {
   return (data ?? []).map((row) => mapInvoiceSummary(row as InvoiceRow));
 }
 
-function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTerm | null) {
+function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTerm | null): InvoiceDetailDTO {
   const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
   return {
     id: row.id,
@@ -350,8 +344,6 @@ export async function getInvoice(id: number) {
 export async function getInvoiceDetail(id: number) {
   return getInvoice(id);
 }
-
-export type InvoiceDetail = ReturnType<typeof mapInvoiceDetail>;
 
 async function insertInvoiceActivities(invoiceId: number, clientId: number, action: string, message: string, metadata?: Record<string, unknown>) {
   const supabase = getServiceSupabase();

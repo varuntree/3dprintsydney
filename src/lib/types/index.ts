@@ -14,6 +14,6 @@ export * from './user';
 
 // Resource-specific types
 export * from './clients';
-// export * from './invoices';
+export * from './invoices';
 // export * from './quotes';
 // export * from './jobs';

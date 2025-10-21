@@ -1,6 +1,6 @@
 import { formatMultiline } from "@/server/pdf/templates/shared/utils";
 import type { QuoteDetail } from "@/server/services/quotes";
-import type { InvoiceDetail } from "@/server/services/invoices";
+import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 
 const PDF_THEME = {
   text: '#0f172a',
@@ -59,7 +59,7 @@ type TemplateOptions = {
   bankDetails?: string;
 };
 
-type InvoiceWithPayment = InvoiceDetail & {
+type InvoiceWithPayment = InvoiceDetailDTO & {
   stripeCheckoutUrl?: string | null;
   qrCodeSvg?: string | null;
 };
