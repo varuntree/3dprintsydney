@@ -67,13 +67,6 @@ export async function requireUser(req: NextRequest): Promise<LegacyUser> {
   return user;
 }
 
-export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
-  const user = await requireUser(req);
-  if (user.role !== "ADMIN") {
-    throw new ForbiddenError();
-  }
-  return user;
-}
 
 export async function getUserFromCookies(): Promise<LegacyUser | null> {
   const cookieStore = await cookies();
