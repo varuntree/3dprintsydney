@@ -1,7 +1,7 @@
 # 3D Print Sydney - Complete Documentation
 
-**Generated**: 2025-10-21
-**Version**: 1.0
+**Generated**: 2025-10-22
+**Version**: 1.1
 **Total Pages**: 9,680 lines across 8 documents
 **Total Size**: 280 KB
 
@@ -329,6 +329,11 @@ When making significant code changes, update relevant documentation:
 
 ### Version History
 
+- **v1.1** (2025-10-22): Wallet credit payment system documentation
+  - Added wallet credit application workflow
+  - Documented payment method selection modal
+  - Updated API endpoints for credit management
+  - Enhanced payment processing documentation
 - **v1.0** (2025-10-21): Initial comprehensive documentation generation
   - Generated from codebase analysis
   - 8 documents covering all aspects
@@ -346,6 +351,6 @@ For questions about this documentation:
 
 ---
 
-**Last Updated**: 2025-10-21
+**Last Updated**: 2025-10-22
 **Documentation Generator**: Claude Code Agent
-**Codebase Version**: After Phase 10 cleanup (standardized patterns)
+**Codebase Version**: After wallet credit payment system implementation

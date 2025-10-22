@@ -190,6 +190,7 @@ export async function generateQuotePdf(id: number) {
     businessEmail: settings?.businessEmail ?? "",
     abn: settings?.abn ?? "",
     bankDetails: settings?.bankDetails ?? "",
+    currency: settings?.defaultCurrency ?? "AUD",
   };
 
   // Route to appropriate template based on style
@@ -256,6 +257,7 @@ export async function generateInvoicePdf(id: number) {
     businessEmail: settings?.businessEmail ?? "",
     abn: settings?.abn ?? "",
     bankDetails: settings?.bankDetails ?? "",
+    currency: settings?.defaultCurrency ?? "AUD",
   };
 
   // Route to appropriate template based on style

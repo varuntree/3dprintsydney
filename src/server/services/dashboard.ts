@@ -379,10 +379,11 @@ export async function getClientDashboardStats(
   pendingCount: number;
   paidCount: number;
   totalSpent: number;
+  walletBalance: number;
 }> {
   const supabase = getServiceSupabase();
 
-  const [totalRes, pendingRes, paidRes, paidInvoicesRes] = await Promise.all([
+  const [totalRes, pendingRes, paidRes, paidInvoicesRes, clientRes] = await Promise.all([
     supabase
       .from("invoices")
       .select("id", { count: "exact", head: true })
@@ -402,6 +403,11 @@ export async function getClientDashboardStats(
       .select("total")
       .eq("client_id", clientId)
       .eq("status", InvoiceStatus.PAID),
+    supabase
+      .from("clients")
+      .select("wallet_balance")
+      .eq("id", clientId)
+      .single(),
   ]);
 
   if (totalRes.error) {
@@ -432,6 +438,13 @@ export async function getClientDashboardStats(
       500
     );
   }
+  if (clientRes.error) {
+    throw new AppError(
+      `Failed to fetch client data: ${clientRes.error.message}`,
+      'DASHBOARD_ERROR',
+      500
+    );
+  }
 
   const totalOrders = totalRes.count ?? 0;
   const pendingCount = pendingRes.count ?? 0;
@@ -440,11 +453,15 @@ export async function getClientDashboardStats(
     (sum, row) => sum + decimalToNumber((row as { total: unknown }).total),
     0
   );
+  const walletBalance = decimalToNumber(
+    (clientRes.data as { wallet_balance: unknown } | null)?.wallet_balance
+  );
 
   return {
     totalOrders,
     pendingCount,
     paidCount,
     totalSpent,
+    walletBalance,
   };
 }

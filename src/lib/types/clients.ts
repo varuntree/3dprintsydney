@@ -21,6 +21,7 @@ export type ClientSummaryDTO = {
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
+  walletBalance: number;
   createdAt: Date;
 };
 
@@ -41,6 +42,7 @@ export type ClientDetailDTO = {
     abn: string | null;
     notes: string;
     tags: string[];
+    walletBalance: number;
     createdAt: Date;
     updatedAt: Date;
   };

@@ -23,5 +23,12 @@ export const clientPreferenceSchema = z.object({
   notifyOnJobStatus: z.boolean(),
 });
 
+export const creditAdjustmentSchema = z.object({
+  amount: z.number().positive().min(0.01, 'Amount must be at least $0.01'),
+  reason: z.enum(['initial_credit', 'adjustment', 'promotion', 'refund']).optional(),
+  notes: z.string().max(500).optional(),
+});
+
 export type ClientNoteInput = z.infer<typeof clientNoteSchema>;
 export type ClientPreferenceInput = z.infer<typeof clientPreferenceSchema>;
+export type CreditAdjustmentInput = z.infer<typeof creditAdjustmentSchema>;

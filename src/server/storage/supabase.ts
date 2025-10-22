@@ -252,3 +252,51 @@ export async function deleteOrderFile(path: string) {
 export async function listOrderFiles(clientId: number): Promise<StoredObject[]> {
   return listBucketObjects(ORDER_FILES_BUCKET, String(clientId), { recursive: true });
 }
+
+// ========================================
+// Generic Storage Delete Helpers
+// ========================================
+
+/**
+ * Delete a single file from any storage bucket
+ * @throws Error if deletion fails
+ */
+export async function deleteFromStorage(
+  bucket: string,
+  path: string
+): Promise<void> {
+  const supabase = getServiceSupabase();
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .remove([path]);
+
+  if (error) {
+    throw new Error(
+      `Failed to delete file from storage bucket "${bucket}": ${error.message}`
+    );
+  }
+}
+
+/**
+ * Delete multiple files from a storage bucket
+ * @throws Error if deletion fails
+ */
+export async function deleteManyFromStorage(
+  bucket: string,
+  paths: string[]
+): Promise<void> {
+  if (paths.length === 0) return;
+
+  const supabase = getServiceSupabase();
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .remove(paths);
+
+  if (error) {
+    throw new Error(
+      `Failed to delete files from storage bucket "${bucket}": ${error.message}`
+    );
+  }
+}

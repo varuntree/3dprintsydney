@@ -553,6 +553,7 @@ Require `requireClient()` or `requireClientWithId()` - scoped to client's own da
 | `/api/client/materials` | GET | Available materials |
 | `/api/client/preferences` | GET, PUT | Client preferences |
 | `/api/invoices/[id]` | GET | Invoice detail (if owner) |
+| `/api/invoices/[id]/apply-credit` | POST | Apply wallet credits to invoice (if owner) |
 | `/api/invoices/[id]/pdf` | GET | Invoice PDF (if owner) |
 | `/api/invoices/[id]/stripe-session` | POST | Stripe payment (if owner) |
 | `/api/messages` | GET, POST | User messages |

@@ -54,10 +54,11 @@ import { usePaymentTerms, findPaymentTermLabel } from "@/hooks/use-payment-terms
 import { useNavigation } from "@/hooks/useNavigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { Mail, Phone, Edit, FileText, Receipt } from "lucide-react";
+import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/components/messages/conversation";
+import { AddCreditModal } from "@/components/clients/add-credit-modal";
 
 export type ClientDetailRecord = {
   client: {
@@ -71,6 +72,7 @@ export type ClientDetailRecord = {
     abn: string | null;
     notes: string;
     tags: string[];
+    walletBalance: number;
     createdAt: string;
     updatedAt: string;
   };
@@ -176,6 +178,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
   }, [paymentTerms, current.client.paymentTerms, defaultTermCode]);
 
   const [editOpen, setEditOpen] = useState(false);
+  const [showAddCreditModal, setShowAddCreditModal] = useState(false);
 
   const initialFormValues = useMemo(
     () => toFormValues(current.client),
@@ -327,6 +330,15 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                 variant="outline"
                 size="sm"
                 className="rounded-full"
+                onClick={() => setShowAddCreditModal(true)}
+              >
+                <Wallet className="h-4 w-4" />
+                <span>Add Credit</span>
+              </ActionButton>
+              <ActionButton
+                variant="outline"
+                size="sm"
+                className="rounded-full"
                 onClick={() => setEditOpen(true)}
                 disabled={editMutation.isPending}
               >
@@ -397,7 +409,13 @@ export function ClientDetail({ detail }: ClientDetailProps) {
         </Card>
 
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryCard
+              label="Wallet Balance"
+              value={formatCurrency(current.client.walletBalance)}
+              icon={<DollarSign className="h-4 w-4 text-green-600" />}
+              highlight
+            />
             <SummaryCard
               label="Outstanding"
               value={formatCurrency(current.totals.outstanding)}
@@ -825,6 +843,14 @@ export function ClientDetail({ detail }: ClientDetailProps) {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AddCreditModal
+        clientId={current.client.id}
+        clientName={current.client.name}
+        currentBalance={current.client.walletBalance}
+        open={showAddCreditModal}
+        onOpenChange={setShowAddCreditModal}
+      />
     </>
   );
 }
@@ -850,16 +876,35 @@ function formatPaymentTerm(term: { label: string; days: number }): string {
     : `${term.label} (${term.days} days)`;
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function SummaryCard({
+  label,
+  value,
+  icon,
+  highlight
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+  highlight?: boolean;
+}) {
   return (
-    <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+    <Card className={cn(
+      "rounded-3xl border border-border bg-surface-overlay shadow-sm",
+      highlight && "border-green-200/50 bg-green-50/30 dark:border-green-900/30 dark:bg-green-950/20"
+    )}>
       <CardHeader>
-        <CardTitle className="text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground/80">
+        <CardTitle className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground/80">
+          {icon}
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold text-foreground">{value}</div>
+        <div className={cn(
+          "text-2xl font-semibold text-foreground",
+          highlight && "text-green-700 dark:text-green-400"
+        )}>
+          {value}
+        </div>
       </CardContent>
     </Card>
   );

@@ -23,6 +23,7 @@ import type {
 } from "@/lib/constants/enums";
 import { getInvoice } from "@/server/services/invoices";
 import { AppError, NotFoundError } from "@/lib/errors";
+import { deleteFromStorage } from "@/server/storage/supabase";
 import type {
   QuoteDetailDTO,
   QuoteSummaryDTO,
@@ -65,6 +66,16 @@ type QuoteItemRow = {
   calculator_breakdown: unknown;
 };
 
+type QuoteClientRecord = {
+  id: number;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: unknown;
+  payment_terms?: string | null;
+};
+
 type QuoteRow = {
   id: number;
   number: string;
@@ -87,11 +98,8 @@ type QuoteRow = {
   tax_total: string;
   notes: string | null;
   terms: string | null;
-  client?: { id: number; name: string; payment_terms?: string | null } | null;
-  clients?:
-    | { id: number; name: string; payment_terms?: string | null }
-    | Array<{ id: number; name: string; payment_terms?: string | null }>
-    | null;
+  client?: QuoteClientRecord | null;
+  clients?: QuoteClientRecord | QuoteClientRecord[] | null;
 };
 
 type QuoteDetailRow = QuoteRow & {
@@ -99,10 +107,41 @@ type QuoteDetailRow = QuoteRow & {
   quote_items?: QuoteItemRow[];
 };
 
-function extractClient(row: QuoteRow | QuoteDetailRow) {
+function extractClient(row: QuoteRow | QuoteDetailRow): QuoteClientRecord | null {
   if (row.client) return row.client;
   if (!row.clients) return null;
   return Array.isArray(row.clients) ? row.clients[0] ?? null : row.clients;
+}
+
+function coerceClientAddress(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const raw = typeof record.raw === "string" ? record.raw.trim() : "";
+    if (raw.length > 0) {
+      return raw;
+    }
+    const formatted = typeof record.formatted === "string" ? record.formatted.trim() : "";
+    if (formatted.length > 0) {
+      return formatted;
+    }
+    const parts: string[] = [];
+    const keys = ["line1", "line2", "city", "state", "postalCode", "country"] as const;
+    for (const key of keys) {
+      const rawPart = record[key];
+      if (typeof rawPart === "string" && rawPart.trim().length > 0) {
+        parts.push(rawPart.trim());
+      }
+    }
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+  }
+  return null;
 }
 
 function mapQuoteSummary(row: QuoteRow): QuoteSummaryDTO {
@@ -148,6 +187,10 @@ function mapQuoteDetail(row: QuoteDetailRow, paymentTerm: ResolvedPaymentTerm | 
     client: {
       id: row.client_id,
       name: client?.name ?? "",
+      company: client?.company ?? null,
+      email: client?.email ?? null,
+      phone: client?.phone ?? null,
+      address: coerceClientAddress(client?.address),
     },
     status: (row.status ?? "DRAFT") as QuoteStatusValue,
     paymentTerms: paymentTerm,
@@ -177,7 +220,7 @@ async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
   const { data, error } = await supabase
     .from("quotes")
     .select(
-      `*, client:clients(id, name, payment_terms), items:quote_items(*, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown)`
+      `*, client:clients(id, name, company, email, phone, address, payment_terms), items:quote_items(*, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown)`
     )
     .eq("id", id)
     .order("order_index", { foreignTable: "quote_items", ascending: true })
@@ -532,6 +575,58 @@ export async function updateQuoteStatus(id: number, input: QuoteStatusInput) {
  */
 export async function deleteQuote(id: number) {
   const supabase = getServiceSupabase();
+
+  // 1. Fetch quote with relations to get file references
+  const { data: quote, error: fetchError } = await supabase
+    .from("quotes")
+    .select(`
+      id,
+      client_id,
+      number,
+      order_files(id, storage_key)
+    `)
+    .eq("id", id)
+    .single();
+
+  if (fetchError || !quote) {
+    throw new NotFoundError("Quote", id);
+  }
+
+  // 2. Delete files from storage BEFORE deleting DB records
+  const filesToDelete: Array<{ bucket: string; path: string }> = [];
+
+  // Collect order files
+  if (quote.order_files && Array.isArray(quote.order_files) && quote.order_files.length > 0) {
+    for (const file of quote.order_files) {
+      if (file.storage_key) {
+        filesToDelete.push({
+          bucket: "order-files",
+          path: file.storage_key
+        });
+      }
+    }
+  }
+
+  // Delete from storage
+  for (const file of filesToDelete) {
+    try {
+      await deleteFromStorage(file.bucket, file.path);
+      logger.info({
+        scope: "quotes.delete.storage",
+        data: { quoteId: id, bucket: file.bucket, path: file.path }
+      });
+    } catch (error) {
+      logger.warn({
+        scope: "quotes.delete.storage",
+        message: "Failed to delete file from storage",
+        error,
+        data: { quoteId: id, file }
+      });
+      // Continue - don't block quote deletion
+    }
+  }
+
+  // 3. Delete quote (cascade will handle related records)
   const { data: removed, error } = await supabase
     .from("quotes")
     .delete()
@@ -543,11 +638,12 @@ export async function deleteQuote(id: number) {
     throw new AppError(`Failed to delete quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
+  // 4. Log activity
   const { error: activityError } = await supabase.from("activity_logs").insert({
     client_id: removed.client_id,
     quote_id: removed.id,
     action: "QUOTE_DELETED",
-    message: `Quote ${removed.number} deleted`,
+    message: `Quote ${removed.number} deleted with ${filesToDelete.length} files cleaned up`,
   });
 
   if (activityError) {
@@ -559,7 +655,10 @@ export async function deleteQuote(id: number) {
     });
   }
 
-  logger.info({ scope: "quotes.delete", data: { id } });
+  logger.info({
+    scope: "quotes.delete",
+    data: { id, filesDeleted: filesToDelete.length }
+  });
 
   return removed;
 }

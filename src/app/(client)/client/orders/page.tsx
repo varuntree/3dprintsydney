@@ -20,8 +20,24 @@ export default function ClientOrdersPage() {
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
 
-  useEffect(() => { load(0, true); }, []);
+  useEffect(() => {
+    load(0, true);
+    loadWalletBalance();
+  }, []);
+
+  async function loadWalletBalance() {
+    try {
+      const res = await fetch("/api/client/dashboard");
+      if (res.ok) {
+        const { data } = await res.json();
+        setWalletBalance(data.walletBalance ?? 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch wallet balance:", error);
+    }
+  }
 
   async function load(p: number, replace = false) {
     const limit = 20; const offset = p * limit;
@@ -73,6 +89,8 @@ export default function ClientOrdersPage() {
                     ) : (
                       <PayOnlineButton
                         invoiceId={r.id}
+                        balanceDue={r.balanceDue}
+                        walletBalance={walletBalance}
                         size="sm"
                         className="justify-end"
                       />

@@ -91,6 +91,7 @@ type ClientRow = {
   payment_terms: string | null;
   notes: string | null;
   notify_on_job_status: boolean;
+  wallet_balance: number | string | null;
   created_at: string;
   updated_at: string;
   invoices?: Array<{ balance_due: number | null; status: string; total?: number | null }> | null;
@@ -122,6 +123,7 @@ function mapClientSummary(row: ClientRow): ClientSummaryDTO {
     outstandingBalance: outstanding,
     totalInvoices: invoices.length,
     totalQuotes: (row.quotes ?? []).length,
+    walletBalance: Number(row.wallet_balance ?? 0),
     createdAt: new Date(row.created_at),
   };
 }
@@ -365,7 +367,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
   const { data, error } = await supabase
     .from('clients')
     .select(
-      `id, name, company, email, phone, payment_terms, notify_on_job_status, abn, notes, tags, address, created_at, updated_at,
+      `id, name, company, email, phone, payment_terms, notify_on_job_status, abn, notes, tags, address, wallet_balance, created_at, updated_at,
        invoices(id, number, status, total, balance_due, issue_date),
        quotes(id, number, status, total, issue_date),
        jobs(id, title, status, priority, created_at)`
@@ -509,6 +511,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       abn: data.abn ?? null,
       notes: data.notes ?? '',
       tags: (data.tags as string[] | null) ?? [],
+      walletBalance: Number(data.wallet_balance ?? 0),
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     },

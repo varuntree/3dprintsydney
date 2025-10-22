@@ -129,8 +129,10 @@ This document provides a comprehensive catalog of all user-facing features, back
 **Payment Features:**
 - Record manual payments (cash, bank transfer)
 - Online payment via Stripe Checkout
+- Wallet credit application (full or partial payment)
+- Payment method selection modal (credits, card, or both)
 - Payment history tracking
-- Balance calculation (total - payments)
+- Balance calculation (total - payments - credits applied)
 
 ---
 
@@ -404,7 +406,11 @@ This document provides a comprehensive catalog of all user-facing features, back
 - Full invoice details
 - Line items breakdown
 - Payment history
-- Pay online functionality (Stripe Checkout)
+- Wallet balance display (if credits available)
+- Pay online functionality with payment method selection:
+  - Use wallet credits only (if sufficient balance)
+  - Use wallet credits + card (partial payment)
+  - Pay full amount via card (Stripe Checkout)
 - Download PDF (future)
 
 ---
@@ -745,7 +751,9 @@ Features accessible to both admin and client users.
 **Invoices:**
 - `InvoicesView` - Invoice list
 - `InvoiceEditor` - Create/edit invoices
-- `PayOnlineButton` - Stripe payment trigger
+- `PayOnlineButton` - Stripe payment trigger with credit option
+- `PaymentMethodModal` - Payment method selection modal (credits/card)
+- `InvoicePaymentSection` - Wallet balance fetching and payment UI wrapper
 
 **Jobs:**
 - `JobsBoard` - Kanban job board

@@ -22,6 +22,8 @@ import {
   FileText,
   Box,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import STLViewerWrapper, { type STLViewerRef } from "@/components/3d/STLViewerWrapper";
@@ -572,7 +574,7 @@ export default function QuickOrderPage() {
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
   const hasUploads = uploads.length > 0;
-  const SHOW_ROTATION_CONTROLS = true;
+  const [showRotationControls, setShowRotationControls] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -758,120 +760,6 @@ export default function QuickOrderPage() {
               </div>
             </div>
           </section>
-
-          {/* Orientation Step */}
-          {currentStep === "orient" && uploads.length > 0 && (
-            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Box className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <h2 className="text-lg font-semibold">Orient Your Models</h2>
-                    {currentlyOrienting && (
-                      <p className="text-xs text-muted-foreground">
-                        File {uploads.findIndex((u) => u.id === currentlyOrienting) + 1} of {uploads.length}
-                        {" · "}
-                        {Object.keys(orientedFileIds).length} oriented
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep("configure")}
-                  disabled={isLocking}
-                >
-                  Skip Orientation
-                </Button>
-              </div>
-
-              {/* File Selection */}
-              <div className="mb-4 flex flex-wrap gap-2">
-                {uploads.map((u) => {
-                  const isOriented = !!orientedFileIds[u.id];
-                  const isCurrent = currentlyOrienting === u.id;
-
-                  return (
-                    <Button
-                      key={u.id}
-                      size="sm"
-                      variant={isCurrent ? "default" : "outline"}
-                      onClick={() => setCurrentlyOrienting(u.id)}
-                      disabled={isLocking}
-                      className={cn(
-                        "relative max-w-full overflow-hidden",
-                        isOriented && "border-green-500 bg-green-50 text-green-700"
-                      )}
-                    >
-                      {isOriented && (
-                        <Check className="mr-1 h-3 w-3 text-green-600" />
-                      )}
-                      <span className="block max-w-[180px] truncate" title={u.filename}>{u.filename}</span>
-                    </Button>
-                  );
-                })}
-              </div>
-
-              {currentlyOrienting ? (
-                <div className="space-y-4">
-                  {/* 3D Viewer */}
-                  <STLViewerWrapper
-                    key={currentlyOrienting}
-                    ref={viewerRef}
-                    url={`/api/tmp-file/${currentlyOrienting}`}
-                    onError={(err) => setError(err.message)}
-                  />
-
-                  {/* Rotation Controls */}
-                  {SHOW_ROTATION_CONTROLS ? (
-                    <RotationControls
-                      onRotate={(axis, degrees) => {
-                        viewerRef.current?.rotateModel(axis, degrees);
-                      }}
-                      onReset={() => {
-                        viewerRef.current?.resetOrientation();
-                      }}
-                      onCenter={() => {
-                        viewerRef.current?.centerModel();
-                      }}
-                      onLockOrientation={handleLockOrientation}
-                      isLocking={isLocking}
-                      disabled={false}
-                    />
-                  ) : null}
-                </div>
-              ) : Object.keys(orientedFileIds).length === uploads.length ? (
-                <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center">
-                  <div>
-                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                      <Check className="h-8 w-8 text-green-600" />
-                    </div>
-                    <p className="text-lg font-semibold text-green-800">
-                      All files oriented!
-                    </p>
-                    <p className="mt-2 text-sm text-green-700">
-                      {uploads.length} file{uploads.length === 1 ? "" : "s"} ready for configuration
-                    </p>
-                    <Button
-                      onClick={() => setCurrentStep("configure")}
-                      className="mt-4 bg-green-600 text-white hover:bg-green-500"
-                    >
-                      Continue to Configure
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-8 text-center">
-                  <div>
-                    <Box className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Select a file above to begin orientation
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
 
           {/* Files Configuration - Collapsible with Max Height */}
           {uploads.length > 0 && (
@@ -1187,6 +1075,131 @@ export default function QuickOrderPage() {
                   )}
                 </Button>
               </div>
+            </section>
+          )}
+
+          {/* Orientation Step */}
+          {currentStep === "orient" && uploads.length > 0 && (
+            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Box className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <h2 className="text-lg font-semibold">Orient Your Models</h2>
+                    {currentlyOrienting && (
+                      <p className="text-xs text-muted-foreground">
+                        File {uploads.findIndex((u) => u.id === currentlyOrienting) + 1} of {uploads.length}
+                        {" · "}
+                        {Object.keys(orientedFileIds).length} oriented
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRotationControls(!showRotationControls)}
+                    title={showRotationControls ? "Hide rotation controls" : "Show rotation controls"}
+                  >
+                    {showRotationControls ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep("configure")}
+                    disabled={isLocking}
+                  >
+                    Skip Orientation
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Selection */}
+              <div className="mb-4 flex flex-wrap gap-2">
+                {uploads.map((u) => {
+                  const isOriented = !!orientedFileIds[u.id];
+                  const isCurrent = currentlyOrienting === u.id;
+
+                  return (
+                    <Button
+                      key={u.id}
+                      size="sm"
+                      variant={isCurrent ? "default" : "outline"}
+                      onClick={() => setCurrentlyOrienting(u.id)}
+                      disabled={isLocking}
+                      className={cn(
+                        "relative max-w-full overflow-hidden",
+                        isOriented && "border-green-500 bg-green-50 text-green-700"
+                      )}
+                    >
+                      {isOriented && (
+                        <Check className="mr-1 h-3 w-3 text-green-600" />
+                      )}
+                      <span className="block max-w-[180px] truncate" title={u.filename}>{u.filename}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {currentlyOrienting ? (
+                <div className="space-y-4">
+                  {/* 3D Viewer */}
+                  <STLViewerWrapper
+                    key={currentlyOrienting}
+                    ref={viewerRef}
+                    url={`/api/tmp-file/${currentlyOrienting}`}
+                    onError={(err) => setError(err.message)}
+                  />
+
+                  {/* Rotation Controls */}
+                  {showRotationControls ? (
+                    <RotationControls
+                      onReset={() => {
+                        viewerRef.current?.resetOrientation();
+                      }}
+                      onCenter={() => {
+                        viewerRef.current?.centerModel();
+                      }}
+                      onLockOrientation={handleLockOrientation}
+                      isLocking={isLocking}
+                      disabled={false}
+                    />
+                  ) : null}
+                </div>
+              ) : Object.keys(orientedFileIds).length === uploads.length ? (
+                <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center">
+                  <div>
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                      <Check className="h-8 w-8 text-green-600" />
+                    </div>
+                    <p className="text-lg font-semibold text-green-800">
+                      All files oriented!
+                    </p>
+                    <p className="mt-2 text-sm text-green-700">
+                      {uploads.length} file{uploads.length === 1 ? "" : "s"} ready for configuration
+                    </p>
+                    <Button
+                      onClick={() => setCurrentStep("configure")}
+                      className="mt-4 bg-green-600 text-white hover:bg-green-500"
+                    >
+                      Continue to Configure
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-dashed border-border bg-surface-muted p-8 text-center">
+                  <div>
+                    <Box className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      Select a file above to begin orientation
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </div>

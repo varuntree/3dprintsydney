@@ -294,6 +294,43 @@ function deriveDueDate(issueDate, paymentTerm, explicitDate?) {
   7. **Triggers Job Creation** if policy is `ON_PAYMENT`
 - **Implementation**: `handleStripeEvent(event)`
 
+### Wallet Credit Application
+
+#### Payment Method Selection Flow
+- **Trigger**: Client clicks "Pay Online" button on invoice
+- **Condition Check**: If client has wallet balance > 0, display payment method modal
+- **Payment Options**:
+  1. **Use Credits Only** (if wallet balance >= invoice balance):
+     - Deducts full amount from wallet
+     - Marks invoice as PAID immediately
+     - No Stripe redirect
+  2. **Use Credits + Card** (partial payment):
+     - Deducts available credits from wallet
+     - Updates invoice balance_due
+     - Redirects to Stripe for remaining amount
+  3. **Pay Full via Card** (skip credits):
+     - Saves credits for later use
+     - Redirects directly to Stripe for full amount
+
+#### 3. **Apply Wallet Credit to Invoice**
+- **Endpoint**: `/api/invoices/[id]/apply-credit`
+- **Validation**:
+  - Invoice cannot be already `PAID`
+  - Balance due must be > 0
+  - Client must own the invoice
+- **Actions**:
+  1. Fetches client's current wallet balance
+  2. Calculates credit to apply: `min(balance_due, wallet_balance)`
+  3. Deducts credit from wallet via `deductClientCredit()`
+  4. Updates invoice:
+     - `credit_applied += deducted_amount`
+     - `balance_due = total - credit_applied - sum(payments)`
+     - If `balance_due <= 0`: Set status to `PAID`, set `paid_at`
+  5. Records credit transaction in `credit_transactions` table
+  6. Logs `INVOICE_CREDIT_APPLIED` activity
+  7. Returns: `{ creditApplied, newBalanceDue, fullyPaid }`
+- **Implementation**: `applyWalletCreditToInvoice(invoiceId)`
+
 ### Payment Tracking
 
 **Payment Fields**:
@@ -307,9 +344,14 @@ function deriveDueDate(issueDate, paymentTerm, explicitDate?) {
 
 **Balance Calculation**:
 ```typescript
-balance_due = total - sum(payments.amount)
+balance_due = total - credit_applied - sum(payments.amount)
 status = (balance_due <= 0) ? 'PAID' : 'PENDING'
 ```
+
+**Credit Tracking**:
+- `credit_applied`: Total credits applied to invoice
+- Updated atomically when credits are applied
+- Factored into balance_due calculation
 
 ---
 
@@ -657,6 +699,101 @@ The Quick Order flow is a complete self-service workflow for clients to upload 3
   }
 }
 ```
+
+---
+
+## Wallet Credit System
+
+The wallet credit system allows clients to maintain a credit balance that can be applied to invoices as payment.
+
+### Credit Balance Management
+
+**Location**: `/src/server/services/credits.ts`
+
+#### 1. **Add Credit to Client Wallet**
+- **Implementation**: `addClientCredit(clientId, amount, adminUserId, reason?, notes?)`
+- **Validation**: Amount must be positive
+- **Actions**:
+  1. Uses database function `add_client_credit` with row locking (atomic operation)
+  2. Records transaction with type `CREDIT_ADDED`
+  3. Updates client's `wallet_balance`
+  4. Stores balance snapshots (before/after)
+  5. Records reason and admin who added credit
+  6. Logs activity
+- **Returns**: `{ newBalance, transactionId }`
+
+#### 2. **Deduct Credit from Wallet**
+- **Implementation**: `deductClientCredit(clientId, amount, reason, invoiceId?)`
+- **Validation**:
+  - Amount must be positive
+  - Client must have sufficient balance
+- **Actions**:
+  1. Uses database function `deduct_client_credit` with row locking
+  2. Checks for sufficient balance (throws error if insufficient)
+  3. Records transaction with type `CREDIT_DEDUCTED`
+  4. Updates client's `wallet_balance`
+  5. Stores balance snapshots
+  6. Links to invoice if applicable
+  7. Logs activity
+- **Returns**: `{ deducted, newBalance }`
+- **Reasons**: `invoice_payment`, `order_creation`
+
+#### 3. **Get Wallet Balance**
+- **Implementation**: `getClientWalletBalance(clientId)`
+- **Returns**: Current wallet balance as number
+
+#### 4. **Get Credit Transaction History**
+- **Implementation**: `getClientCreditHistory(clientId, limit?)`
+- **Returns**: Array of credit transactions with:
+  - Transaction ID, amount, type
+  - Balance before/after
+  - Reason, notes
+  - Linked invoice ID
+  - Timestamp
+
+### Credit Transactions
+
+**Database Table**: `credit_transactions`
+
+**Transaction Types**:
+- `CREDIT_ADDED` - Admin manually added credit
+- `CREDIT_DEDUCTED` - Credit used for payment
+- `CREDIT_REFUNDED` - Credit refunded to wallet (future)
+
+**Transaction Fields**:
+- `client_id`: Owner of the credit
+- `invoice_id`: Linked invoice (if applicable)
+- `amount`: Credit amount (positive for all types)
+- `transaction_type`: Type of transaction
+- `reason`: Machine-readable reason code
+- `notes`: Human-readable notes
+- `balance_before`: Balance before transaction
+- `balance_after`: Balance after transaction
+- `admin_user_id`: Admin who performed action (for CREDIT_ADDED)
+- `created_at`: Transaction timestamp
+
+### Credit Application to Quick Orders
+
+**Integration Point**: `createQuickOrderInvoice()`
+
+**Automatic Application**:
+- Quick orders can optionally apply credits during checkout
+- Credits are deducted before Stripe checkout
+- If credits cover full amount, no Stripe redirect
+- If partial coverage, Stripe checkout for remaining balance
+
+### Credit Atomicity & Concurrency
+
+**Database Functions**: All credit operations use PostgreSQL RPC functions with row-level locking to prevent race conditions:
+- `add_client_credit(p_client_id, p_amount, p_reason, p_notes, p_admin_user_id)`
+- `deduct_client_credit(p_client_id, p_amount, p_reason, p_invoice_id)`
+
+**Locking Strategy**: `FOR UPDATE` row lock on `clients` table ensures atomic balance updates
+
+**Error Handling**:
+- Insufficient balance: Throws `BadRequestError`
+- Client not found: Throws `NotFoundError`
+- Database errors: Throws `AppError` with details
 
 ---
 

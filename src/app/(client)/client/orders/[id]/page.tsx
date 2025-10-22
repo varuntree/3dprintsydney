@@ -12,7 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { JobStatus } from "@/lib/constants/enums";
 import { CheckCircle2, Circle, Loader2, PauseCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PayOnlineButton } from "@/components/client/pay-online-button";
+import { InvoicePaymentSection } from "@/components/client/invoice-payment-section";
 
 const JOB_STATUS_FLOW: JobStatus[] = [
   "PRE_PROCESSING",
@@ -100,9 +100,10 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
               </div>
             </div>
             {detail.balanceDue > 0 ? (
-              <div className="flex justify-end">
-                <PayOnlineButton invoiceId={detail.id} size="sm" />
-              </div>
+              <InvoicePaymentSection
+                invoiceId={detail.id}
+                balanceDue={detail.balanceDue}
+              />
             ) : null}
           </CardContent>
         </Card>

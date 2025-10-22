@@ -35,7 +35,14 @@ export type QuoteLineDTO = {
 export type QuoteDetailDTO = {
   id: number;
   number: string;
-  client: { id: number; name: string };
+  client: {
+    id: number;
+    name: string;
+    company?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  };
   status: QuoteStatus;
   paymentTerms: (PaymentTermDTO & { source: 'client' | 'default' }) | null;
   issueDate: Date;

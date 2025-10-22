@@ -90,6 +90,7 @@ export type InvoiceDetailDTO = {
   status: InvoiceStatus;
   total: number;
   balanceDue: number;
+  creditApplied: number;
   issueDate: Date;
   dueDate: Date | null;
   notes: string;
@@ -109,6 +110,10 @@ export type InvoiceDetailDTO = {
   client: {
     id: number;
     name: string;
+    company?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
   };
   paymentTerms: PaymentTermDTO | null;
   attachments: InvoiceAttachmentDTO[];

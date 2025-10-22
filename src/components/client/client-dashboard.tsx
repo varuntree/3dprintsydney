@@ -7,7 +7,7 @@ import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type DashboardStats = {
@@ -15,6 +15,7 @@ type DashboardStats = {
   pendingCount: number;
   paidCount: number;
   totalSpent: number;
+  walletBalance: number;
 };
 
 type InvoiceRow = {
@@ -176,7 +177,24 @@ export function ClientDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Card className="border-green-200/50 bg-green-50/30 shadow-sm dark:border-green-900/30 dark:bg-green-950/20">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
+              Available Credit
+            </CardTitle>
+            <Wallet className="h-4 w-4 text-green-600 dark:text-green-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+              {loading ? "..." : formatCurrency(stats?.walletBalance ?? 0)}
+            </div>
+            <p className="mt-1 text-xs text-green-600/80 dark:text-green-400/80">
+              Wallet balance
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="border border-border bg-surface-overlay">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">

@@ -101,7 +101,7 @@ export function ClientShell({ children, user }: ClientShellProps) {
               </div>
             </div>
             <Link
-              href="/account"
+              href="/client/account"
               className="mt-3 block w-full rounded-md border border-border/60 px-3 py-2 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10"
             >
               Account settings

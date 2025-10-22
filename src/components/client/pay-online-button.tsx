@@ -6,9 +6,12 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { mutateJson } from "@/lib/http";
+import { PaymentMethodModal } from "@/components/client/payment-method-modal";
 
 interface PayOnlineButtonProps {
   invoiceId: number;
+  balanceDue: number;
+  walletBalance: number;
   disabled?: boolean;
   className?: string;
   variant?: "default" | "link" | "outline" | "secondary";
@@ -18,6 +21,8 @@ interface PayOnlineButtonProps {
 
 export function PayOnlineButton({
   invoiceId,
+  balanceDue,
+  walletBalance,
   disabled,
   className,
   variant = "default",
@@ -25,8 +30,9 @@ export function PayOnlineButton({
   children,
 }: PayOnlineButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  async function handlePay() {
+  async function handleDirectPayment() {
     if (loading) return;
     setLoading(true);
     try {
@@ -46,16 +52,36 @@ export function PayOnlineButton({
     }
   }
 
+  function handleClick() {
+    // If user has wallet balance, show payment method modal
+    if (walletBalance > 0) {
+      setShowModal(true);
+    } else {
+      // No wallet balance, go directly to Stripe
+      void handleDirectPayment();
+    }
+  }
+
   return (
-    <Button
-      onClick={handlePay}
-      disabled={disabled || loading}
-      variant={variant}
-      size={size}
-      className={cn("gap-2", className)}
-    >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-      {children ?? "Pay Online"}
-    </Button>
+    <>
+      <Button
+        onClick={handleClick}
+        disabled={disabled || loading}
+        variant={variant}
+        size={size}
+        className={cn("gap-2", className)}
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {children ?? "Pay Online"}
+      </Button>
+
+      <PaymentMethodModal
+        open={showModal}
+        onOpenChange={setShowModal}
+        invoiceId={invoiceId}
+        balanceDue={balanceDue}
+        walletBalance={walletBalance}
+      />
+    </>
   );
 }

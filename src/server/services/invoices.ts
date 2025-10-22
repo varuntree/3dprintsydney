@@ -13,7 +13,7 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
-import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl } from '@/server/storage/supabase';
+import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl, deleteFromStorage } from '@/server/storage/supabase';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 import { validateInvoiceAttachment } from '@/lib/utils/validators';
 import type {
@@ -109,6 +109,16 @@ function deriveDueDate(issueDate: Date, term: ResolvedPaymentTerm, explicit?: Da
   return addDays(issueDate, term.days);
 }
 
+type InvoiceClientRecord = {
+  id: number;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: unknown;
+  payment_terms?: string | null;
+};
+
 type InvoiceRow = {
   id: number;
   number: string;
@@ -121,7 +131,7 @@ type InvoiceRow = {
   stripe_checkout_url: string | null;
   created_at?: string;
   updated_at?: string;
-  clients?: { id: number; name: string; payment_terms?: string | null } | Array<{ id: number; name: string; payment_terms?: string | null }> | null;
+  clients?: InvoiceClientRecord | InvoiceClientRecord[] | null;
 };
 
 type InvoiceDetailRow = InvoiceRow & {
@@ -138,6 +148,7 @@ type InvoiceDetailRow = InvoiceRow & {
   internal_notes: string | null;
   calculator_snapshot: unknown;
   paid_at: string | null;
+  credit_applied: string | null;
   attachments: Array<{ id: number; filename: string; filetype: string | null; size_bytes: number; storage_key: string; uploaded_at: string | null }>;
   items: Array<{
     id: number;
@@ -173,6 +184,45 @@ type InvoiceDetailRow = InvoiceRow & {
     printers?: { name: string | null } | null;
   }>;
 };
+
+function extractClientRecord(row: InvoiceRow | InvoiceDetailRow): InvoiceClientRecord | null {
+  if (!row.clients) return null;
+  if (Array.isArray(row.clients)) {
+    return row.clients[0] ?? null;
+  }
+  return row.clients;
+}
+
+function coerceClientAddress(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const raw = typeof record.raw === "string" ? record.raw.trim() : "";
+    if (raw.length > 0) {
+      return raw;
+    }
+    const formatted = typeof record.formatted === "string" ? record.formatted.trim() : "";
+    if (formatted.length > 0) {
+      return formatted;
+    }
+    const parts: string[] = [];
+    const keys = ["line1", "line2", "city", "state", "postalCode", "country"] as const;
+    for (const key of keys) {
+      const valuePart = record[key];
+      if (typeof valuePart === "string" && valuePart.trim().length > 0) {
+        parts.push(valuePart.trim());
+      }
+    }
+    if (parts.length > 0) {
+      return parts.join(", ");
+    }
+  }
+  return null;
+}
 
 type InvoiceRevertRow = {
   id: number;
@@ -211,7 +261,7 @@ type InvoiceRevertRow = {
 };
 
 function mapInvoiceSummary(row: InvoiceRow): InvoiceSummaryDTO {
-  const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+  const client = extractClientRecord(row);
   return {
     id: row.id,
     number: row.number,
@@ -264,13 +314,14 @@ export async function listInvoices(options?: InvoiceFilters) {
 }
 
 function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTerm | null): InvoiceDetailDTO {
-  const client = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+  const client = extractClientRecord(row);
   return {
     id: row.id,
     number: row.number,
     status: (row.status ?? 'PENDING') as InvoiceStatus,
     total: Number(row.total ?? 0),
     balanceDue: Number(row.balance_due ?? 0),
+    creditApplied: Number(row.credit_applied ?? 0),
     issueDate: new Date(row.issue_date),
     dueDate: row.due_date ? new Date(row.due_date) : null,
     notes: row.notes ?? '',
@@ -290,6 +341,10 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
     client: {
       id: row.client_id,
       name: client?.name ?? '',
+      company: client?.company ?? null,
+      email: client?.email ?? null,
+      phone: client?.phone ?? null,
+      address: coerceClientAddress(client?.address),
     },
     paymentTerms: paymentTerm ? { ...paymentTerm } : null,
     attachments: (row.attachments ?? []).map((att) => ({
@@ -532,6 +587,73 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
  */
 export async function deleteInvoice(id: number) {
   const supabase = getServiceSupabase();
+
+  // 1. Fetch invoice with relations to get file references
+  const { data: invoice, error: fetchError } = await supabase
+    .from('invoices')
+    .select(`
+      id,
+      client_id,
+      number,
+      attachments(id, storage_key),
+      order_files(id, storage_key)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !invoice) {
+    throw new NotFoundError('Invoice', id);
+  }
+
+  // 2. Delete files from storage BEFORE deleting DB records
+  // Note: We delete storage first to prevent orphaned files, prioritizing cost management.
+  // Storage failures are logged but don't block deletion (graceful degradation).
+  const filesToDelete: Array<{ bucket: string; path: string }> = [];
+
+  // Collect attachment files
+  if (invoice.attachments && Array.isArray(invoice.attachments) && invoice.attachments.length > 0) {
+    for (const att of invoice.attachments) {
+      if (att.storage_key) {
+        filesToDelete.push({
+          bucket: 'attachments',
+          path: att.storage_key
+        });
+      }
+    }
+  }
+
+  // Collect order files
+  if (invoice.order_files && Array.isArray(invoice.order_files) && invoice.order_files.length > 0) {
+    for (const file of invoice.order_files) {
+      if (file.storage_key) {
+        filesToDelete.push({
+          bucket: 'order-files',
+          path: file.storage_key
+        });
+      }
+    }
+  }
+
+  // Delete from storage
+  for (const file of filesToDelete) {
+    try {
+      await deleteFromStorage(file.bucket, file.path);
+      logger.info({
+        scope: 'invoices.delete.storage',
+        data: { invoiceId: id, bucket: file.bucket, path: file.path }
+      });
+    } catch (error) {
+      logger.warn({
+        scope: 'invoices.delete.storage',
+        message: 'Failed to delete file from storage',
+        error,
+        data: { invoiceId: id, file }
+      });
+      // Continue - don't block invoice deletion
+    }
+  }
+
+  // 3. Delete invoice (cascade will handle related records)
   const { data, error } = await supabase
     .from('invoices')
     .delete()
@@ -540,11 +662,26 @@ export async function deleteInvoice(id: number) {
     .single();
 
   if (error || !data) {
-    throw new AppError(`Failed to delete invoice: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
+    throw new AppError(
+      `Failed to delete invoice: ${error?.message ?? 'Unknown error'}`,
+      'DATABASE_ERROR',
+      500
+    );
   }
 
-  await insertInvoiceActivities(id, data.client_id, 'INVOICE_DELETED', `Invoice ${data.number} deleted`);
-  logger.info({ scope: 'invoices.delete', data: { id } });
+  // 4. Log activity
+  await insertInvoiceActivities(
+    id,
+    invoice.client_id,
+    'INVOICE_DELETED',
+    `Invoice ${invoice.number} deleted with ${filesToDelete.length} files cleaned up`
+  );
+
+  logger.info({
+    scope: 'invoices.delete',
+    data: { id, filesDeleted: filesToDelete.length }
+  });
+
   return data;
 }
 

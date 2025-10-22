@@ -2,8 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  RotateCw,
-  RotateCcw,
   RefreshCw,
   Maximize2,
   Lock,
@@ -11,7 +9,6 @@ import {
 } from "lucide-react";
 
 interface RotationControlsProps {
-  onRotate: (axis: "x" | "y" | "z", degrees: number) => void;
   onReset: () => void;
   onCenter: () => void;
   onLockOrientation: () => void;
@@ -20,7 +17,6 @@ interface RotationControlsProps {
 }
 
 export default function RotationControls({
-  onRotate,
   onReset,
   onCenter,
   onLockOrientation,
@@ -33,102 +29,12 @@ export default function RotationControls({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">Rotation Controls</h3>
         <p className="text-xs text-muted-foreground">
-          Rotate your model for optimal print orientation
+          Rotate your model using mouse/touch for optimal print orientation
         </p>
       </div>
 
-      {/* Rotation Axes */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {/* X Axis */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            X Axis (Front-Back)
-          </label>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("x", -90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate -90° around X-axis"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("x", 90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate +90° around X-axis"
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Y Axis */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Y Axis (Left-Right)
-          </label>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("y", -90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate -90° around Y-axis"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("y", 90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate +90° around Y-axis"
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Z Axis */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Z Axis (Spin)
-          </label>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("z", -90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate -90° around Z-axis"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onRotate("z", 90)}
-              disabled={disabled}
-              className="flex-1"
-              title="Rotate +90° around Z-axis"
-            >
-              <RotateCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+      <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
           variant="outline"
