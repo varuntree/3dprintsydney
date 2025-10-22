@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Box, ChevronDown } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
+
+import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
 
 const services = [
   {
@@ -42,9 +44,7 @@ export function MarketingHeader() {
     <header className="sticky top-0 z-30 border-b border-border/70 bg-surface-overlay/90 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/75">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
         <Link href="/" className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-white shadow-xs">
-            <Box className="h-4 w-4" aria-hidden />
-          </span>
+          <AnimatedCubeLogo />
           <span className="tracking-tight">3D Print Sydney</span>
         </Link>
 
@@ -86,13 +86,13 @@ export function MarketingHeader() {
         <div className="flex items-center gap-2">
           <Link
             href="/login"
-            className="hidden rounded-full border border-border/70 px-4 py-2 text-sm text-foreground/70 transition hover:border-foreground/40 hover:text-foreground md:inline-flex"
+            className="inline-flex items-center gap-1 rounded-full border border-border/70 px-3 py-2 text-sm font-medium text-foreground/70 transition hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
           >
             Sign in
           </Link>
           <Link
             href="/quick-order"
-            className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2"
           >
             Get quote
             <ArrowUpRight className="h-4 w-4" aria-hidden />

@@ -132,3 +132,38 @@
     color: var(--color-white);
   }
 }
+
+@layer utilities {
+  @keyframes cube-orbit {
+    0% {
+      transform: rotate(0deg) scale(1);
+    }
+
+    50% {
+      transform: rotate(180deg) scale(1.03);
+    }
+
+    100% {
+      transform: rotate(360deg) scale(1);
+    }
+  }
+
+  @keyframes cube-tilt {
+    0%,
+    100% {
+      transform: rotate(-8deg) translateY(0);
+    }
+
+    50% {
+      transform: rotate(8deg) translateY(-1.5px);
+    }
+  }
+
+  .animate-cube-orbit {
+    animation: cube-orbit 14s linear infinite;
+  }
+
+  .animate-cube-tilt {
+    animation: cube-tilt 6s ease-in-out infinite;
+  }
+}
