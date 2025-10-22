@@ -96,7 +96,39 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-surface-canvas text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight text-foreground;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  p {
+    @apply text-base leading-relaxed text-foreground/80;
+  }
+
+  a {
+    color: var(--color-blue-accent);
+    transition: color var(--transition-fast);
+  }
+
+  a:hover {
+    color: var(--color-blue-accent-dark);
+  }
+
+  ::selection {
+    background-color: var(--color-blue-accent);
+    color: var(--color-white);
   }
 }

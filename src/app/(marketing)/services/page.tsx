@@ -1,322 +1,318 @@
-import React from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "next/link"
+import type { Metadata } from "next"
+import {
+  ArrowRight,
+  Bolt,
+  Cuboid,
+  Layers3,
+  PenTool,
+  ShieldCheck,
+} from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Services - 3D Printing Services Sydney | 3D Print Sydney",
   description:
     "Professional 3D printing services: Rapid Prototyping, Custom Parts, Model Printing, and Design Services. Same-day service available in Sydney CBD.",
-};
+}
+
+const bulletDot = <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
 
 export default function ServicesPage() {
   return (
-    <div className="bg-white">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8 text-center">
-          <h1 className="font-serif text-[42px] leading-tight tracking-tight sm:text-[54px] md:text-[64px] text-white">
-            3D Printing Services Sydney
+    <div className="bg-surface-canvas">
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">Services</span>
+          <h1 className="mt-4 text-4xl tracking-tight text-foreground sm:text-5xl">
+            3D printing services for teams who need parts without the wait.
           </h1>
-          <p className="mt-4 text-lg text-blue-100 mx-auto max-w-2xl">
-            Professional 3D printing services for businesses, students, and makers. From rapid prototyping to custom parts, we deliver quality results with Sydney&apos;s fastest turnaround times.
+          <p className="mt-5 text-base text-foreground/70">
+            Professional machines, premium materials and engineering support from our Elizabeth Bay studio. From rapid prototyping to full production, we keep projects moving on your timeline.
           </p>
         </div>
       </section>
 
-      {/* Service 1: Rapid Prototyping */}
-      <section id="rapid-prototyping" className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              ⚡
+      <section id="rapid-prototyping" className="border-b border-border/60 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface-subtle text-foreground">
+              <Bolt className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-3xl font-semibold text-foreground">Rapid prototyping</h2>
+              <p className="text-sm text-foreground/60">Concept to functional prototype in hours.</p>
             </div>
-            <h2 className="font-serif text-[32px] md:text-[42px] text-neutral-900">Rapid Prototyping</h2>
           </div>
-          <p className="text-lg text-neutral-700 mb-6">
-            Turn your concept into a functional prototype in hours. Perfect for startups, engineers, and innovators who need to iterate quickly without the cost of traditional manufacturing.
+
+          <p className="mt-6 text-base text-foreground/70">
+            Iterate faster with low-risk, high-quality prints. Ideal for startups, engineers and product teams who need validated parts before committing to tooling.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-8 my-8">
-            <div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">Who It&apos;s For</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">✓</span>
-                  <span>Tech startups developing new products</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">✓</span>
-                  <span>Manufacturing engineers testing designs</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">✓</span>
-                  <span>Product developers iterating on concepts</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">✓</span>
-                  <span>Innovation labs and maker spaces</span>
-                </li>
+          <div className="mt-10 grid gap-8 md:grid-cols-2">
+            <div className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+              <h3 className="text-lg font-semibold text-foreground">Who it&apos;s for</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}Tech startups developing new products</li>
+                <li className="flex items-start gap-3">{bulletDot}Manufacturing engineers validating designs</li>
+                <li className="flex items-start gap-3">{bulletDot}Product developers iterating on concepts</li>
+                <li className="flex items-start gap-3">{bulletDot}Innovation labs and maker spaces</li>
               </ul>
             </div>
-            <div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">Key Benefits</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Same-day turnaround available</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Advanced engineering materials</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Design consultation included</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Quality inspection guaranteed</span>
-                </li>
+            <div className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+              <h3 className="text-lg font-semibold text-foreground">Key benefits</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}Same-day turnaround available</li>
+                <li className="flex items-start gap-3">{bulletDot}Advanced engineering materials</li>
+                <li className="flex items-start gap-3">{bulletDot}Design consultation included</li>
+                <li className="flex items-start gap-3">{bulletDot}Quality inspection on every part</li>
               </ul>
             </div>
           </div>
 
-          <div className="bg-neutral-50 rounded-2xl p-6 my-8">
-            <h3 className="text-xl font-semibold text-neutral-900 mb-4">Our Process</h3>
-            <ol className="space-y-3 text-neutral-700">
-              <li><strong>1. Consultation (15 min)</strong> - Review your requirements, recommend optimal materials and printing technology</li>
-              <li><strong>2. File Preparation (30 min)</strong> - Optimize your CAD files for printing or create new files from your specifications</li>
-              <li><strong>3. Production (2-8 hours)</strong> - Print using professional-grade equipment with premium materials</li>
-              <li><strong>4. Quality Check (30 min)</strong> - Rigorous inspection for dimensional accuracy and surface quality</li>
-              <li><strong>5. Delivery (Same day)</strong> - Pick up from our Elizabeth Bay facility or delivery to your Sydney location</li>
-            </ol>
-          </div>
-
-          <div className="bg-blue-50 rounded-2xl p-6 my-8">
-            <h3 className="text-xl font-semibold text-neutral-900 mb-3">Pricing</h3>
-            <p className="text-neutral-700 mb-3">
-              Rapid prototyping pricing starts from <strong>$50 for small prototypes</strong> (under 50g), with costs scaling based on material choice, size, and complexity.
-            </p>
-            <ul className="space-y-2 text-sm text-neutral-700">
-              <li><strong>Small parts (under 50g):</strong> $50-$150</li>
-              <li><strong>Medium parts (50-200g):</strong> $150-$400</li>
-              <li><strong>Large parts (200g+):</strong> $400+</li>
-              <li className="text-blue-600 font-medium">Students save 20% on all orders</li>
+          <div className="mt-8 rounded-2xl border border-border/60 bg-white p-6">
+            <h3 className="text-lg font-semibold text-foreground">Our process</h3>
+            <ul className="mt-4 space-y-4 text-sm text-foreground/70">
+              <li>
+                <span className="font-medium text-foreground">Consultation (15 min):</span> Review requirements, recommend materials and technology.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">File preparation (30 min):</span> Optimise existing CAD or create files from scratch.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Production (2–8 hours):</span> Print on professional-grade equipment using premium materials.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Quality check (30 min):</span> Inspect for dimensional accuracy and surface finish.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">Delivery:</span> Pickup from Elizabeth Bay or courier across Sydney.
+              </li>
             </ul>
           </div>
 
-          <div className="text-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition">
-              Get Prototype Quote →
+          <div className="mt-8 rounded-2xl border border-border/60 bg-surface-subtle p-6">
+            <h3 className="text-lg font-semibold text-foreground">Typical pricing</h3>
+            <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+              <li><span className="font-medium text-foreground">Small parts (under 50g):</span> $50 – $150</li>
+              <li><span className="font-medium text-foreground">Medium parts (50–200g):</span> $150 – $400</li>
+              <li><span className="font-medium text-foreground">Large parts (200g+):</span> $400+</li>
+              <li className="text-foreground/60">Students save 20% on all orders.</li>
+            </ul>
+          </div>
+
+          <div className="mt-10 text-center md:text-left">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Get prototype quote
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Service 2: Custom Parts */}
-      <section id="custom-parts" className="bg-neutral-50 py-16 md:py-24">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              🔧
-            </div>
-            <h2 className="font-serif text-[32px] md:text-[42px] text-neutral-900">Custom Parts</h2>
-          </div>
-          <p className="text-lg text-neutral-700 mb-6">
-            Need a replacement part that&apos;s no longer manufactured? Want to improve an existing component? We specialize in custom part creation using advanced 3D printing technology.
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-6 my-8">
-            <div className="bg-white rounded-xl p-6 border border-neutral-200">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-3">Common Use Cases</h3>
-              <ul className="space-y-2 text-sm text-neutral-700">
-                <li>• Replacement parts for discontinued products</li>
-                <li>• Upgraded components with improved materials</li>
-                <li>• One-off custom pieces for unique applications</li>
-                <li>• Small batch production (1-100 units)</li>
-                <li>• Reverse engineering from physical samples</li>
-              </ul>
-            </div>
-            <div className="bg-white rounded-xl p-6 border border-neutral-200">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-3">Materials Available</h3>
-              <ul className="space-y-2 text-sm text-neutral-700">
-                <li><strong>Standard:</strong> PLA, PETG, ABS</li>
-                <li><strong>Engineering:</strong> Nylon, Polycarbonate, Carbon Fiber</li>
-                <li><strong>Specialty:</strong> Flexible filaments, High-temp resins</li>
-                <li><strong>Selection:</strong> We&apos;ll recommend the best material for your application</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition">
-              Request Custom Part →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Service 3: Model Printing */}
-      <section id="model-printing" className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              🏗️
-            </div>
-            <h2 className="font-serif text-[32px] md:text-[42px] text-neutral-900">Model Printing</h2>
-          </div>
-          <p className="text-lg text-neutral-700 mb-6">
-            Create impressive architectural models, product displays, and demonstration pieces with high-resolution 3D printing.
-          </p>
-
-          <div className="grid md:grid-cols-2 gap-6 my-8">
+      <section id="custom-parts" className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-foreground">
+              <Cuboid className="h-4 w-4" aria-hidden />
+            </span>
             <div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">Perfect For</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">●</span>
-                  <span>Architectural firms presenting to clients</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">●</span>
-                  <span>Product designers showcasing concepts</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">●</span>
-                  <span>Marketing teams creating trade show displays</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">●</span>
-                  <span>Educators building teaching models</span>
-                </li>
+              <h2 className="text-3xl font-semibold text-foreground">Custom parts</h2>
+              <p className="text-sm text-foreground/60">Replacement and improvement for hard-to-source components.</p>
+            </div>
+          </div>
+
+          <p className="mt-6 text-base text-foreground/70">
+            Recreate discontinued parts, improve existing designs or manufacture small batches with confidence. We specialise in precision components that need to fit first time.
+          </p>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <div className="rounded-2xl border border-border/60 bg-white p-6">
+              <h3 className="text-lg font-semibold text-foreground">Common use cases</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}Replacement parts for discontinued products</li>
+                <li className="flex items-start gap-3">{bulletDot}Upgraded components with improved materials</li>
+                <li className="flex items-start gap-3">{bulletDot}One-off custom pieces for unique applications</li>
+                <li className="flex items-start gap-3">{bulletDot}Small batch production (1–100 units)</li>
+                <li className="flex items-start gap-3">{bulletDot}Reverse engineering from physical samples</li>
               </ul>
             </div>
+            <div className="rounded-2xl border border-border/60 bg-white p-6">
+              <h3 className="text-lg font-semibold text-foreground">Materials available</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li><span className="font-medium text-foreground">Standard:</span> PLA, PETG, ABS</li>
+                <li><span className="font-medium text-foreground">Engineering:</span> Nylon, Polycarbonate, Carbon Fibre</li>
+                <li><span className="font-medium text-foreground">Specialty:</span> Flexible filaments, High-temp resins</li>
+                <li>We&apos;ll recommend the best material for your application.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-10 text-center md:text-left">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Request custom part
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section id="model-printing" className="border-b border-border/60 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface-subtle text-foreground">
+              <Layers3 className="h-4 w-4" aria-hidden />
+            </span>
             <div>
-              <h3 className="text-xl font-semibold text-neutral-900 mb-3">Features</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>High resolution (50-micron layers)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Smooth finish with post-processing</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Large format up to 300mm³</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-600 mt-1">●</span>
-                  <span>Color options available</span>
-                </li>
+              <h2 className="text-3xl font-semibold text-foreground">Model printing</h2>
+              <p className="text-sm text-foreground/60">Presentation-ready architectural, marketing and education pieces.</p>
+            </div>
+          </div>
+
+          <p className="mt-6 text-base text-foreground/70">
+            Deliver high-impact visuals with clean surfaces and crisp detail. Perfect for architectural pitches, product launches and exhibition displays.
+          </p>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            <div className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+              <h3 className="text-lg font-semibold text-foreground">Perfect for</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}Architectural firms presenting to clients</li>
+                <li className="flex items-start gap-3">{bulletDot}Product designers showcasing concepts</li>
+                <li className="flex items-start gap-3">{bulletDot}Marketing teams preparing trade shows</li>
+                <li className="flex items-start gap-3">{bulletDot}Educators building teaching models</li>
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+              <h3 className="text-lg font-semibold text-foreground">Features</h3>
+              <ul className="mt-4 space-y-3 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}High resolution (50-micron layers)</li>
+                <li className="flex items-start gap-3">{bulletDot}Smooth finish with post-processing</li>
+                <li className="flex items-start gap-3">{bulletDot}Large format up to 300mm³</li>
+                <li className="flex items-start gap-3">{bulletDot}Colour options and finishing services</li>
               </ul>
             </div>
           </div>
 
-          <div className="bg-neutral-50 rounded-2xl p-6 my-8">
-            <h3 className="text-xl font-semibold text-neutral-900 mb-4">Finishing Services Available</h3>
-            <p className="text-neutral-700 mb-4">
-              Take your model to the next level with professional post-processing services:
-            </p>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <h4 className="font-medium text-neutral-900 mb-2">Sanding & Smoothing</h4>
-                <p className="text-sm text-neutral-600">Remove layer lines for a polished finish ($30-$80 per part)</p>
+          <div className="mt-8 rounded-2xl border border-border/60 bg-white p-6">
+            <h3 className="text-lg font-semibold text-foreground">Finishing services</h3>
+            <div className="mt-4 grid gap-6 md:grid-cols-3">
+              <div className="text-sm text-foreground/70">
+                <p className="font-medium text-foreground">Sanding & smoothing</p>
+                <p className="mt-2">Remove layer lines for a polished finish ($30–$80 per part).</p>
               </div>
-              <div>
-                <h4 className="font-medium text-neutral-900 mb-2">Painting</h4>
-                <p className="text-sm text-neutral-600">Professional spray painting in any color ($50-$150 per part)</p>
+              <div className="text-sm text-foreground/70">
+                <p className="font-medium text-foreground">Painting</p>
+                <p className="mt-2">Professional spray painting in any colour ($50–$150 per part).</p>
               </div>
-              <div>
-                <h4 className="font-medium text-neutral-900 mb-2">Assembly</h4>
-                <p className="text-sm text-neutral-600">Multi-part assembly and installation ($20-$50 per hour)</p>
+              <div className="text-sm text-foreground/70">
+                <p className="font-medium text-foreground">Assembly</p>
+                <p className="mt-2">Multi-part assembly and installation ($20–$50 per hour).</p>
               </div>
             </div>
           </div>
 
-          <div className="text-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition">
-              Print Your Model →
+          <div className="mt-10 text-center md:text-left">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Print your model
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Service 4: Design Services */}
-      <section id="design-services" className="bg-neutral-50 py-16 md:py-24">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              ✏️
+      <section id="design-services" className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-white text-foreground">
+              <PenTool className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-3xl font-semibold text-foreground">Design services</h2>
+              <p className="text-sm text-foreground/60">From ideas, sketches or samples to production-ready CAD.</p>
             </div>
-            <h2 className="font-serif text-[32px] md:text-[42px] text-neutral-900">Design Services</h2>
           </div>
-          <p className="text-lg text-neutral-700 mb-6">
-            Don&apos;t have a 3D CAD file? No problem. Our experienced designers can turn your idea, sketch, or physical sample into a production-ready 3D model.
+
+          <p className="mt-6 text-base text-foreground/70">
+            Work with our design engineers to create or refine files before printing. Ideal when you&apos;re starting from a sketch, need DFM input or want us to reverse engineer a part.
           </p>
 
-          <div className="bg-white rounded-2xl p-6 border border-neutral-200 my-8">
-            <h3 className="text-xl font-semibold text-neutral-900 mb-4">Our Design Process</h3>
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-bold flex-shrink-0">1</div>
-                <div>
-                  <h4 className="font-semibold text-neutral-900">Brief & Requirements</h4>
-                  <p className="text-sm text-neutral-600">Discuss your vision, technical requirements, and constraints</p>
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            {["Brief & requirements", "Initial concepts", "Refinement", "Final CAD files"].map((step, index) => (
+              <div key={step} className="rounded-2xl border border-border/60 bg-white p-6">
+                <div className="flex items-center gap-3 text-sm font-medium text-foreground/60">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/60 bg-surface-subtle text-foreground">
+                    {index + 1}
+                  </span>
+                  Step {index + 1}
                 </div>
+                <h3 className="mt-4 text-lg font-semibold text-foreground">{step}</h3>
+                <p className="mt-2 text-sm text-foreground/70">
+                  {
+                    [
+                      "Discuss your vision, technical requirements and constraints.",
+                      "Receive two to three design directions for feedback.",
+                      "Iterate with two rounds of revisions included.",
+                      "Deliver production-ready files in STL, STEP or OBJ.",
+                    ][index]
+                  }
+                </p>
               </div>
-              <div className="flex gap-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-bold flex-shrink-0">2</div>
-                <div>
-                  <h4 className="font-semibold text-neutral-900">Initial Concepts</h4>
-                  <p className="text-sm text-neutral-600">Present 2-3 design directions for your feedback</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-bold flex-shrink-0">3</div>
-                <div>
-                  <h4 className="font-semibold text-neutral-900">Refinement</h4>
-                  <p className="text-sm text-neutral-600">Iterate based on your input (2 rounds of revisions included)</p>
-                </div>
-              </div>
-              <div className="flex gap-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white font-bold flex-shrink-0">4</div>
-                <div>
-                  <h4 className="font-semibold text-neutral-900">Final CAD Files</h4>
-                  <p className="text-sm text-neutral-600">Deliver production-ready files in your preferred format (STL, STEP, OBJ)</p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
-          <div className="text-center">
-            <Link href="/contact" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition">
-              Start Design Project →
+          <div className="mt-10 flex flex-col gap-4 rounded-2xl border border-border/60 bg-white p-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">What&apos;s included</h3>
+              <ul className="mt-3 space-y-2 text-sm text-foreground/70">
+                <li className="flex items-start gap-3">{bulletDot}Kick-off session with a design engineer</li>
+                <li className="flex items-start gap-3">{bulletDot}Design for manufacturability review</li>
+                <li className="flex items-start gap-3">{bulletDot}Material and tolerance recommendations</li>
+              </ul>
+            </div>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Start a design project
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16 md:py-20">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8 text-center">
-          <h2 className="font-serif text-[32px] md:text-[42px] text-white mb-4">
-            Ready to Start Your Project?
-          </h2>
-          <p className="text-lg text-blue-100 mb-8">
-            Get an instant quote or contact us to discuss your specific requirements.
+      <section className="bg-white py-20">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-border/60 bg-surface-subtle px-6 py-12 text-center shadow-sm md:px-10">
+          <ShieldCheck className="mx-auto h-10 w-10 text-foreground" aria-hidden />
+          <h2 className="mt-4 text-3xl tracking-tight text-foreground">Not sure where to start?</h2>
+          <p className="mt-4 text-base text-foreground/70">
+            Share your files or ideas and we&apos;ll guide you through the best service, material and finish for your project.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-blue-600 font-medium hover:bg-blue-50 transition">
-              Get Instant Quote →
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Start an instant quote
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center rounded-full border-2 border-white px-6 py-3 text-white font-medium hover:bg-white/10 transition">
-              Contact Us
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Talk to our team
             </Link>
           </div>
         </div>
       </section>
     </div>
-  );
+  )
 }

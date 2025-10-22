@@ -1,513 +1,509 @@
-import React from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "next/link"
+import type { Metadata } from "next"
+import {
+  ArrowRight,
+  Cog,
+  Dumbbell,
+  Flame,
+  Hammer,
+  Leaf,
+  Layers,
+  Shield,
+  Sparkles,
+  StretchHorizontal,
+} from "lucide-react"
+import type { ReactNode } from "react"
+
+type Property = { label: string; value: string; rating: number }
+type Material = {
+  name: string
+  pricing: string
+  icon: ReactNode
+  properties: Property[]
+  benefits: string[]
+  applications: string[]
+  limitations: string[]
+}
 
 export const metadata: Metadata = {
   title: "Materials Guide - 3D Printing Materials | 3D Print Sydney",
   description:
     "Complete guide to 3D printing materials: PLA, PETG, ABS, Nylon, Carbon Fiber, and Resins. Learn properties, applications, and pricing.",
-};
+}
+
+const categories: { title: string; materials: Material[] }[] = [
+  {
+    title: "Standard materials (FDM)",
+    materials: [
+      {
+        name: "PLA (Polylactic Acid)",
+        pricing: "$0.15 - $0.25 per gram",
+        icon: <Leaf className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "Medium", rating: 3 },
+          { label: "Flexibility", value: "Low", rating: 2 },
+          { label: "Heat resistance", value: "Low (60°C)", rating: 2 },
+          { label: "Ease of printing", value: "Excellent", rating: 5 },
+        ],
+        benefits: [
+          "Biodegradable and eco-friendly",
+          "Low warping, excellent surface finish",
+          "Wide colour range available",
+          "Food-safe options available",
+        ],
+        applications: [
+          "Prototypes and concept models",
+          "Display pieces and figurines",
+          "Educational models",
+          "Low-stress mechanical parts",
+        ],
+        limitations: [
+          "Not suitable for high temperatures",
+          "Lower impact strength than ABS",
+          "UV sensitive (will degrade outdoors)",
+        ],
+      },
+      {
+        name: "PETG (Polyethylene Terephthalate Glycol)",
+        pricing: "$0.20 - $0.30 per gram",
+        icon: <Dumbbell className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "High", rating: 4 },
+          { label: "Flexibility", value: "Medium", rating: 3 },
+          { label: "Heat resistance", value: "Medium (80°C)", rating: 3 },
+          { label: "Ease of printing", value: "Good", rating: 4 },
+        ],
+        benefits: [
+          "Excellent layer adhesion and strength",
+          "Chemical and moisture resistant",
+          "Food-safe (check brand)",
+          "Good impact resistance",
+        ],
+        applications: [
+          "Functional mechanical parts",
+          "Outdoor applications",
+          "Protective cases and enclosures",
+          "Food containers and kitchen tools",
+        ],
+        limitations: [
+          "Slightly more difficult to print than PLA",
+          "Can string between features",
+          "Moderate UV resistance",
+        ],
+      },
+      {
+        name: "ABS (Acrylonitrile Butadiene Styrene)",
+        pricing: "$0.25 - $0.35 per gram",
+        icon: <Flame className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "High", rating: 4 },
+          { label: "Flexibility", value: "Medium", rating: 3 },
+          { label: "Heat resistance", value: "High (95°C)", rating: 4 },
+          { label: "Ease of printing", value: "Moderate", rating: 3 },
+        ],
+        benefits: [
+          "High heat resistance",
+          "Excellent impact strength",
+          "Can be smoothed with acetone",
+          "Good electrical insulation",
+        ],
+        applications: [
+          "Automotive parts",
+          "Electronics enclosures",
+          "Functional prototypes",
+          "Tooling and jigs",
+        ],
+        limitations: [
+          "Requires enclosed printer (warping issues)",
+          "Emits fumes during printing",
+          "Not biodegradable",
+        ],
+      },
+    ],
+  },
+  {
+    title: "Engineering-grade materials",
+    materials: [
+      {
+        name: "Nylon (PA12)",
+        pricing: "$0.40 - $0.60 per gram",
+        icon: <Cog className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "Very high", rating: 5 },
+          { label: "Flexibility", value: "High", rating: 4 },
+          { label: "Heat resistance", value: "High (100°C)", rating: 4 },
+          { label: "Ease of printing", value: "Challenging", rating: 2 },
+        ],
+        benefits: [
+          "Exceptional strength and durability",
+          "High flexibility and impact resistance",
+          "Excellent wear resistance",
+          "Chemical resistant",
+        ],
+        applications: [
+          "Functional mechanical parts",
+          "Gears, bearings and hinges",
+          "Snap-fit assemblies",
+          "Wear parts and bushings",
+        ],
+        limitations: [
+          "Absorbs moisture (requires dry storage)",
+          "Challenging to print",
+          "Higher cost than standard materials",
+        ],
+      },
+      {
+        name: "Carbon fiber composite",
+        pricing: "$0.50 - $0.80 per gram",
+        icon: <Layers className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "Excellent", rating: 5 },
+          { label: "Flexibility", value: "Low", rating: 2 },
+          { label: "Heat resistance", value: "High (100°C)", rating: 4 },
+          { label: "Ease of printing", value: "Moderate", rating: 3 },
+        ],
+        benefits: [
+          "Maximum strength-to-weight ratio",
+          "Excellent stiffness and rigidity",
+          "Professional finish",
+          "Heat and chemical resistant",
+        ],
+        applications: [
+          "Aerospace and drone components",
+          "Performance automotive parts",
+          "High-strength structural components",
+          "Professional tooling",
+        ],
+        limitations: [
+          "Requires hardened nozzle",
+          "Higher cost",
+          "Cannot be smoothed post-print",
+        ],
+      },
+      {
+        name: "Polycarbonate (PC)",
+        pricing: "$0.45 - $0.65 per gram",
+        icon: <Shield className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Strength", value: "Excellent", rating: 5 },
+          { label: "Flexibility", value: "Medium", rating: 3 },
+          { label: "Heat resistance", value: "Very high (135°C)", rating: 5 },
+          { label: "Ease of printing", value: "Difficult", rating: 2 },
+        ],
+        benefits: [
+          "Exceptional impact resistance",
+          "Very high heat resistance",
+          "Transparent options available",
+          "Excellent dimensional stability",
+        ],
+        applications: [
+          "Protective equipment",
+          "Automotive components",
+          "High-temperature applications",
+          "Safety shields and guards",
+        ],
+        limitations: [
+          "Requires heated chamber",
+          "Prone to warping",
+          "More expensive than standard materials",
+        ],
+      },
+    ],
+  },
+  {
+    title: "Specialty resins (SLA/DLP)",
+    materials: [
+      {
+        name: "Standard resin",
+        pricing: "$0.50 - $0.80 per gram",
+        icon: <Sparkles className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Detail level", value: "Excellent", rating: 5 },
+          { label: "Surface finish", value: "Smooth", rating: 5 },
+          { label: "Strength", value: "Medium", rating: 3 },
+          { label: "Ease of use", value: "Good", rating: 4 },
+        ],
+        benefits: [
+          "Ultra-high resolution (50-micron layers)",
+          "Smooth, glossy surface finish",
+          "Excellent detail reproduction",
+          "Wide colour range",
+        ],
+        applications: [
+          "Highly detailed models",
+          "Jewellery and miniatures",
+          "Product presentation models",
+          "Dental and medical models",
+        ],
+        limitations: [
+          "Brittle compared to engineering materials",
+          "UV sensitive (will yellow over time)",
+          "Requires post-processing (cleaning and curing)",
+        ],
+      },
+      {
+        name: "Tough resin",
+        pricing: "$0.70 - $1.00 per gram",
+        icon: <Hammer className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Detail level", value: "Very good", rating: 4 },
+          { label: "Surface finish", value: "Smooth", rating: 4 },
+          { label: "Strength", value: "High", rating: 4 },
+          { label: "Ease of use", value: "Good", rating: 4 },
+        ],
+        benefits: [
+          "High impact resistance",
+          "Improved durability over standard resin",
+          "Good surface finish",
+          "Suitable for functional testing",
+        ],
+        applications: [
+          "Functional prototypes",
+          "Snap-fit assemblies",
+          "Jigs and fixtures",
+          "Durable display models",
+        ],
+        limitations: [
+          "Higher cost than standard resin",
+          "Slightly less detail than standard",
+          "Requires careful post-curing",
+        ],
+      },
+      {
+        name: "Flexible resin",
+        pricing: "$0.80 - $1.20 per gram",
+        icon: <StretchHorizontal className="h-5 w-5" aria-hidden />,
+        properties: [
+          { label: "Detail level", value: "Good", rating: 4 },
+          { label: "Surface finish", value: "Smooth", rating: 4 },
+          { label: "Flexibility", value: "Rubber-like", rating: 5 },
+          { label: "Ease of use", value: "Moderate", rating: 3 },
+        ],
+        benefits: [
+          "Rubber-like flexibility",
+          "Good tear resistance",
+          "Smooth surface finish",
+          "Suitable for gaskets and seals",
+        ],
+        applications: [
+          "Gaskets and seals",
+          "Soft-touch grips",
+          "Wearables and straps",
+          "Flexible prototypes",
+        ],
+        limitations: [
+          "Highest cost option",
+          "Limited colour selection",
+          "Requires specific post-processing",
+        ],
+      },
+    ],
+  },
+]
+
+const useCases = [
+  {
+    title: "For prototypes & concept models",
+    recommendation: "PLA or Standard resin",
+    reasoning:
+      "Low cost, easy to print, excellent detail. PLA for larger parts, resin for high-detail small parts.",
+  },
+  {
+    title: "For functional parts",
+    recommendation: "PETG, Nylon or Tough resin",
+    reasoning:
+      "Good strength, durability and impact resistance for parts that need to perform under stress.",
+  },
+  {
+    title: "For outdoor use",
+    recommendation: "PETG or ABS",
+    reasoning:
+      "UV and weather resistance. PETG offers better moisture resistance, ABS handles heat better.",
+  },
+  {
+    title: "For high-detail models",
+    recommendation: "Standard resin",
+    reasoning:
+      "Best surface finish and detail reproduction. Ideal for jewellery, miniatures and presentation models.",
+  },
+  {
+    title: "For high temperatures",
+    recommendation: "ABS, PC or Nylon",
+    reasoning:
+      "PC offers the highest heat resistance (135°C), followed by ABS and Nylon.",
+  },
+  {
+    title: "For maximum strength",
+    recommendation: "Carbon fiber or Polycarbonate",
+    reasoning:
+      "Engineering-grade materials for demanding applications requiring high strength-to-weight ratio.",
+  },
+]
 
 export default function MaterialsPage() {
   return (
-    <div className="bg-white">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8 text-center">
-          <h1 className="font-serif text-[42px] leading-tight tracking-tight sm:text-[54px] md:text-[64px] text-white">
-            Materials Guide
-          </h1>
-          <p className="mt-4 text-lg text-blue-100 mx-auto max-w-2xl">
-            From biodegradable PLA to engineering-grade polymers and specialty resins—choose the right material for your project.
+    <div className="bg-surface-canvas">
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">Materials</span>
+          <h1 className="mt-4 text-4xl tracking-tight text-foreground sm:text-5xl">A curated library for every application.</h1>
+          <p className="mt-5 text-base text-foreground/70">
+            From biodegradable PLA to engineering-grade polymers and specialty resins, we stock materials that balance performance, finish and lead time for your project.
           </p>
         </div>
       </section>
 
-      {/* Material Categories */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Standard Materials (FDM)
-          </h2>
+      {categories.map((category) => (
+        <section key={category.title} className="border-b border-border/60 bg-white py-20">
+          <div className="mx-auto max-w-6xl px-4 md:px-8">
+            <h2 className="text-3xl font-semibold text-foreground">{category.title}</h2>
+            <div className="mt-10 space-y-8">
+              {category.materials.map((material) => (
+                <MaterialCard key={material.name} {...material} />
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
 
-          <div className="space-y-8">
-            <MaterialCard
-              name="PLA (Polylactic Acid)"
-              pricing="$0.15 - $0.25 per gram"
-              icon="🌱"
-              color="bg-green-50"
-              properties={[
-                { label: "Strength", value: "Medium", rating: 3 },
-                { label: "Flexibility", value: "Low", rating: 2 },
-                { label: "Heat Resistance", value: "Low (60°C)", rating: 2 },
-                { label: "Ease of Printing", value: "Excellent", rating: 5 },
-              ]}
-              benefits={[
-                "Biodegradable and eco-friendly",
-                "Low warping, excellent surface finish",
-                "Wide color range available",
-                "Food-safe options available",
-              ]}
-              applications={[
-                "Prototypes and concept models",
-                "Display pieces and figurines",
-                "Educational models",
-                "Low-stress mechanical parts",
-              ]}
-              limitations={[
-                "Not suitable for high temperatures",
-                "Lower impact strength than ABS",
-                "UV sensitive (will degrade outdoors)",
-              ]}
-            />
-
-            <MaterialCard
-              name="PETG (Polyethylene Terephthalate Glycol)"
-              pricing="$0.20 - $0.30 per gram"
-              icon="💪"
-              color="bg-blue-50"
-              properties={[
-                { label: "Strength", value: "High", rating: 4 },
-                { label: "Flexibility", value: "Medium", rating: 3 },
-                { label: "Heat Resistance", value: "Medium (80°C)", rating: 3 },
-                { label: "Ease of Printing", value: "Good", rating: 4 },
-              ]}
-              benefits={[
-                "Excellent layer adhesion and strength",
-                "Chemical and moisture resistant",
-                "Food-safe (check specific brand)",
-                "Good impact resistance",
-              ]}
-              applications={[
-                "Functional mechanical parts",
-                "Outdoor applications",
-                "Protective cases and enclosures",
-                "Food containers and kitchen tools",
-              ]}
-              limitations={[
-                "Slightly more difficult to print than PLA",
-                "Can string between features",
-                "Moderate UV resistance",
-              ]}
-            />
-
-            <MaterialCard
-              name="ABS (Acrylonitrile Butadiene Styrene)"
-              pricing="$0.25 - $0.35 per gram"
-              icon="🔥"
-              color="bg-orange-50"
-              properties={[
-                { label: "Strength", value: "High", rating: 4 },
-                { label: "Flexibility", value: "Medium", rating: 3 },
-                { label: "Heat Resistance", value: "High (95°C)", rating: 4 },
-                { label: "Ease of Printing", value: "Moderate", rating: 3 },
-              ]}
-              benefits={[
-                "High heat resistance",
-                "Excellent impact strength",
-                "Can be smoothed with acetone",
-                "Good electrical insulation",
-              ]}
-              applications={[
-                "Automotive parts",
-                "Electronics enclosures",
-                "Functional prototypes",
-                "Tooling and jigs",
-              ]}
-              limitations={[
-                "Requires enclosed printer (warping issues)",
-                "Emits fumes during printing",
-                "Not biodegradable",
-              ]}
-            />
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <h2 className="text-3xl font-semibold text-foreground">How to choose the right material</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-2">
+            {useCases.map((useCase) => (
+              <UseCaseCard key={useCase.title} {...useCase} />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Engineering Materials */}
-      <section className="py-16 md:py-24 bg-neutral-50">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Engineering-Grade Materials
-          </h2>
-
-          <div className="space-y-8">
-            <MaterialCard
-              name="Nylon (PA12)"
-              pricing="$0.40 - $0.60 per gram"
-              icon="⚙️"
-              color="bg-purple-50"
-              properties={[
-                { label: "Strength", value: "Very High", rating: 5 },
-                { label: "Flexibility", value: "High", rating: 4 },
-                { label: "Heat Resistance", value: "High (100°C)", rating: 4 },
-                { label: "Ease of Printing", value: "Challenging", rating: 2 },
-              ]}
-              benefits={[
-                "Exceptional strength and durability",
-                "High flexibility and impact resistance",
-                "Excellent wear and abrasion resistance",
-                "Chemical resistant",
-              ]}
-              applications={[
-                "Functional mechanical parts",
-                "Gears, bearings, and hinges",
-                "Snap-fit assemblies",
-                "Wear parts and bushings",
-              ]}
-              limitations={[
-                "Absorbs moisture (requires dry storage)",
-                "Challenging to print (requires experience)",
-                "Higher cost than standard materials",
-              ]}
-            />
-
-            <MaterialCard
-              name="Carbon Fiber Composite"
-              pricing="$0.50 - $0.80 per gram"
-              icon="🏎️"
-              color="bg-gray-50"
-              properties={[
-                { label: "Strength", value: "Excellent", rating: 5 },
-                { label: "Flexibility", value: "Low", rating: 2 },
-                { label: "Heat Resistance", value: "High (100°C)", rating: 4 },
-                { label: "Ease of Printing", value: "Moderate", rating: 3 },
-              ]}
-              benefits={[
-                "Maximum strength-to-weight ratio",
-                "Excellent stiffness and rigidity",
-                "Professional finish",
-                "Heat and chemical resistant",
-              ]}
-              applications={[
-                "Aerospace and drone components",
-                "Performance automotive parts",
-                "High-strength structural components",
-                "Professional tooling",
-              ]}
-              limitations={[
-                "Requires hardened nozzle",
-                "Higher cost",
-                "Cannot be smoothed post-print",
-              ]}
-            />
-
-            <MaterialCard
-              name="Polycarbonate (PC)"
-              pricing="$0.45 - $0.65 per gram"
-              icon="🛡️"
-              color="bg-cyan-50"
-              properties={[
-                { label: "Strength", value: "Excellent", rating: 5 },
-                { label: "Flexibility", value: "Medium", rating: 3 },
-                { label: "Heat Resistance", value: "Very High (135°C)", rating: 5 },
-                { label: "Ease of Printing", value: "Difficult", rating: 2 },
-              ]}
-              benefits={[
-                "Exceptional impact resistance",
-                "Very high heat resistance",
-                "Transparent options available",
-                "Excellent dimensional stability",
-              ]}
-              applications={[
-                "Protective equipment",
-                "Automotive components",
-                "High-temperature applications",
-                "Safety shields and guards",
-              ]}
-              limitations={[
-                "Requires heated chamber",
-                "Prone to warping",
-                "Expensive compared to standard materials",
-              ]}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Resin Materials */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Specialty Resins (SLA/DLP)
-          </h2>
-
-          <div className="space-y-8">
-            <MaterialCard
-              name="Standard Resin"
-              pricing="$0.50 - $0.80 per gram"
-              icon="✨"
-              color="bg-amber-50"
-              properties={[
-                { label: "Detail Level", value: "Excellent", rating: 5 },
-                { label: "Surface Finish", value: "Smooth", rating: 5 },
-                { label: "Strength", value: "Medium", rating: 3 },
-                { label: "Ease of Use", value: "Good", rating: 4 },
-              ]}
-              benefits={[
-                "Ultra-high resolution (50-micron layers)",
-                "Smooth, glossy surface finish",
-                "Excellent detail reproduction",
-                "Wide color range",
-              ]}
-              applications={[
-                "Highly detailed models",
-                "Jewelry and miniatures",
-                "Product presentation models",
-                "Dental and medical models",
-              ]}
-              limitations={[
-                "Brittle compared to engineering materials",
-                "UV sensitive (will yellow over time)",
-                "Requires post-processing (cleaning and curing)",
-              ]}
-            />
-
-            <MaterialCard
-              name="Tough Resin"
-              pricing="$0.70 - $1.00 per gram"
-              icon="🔨"
-              color="bg-red-50"
-              properties={[
-                { label: "Detail Level", value: "Very Good", rating: 4 },
-                { label: "Surface Finish", value: "Smooth", rating: 4 },
-                { label: "Strength", value: "High", rating: 4 },
-                { label: "Ease of Use", value: "Good", rating: 4 },
-              ]}
-              benefits={[
-                "High impact resistance",
-                "Improved durability over standard resin",
-                "Good surface finish",
-                "Suitable for functional testing",
-              ]}
-              applications={[
-                "Functional prototypes",
-                "Snap-fit assemblies",
-                "Jigs and fixtures",
-                "Durable display models",
-              ]}
-              limitations={[
-                "Higher cost than standard resin",
-                "Slightly less detail than standard",
-                "Requires careful post-curing",
-              ]}
-            />
-
-            <MaterialCard
-              name="Flexible Resin"
-              pricing="$0.80 - $1.20 per gram"
-              icon="🤸"
-              color="bg-pink-50"
-              properties={[
-                { label: "Detail Level", value: "Good", rating: 4 },
-                { label: "Surface Finish", value: "Smooth", rating: 4 },
-                { label: "Flexibility", value: "Rubber-like", rating: 5 },
-                { label: "Ease of Use", value: "Moderate", rating: 3 },
-              ]}
-              benefits={[
-                "Rubber-like flexibility",
-                "Good tear resistance",
-                "Smooth surface finish",
-                "Suitable for gaskets and seals",
-              ]}
-              applications={[
-                "Gaskets and seals",
-                "Soft-touch grips",
-                "Wearables and straps",
-                "Flexible prototypes",
-              ]}
-              limitations={[
-                "Highest cost option",
-                "Limited color selection",
-                "Requires specific post-processing",
-              ]}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Selection Guide */}
-      <section className="py-16 md:py-24 bg-blue-50">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            How to Choose the Right Material
-          </h2>
-          <div className="grid md:grid-cols-2 gap-8">
-            <UseCaseCard
-              title="For Prototypes & Concept Models"
-              recommendation="PLA or Standard Resin"
-              reasoning="Low cost, easy to print, excellent detail. PLA for larger parts, resin for high-detail small parts."
-            />
-            <UseCaseCard
-              title="For Functional Parts"
-              recommendation="PETG, Nylon, or Tough Resin"
-              reasoning="Good strength, durability, and impact resistance for parts that need to perform under stress."
-            />
-            <UseCaseCard
-              title="For Outdoor Use"
-              recommendation="PETG or ABS"
-              reasoning="UV and weather resistance. PETG offers better moisture resistance, ABS handles heat better."
-            />
-            <UseCaseCard
-              title="For High-Detail Models"
-              recommendation="Standard Resin"
-              reasoning="Best surface finish and detail reproduction. Perfect for jewelry, miniatures, and presentation models."
-            />
-            <UseCaseCard
-              title="For High Temperatures"
-              recommendation="ABS, PC, or Nylon"
-              reasoning="PC offers the highest heat resistance (135°C), followed by ABS and Nylon."
-            />
-            <UseCaseCard
-              title="For Maximum Strength"
-              recommendation="Carbon Fiber or Polycarbonate"
-              reasoning="Engineering-grade materials for demanding applications requiring high strength-to-weight ratio."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Still Not Sure Which Material to Choose?
-          </h2>
-          <p className="text-lg text-blue-100 mb-8">
-            Our team can help you select the perfect material for your specific application.
+      <section className="bg-white py-20">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-border/60 bg-surface-subtle px-6 py-12 text-center shadow-sm md:px-10">
+          <h2 className="text-3xl tracking-tight text-foreground">Need guidance on material selection?</h2>
+          <p className="mt-4 text-base text-foreground/70">
+            Share your application and we&apos;ll recommend the best combination of material, technology and finish for your parts.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-blue-600 font-medium hover:bg-blue-50 transition">
-              Get Quote with Material Options →
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Get quote with material options
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center rounded-full border-2 border-white px-6 py-3 text-white font-medium hover:bg-white/10 transition">
-              Contact for Advice
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Talk to our team
             </Link>
           </div>
         </div>
       </section>
     </div>
-  );
+  )
 }
 
 function MaterialCard({
   name,
   pricing,
   icon,
-  color,
   properties,
   benefits,
   applications,
   limitations,
-}: {
-  name: string;
-  pricing: string;
-  icon: string;
-  color: string;
-  properties: { label: string; value: string; rating: number }[];
-  benefits: string[];
-  applications: string[];
-  limitations: string[];
-}) {
+}: Material) {
   return (
-    <div className="bg-white rounded-2xl border-2 border-neutral-200 overflow-hidden">
-      <div className={`${color} p-6 border-b border-neutral-200`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">{icon}</div>
-            <div>
-              <h3 className="text-2xl font-bold text-neutral-900">{name}</h3>
-              <div className="text-lg font-medium text-blue-600 mt-1">{pricing}</div>
-            </div>
+    <div className="overflow-hidden rounded-2xl border border-border/60 bg-white">
+      <div className="flex items-center justify-between border-b border-border/60 bg-surface-subtle px-6 py-5">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white text-foreground">
+            {icon}
+          </span>
+          <div>
+            <h3 className="text-xl font-semibold text-foreground">{name}</h3>
+            <p className="text-sm text-foreground/60">{pricing}</p>
           </div>
         </div>
       </div>
 
-      <div className="p-6">
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Left Column */}
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-semibold text-neutral-900 mb-3">Properties</h4>
-              <div className="space-y-3">
-                {properties.map((prop) => (
-                  <div key={prop.label}>
-                    <div className="flex justify-between mb-1">
-                      <span className="text-sm text-neutral-700">{prop.label}</span>
-                      <span className="text-sm font-medium text-neutral-900">{prop.value}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`h-2 flex-1 rounded ${i < prop.rating ? "bg-blue-600" : "bg-neutral-200"}`}
-                        />
-                      ))}
-                    </div>
+      <div className="grid gap-8 px-6 py-6 md:grid-cols-2">
+        <div className="space-y-6">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">Properties</h4>
+            <div className="mt-4 space-y-4 text-sm text-foreground/70">
+              {properties.map((property) => (
+                <div key={property.label}>
+                  <div className="flex items-center justify-between text-xs uppercase tracking-wide text-foreground/60">
+                    <span>{property.label}</span>
+                    <span className="font-medium text-foreground">{property.value}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-neutral-900 mb-3">Key Benefits</h4>
-              <ul className="space-y-2">
-                {benefits.map((benefit, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
-                    <span className="text-green-600 mt-0.5">✓</span>
-                    <span>{benefit}</span>
-                  </li>
-                ))}
-              </ul>
+                  <div className="mt-2 flex gap-1">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <span
+                        key={index}
+                        className={"h-1.5 flex-1 rounded-full " + (index < property.rating ? "bg-[color:var(--color-blue-accent)]" : "bg-foreground/10")}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            <div>
-              <h4 className="font-semibold text-neutral-900 mb-3">Best For</h4>
-              <ul className="space-y-2">
-                {applications.map((app, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
-                    <span className="text-blue-600 mt-0.5">•</span>
-                    <span>{app}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">Benefits</h4>
+            <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+              {benefits.map((benefit) => (
+                <li key={benefit} className="flex items-start gap-3">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                  {benefit}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
-            <div>
-              <h4 className="font-semibold text-neutral-900 mb-3">Limitations</h4>
-              <ul className="space-y-2">
-                {limitations.map((limit, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
-                    <span className="text-orange-600 mt-0.5">!</span>
-                    <span>{limit}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="space-y-6">
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">Best for</h4>
+            <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+              {applications.map((application) => (
+                <li key={application} className="flex items-start gap-3">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                  {application}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-foreground/50">Limitations</h4>
+            <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+              {limitations.map((limitation) => (
+                <li key={limitation} className="flex items-start gap-3">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                  {limitation}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function UseCaseCard({
   title,
   recommendation,
   reasoning,
-}: {
-  title: string;
-  recommendation: string;
-  reasoning: string;
-}) {
+}: { title: string; recommendation: string; reasoning: string }) {
   return (
-    <div className="bg-white rounded-xl p-6 border border-neutral-200">
-      <h3 className="text-lg font-semibold text-neutral-900 mb-2">{title}</h3>
-      <div className="text-blue-600 font-medium mb-3">→ {recommendation}</div>
-      <p className="text-sm text-neutral-600">{reasoning}</p>
+    <div className="rounded-2xl border border-border/60 bg-white p-6">
+      <h3 className="text-base font-semibold text-foreground">{title}</h3>
+      <p className="mt-2 text-sm font-medium text-foreground">Recommendation: {recommendation}</p>
+      <p className="mt-2 text-sm text-foreground/70">{reasoning}</p>
     </div>
-  );
+  )
 }

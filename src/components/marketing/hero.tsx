@@ -1,88 +1,66 @@
-import React from "react";
 import Link from "next/link";
+import { ArrowRight, Clock3, GraduationCap, Layers } from "lucide-react";
+
+const highlights = [
+  {
+    icon: Clock3,
+    label: "Same-day production available",
+  },
+  {
+    icon: GraduationCap,
+    label: "20% student pricing",
+  },
+  {
+    icon: Layers,
+    label: "Engineering-grade materials",
+  },
+];
 
 export function Hero() {
   return (
-    <section className="relative bg-white">
-      <div className="mx-auto max-w-[1200px] px-4 pt-16 md:px-8 md:pt-24 pb-12">
-        <h1 className="font-serif text-[38px] leading-none tracking-tight sm:text-[56px] md:text-[76px] lg:text-[86px] text-neutral-900">
-          Professional 3D Printing
-          <br className="hidden md:block" /> in Sydney
+    <section className="border-b border-border/60 bg-surface-canvas">
+      <div className="mx-auto max-w-6xl px-4 pb-16 pt-20 md:px-8 md:pt-24">
+        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
+          Sydney additive manufacturing studio
+        </span>
+        <h1 className="mt-6 text-4xl leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl">
+          Precision 3D printing with guidance from engineers who build every day.
         </h1>
-
-        <p className="mt-6 text-lg md:text-xl text-neutral-700 max-w-2xl">
-          From concept to reality in hours, not weeks. Same-day service available in Sydney CBD.
+        <p className="mt-6 max-w-2xl text-lg text-foreground/70">
+          Prototype, iterate, and ship with confidence. We combine professional machines, premium materials, and hands-on advice to get your parts in hand within hours.
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-[15px] text-neutral-700">
-          <Badge icon={<CheckIcon />}>Same-day service available</Badge>
-          <Badge icon={<DiscountIcon />}>20% student discount</Badge>
-          <Badge icon={<MaterialIcon />}>Professional materials</Badge>
+        <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-foreground/70">
+          {highlights.map(({ icon: Icon, label }) => (
+            <span key={label} className="inline-flex items-center gap-2">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-white text-foreground/70">
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+              </span>
+              {label}
+            </span>
+          ))}
         </div>
 
-        <div className="mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <Link
             href="/quick-order"
-            className="btn-brand active:translate-y-[1px] inline-flex items-center justify-center rounded-full px-6 py-3 text-[16px] font-medium"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
           >
-            Get Instant Quote <span aria-hidden className="ml-2">→</span>
+            Start an instant quote
+            <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
           <Link
             href="/materials"
-            className="btn-ghost inline-flex items-center justify-center rounded-full px-6 py-3 text-[16px] hover:bg-neutral-50"
+            className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/70 transition hover:border-foreground/40 hover:text-foreground"
           >
-            Browse Materials
+            Browse the materials guide
           </Link>
         </div>
 
-        {/* Supporting Text */}
-        <p className="mt-8 text-sm text-neutral-600 max-w-2xl">
-          Whether you&apos;re a startup prototyping your next product, an engineer testing a design, or
-          a maker bringing an idea to life—we make 3D printing fast, affordable, and professional.
+        <p className="mt-8 max-w-xl text-sm text-foreground/60">
+          Located in Elizabeth Bay with courier delivery across Sydney. Every project receives a quality review before it leaves the studio.
         </p>
-      </div>
-
-      {/* Decorative Element */}
-      <div className="absolute inset-0 -z-10 mx-auto max-w-5xl">
-        <div className="absolute right-0 top-20 h-96 w-96 rounded-full bg-blue-50 opacity-30 blur-3xl" />
       </div>
     </section>
   );
-}
-
-function Badge({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-neutral-800">
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-neutral-200 bg-white">
-        {icon}
-      </span>
-      {children}
-    </span>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path
-        d="M2 6l2.5 2.5L10 3"
-        stroke="#111"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function DiscountIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="#111">
-      <path d="M6 1l1.5 3 3.5.5-2.5 2.5.5 3.5L6 9l-3 1.5.5-3.5L1 4.5l3.5-.5L6 1z" />
-    </svg>
-  );
-}
-
-function MaterialIcon() {
-  return <span className="block h-1.5 w-1.5 rounded-full bg-neutral-800" />;
 }

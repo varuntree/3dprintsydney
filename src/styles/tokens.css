@@ -1,183 +1,158 @@
 /**
- * Centralized Design System - Ramp-Inspired
- * All design tokens in one place - colors, typography, spacing, etc.
+ * Centralized Design System - Notion-inspired neutrals
+ * Minimal, editorial palette shared across marketing surfaces.
  */
 
 :root {
   /* ============================================
      FONTS
      ============================================ */
-  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   --font-mono: "Geist Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* ============================================
-     RAMP COLOR PALETTE (Base Primitives)
+     NEUTRAL PALETTE (Warm inks)
      ============================================ */
-  --color-navy-dark: #0B0F1E;
-  --color-navy-medium: #1A1F35;
-  --color-black: #000000;
-  --color-white: #FFFFFF;
+  --color-ink-50: #f8f7f4;
+  --color-ink-100: #f3f1eb;
+  --color-ink-200: #ebe7de;
+  --color-ink-300: #e0dbcf;
+  --color-ink-400: #d0cbbd;
+  --color-ink-500: #b7b3a8;
+  --color-ink-600: #8d8a80;
+  --color-ink-700: #5f5c54;
+  --color-ink-900: #1f1f1c;
+
+  --color-white: #ffffff;
 
   /* Accent Colors */
-  --color-lime: #CDFF00;
-  --color-lime-hover: #B8E600;
-  --color-lime-dark: #A3CC00;
-
-  /* Neutral Gray Scale */
-  --color-gray-50: #F8F9FA;
-  --color-gray-100: #F1F3F5;
-  --color-gray-200: #E9ECEF;
-  --color-gray-300: #DEE2E6;
-  --color-gray-500: #6C757D;
-  --color-gray-700: #495057;
-  --color-gray-900: #212529;
+  --color-ink-accent: #11181c;
+  --color-blue-accent: #2f6df6;
+  --color-blue-accent-dark: #1f56d3;
+  --color-blue-accent-soft: #e2e9fb;
 
   /* ============================================
-     SEMANTIC STATUS COLORS (Centralized)
+     SEMANTIC STATUS COLORS (Muted)
      ============================================ */
-  /* Success - Emerald/Green */
-  --color-success: #10B981;
-  --color-success-light: #34D399;
-  --color-success-dark: #059669;
-  --color-success-bg: #ECFDF5;
-  --color-success-border: #A7F3D0;
-  --color-success-foreground: #FFFFFF;
+  --color-success: #2a6a4b;
+  --color-success-light: #3f8f67;
+  --color-success-dark: #1f4f36;
+  --color-success-bg: #e6f1ea;
+  --color-success-border: #c3ddcc;
+  --color-success-foreground: #1f4f36;
 
-  /* Warning - Amber/Yellow */
-  --color-warning: #F59E0B;
-  --color-warning-light: #FBBF24;
-  --color-warning-dark: #D97706;
-  --color-warning-bg: #FFFBEB;
-  --color-warning-border: #FDE68A;
-  --color-warning-foreground: #78350F;
+  --color-warning: #9f6b1f;
+  --color-warning-light: #c28a32;
+  --color-warning-dark: #7c4f11;
+  --color-warning-bg: #f5edde;
+  --color-warning-border: #e6d7b5;
+  --color-warning-foreground: #5f3c0c;
 
-  /* Danger/Error - Rose/Red */
-  --color-danger: #EF4444;
-  --color-danger-light: #F87171;
-  --color-danger-dark: #DC2626;
-  --color-danger-bg: #FEF2F2;
-  --color-danger-border: #FECACA;
-  --color-danger-foreground: #FFFFFF;
+  --color-danger: #8b3a32;
+  --color-danger-light: #a94f46;
+  --color-danger-dark: #662620;
+  --color-danger-bg: #f3e3e1;
+  --color-danger-border: #e2c2bd;
+  --color-danger-foreground: #63221d;
 
-  /* Info - Sky/Blue */
-  --color-info: #3B82F6;
-  --color-info-light: #60A5FA;
-  --color-info-dark: #2563EB;
-  --color-info-bg: #EFF6FF;
-  --color-info-border: #BFDBFE;
-  --color-info-foreground: #FFFFFF;
+  --color-info: #2f6df6;
+  --color-info-light: #4e84ff;
+  --color-info-dark: #1f56d3;
+  --color-info-bg: #e5ecfb;
+  --color-info-border: #c9d6f8;
+  --color-info-foreground: #1f3b82;
 
-  /* Neutral - Slate/Gray */
-  --color-neutral: #64748B;
-  --color-neutral-light: #94A3B8;
-  --color-neutral-dark: #475569;
-  --color-neutral-bg: #F8FAFC;
-  --color-neutral-border: #E2E8F0;
-  --color-neutral-foreground: #1E293B;
+  --color-neutral: #5f5c54;
+  --color-neutral-light: #8d8a80;
+  --color-neutral-dark: #3a3833;
+  --color-neutral-bg: #f3f1eb;
+  --color-neutral-border: #d0cbbd;
+  --color-neutral-foreground: #1f1f1c;
 
   /* ============================================
      SEMANTIC COMPONENT COLORS
      ============================================ */
-  /* Base UI Colors */
-  --background: var(--color-white);
-  --foreground: var(--color-gray-900);
+  --background: var(--color-ink-50);
+  --foreground: var(--color-ink-900);
 
-  /* Card/Surface Colors */
   --card: var(--color-white);
-  --card-foreground: var(--color-gray-900);
+  --card-foreground: var(--color-ink-900);
 
-  /* Popover Colors */
   --popover: var(--color-white);
-  --popover-foreground: var(--color-gray-900);
+  --popover-foreground: var(--color-ink-900);
 
-  /* Primary Action Colors */
-  --primary: var(--color-navy-dark);
+  --primary: var(--color-ink-accent);
   --primary-foreground: var(--color-white);
-  --primary-accent: var(--color-lime);
-  --primary-accent-foreground: var(--color-navy-dark);
+  --primary-accent: var(--color-blue-accent);
+  --primary-accent-foreground: var(--color-white);
 
-  /* Secondary Colors */
-  --secondary: var(--color-gray-100);
-  --secondary-foreground: var(--color-gray-900);
+  --secondary: var(--color-white);
+  --secondary-foreground: var(--color-ink-700);
 
-  /* Muted/Subtle Colors */
-  --muted: var(--color-gray-100);
-  --muted-foreground: var(--color-gray-500);
+  --muted: var(--color-ink-100);
+  --muted-foreground: var(--color-ink-600);
 
-  /* Accent Colors */
-  --accent: var(--color-gray-100);
-  --accent-foreground: var(--color-gray-900);
+  --accent: var(--color-ink-200);
+  --accent-foreground: var(--color-ink-900);
 
-  /* Destructive Action Colors */
   --destructive: var(--color-danger);
-  --destructive-foreground: var(--color-danger-foreground);
+  --destructive-foreground: var(--color-white);
 
-  /* Border & Input Colors */
-  --border: var(--color-gray-200);
-  --input: var(--color-gray-200);
-  --ring: var(--color-lime);
+  --border: #dcd8cf;
+  --input: #d0cbbd;
+  --ring: var(--color-blue-accent);
 
-  /* Surface Variations */
   --surface-canvas: var(--background);
-  --surface-subtle: var(--color-gray-50);
+  --surface-subtle: var(--color-ink-100);
   --surface-elevated: var(--color-white);
   --surface-overlay: var(--color-white);
 
-  /* Accent Variations */
   --accent-strong: var(--primary);
-  --accent-soft: var(--color-gray-100);
+  --accent-soft: var(--color-ink-100);
 
-  /* Status Subtle Backgrounds */
   --danger-subtle: var(--color-danger-bg);
   --warning-subtle: var(--color-warning-bg);
   --success-subtle: var(--color-success-bg);
   --info-subtle: var(--color-info-bg);
 
-  /* Sidebar Colors */
   --sidebar: var(--color-white);
-  --sidebar-foreground: var(--color-gray-900);
-  --sidebar-primary: var(--color-navy-dark);
+  --sidebar-foreground: var(--color-ink-900);
+  --sidebar-primary: var(--color-ink-accent);
   --sidebar-primary-foreground: var(--color-white);
-  --sidebar-accent: var(--color-gray-100);
-  --sidebar-accent-foreground: var(--color-gray-900);
+  --sidebar-accent: var(--color-ink-100);
+  --sidebar-accent-foreground: var(--color-ink-700);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 
-  /* Chart Colors */
-  --chart-1: var(--color-info);
-  --chart-2: var(--color-success);
-  --chart-3: var(--color-warning);
-  --chart-4: var(--color-danger);
-  --chart-5: #8B5CF6;
+  --chart-1: var(--color-blue-accent);
+  --chart-2: #4f7c5c;
+  --chart-3: #c28a32;
+  --chart-4: #a94f46;
+  --chart-5: #6f6aa6;
 
   /* ============================================
-     SEMANTIC TONE SYSTEM (Centralized)
-     Used across metric cards, status badges, etc.
+     SEMANTIC TONE SYSTEM
      ============================================ */
-  /* Emerald Tone */
-  --tone-emerald-value: var(--color-success-dark);
+  --tone-emerald-value: #2a6a4b;
   --tone-emerald-bg: var(--color-success-bg);
   --tone-emerald-border: var(--color-success-border);
-  --tone-emerald-pill-bg: #D1FAE5;
-  --tone-emerald-pill-text: #065F46;
+  --tone-emerald-pill-bg: #d7e7dd;
+  --tone-emerald-pill-text: #1f4f36;
 
-  /* Sky Tone */
-  --tone-sky-value: var(--color-info-dark);
+  --tone-sky-value: var(--color-blue-accent);
   --tone-sky-bg: var(--color-info-bg);
   --tone-sky-border: var(--color-info-border);
-  --tone-sky-pill-bg: #DBEAFE;
-  --tone-sky-pill-text: #1E40AF;
+  --tone-sky-pill-bg: #d7e2fb;
+  --tone-sky-pill-text: #1f3b82;
 
-  /* Amber Tone */
-  --tone-amber-value: var(--color-warning-dark);
+  --tone-amber-value: #9f6b1f;
   --tone-amber-bg: var(--color-warning-bg);
   --tone-amber-border: var(--color-warning-border);
-  --tone-amber-pill-bg: #FEF3C7;
-  --tone-amber-pill-text: #92400E;
+  --tone-amber-pill-bg: #efe2c9;
+  --tone-amber-pill-text: #5f3c0c;
 
-  /* Slate/Neutral Tone */
   --tone-slate-value: var(--foreground);
-  --tone-slate-bg: var(--color-gray-50);
+  --tone-slate-bg: var(--color-ink-100);
   --tone-slate-border: var(--border);
   --tone-slate-pill-bg: var(--muted);
   --tone-slate-pill-text: var(--muted-foreground);
@@ -185,31 +160,28 @@
   /* ============================================
      TYPOGRAPHY SCALE
      ============================================ */
-  --text-xs: 0.75rem;      /* 12px */
-  --text-sm: 0.875rem;     /* 14px */
-  --text-base: 1rem;       /* 16px */
-  --text-lg: 1.125rem;     /* 18px */
-  --text-xl: 1.25rem;      /* 20px */
-  --text-2xl: 1.5rem;      /* 24px */
-  --text-3xl: 1.875rem;    /* 30px */
-  --text-4xl: 2.25rem;     /* 36px */
-  --text-5xl: 3rem;        /* 48px */
-  --text-6xl: 3.75rem;     /* 60px */
-  --text-7xl: 4.5rem;      /* 72px */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+  --text-6xl: 3.75rem;
+  --text-7xl: 4.5rem;
 
-  /* Font Weights */
   --font-normal: 400;
   --font-medium: 500;
   --font-semibold: 600;
   --font-bold: 700;
 
-  /* Line Heights */
   --leading-tight: 1.25;
   --leading-snug: 1.375;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
-  /* Letter Spacing */
   --tracking-tight: -0.02em;
   --tracking-normal: 0;
   --tracking-wide: 0.05em;
@@ -217,41 +189,40 @@
   /* ============================================
      SPACING SCALE
      ============================================ */
-  --space-1: 0.25rem;      /* 4px */
-  --space-2: 0.5rem;       /* 8px */
-  --space-3: 0.75rem;      /* 12px */
-  --space-4: 1rem;         /* 16px */
-  --space-5: 1.25rem;      /* 20px */
-  --space-6: 1.5rem;       /* 24px */
-  --space-8: 2rem;         /* 32px */
-  --space-10: 2.5rem;      /* 40px */
-  --space-12: 3rem;        /* 48px */
-  --space-16: 4rem;        /* 64px */
-  --space-20: 5rem;        /* 80px */
-  --space-24: 6rem;        /* 96px */
-  --space-32: 8rem;        /* 128px */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
 
   /* ============================================
      BORDER RADIUS
      ============================================ */
-  --radius: 0.625rem;      /* 10px - default */
-  --radius-sm: 0.375rem;   /* 6px */
-  --radius-md: 0.5rem;     /* 8px */
-  --radius-lg: 0.75rem;    /* 12px */
-  --radius-xl: 1rem;       /* 16px */
-  --radius-2xl: 1.5rem;    /* 24px */
-  --radius-3xl: 1.875rem;  /* 30px */
+  --radius: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.875rem;
   --radius-full: 9999px;
 
   /* ============================================
      SHADOWS
      ============================================ */
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 8px 0 rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.10);
-  --shadow-xl: 0 16px 32px 0 rgba(0, 0, 0, 0.12);
-  --shadow-2xl: 0 24px 48px 0 rgba(0, 0, 0, 0.15);
+  --shadow-xs: 0 1px 2px 0 rgba(17, 24, 28, 0.04);
+  --shadow-sm: 0 2px 4px 0 rgba(17, 24, 28, 0.05);
+  --shadow-md: 0 4px 12px 0 rgba(17, 24, 28, 0.08);
+  --shadow-lg: 0 10px 30px 0 rgba(17, 24, 28, 0.1);
+  --shadow-xl: 0 18px 40px 0 rgba(17, 24, 28, 0.12);
 
   /* ============================================
      TRANSITIONS
@@ -265,94 +236,44 @@
    DARK MODE
    ============================================ */
 .dark {
-  /* Base Colors */
-  --background: var(--color-navy-dark);
+  --background: #101010;
   --foreground: var(--color-white);
 
-  /* Card/Surface Colors */
-  --card: var(--color-navy-medium);
+  --card: #181818;
   --card-foreground: var(--color-white);
 
-  /* Popover Colors */
-  --popover: var(--color-navy-medium);
+  --popover: #181818;
   --popover-foreground: var(--color-white);
 
-  /* Primary Colors */
   --primary: var(--color-white);
-  --primary-foreground: var(--color-navy-dark);
+  --primary-foreground: #101010;
 
-  /* Secondary Colors */
-  --secondary: #334155;
+  --secondary: #1f1f1f;
   --secondary-foreground: var(--color-white);
 
-  /* Muted Colors */
-  --muted: #334155;
-  --muted-foreground: var(--color-gray-500);
+  --muted: #1f1f1f;
+  --muted-foreground: #b7b3a8;
 
-  /* Accent Colors */
-  --accent: #334155;
+  --accent: #1f1f1f;
   --accent-foreground: var(--color-white);
 
-  /* Destructive Colors */
-  --destructive: var(--color-danger-light);
+  --destructive: #a94f46;
   --destructive-foreground: var(--color-white);
 
-  /* Border & Input Colors */
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: var(--color-lime);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: var(--color-blue-accent);
 
-  /* Surface Variations */
-  --surface-canvas: var(--background);
-  --surface-subtle: #1E293B;
-  --surface-elevated: var(--color-navy-medium);
-  --surface-overlay: #2D3B52;
+  --surface-canvas: #101010;
+  --surface-subtle: #161616;
+  --surface-elevated: #181818;
+  --surface-overlay: #1f1f1f;
 
-  /* Accent Variations */
   --accent-strong: var(--primary);
-  --accent-soft: #334155;
+  --accent-soft: #161616;
 
-  /* Status Subtle Backgrounds (adjusted for dark mode) */
-  --danger-subtle: rgba(239, 68, 68, 0.15);
-  --warning-subtle: rgba(245, 158, 11, 0.15);
-  --success-subtle: rgba(16, 185, 129, 0.15);
-  --info-subtle: rgba(59, 130, 246, 0.15);
-
-  /* Sidebar Colors */
-  --sidebar: var(--color-navy-medium);
-  --sidebar-foreground: var(--color-white);
-  --sidebar-primary: var(--color-lime);
-  --sidebar-primary-foreground: var(--color-navy-dark);
-  --sidebar-accent: #334155;
-  --sidebar-accent-foreground: var(--color-white);
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: var(--ring);
-
-  /* Chart Colors (adjusted for dark mode) */
-  --chart-1: #6366F1;
-  --chart-2: #22D3EE;
-  --chart-3: #FBBF24;
-  --chart-4: #F472B6;
-  --chart-5: #A78BFA;
-
-  /* Tone System Dark Mode Adjustments */
-  --tone-emerald-bg: rgba(16, 185, 129, 0.15);
-  --tone-emerald-border: rgba(16, 185, 129, 0.3);
-  --tone-emerald-pill-bg: rgba(16, 185, 129, 0.2);
-  --tone-emerald-pill-text: #6EE7B7;
-
-  --tone-sky-bg: rgba(59, 130, 246, 0.15);
-  --tone-sky-border: rgba(59, 130, 246, 0.3);
-  --tone-sky-pill-bg: rgba(59, 130, 246, 0.2);
-  --tone-sky-pill-text: #93C5FD;
-
-  --tone-amber-bg: rgba(245, 158, 11, 0.15);
-  --tone-amber-border: rgba(245, 158, 11, 0.3);
-  --tone-amber-pill-bg: rgba(245, 158, 11, 0.2);
-  --tone-amber-pill-text: #FCD34D;
-
-  --tone-slate-bg: #334155;
-  --tone-slate-border: rgba(255, 255, 255, 0.1);
-  --tone-slate-pill-bg: #475569;
-  --tone-slate-pill-text: var(--color-gray-500);
+  --danger-subtle: rgba(169, 79, 70, 0.18);
+  --warning-subtle: rgba(194, 138, 50, 0.18);
+  --success-subtle: rgba(47, 127, 88, 0.18);
+  --info-subtle: rgba(47, 109, 246, 0.18);
 }
