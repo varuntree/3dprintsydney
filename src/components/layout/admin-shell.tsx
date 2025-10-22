@@ -101,13 +101,13 @@ export function AdminShell({ children, user }: AdminShellProps) {
           <div className="mt-3 space-y-2">
             <Link
               href="/account"
-              className="block w-full rounded-md border border-border px-3 py-2 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10"
+              className="block w-full rounded-md border border-border px-3 py-2.5 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10 min-h-11"
             >
               Account settings
             </Link>
             <button
               onClick={handleLogout}
-              className="w-full rounded-md border border-red-200 px-3 py-2 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+              className="w-full rounded-md border border-red-200 px-3 py-2.5 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors min-h-11"
             >
               Logout
             </button>
@@ -151,7 +151,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
                 })}
                 <button
                   onClick={handleLogout}
-                  className="rounded-full border border-red-200 px-3 py-1 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                  className="rounded-full border border-red-200 px-3 py-2 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors min-h-10"
                 >
                   Logout
                 </button>
@@ -165,17 +165,16 @@ export function AdminShell({ children, user }: AdminShellProps) {
                       href={action.href}
                       variant="ghost"
                       size="icon"
-                      className="h-9 w-9"
                       title={action.name}
                       aria-label={action.name}
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-5 w-5" />
                     </ActionButton>
                   );
                 })}
                 <button
                   onClick={handleLogout}
-                  className="rounded-md px-2 py-1 text-sm text-red-600 hover:text-red-700 underline"
+                  className="rounded-md px-3 py-2 text-sm text-red-600 hover:text-red-700 underline min-h-11"
                 >
                   Logout
                 </button>
@@ -185,8 +184,8 @@ export function AdminShell({ children, user }: AdminShellProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 bg-surface-canvas px-4 py-6 sm:px-6 sm:py-10">
-          <div className="mx-auto w-full max-w-[1400px] space-y-6 sm:space-y-8">
+        <main className="flex-1 bg-surface-canvas px-4 py-4 sm:px-6 sm:py-10">
+          <div className="mx-auto w-full max-w-[1400px] space-y-4 sm:space-y-6">
             {children}
           </div>
         </main>

@@ -62,7 +62,7 @@ export function NavigationLink({
   const linkClassName = asChild
     ? className
     : cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all",
+        "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 sm:py-2 text-left text-sm font-medium transition-all min-h-11 sm:min-h-0",
         fullWidth ? "w-full" : "w-auto",
         active
           ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"

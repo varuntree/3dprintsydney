@@ -161,7 +161,7 @@ export function DashboardView({ initial }: { initial: DashboardClientSnapshot })
   ] as const;
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-6 sm:gap-10">
       <DashboardHeader
         range={range}
         onRangeChange={setRange}
@@ -283,10 +283,10 @@ function DashboardHeader({
   queuedJobs: number;
 }) {
   return (
-    <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
+    <header className="rounded-2xl sm:rounded-3xl border border-border bg-surface-elevated/80 p-4 sm:p-6 shadow-sm shadow-black/5 backdrop-blur">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-foreground">
             Daily Console
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -295,7 +295,7 @@ function DashboardHeader({
         </div>
         <RangeToggle range={range} options={options} onChange={onRangeChange} />
       </div>
-      <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+      <div className="mt-4 sm:mt-6 grid gap-2 sm:gap-3 text-sm sm:grid-cols-3">
         <HeaderStat label="Revenue (range)" value={formatCurrency(revenue)} tone="emerald" />
         <HeaderStat label="Outstanding balance" value={formatCurrency(outstanding)} tone="slate" />
         <HeaderStat label="Jobs queued" value={`${queuedJobs}`} tone="amber" />
@@ -322,7 +322,7 @@ function RangeToggle({
             key={option.key}
             type="button"
             className={cn(
-              "rounded-full px-3 py-1 transition",
+              "rounded-full px-3 py-2 sm:py-1.5 transition min-h-10 sm:min-h-0",
               active
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
@@ -362,11 +362,11 @@ function HeaderStat({
   };
 
   return (
-    <div className={cn("rounded-2xl border bg-card/80 p-4 shadow-sm shadow-black/5", palette[tone].border)}>
+    <div className={cn("rounded-xl sm:rounded-2xl border bg-card/80 p-3 sm:p-4 shadow-sm shadow-black/5", palette[tone].border)}>
       <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
         {label}
       </p>
-      <p className={cn("mt-2 text-lg font-semibold", palette[tone].value)}>{value}</p>
+      <p className={cn("mt-2 text-base sm:text-lg font-semibold", palette[tone].value)}>{value}</p>
     </div>
   );
 }
@@ -432,7 +432,7 @@ const metricToneStyles: Record<string, { border: string; pill: string; gradient:
 function ExecutiveTile({ metric }: { metric: MetricDatum }) {
   const tone = metricToneStyles[metric.tone ?? "slate"];
   return (
-    <div className={cn("relative overflow-hidden rounded-3xl border bg-card/90 p-6 shadow-sm shadow-black/5 transition-colors duration-200", tone.border)}>
+    <div className={cn("relative overflow-hidden rounded-2xl sm:rounded-3xl border bg-card/90 p-4 sm:p-6 shadow-sm shadow-black/5 transition-colors duration-200", tone.border)}>
       <span
         className={cn(
           "pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100",
@@ -441,11 +441,11 @@ function ExecutiveTile({ metric }: { metric: MetricDatum }) {
         )}
         aria-hidden
       />
-      <div className="relative flex flex-col gap-4">
+      <div className="relative flex flex-col gap-3 sm:gap-4">
         <span className={cn("w-fit rounded-full px-3 py-1 text-xs font-medium", tone.pill)}>
           {metric.label}
         </span>
-        <div className={cn("text-3xl font-semibold tracking-tight", tone.value)}>
+        <div className={cn("text-2xl sm:text-3xl font-semibold tracking-tight", tone.value)}>
           {metric.value}
         </div>
         {metric.helper ? (
@@ -476,7 +476,7 @@ function RevenueCard({ data }: { data: { label: string; value: number }[] }) {
   const peak = data.reduce((max, point) => Math.max(max, point.value), 0);
 
   return (
-    <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
+    <Card className="rounded-2xl sm:rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
       <CardHeader className="flex flex-row items-start justify-between">
         <div className="space-y-1">
           <CardTitle className="text-sm font-semibold text-muted-foreground">
@@ -530,7 +530,7 @@ function QuotePipelineCard({
   const aggregate = totals.reduce((sum, stage) => sum + stage.count, 0);
 
   return (
-    <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
+    <Card className="rounded-2xl sm:rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
       <CardHeader className="space-y-1">
         <CardTitle className="text-sm font-semibold text-muted-foreground">
           Quote pipeline
@@ -595,7 +595,7 @@ function OutstandingInvoicesCard({
   const now = new Date();
 
   return (
-    <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
+    <Card className="rounded-2xl sm:rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
       <CardHeader className="space-y-1">
         <CardTitle className="text-sm font-semibold text-muted-foreground">
           Outstanding invoices
@@ -616,7 +616,7 @@ function OutstandingInvoicesCard({
             return (
               <div
                 key={invoice.id}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-border/60 bg-card/80 px-4 py-3 shadow-sm shadow-black/5"
+                className="flex items-center justify-between gap-3 sm:gap-4 rounded-xl sm:rounded-2xl border border-border/60 bg-card/80 px-3 sm:px-4 py-3 shadow-sm shadow-black/5"
               >
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-semibold text-foreground">
@@ -646,7 +646,7 @@ function PrinterLoadCard({
 }) {
   if (jobSummary.length === 0) {
     return (
-      <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
+      <Card className="rounded-2xl sm:rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
         <CardHeader>
           <CardTitle className="text-sm font-semibold text-muted-foreground">
             Printer load
@@ -660,7 +660,7 @@ function PrinterLoadCard({
   }
 
   return (
-    <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
+    <Card className="rounded-2xl sm:rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
       <CardHeader className="space-y-1">
         <CardTitle className="text-sm font-semibold text-muted-foreground">
           Printer load

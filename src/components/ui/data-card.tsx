@@ -46,7 +46,7 @@ export function DataCard({
   return (
     <div
       className={cn(
-        "rounded-3xl border bg-surface-overlay shadow-sm shadow-black/5 p-6",
+        "rounded-3xl border bg-surface-overlay shadow-sm shadow-black/5 p-4 sm:p-6",
         styles.border,
         className,
       )}
@@ -62,7 +62,7 @@ export function DataCard({
             >
               {title}
             </p>
-            <div className={cn("text-3xl font-semibold tracking-tight", styles.value)}>
+            <div className={cn("text-2xl sm:text-3xl font-semibold tracking-tight", styles.value)}>
               {value}
             </div>
           </div>

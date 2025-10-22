@@ -97,16 +97,16 @@ export function ClientDashboard() {
   // Email notification toggle temporarily disabled while delivery is paused.
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Welcome Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Welcome Back</h1>
           <p className="text-sm text-muted-foreground">
             Manage your orders and communicate with our team
           </p>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-3 sm:px-4 py-3 text-amber-900">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
             <p className="text-[11px] leading-snug">
@@ -122,8 +122,8 @@ export function ClientDashboard() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 shadow-sm shadow-primary/20">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-xl sm:rounded-2xl border border-primary/30 bg-primary/10 p-3 sm:p-4 shadow-sm shadow-primary/20">
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-primary">Need something printed fast?</p>
             <p className="text-xs text-primary/80">
@@ -132,7 +132,7 @@ export function ClientDashboard() {
           </div>
           <Link
             href="/quick-order"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90"
+            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 sm:py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90 min-h-11 sm:min-h-0"
           >
             Open Quick Order
             <ChevronRight className="h-4 w-4" />

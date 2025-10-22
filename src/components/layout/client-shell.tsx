@@ -102,14 +102,14 @@ export function ClientShell({ children, user }: ClientShellProps) {
             </div>
             <Link
               href="/client/account"
-              className="mt-3 block w-full rounded-md border border-border/60 px-3 py-2 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10"
+              className="mt-3 block w-full rounded-md border border-border/60 px-3 py-2.5 text-sm text-foreground transition hover:border-blue-500 hover:bg-blue-500/10 min-h-11"
             >
               Account settings
             </Link>
             <button
               onClick={handleLogout}
               title="Logout"
-              className="mt-3 w-full rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+              className="mt-3 w-full rounded-md border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-700 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white min-h-11"
               aria-label="Logout"
             >
               Logout
@@ -136,7 +136,7 @@ export function ClientShell({ children, user }: ClientShellProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLogout}
-                className="rounded-full border border-red-200 px-3 py-1 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                className="rounded-full border border-red-200 px-4 py-2 sm:px-3 sm:py-1.5 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors min-h-11 sm:min-h-10"
               >
                 Logout
               </button>
@@ -145,8 +145,8 @@ export function ClientShell({ children, user }: ClientShellProps) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 bg-surface-canvas px-4 py-6 sm:px-6 sm:py-10">
-          <div className="mx-auto w-full max-w-[1400px] space-y-6 sm:space-y-8">
+        <main className="flex-1 bg-surface-canvas px-4 py-4 sm:px-6 sm:py-10">
+          <div className="mx-auto w-full max-w-[1400px] space-y-4 sm:space-y-6">
             {children}
           </div>
         </main>

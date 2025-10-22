@@ -22,7 +22,7 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        "group relative overflow-hidden rounded-3xl border bg-card/90 p-6 shadow-sm shadow-black/5 transition-colors duration-200",
+        "group relative overflow-hidden rounded-3xl border bg-card/90 p-4 sm:p-6 shadow-sm shadow-black/5 transition-colors duration-200",
         toneConfig.border,
         className,
       )}
@@ -37,14 +37,14 @@ export function MetricCard({
         )}
         aria-hidden="true"
       />
-      <div className="relative flex flex-col gap-4">
+      <div className="relative flex flex-col gap-3 sm:gap-4">
         <span
           id="metric-card-label"
           className={cn("w-fit rounded-full px-3 py-1 text-xs font-medium", toneConfig.pill)}
         >
           {label}
         </span>
-        <div className={cn("text-3xl font-semibold tracking-tight", toneConfig.value)}>
+        <div className={cn("text-2xl sm:text-3xl font-semibold tracking-tight", toneConfig.value)}>
           {value}
         </div>
         {helper ? (
