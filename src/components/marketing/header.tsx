@@ -86,13 +86,13 @@ export function MarketingHeader() {
         <div className="flex items-center gap-2">
           <Link
             href="/login"
-            className="hidden rounded-full border border-border/70 px-4 py-2 text-sm text-foreground/70 transition hover:border-foreground/40 hover:text-foreground md:inline-flex"
+            className="inline-flex items-center gap-1 rounded-full border border-border/70 px-3 py-2 text-sm font-medium text-foreground/70 transition hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
           >
             Sign in
           </Link>
           <Link
             href="/quick-order"
-            className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2"
           >
             Get quote
             <ArrowUpRight className="h-4 w-4" aria-hidden />
