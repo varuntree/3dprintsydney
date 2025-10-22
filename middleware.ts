@@ -4,7 +4,16 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password"];
+const MARKETING_ROUTES = [
+  "/",
+  "/services",
+  "/pricing",
+  "/about",
+  "/contact",
+  "/portfolio",
+  "/materials",
+];
 const ACCESS_COOKIE = "sb:token";
 const REFRESH_COOKIE = "sb:refresh-token";
 
@@ -52,6 +61,14 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+  const isMarketing = MARKETING_ROUTES.some((route) =>
+    pathname === route || pathname.startsWith(route + "/")
+  );
+
+  // Allow marketing routes for everyone (authenticated or not)
+  if (isMarketing) {
+    return response;
+  }
 
   if (!authUser) {
     if (isPublic) {
@@ -77,7 +94,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isPublic) {
-    const homeUrl = profile.role === "ADMIN" ? "/" : "/client";
+    const homeUrl = profile.role === "ADMIN" ? "/dashboard" : "/client";
     return NextResponse.redirect(new URL(homeUrl, request.url));
   }
 
