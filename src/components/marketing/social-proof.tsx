@@ -1,89 +1,89 @@
-import React from "react";
+import { BadgeCheck, Clock3, GraduationCap, Users } from "lucide-react";
+
+const stats = [
+  {
+    icon: Users,
+    value: "1,000+",
+    label: "Projects completed",
+  },
+  {
+    icon: Clock3,
+    value: "Same day",
+    label: "Production available",
+  },
+  {
+    icon: GraduationCap,
+    value: "20%",
+    label: "Automatic student concession",
+  },
+  {
+    icon: BadgeCheck,
+    value: "4.9 / 5",
+    label: "Average client rating",
+  },
+];
+
+const testimonials = [
+  {
+    quote:
+      "3D Print Sydney helped us iterate three hardware revisions in a single week. The communication and advice saved us days of rework.",
+    author: "Product manager",
+    company: "Hardware startup, Surry Hills",
+  },
+  {
+    quote:
+      "The team guided me through material selection and tolerances for my architecture studio project. The final model looked like it came straight from a gallery.",
+    author: "Architecture student",
+    company: "University of Sydney",
+  },
+  {
+    quote:
+      "They proactively adjusted our part geometry so the print would withstand repeated load. That's the kind of engineering partner we need.",
+    author: "Mechanical engineer",
+    company: "Manufacturing firm, Alexandria",
+  },
+];
 
 export function SocialProof() {
   return (
-    <section className="bg-white py-16 md:py-24">
-      <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-        <div className="text-center">
-          <h2 className="font-serif text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[54px] text-neutral-900">
-            Trusted by Sydney&apos;s
-            <br />
-            Makers and Innovators
+    <section className="border-b border-border/60 bg-white py-20">
+      <div className="mx-auto max-w-6xl px-4 md:px-8">
+        <div className="max-w-2xl">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
+            Proof
+          </span>
+          <h2 className="mt-4 text-3xl tracking-tight text-foreground sm:text-4xl">
+            Trusted by teams who need reliable parts, fast.
           </h2>
         </div>
 
-        {/* Stats */}
-        <div className="mt-12 grid gap-8 md:grid-cols-4">
-          <StatCard icon="🎯" number="1000+" label="Projects Completed" />
-          <StatCard icon="⚡" number="Same Day" label="Service Available" />
-          <StatCard icon="🎓" number="20%" label="Student Discount" />
-          <StatCard icon="⭐" number="4.9/5" label="Average Rating" />
+        <div className="mt-12 grid gap-4 md:grid-cols-4">
+          {stats.map(({ icon: Icon, value, label }) => (
+            <div key={value} className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white">
+                <Icon className="h-4 w-4 text-foreground" aria-hidden />
+              </span>
+              <div className="mt-4 text-2xl font-semibold text-foreground">{value}</div>
+              <div className="mt-2 text-sm text-foreground/70">{label}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Testimonials */}
-        <div className="mt-16 grid gap-6 md:grid-cols-3">
-          <Testimonial
-            quote="3D Print Sydney helped us prototype our hardware startup in record time. Same-day service was a game-changer for our launch timeline."
-            author="Product Manager"
-            company="Tech Startup, Surry Hills"
-          />
-          <Testimonial
-            quote="As a student, the 20% discount made professional 3D printing actually affordable. Quality was outstanding for my architecture model."
-            author="Architecture Student"
-            company="University of Sydney"
-          />
-          <Testimonial
-            quote="They didn't just print my part—they helped redesign it for better performance. True engineering expertise, not just a print service."
-            author="Mechanical Engineer"
-            company="Manufacturing Company"
-          />
+        <div className="mt-14 grid gap-4 md:grid-cols-3">
+          {testimonials.map((testimonial) => (
+            <blockquote
+              key={testimonial.author}
+              className="flex h-full flex-col justify-between rounded-2xl border border-border/60 bg-surface-subtle p-6"
+            >
+              <p className="text-sm leading-relaxed text-foreground/75">“{testimonial.quote}”</p>
+              <footer className="mt-6 text-sm text-foreground/60">
+                <div className="font-medium text-foreground">{testimonial.author}</div>
+                <div>{testimonial.company}</div>
+              </footer>
+            </blockquote>
+          ))}
         </div>
       </div>
     </section>
-  );
-}
-
-function StatCard({ icon, number, label }: { icon: string; number: string; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="mb-2 text-4xl">{icon}</div>
-      <div className="text-3xl font-bold text-neutral-900">{number}</div>
-      <div className="mt-1 text-sm text-neutral-600">{label}</div>
-    </div>
-  );
-}
-
-function Testimonial({
-  quote,
-  author,
-  company,
-}: {
-  quote: string;
-  author: string;
-  company: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6">
-      {/* Stars */}
-      <div className="mb-3 flex gap-0.5">
-        {[...Array(5)].map((_, i) => (
-          <svg
-            key={i}
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="#FFA500"
-            className="text-yellow-500"
-          >
-            <path d="M12 2l2.9 6.1L22 9.3l-5 4.7 1.2 6.7L12 17.8 5.8 20.7 7 14 2 9.3l7.1-1.2L12 2z" />
-          </svg>
-        ))}
-      </div>
-      <p className="mb-4 text-neutral-700 italic">&ldquo;{quote}&rdquo;</p>
-      <div>
-        <div className="font-medium text-neutral-900">{author}</div>
-        <div className="text-sm text-neutral-600">{company}</div>
-      </div>
-    </div>
   );
 }

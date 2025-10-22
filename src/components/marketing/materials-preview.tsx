@@ -1,98 +1,78 @@
-import React from "react";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+
+const categories = [
+  {
+    title: "Standard materials",
+    items: [
+      { name: "PLA", description: "Reliable, eco-conscious prototyping" },
+      { name: "PETG", description: "Durable parts with chemical resistance" },
+      { name: "ABS", description: "Heat tolerant functional components" },
+    ],
+  },
+  {
+    title: "Engineering polymers",
+    items: [
+      { name: "Nylon", description: "Tough, flexible and wear resistant" },
+      { name: "Carbon fibre", description: "High stiffness to weight ratio" },
+      { name: "Polycarbonate", description: "Impact resistant up to 135°C" },
+    ],
+  },
+  {
+    title: "Resin library",
+    items: [
+      { name: "Standard", description: "High-detail presentation pieces" },
+      { name: "Tough", description: "Functional prototypes that flex" },
+      { name: "Flexible", description: "Elastomer-like grips and gaskets" },
+    ],
+  },
+];
 
 export function MaterialsPreview() {
   return (
-    <section className="bg-neutral-50 py-16 md:py-24">
-      <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-        <div className="text-center">
-          <h2 className="font-serif text-[36px] leading-tight tracking-tight sm:text-[48px] md:text-[54px] text-neutral-900">
-            Professional Materials for
-            <br />
-            Every Application
+    <section className="border-b border-border/60 bg-surface-subtle py-20">
+      <div className="mx-auto max-w-6xl px-4 md:px-8">
+        <div className="max-w-3xl">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
+            Materials
+          </span>
+          <h2 className="mt-4 text-3xl tracking-tight text-foreground sm:text-4xl">
+            A curated library for prototypes and production-ready parts.
           </h2>
-          <p className="mt-4 text-lg text-neutral-600 mx-auto max-w-2xl">
-            From biodegradable PLA for prototypes to engineering-grade polymers for functional
-            parts—we stock premium materials for every use case.
+          <p className="mt-4 text-base text-foreground/70">
+            Choose from a carefully selected range covering standard, engineering and specialty resins. Every material is profiled for strength, finish and lead time.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          <MaterialCategory
-            title="Standard Materials"
-            materials={[
-              { name: "PLA", desc: "Eco-friendly, perfect for prototypes" },
-              { name: "PETG", desc: "Durable and chemical resistant" },
-              { name: "ABS", desc: "Strong and heat resistant" },
-            ]}
-          />
-          <MaterialCategory
-            title="Engineering Grade"
-            materials={[
-              { name: "Nylon", desc: "Exceptional strength and flexibility" },
-              { name: "Carbon Fiber", desc: "Maximum strength-to-weight ratio" },
-              { name: "Polycarbonate", desc: "Impact resistant and heat tolerant" },
-            ]}
-          />
-          <MaterialCategory
-            title="Specialty Resins"
-            materials={[
-              { name: "Standard Resin", desc: "High detail and smooth finish" },
-              { name: "Tough Resin", desc: "Functional prototypes" },
-              { name: "Flexible Resin", desc: "Rubber-like parts" },
-            ]}
-          />
+        <div className="mt-12 grid gap-4 md:grid-cols-3">
+          {categories.map((category) => (
+            <div key={category.title} className="flex h-full flex-col rounded-2xl border border-border/60 bg-white p-6">
+              <h3 className="text-lg font-semibold text-foreground">{category.title}</h3>
+              <ul className="mt-5 space-y-4 text-sm text-foreground/70">
+                {category.items.map((item) => (
+                  <li key={item.name} className="flex items-start gap-3">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" />
+                    <div>
+                      <span className="font-medium text-foreground">{item.name}</span>
+                      <span className="ml-2 text-foreground/60">{item.description}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-10 text-center">
+        <div className="mt-12 text-center">
           <Link
             href="/materials"
-            className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition"
+            className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground transition hover:border-foreground/40 hover:text-foreground"
           >
-            View Full Materials Guide <ArrowRight />
+            View the full materials guide
+            <ArrowUpRight className="h-4 w-4" aria-hidden />
           </Link>
         </div>
       </div>
     </section>
-  );
-}
-
-function MaterialCategory({
-  title,
-  materials,
-}: {
-  title: string;
-  materials: { name: string; desc: string }[];
-}) {
-  return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-      <h3 className="mb-4 text-xl font-semibold text-neutral-900">{title}</h3>
-      <ul className="space-y-3">
-        {materials.map((material) => (
-          <li key={material.name}>
-            <div className="flex items-start gap-2">
-              <span className="mt-1 inline-flex h-1.5 w-1.5 rounded-full bg-blue-600 flex-shrink-0" />
-              <div>
-                <span className="font-medium text-neutral-900">{material.name}</span>
-                <span className="ml-1 text-sm text-neutral-600">- {material.desc}</span>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ArrowRight() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path
-        d="M5 12h14M13 5l7 7-7 7"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

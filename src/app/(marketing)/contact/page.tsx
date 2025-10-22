@@ -1,268 +1,194 @@
-import React from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
-import { ContactForm } from "@/components/marketing/contact-form";
+import Link from "next/link"
+import type { Metadata } from "next"
+import { ContactForm } from "@/components/marketing/contact-form"
+import { ArrowRight, Mail, MapPin, Phone } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Contact Us - 3D Print Sydney | Get in Touch",
   description:
     "Contact 3D Print Sydney for quotes, technical questions, or project consultations. Located in Elizabeth Bay. Phone: (+61) 0458 237 428",
-};
+}
+
+const contactMethods = [
+  {
+    icon: Phone,
+    title: "Call us",
+    details: "(+61) 0458 237 428",
+    description: "Mon–Fri 9am–6pm",
+    href: "tel:+61458237428",
+  },
+  {
+    icon: Mail,
+    title: "Email",
+    details: "alan@3dprintsydney.com",
+    description: "Responses within two business hours",
+    href: "mailto:alan@3dprintsydney.com",
+  },
+  {
+    icon: MapPin,
+    title: "Visit",
+    details: "9 Greenknowe Avenue",
+    description: "Elizabeth Bay, NSW 2011",
+    href: "https://maps.google.com/?q=9+Greenknowe+Avenue+Elizabeth+Bay+NSW+2011",
+  },
+]
+
+const serviceAreas = [
+  {
+    title: "Same-day delivery",
+    items: ["Sydney CBD", "Eastern Suburbs", "Inner West", "North Shore (selected areas)"],
+  },
+  {
+    title: "Standard delivery (1–2 days)",
+    items: ["Greater Sydney Metro", "NSW regional (quote based)", "Interstate (quote based)", "Pickup from Elizabeth Bay (free)"],
+  },
+]
+
+const faqs = [
+  {
+    question: "How do I get a quote?",
+    answer: "Use our Quick Order tool to upload your file and receive an instant quote. No account required.",
+  },
+  {
+    question: "What file formats do you accept?",
+    answer: "We accept STL, OBJ, STEP and most common 3D file formats. If you're unsure, share what you have.",
+  },
+  {
+    question: "Do you offer design services?",
+    answer: "Yes. Our team can create or repair CAD files from sketches, photos or physical samples.",
+  },
+  {
+    question: "How does the student discount work?",
+    answer: "Create an account with your .edu email and the 20% concession is applied automatically at checkout.",
+  },
+]
 
 export default function ContactPage() {
   return (
-    <div className="bg-white">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8 text-center">
-          <h1 className="font-serif text-[42px] leading-tight tracking-tight sm:text-[54px] md:text-[64px] text-white">
-            Get in Touch
-          </h1>
-          <p className="mt-4 text-lg text-blue-100 mx-auto max-w-2xl">
-            Have a question about your project? Need a custom quote? We&apos;re here to help. Same-day responses guaranteed.
-          </p>
+    <div className="bg-surface-canvas">
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">Contact</span>
+          <h1 className="mt-4 text-4xl tracking-tight text-foreground sm:text-5xl">Let’s discuss your project.</h1>
+          <p className="mt-5 text-base text-foreground/70">Send files for quoting, ask technical questions or schedule a consultation. We respond within two business hours.</p>
         </div>
       </section>
 
-      {/* Contact Methods */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
-            <ContactMethod
-              icon={<PhoneIcon />}
-              title="Call Us"
-              details="(+61) 0458 237 428"
-              description="Mon-Fri 9AM-6PM"
-              href="tel:+61458237428"
-            />
-            <ContactMethod
-              icon={<EmailIcon />}
-              title="Email Us"
-              details="alan@3dprintsydney.com"
-              description="Response within 2 hours"
-              href="mailto:alan@3dprintsydney.com"
-            />
-            <ContactMethod
-              icon={<LocationIcon />}
-              title="Visit Us"
-              details="9 Greenknowe Avenue"
-              description="Elizabeth Bay, NSW 2011"
-              href="https://maps.google.com/?q=9+Greenknowe+Avenue+Elizabeth+Bay+NSW+2011"
-            />
+      <section className="border-b border-border/60 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="grid gap-4 md:grid-cols-3">
+            {contactMethods.map((method) => {
+              const Icon = method.icon;
+              return (
+                <a
+                  key={method.title}
+                  href={method.href}
+                  target={method.href.startsWith("http") ? "_blank" : undefined}
+                  rel={method.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                  className="group rounded-2xl border border-border/60 bg-surface-subtle p-6 transition hover:border-foreground/40"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white">
+                    <Icon className="h-4 w-4 text-foreground" aria-hidden />
+                  </span>
+                <h2 className="mt-4 text-lg font-semibold text-foreground">{method.title}</h2>
+                <p className="mt-2 text-sm font-medium text-foreground">{method.details}</p>
+                <p className="mt-1 text-sm text-foreground/70">{method.description}</p>
+                </a>
+              );
+            })}
           </div>
 
-          {/* Contact Form */}
-          <div className="bg-neutral-50 rounded-2xl p-8 md:p-12">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-6 text-center">Send Us a Message</h2>
-            <ContactForm />
+          <div className="mt-12 rounded-3xl border border-border/60 bg-surface-subtle p-8 md:p-12">
+            <h2 className="text-2xl font-semibold text-foreground text-center">Send us a message</h2>
+            <p className="mt-2 text-sm text-foreground/70 text-center">We&apos;ll review and get back to you with recommendations and next steps.</p>
+            <div className="mt-8">
+              <ContactForm />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Business Hours */}
-      <section className="py-16 bg-neutral-50">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Business Hours
-          </h2>
-          <div className="bg-white rounded-2xl p-8 border border-neutral-200">
-            <div className="space-y-4">
-              <HoursRow day="Monday - Friday" hours="9:00 AM - 6:00 PM" />
-              <HoursRow day="Saturday" hours="By appointment only" />
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 md:px-8">
+          <div className="rounded-3xl border border-border/60 bg-white p-8 md:p-10">
+            <h2 className="text-2xl font-semibold text-foreground text-center">Business hours</h2>
+            <div className="mt-6 space-y-3 text-sm text-foreground/70">
+              <HoursRow day="Monday – Friday" hours="9:00am – 6:00pm" />
+              <HoursRow day="Saturday" hours="By appointment" />
               <HoursRow day="Sunday" hours="Closed" />
             </div>
-            <div className="mt-6 pt-6 border-t border-neutral-200">
-              <p className="text-neutral-700 text-center">
-                <strong>Same-day service:</strong> Files received before 10 AM can be delivered the same day (subject to complexity and availability)
-              </p>
+            <div className="mt-6 rounded-2xl bg-surface-subtle p-4 text-sm text-foreground/70">
+              <p><strong>Same-day service:</strong> Files received before 10am can be delivered the same day (subject to complexity and availability).</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Service Areas */}
-      <section className="py-16">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Delivery & Service Areas
-          </h2>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-neutral-50 rounded-2xl p-8">
-              <h3 className="text-xl font-semibold text-neutral-900 mb-4">Same-Day Delivery</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Sydney CBD</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Eastern Suburbs</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Inner West</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>North Shore (selected areas)</span>
-                </li>
-              </ul>
-            </div>
-            <div className="bg-neutral-50 rounded-2xl p-8">
-              <h3 className="text-xl font-semibold text-neutral-900 mb-4">Standard Delivery (1-2 days)</h3>
-              <ul className="space-y-2 text-neutral-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Greater Sydney Metro</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>NSW Regional (quote based)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Interstate (quote based)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>Pickup from Elizabeth Bay (free)</span>
-                </li>
-              </ul>
-            </div>
+      <section className="border-b border-border/60 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <h2 className="text-3xl font-semibold text-foreground">Delivery & service areas</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-2">
+            {serviceAreas.map((area) => (
+              <div key={area.title} className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+                <h3 className="text-lg font-semibold text-foreground">{area.title}</h3>
+                <ul className="mt-3 space-y-2 text-sm text-foreground/70">
+                  {area.items.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* FAQ Preview */}
-      <section className="py-16 bg-blue-50">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            Quick Questions?
-          </h2>
-          <div className="space-y-4">
-            <FAQItem
-              question="How do I get a quote?"
-              answer="Use our Quick Order tool to upload your file and get an instant quote. No account required."
-            />
-            <FAQItem
-              question="What file formats do you accept?"
-              answer="We accept STL, OBJ, STEP, and most common 3D file formats. If you're unsure, contact us."
-            />
-            <FAQItem
-              question="Do you offer design services?"
-              answer="Yes! We can create CAD files from sketches, photos, or physical samples. Contact us for pricing."
-            />
-            <FAQItem
-              question="How does the student discount work?"
-              answer="Create an account with your .edu email address and the 20% discount is applied automatically at checkout."
-            />
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 md:px-8">
+          <h2 className="text-3xl font-semibold text-foreground text-center">Quick questions</h2>
+          <div className="mt-8 space-y-4">
+            {faqs.map((faq) => (
+              <details key={faq.question} className="rounded-2xl border border-border/60 bg-white p-6 text-sm text-foreground/70">
+                <summary className="cursor-pointer list-none text-base font-semibold text-foreground">{faq.question}</summary>
+                <p className="mt-2 text-sm text-foreground/70">{faq.answer}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Prefer to Get a Quote First?
-          </h2>
-          <p className="text-lg text-blue-100 mb-8">
-            Upload your file and get instant pricing in seconds.
-          </p>
-          <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-blue-600 font-medium hover:bg-blue-50 transition">
-            Get Instant Quote →
-          </Link>
+      <section className="bg-white py-20">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-border/60 bg-surface-subtle px-6 py-12 text-center shadow-sm md:px-10">
+          <h2 className="text-3xl tracking-tight text-foreground">Prefer to start with a quote?</h2>
+          <p className="mt-4 text-base text-foreground/70">Upload your files for instant pricing or share a brief and we&apos;ll respond with tailored recommendations.</p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Get instant quote
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Book a consultation
+            </Link>
+          </div>
         </div>
       </section>
     </div>
-  );
-}
-
-function ContactMethod({
-  icon,
-  title,
-  details,
-  description,
-  href,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  details: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <a
-      href={href}
-      target={href.startsWith("http") ? "_blank" : undefined}
-      rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-      className="text-center group"
-    >
-      <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 text-blue-600 mb-4 group-hover:bg-blue-600 group-hover:text-white transition">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold text-neutral-900 mb-2">{title}</h3>
-      <div className="text-blue-600 font-medium group-hover:underline">{details}</div>
-      <div className="text-sm text-neutral-600 mt-1">{description}</div>
-    </a>
-  );
-}
-
-function PhoneIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path
-        d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function EmailIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path
-        d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <polyline points="22,6 12,13 2,6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function LocationIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-      <path
-        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="10" r="3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  )
 }
 
 function HoursRow({ day, hours }: { day: string; hours: string }) {
   return (
-    <div className="flex justify-between items-center py-3 border-b border-neutral-100 last:border-0">
-      <span className="font-medium text-neutral-900">{day}</span>
-      <span className="text-neutral-700">{hours}</span>
+    <div className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-subtle px-4 py-3">
+      <span className="text-sm font-medium text-foreground">{day}</span>
+      <span className="text-sm text-foreground/70">{hours}</span>
     </div>
-  );
-}
-
-function FAQItem({ question, answer }: { question: string; answer: string }) {
-  return (
-    <div className="bg-white rounded-xl p-6 border border-neutral-200">
-      <h3 className="font-semibold text-neutral-900 mb-2">{question}</h3>
-      <p className="text-neutral-700">{answer}</p>
-    </div>
-  );
+  )
 }

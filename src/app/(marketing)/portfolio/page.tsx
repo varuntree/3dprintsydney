@@ -1,445 +1,268 @@
-import React from "react";
-import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "next/link"
+import type { Metadata } from "next"
+import { ArrowRight, Building2, Cog, Layers3, Rocket } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Portfolio - 3D Printing Projects | 3D Print Sydney",
   description:
     "See our 3D printing work: prototypes, custom parts, architectural models, and engineering components. Over 1,000 projects completed.",
-};
+}
+
+const stats = [
+  { value: "1,000+", label: "Projects completed" },
+  { value: "150+", label: "Business clients" },
+  { value: "500+", label: "Student projects" },
+  { value: "50+", label: "Materials in library" },
+]
+
+const categories = [
+  {
+    title: "Rapid prototyping",
+    icon: Rocket,
+    description: "Fast-turnaround functional prototypes for product development and testing.",
+    projects: [
+      {
+        title: "Consumer electronics enclosure",
+        client: "Tech startup",
+        material: "PETG",
+        turnaround: "Same day",
+        summary: "Multiple design iterations for a smart home device enclosure delivered in under 48 hours before tooling.",
+        highlights: ["3 design revisions in 2 days", "Snap-fit assembly testing", "Final design sent to injection moulding"],
+      },
+      {
+        title: "Medical device component",
+        client: "Healthcare",
+        material: "Nylon PA12",
+        turnaround: "2 days",
+        summary: "Functional prototype requiring strength testing and biocompatibility considerations.",
+        highlights: ["Strength testing validated", "Material optimisation reduced weight by 30%", "Submitted for regulatory review"],
+      },
+      {
+        title: "Drone frame prototype",
+        client: "Aerospace",
+        material: "Carbon fibre PETG",
+        turnaround: "3 days",
+        summary: "Lightweight frame optimised for strength-to-weight ratio for a commercial drone programme.",
+        highlights: ["40% lighter than aluminium equivalent", "Flight tested successfully", "Informed final carbon fibre layup"],
+      },
+    ],
+  },
+  {
+    title: "Custom parts & replacements",
+    icon: Layers3,
+    description: "One-off parts and replacements for discontinued or hard-to-source components.",
+    projects: [
+      {
+        title: "Vintage car dashboard knobs",
+        client: "Automotive restoration",
+        material: "ABS",
+        turnaround: "5 days",
+        summary: "Reverse-engineered knobs for a 1970s classic car where originals were no longer manufactured.",
+        highlights: ["3D scanned from damaged originals", "Exact colour match achieved", "Set of eight knobs delivered"],
+      },
+      {
+        title: "Industrial machine bracket",
+        client: "Manufacturing",
+        material: "Polycarbonate",
+        turnaround: "1 day",
+        summary: "Emergency replacement bracket that avoided six weeks of production downtime.",
+        highlights: ["Operational loads validated", "Kept production line running", "Client commissioned metal spare in parallel"],
+      },
+      {
+        title: "Custom cable management clips",
+        client: "Office fitout",
+        material: "PLA",
+        turnaround: "2 days",
+        summary: "Designed bespoke clips to match interior finishes where off-the-shelf parts didn't align with the aesthetic.",
+        highlights: ["Designed from scratch to spec", "Batch of 50 units produced", "Perfect colour match to interior"],
+      },
+    ],
+  },
+  {
+    title: "Architectural & display models",
+    icon: Building2,
+    description: "High-detail presentation models for architecture, real estate and marketing teams.",
+    projects: [
+      {
+        title: "Mixed-use development model",
+        client: "Architecture firm",
+        material: "Standard resin + PLA",
+        turnaround: "1 week",
+        summary: "1:200 scale model of a proposed Sydney development for client presentations.",
+        highlights: ["Multi-material model for distinct elements", "Hand finished and painted", "Client secured approval"],
+      },
+      {
+        title: "Product display stand",
+        client: "Retail",
+        material: "Transparent PETG",
+        turnaround: "3 days",
+        summary: "Custom display stands for a jewellery boutique creating a floating product effect.",
+        highlights: ["Transparent PETG polished to clarity", "Set of 12 stands", "Delivered with protective packaging"],
+      },
+      {
+        title: "Topographic campus model",
+        client: "University",
+        material: "PLA multi-colour",
+        turnaround: "2 weeks",
+        summary: "Large-format topographic model for visitor centre display featuring removable building modules.",
+        highlights: ["300mm x 300mm build volume utilised", "Multi-colour terrain representation", "Modular buildings for future updates"],
+      },
+    ],
+  },
+  {
+    title: "Engineering & functional parts",
+    icon: Cog,
+    description: "Production-grade parts for testing, tooling and end-use applications.",
+    projects: [
+      {
+        title: "Custom jigs & fixtures",
+        client: "Manufacturing",
+        material: "Carbon fibre nylon",
+        turnaround: "4 days",
+        summary: "Assembly-line jigs requiring tight tolerances and durability across thousands of cycles.",
+        highlights: ["±0.1mm tolerance achieved", "Withstands 10,000+ cycles", "90% cost reduction vs machined aluminium"],
+      },
+      {
+        title: "Prosthetic hand components",
+        client: "Healthcare",
+        material: "Tough resin",
+        turnaround: "5 days",
+        summary: "Set of prototype finger assemblies balancing strength, flexibility and comfort.",
+        highlights: ["Material testing under repeated load", "Iterated with occupational therapists", "Enabled pilot programme for patients"],
+      },
+      {
+        title: "Robotics gripper housing",
+        client: "Automation",
+        material: "PETG + TPU inserts",
+        turnaround: "6 days",
+        summary: "Hybrid assembly combining rigid and flexible elements for automated pick-and-place tooling.",
+        highlights: ["Integrated flexible pads for grip", "Reduced assembly time by 40%", "Deployed across two production cells"],
+      },
+    ],
+  },
+]
+
+const testimonials = [
+  {
+    quote: "Iterating with 3D Print Sydney let us accelerate hardware development by weeks. They flagged design improvements before we hit print.",
+    author: "Hardware startup founder",
+  },
+  {
+    quote: "The team produced architectural models that helped us secure key client approvals. Finish quality is consistently excellent.",
+    author: "Associate, architecture firm",
+  },
+  {
+    quote: "We rely on them for urgent production tooling. Parts arrive on time and are production-ready.",
+    author: "Operations manager, manufacturing company",
+  },
+]
 
 export default function PortfolioPage() {
   return (
-    <div className="bg-white">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8 text-center">
-          <h1 className="font-serif text-[42px] leading-tight tracking-tight sm:text-[54px] md:text-[64px] text-white">
-            Our Work
-          </h1>
-          <p className="mt-4 text-lg text-blue-100 mx-auto max-w-2xl">
-            From rapid prototypes to production parts, explore the diverse projects we&apos;ve brought to life for Sydney&apos;s makers and innovators.
-          </p>
+    <div className="bg-surface-canvas">
+      <section className="border-b border-border/60 bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">Portfolio</span>
+          <h1 className="mt-4 text-4xl tracking-tight text-foreground sm:text-5xl">Projects delivered across Sydney.</h1>
+          <p className="mt-5 text-base text-foreground/70">From idea-stage prototypes to production tooling, explore representative projects from the 1,000+ builds we&apos;ve completed.</p>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-12 bg-neutral-50 border-b border-neutral-200">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <StatBox number="1,000+" label="Projects Completed" />
-            <StatBox number="150+" label="Business Clients" />
-            <StatBox number="500+" label="Student Projects" />
-            <StatBox number="50+" label="Materials Used" />
+      <section className="border-b border-border/60 bg-white py-16">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <div className="grid gap-4 text-center sm:grid-cols-2 md:grid-cols-4">
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+                <p className="text-2xl font-semibold text-foreground">{stat.value}</p>
+                <p className="mt-2 text-sm text-foreground/70">{stat.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Project Categories */}
-      <section className="py-16 md:py-24">
-        <div className="mx-auto max-w-[1200px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-4">
-            Project Showcase
-          </h2>
-          <p className="text-center text-neutral-600 mb-12 max-w-2xl mx-auto">
-            Due to client confidentiality, we can&apos;t show all projects, but here are representative examples of the work we do.
-          </p>
+      {categories.map((category) => {
+        const Icon = category.icon;
+        return (
+          <section key={category.title} className="border-b border-border/60 bg-surface-subtle py-20">
+            <div className="mx-auto max-w-6xl px-4 md:px-8">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white">
+                  <Icon className="h-4 w-4 text-foreground" aria-hidden />
+                </span>
+                <div>
+                  <h2 className="text-3xl font-semibold text-foreground">{category.title}</h2>
+                  <p className="text-sm text-foreground/60">{category.description}</p>
+                </div>
+              </div>
 
-          <div className="space-y-16">
-            {/* Category: Rapid Prototyping */}
-            <CategorySection
-              title="Rapid Prototyping"
-              icon="⚡"
-              description="Fast-turnaround functional prototypes for product development and testing"
-            >
-              <ProjectCard
-                title="Consumer Electronics Enclosure"
-                category="Tech Startup"
-                material="PETG"
-                turnaround="Same Day"
-                description="Prototype enclosure for a smart home device. Multiple iterations printed in 48 hours to refine the design before tooling."
-                highlights={[
-                  "3 design iterations in 2 days",
-                  "Snap-fit assembly testing",
-                  "Final design sent to injection molding",
-                ]}
-              />
-              <ProjectCard
-                title="Medical Device Component"
-                category="Healthcare"
-                material="Nylon PA12"
-                turnaround="2 Days"
-                description="Functional prototype for a medical device component requiring strength testing and biocompatibility considerations."
-                highlights={[
-                  "Strength testing validated",
-                  "Design optimization reduced material by 30%",
-                  "Submitted for regulatory approval",
-                ]}
-              />
-              <ProjectCard
-                title="Drone Frame Prototype"
-                category="Aerospace"
-                material="Carbon Fiber PETG"
-                turnaround="3 Days"
-                description="Lightweight frame prototype for a commercial drone project, optimized for strength-to-weight ratio."
-                highlights={[
-                  "40% lighter than aluminum equivalent",
-                  "Flight tested successfully",
-                  "Informed final carbon fiber layup design",
-                ]}
-              />
-            </CategorySection>
+              <div className="mt-10 grid gap-4 md:grid-cols-3">
+                {category.projects.map((project) => (
+                  <article key={project.title} className="rounded-2xl border border-border/60 bg-white p-6">
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/50">{project.client}</p>
+                  <h3 className="mt-3 text-lg font-semibold text-foreground">{project.title}</h3>
+                  <p className="mt-2 text-sm text-foreground/70">{project.summary}</p>
+                  <dl className="mt-4 grid gap-2 text-xs text-foreground/60">
+                    <div className="flex items-center justify-between">
+                      <dt>Material</dt>
+                      <dd className="font-medium text-foreground">{project.material}</dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt>Turnaround</dt>
+                      <dd className="font-medium text-foreground">{project.turnaround}</dd>
+                    </div>
+                  </dl>
+                  <ul className="mt-4 space-y-2 text-sm text-foreground/70">
+                    {project.highlights.map((highlight) => (
+                      <li key={highlight} className="flex items-start gap-3">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                        {highlight}
+                      </li>
+                    ))}
+                  </ul>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        );
+      })}
 
-            {/* Category: Custom Parts */}
-            <CategorySection
-              title="Custom Parts & Replacement Components"
-              icon="🔧"
-              description="One-off parts and replacements for discontinued or hard-to-find components"
-            >
-              <ProjectCard
-                title="Vintage Car Dashboard Knobs"
-                category="Automotive Restoration"
-                material="ABS"
-                turnaround="5 Days"
-                description="Reverse-engineered replacement knobs for a 1970s classic car. Original parts no longer manufactured."
-                highlights={[
-                  "3D scanned from damaged originals",
-                  "Exact color match achieved",
-                  "Set of 8 knobs delivered",
-                ]}
-              />
-              <ProjectCard
-                title="Industrial Machine Bracket"
-                category="Manufacturing"
-                material="Polycarbonate"
-                turnaround="1 Day"
-                description="Emergency replacement bracket for production equipment. Original lead time was 6 weeks."
-                highlights={[
-                  "Production downtime avoided",
-                  "Withstanding operational loads",
-                  "Client ordered metal replacement while using our part",
-                ]}
-              />
-              <ProjectCard
-                title="Custom Cable Management Clips"
-                category="Office Fitout"
-                material="PLA"
-                turnaround="2 Days"
-                description="Custom-designed cable clips for a modern office installation. Standard parts didn't fit the aesthetic."
-                highlights={[
-                  "Designed from scratch to spec",
-                  "Batch of 50 units produced",
-                  "Perfect color match to interior",
-                ]}
-              />
-            </CategorySection>
-
-            {/* Category: Architectural Models */}
-            <CategorySection
-              title="Architectural & Display Models"
-              icon="🏗️"
-              description="High-detail presentation models for architecture, real estate, and marketing"
-            >
-              <ProjectCard
-                title="Mixed-Use Development Model"
-                category="Architecture Firm"
-                material="Standard Resin + PLA"
-                turnaround="1 Week"
-                description="1:200 scale model of a proposed Sydney mixed-use development for client presentation."
-                highlights={[
-                  "Multiple materials for different elements",
-                  "Hand-finished and painted",
-                  "Client won the project",
-                ]}
-              />
-              <ProjectCard
-                title="Product Display Stand"
-                category="Retail"
-                material="PETG (Transparent)"
-                turnaround="3 Days"
-                description="Custom display stands for a jewelry boutique's window display."
-                highlights={[
-                  "Transparent PETG for floating effect",
-                  "Set of 12 stands in various heights",
-                  "Polished to optical clarity",
-                ]}
-              />
-              <ProjectCard
-                title="Topographic Campus Model"
-                category="University"
-                material="PLA Multi-color"
-                turnaround="2 Weeks"
-                description="Large-format topographic model of university campus for visitor center display."
-                highlights={[
-                  "300mm x 300mm print bed utilized",
-                  "Multi-color terrain representation",
-                  "Buildings printed separately and assembled",
-                ]}
-              />
-            </CategorySection>
-
-            {/* Category: Engineering */}
-            <CategorySection
-              title="Engineering & Functional Parts"
-              icon="⚙️"
-              description="Production-grade functional parts for testing, tooling, and end-use applications"
-            >
-              <ProjectCard
-                title="Custom Jigs & Fixtures"
-                category="Manufacturing"
-                material="Carbon Fiber Nylon"
-                turnaround="4 Days"
-                description="Production jigs for assembly line quality control. Required precise tolerances and durability."
-                highlights={[
-                  "±0.1mm tolerance achieved",
-                  "Withstanding 10,000+ cycles",
-                  "Cost 90% less than machined aluminum",
-                ]}
-              />
-              <ProjectCard
-                title="Prosthetic Hand Components"
-                category="Non-Profit / Student"
-                material="PETG + Flexible Resin"
-                turnaround="1 Week"
-                description="Collaborated with university students on an e-NABLE prosthetic hand project."
-                highlights={[
-                  "20% student discount applied",
-                  "Multiple iterations for fit",
-                  "Successfully delivered to recipient",
-                ]}
-              />
-              <ProjectCard
-                title="Heat Exchanger Prototype"
-                category="Industrial Engineering"
-                material="High-Temp Resin"
-                turnaround="5 Days"
-                description="Prototype heat exchanger with complex internal geometry for fluid dynamics testing."
-                highlights={[
-                  "Internal channels tested with water flow",
-                  "Design validated before metal fabrication",
-                  "Saved $15k in tooling costs",
-                ]}
-              />
-            </CategorySection>
-
-            {/* Category: Student Projects */}
-            <CategorySection
-              title="Student Projects"
-              icon="🎓"
-              description="Supporting the next generation of makers and innovators with 20% off all prints"
-            >
-              <ProjectCard
-                title="UNSW Mechanical Engineering Thesis"
-                category="University Student"
-                material="PETG + PLA"
-                turnaround="1 Week"
-                description="Complex mechanical assembly for thesis project. Multiple iterations and design consultations included with student discount."
-                highlights={[
-                  "20% student discount applied",
-                  "Free design consultation provided",
-                  "Successfully defended thesis",
-                ]}
-              />
-              <ProjectCard
-                title="Architecture Studio Final Model"
-                category="Architecture Student"
-                material="Standard Resin"
-                turnaround="3 Days"
-                description="High-detail architectural model for final presentation. Precision and surface finish critical for grading."
-                highlights={[
-                  "50-micron layer resolution",
-                  "Hand-finished and assembled",
-                  "Achieved High Distinction",
-                ]}
-              />
-              <ProjectCard
-                title="Robotics Competition Components"
-                category="High School / STEM"
-                material="Carbon Fiber PETG"
-                turnaround="2 Days"
-                description="Custom robot chassis and mechanical parts for FIRST Robotics competition. Strength-to-weight ratio optimized."
-                highlights={[
-                  "Rapid iteration for competition deadline",
-                  "Lightweight yet strong design",
-                  "Team advanced to nationals",
-                ]}
-              />
-            </CategorySection>
+      <section className="border-b border-border/60 bg-white py-20">
+        <div className="mx-auto max-w-5xl px-4 md:px-8">
+          <h2 className="text-3xl font-semibold text-foreground">What clients say</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {testimonials.map((testimonial) => (
+              <blockquote key={testimonial.author} className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
+                <p className="text-sm text-foreground/75">“{testimonial.quote}”</p>
+                <footer className="mt-4 text-xs font-medium uppercase tracking-[0.2em] text-foreground/50">{testimonial.author}</footer>
+              </blockquote>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-16 md:py-24 bg-neutral-50">
-        <div className="mx-auto max-w-[1000px] px-4 md:px-8">
-          <h2 className="text-center font-serif text-[32px] md:text-[42px] text-neutral-900 mb-12">
-            What Our Clients Say
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <TestimonialCard
-              quote="The same-day service literally saved our product launch. We had a last-minute design change and they delivered the updated prototype in 8 hours."
-              author="Sarah M."
-              role="Product Manager"
-              company="Tech Startup, Surry Hills"
-            />
-            <TestimonialCard
-              quote="As a student, the 20% discount made professional printing actually affordable. The quality blew away anything I could do at home."
-              author="James T."
-              role="Architecture Student"
-              company="University of Sydney"
-            />
-            <TestimonialCard
-              quote="They didn't just print our part—they redesigned it to be stronger and use less material. That's engineering expertise, not just a print service."
-              author="Michael P."
-              role="Mechanical Engineer"
-              company="Manufacturing Company"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="bg-gradient-to-br from-blue-600 to-blue-700 py-16">
-        <div className="mx-auto max-w-[800px] px-4 md:px-8 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to Start Your Project?
-          </h2>
-          <p className="text-lg text-blue-100 mb-8">
-            From concept to completion, we&apos;ll help bring your ideas to life with professional 3D printing.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-blue-600 font-medium hover:bg-blue-50 transition">
-              Get Instant Quote →
+      <section className="bg-surface-subtle py-20">
+        <div className="mx-auto max-w-4xl rounded-3xl border border-border/60 bg-white px-6 py-12 text-center shadow-sm md:px-10">
+          <h2 className="text-3xl tracking-tight text-foreground">Have a project in mind?</h2>
+          <p className="mt-4 text-base text-foreground/70">Tell us about your goals and we&apos;ll recommend the right process, materials and timeline.</p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/quick-order"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+            >
+              Start a brief
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
-            <Link href="/contact" className="inline-flex items-center justify-center rounded-full border-2 border-white px-6 py-3 text-white font-medium hover:bg-white/10 transition">
-              Discuss Your Project
+            <Link
+              href="/contact"
+              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+            >
+              Talk to our team
             </Link>
           </div>
         </div>
       </section>
     </div>
-  );
-}
-
-function StatBox({ number, label }: { number: string; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-3xl md:text-4xl font-bold text-blue-600 mb-2">{number}</div>
-      <div className="text-sm text-neutral-600">{label}</div>
-    </div>
-  );
-}
-
-function CategorySection({
-  title,
-  icon,
-  description,
-  children,
-}: {
-  title: string;
-  icon: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-2xl">
-          {icon}
-        </div>
-        <div>
-          <h3 className="font-serif text-[28px] md:text-[36px] text-neutral-900">{title}</h3>
-          <p className="text-neutral-600">{description}</p>
-        </div>
-      </div>
-      <div className="grid md:grid-cols-3 gap-6 mt-8">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ProjectCard({
-  title,
-  category,
-  material,
-  turnaround,
-  description,
-  highlights,
-}: {
-  title: string;
-  category: string;
-  material: string;
-  turnaround: string;
-  description: string;
-  highlights: string[];
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6 hover:shadow-lg transition">
-      <div className="mb-4">
-        <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
-          {category}
-        </div>
-        <h4 className="text-lg font-semibold text-neutral-900 mb-3">{title}</h4>
-        <div className="flex gap-4 text-sm text-neutral-600 mb-3">
-          <div>
-            <span className="font-medium">Material:</span> {material}
-          </div>
-          <div>
-            <span className="font-medium">Time:</span> {turnaround}
-          </div>
-        </div>
-        <p className="text-sm text-neutral-700 mb-4">{description}</p>
-      </div>
-      <div>
-        <div className="text-xs font-semibold text-neutral-900 uppercase tracking-wide mb-2">
-          Key Outcomes
-        </div>
-        <ul className="space-y-1">
-          {highlights.map((highlight, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
-              <span className="text-green-600 mt-0.5">✓</span>
-              <span>{highlight}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function TestimonialCard({
-  quote,
-  author,
-  role,
-  company,
-}: {
-  quote: string;
-  author: string;
-  role: string;
-  company: string;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6">
-      <div className="flex gap-0.5 mb-3">
-        {[...Array(5)].map((_, i) => (
-          <svg
-            key={i}
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="#FFA500"
-          >
-            <path d="M12 2l2.9 6.1L22 9.3l-5 4.7 1.2 6.7L12 17.8 5.8 20.7 7 14 2 9.3l7.1-1.2L12 2z" />
-          </svg>
-        ))}
-      </div>
-      <p className="text-neutral-700 italic mb-4">&ldquo;{quote}&rdquo;</p>
-      <div>
-        <div className="font-medium text-neutral-900">{author}</div>
-        <div className="text-sm text-neutral-600">{role}</div>
-        <div className="text-sm text-neutral-600">{company}</div>
-      </div>
-    </div>
-  );
+  )
 }
