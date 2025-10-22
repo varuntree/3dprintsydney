@@ -295,7 +295,7 @@ function DashboardHeader({
         </div>
         <RangeToggle range={range} options={options} onChange={onRangeChange} />
       </div>
-      <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+      <div className="mt-6 grid gap-3 text-sm grid-cols-1 sm:grid-cols-3">
         <HeaderStat label="Revenue (range)" value={formatCurrency(revenue)} tone="emerald" />
         <HeaderStat label="Outstanding balance" value={formatCurrency(outstanding)} tone="slate" />
         <HeaderStat label="Jobs queued" value={`${queuedJobs}`} tone="amber" />
@@ -380,7 +380,7 @@ function ExecutiveOverview({
 }) {
   if (loading) {
     return (
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}

@@ -140,8 +140,8 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       {/* Messages area */}
       <div
         ref={containerRef}
-        className="flex-1 space-y-1 overflow-y-auto px-4 py-4"
-        style={{ maxHeight: "calc(100vh - 300px)" }}
+        className="flex-1 space-y-1 overflow-y-auto px-3 sm:px-4 py-4"
+        style={{ maxHeight: "calc(100vh - 250px)" }}
       >
         {/* Load more button */}
         {hasMore && (
@@ -220,17 +220,17 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       </div>
 
       {/* Message input */}
-      <div className="border-t border-border bg-surface-overlay p-4">
+      <div className="border-t border-border bg-surface-overlay p-3 sm:p-4">
         <div className="flex gap-2">
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Shift+Enter for new line)"
-            className="min-h-[60px] max-h-[120px] resize-none"
+            className="min-h-[56px] sm:min-h-[60px] max-h-[120px] resize-none text-base"
             rows={2}
           />
-          <Button onClick={send} disabled={!content.trim()} size="icon" className="h-[60px] w-[60px]">
+          <Button onClick={send} disabled={!content.trim()} size="icon" className="h-[56px] w-[56px] sm:h-[60px] sm:w-[60px] shrink-0">
             <Send className="h-5 w-5" />
           </Button>
         </div>

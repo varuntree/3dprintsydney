@@ -33,7 +33,7 @@ export function MessageBubble({ message, isOwn, showTime = true }: MessageBubble
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
+          "max-w-[90%] sm:max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
           isOwn
             ? "rounded-br-sm bg-blue-600 text-white"
             : "rounded-bl-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
