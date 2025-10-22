@@ -1,6 +1,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContactForm } from "@/components/marketing/contact-form";
 
 export const metadata: Metadata = {
   title: "Contact Us - 3D Print Sydney | Get in Touch",
@@ -53,108 +54,7 @@ export default function ContactPage() {
           {/* Contact Form */}
           <div className="bg-neutral-50 rounded-2xl p-8 md:p-12">
             <h2 className="text-2xl font-bold text-neutral-900 mb-6 text-center">Send Us a Message</h2>
-            <form className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-neutral-700 mb-2">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="your@email.com"
-                  />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-neutral-700 mb-2">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    className="w-full px-4 py-3 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0412 345 678"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="subject" className="block text-sm font-medium text-neutral-700 mb-2">
-                    Subject *
-                  </label>
-                  <select
-                    id="subject"
-                    name="subject"
-                    required
-                    className="w-full px-4 py-3 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select a topic</option>
-                    <option value="quote">Request a Quote</option>
-                    <option value="technical">Technical Question</option>
-                    <option value="design">Design Services</option>
-                    <option value="materials">Material Selection</option>
-                    <option value="student">Student Discount</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="message" className="block text-sm font-medium text-neutral-700 mb-2">
-                  Message *
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  required
-                  rows={6}
-                  className="w-full px-4 py-3 rounded-lg border border-neutral-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Tell us about your project..."
-                />
-              </div>
-
-              <div className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  id="student"
-                  name="student"
-                  className="mt-1 h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="student" className="text-sm text-neutral-600">
-                  I&apos;m a student (eligible for 20% discount)
-                </label>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  className="w-full inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-4 text-white font-medium hover:bg-blue-700 transition"
-                >
-                  Send Message →
-                </button>
-                <p className="mt-3 text-sm text-neutral-500 text-center">
-                  For instant quotes, use our <Link href="/quick-order" className="text-blue-600 hover:underline">Quick Order</Link> tool
-                </p>
-              </div>
-            </form>
+            <ContactForm />
           </div>
         </div>
       </section>

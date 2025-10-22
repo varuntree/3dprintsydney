@@ -92,6 +92,19 @@ export default function ServicesPage() {
             </ol>
           </div>
 
+          <div className="bg-blue-50 rounded-2xl p-6 my-8">
+            <h3 className="text-xl font-semibold text-neutral-900 mb-3">Pricing</h3>
+            <p className="text-neutral-700 mb-3">
+              Rapid prototyping pricing starts from <strong>$50 for small prototypes</strong> (under 50g), with costs scaling based on material choice, size, and complexity.
+            </p>
+            <ul className="space-y-2 text-sm text-neutral-700">
+              <li><strong>Small parts (under 50g):</strong> $50-$150</li>
+              <li><strong>Medium parts (50-200g):</strong> $150-$400</li>
+              <li><strong>Large parts (200g+):</strong> $400+</li>
+              <li className="text-blue-600 font-medium">Students save 20% on all orders</li>
+            </ul>
+          </div>
+
           <div className="text-center">
             <Link href="/quick-order" className="inline-flex items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-white font-medium hover:bg-blue-700 transition">
               Get Prototype Quote →
@@ -125,13 +138,12 @@ export default function ServicesPage() {
               </ul>
             </div>
             <div className="bg-white rounded-xl p-6 border border-neutral-200">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-3">Our Capabilities</h3>
+              <h3 className="text-lg font-semibold text-neutral-900 mb-3">Materials Available</h3>
               <ul className="space-y-2 text-sm text-neutral-700">
-                <li>• Reverse engineering available</li>
-                <li>• Material upgrades possible</li>
-                <li>• Design optimization</li>
-                <li>• Quality matching to original specs</li>
-                <li>• One-off or small batches</li>
+                <li><strong>Standard:</strong> PLA, PETG, ABS</li>
+                <li><strong>Engineering:</strong> Nylon, Polycarbonate, Carbon Fiber</li>
+                <li><strong>Specialty:</strong> Flexible filaments, High-temp resins</li>
+                <li><strong>Selection:</strong> We&apos;ll recommend the best material for your application</li>
               </ul>
             </div>
           </div>
@@ -199,6 +211,27 @@ export default function ServicesPage() {
                   <span>Color options available</span>
                 </li>
               </ul>
+            </div>
+          </div>
+
+          <div className="bg-neutral-50 rounded-2xl p-6 my-8">
+            <h3 className="text-xl font-semibold text-neutral-900 mb-4">Finishing Services Available</h3>
+            <p className="text-neutral-700 mb-4">
+              Take your model to the next level with professional post-processing services:
+            </p>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-2">Sanding & Smoothing</h4>
+                <p className="text-sm text-neutral-600">Remove layer lines for a polished finish ($30-$80 per part)</p>
+              </div>
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-2">Painting</h4>
+                <p className="text-sm text-neutral-600">Professional spray painting in any color ($50-$150 per part)</p>
+              </div>
+              <div>
+                <h4 className="font-medium text-neutral-900 mb-2">Assembly</h4>
+                <p className="text-sm text-neutral-600">Multi-part assembly and installation ($20-$50 per hour)</p>
+              </div>
             </div>
           </div>
 

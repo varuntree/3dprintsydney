@@ -221,6 +221,50 @@ export default function PortfolioPage() {
                 ]}
               />
             </CategorySection>
+
+            {/* Category: Student Projects */}
+            <CategorySection
+              title="Student Projects"
+              icon="🎓"
+              description="Supporting the next generation of makers and innovators with 20% off all prints"
+            >
+              <ProjectCard
+                title="UNSW Mechanical Engineering Thesis"
+                category="University Student"
+                material="PETG + PLA"
+                turnaround="1 Week"
+                description="Complex mechanical assembly for thesis project. Multiple iterations and design consultations included with student discount."
+                highlights={[
+                  "20% student discount applied",
+                  "Free design consultation provided",
+                  "Successfully defended thesis",
+                ]}
+              />
+              <ProjectCard
+                title="Architecture Studio Final Model"
+                category="Architecture Student"
+                material="Standard Resin"
+                turnaround="3 Days"
+                description="High-detail architectural model for final presentation. Precision and surface finish critical for grading."
+                highlights={[
+                  "50-micron layer resolution",
+                  "Hand-finished and assembled",
+                  "Achieved High Distinction",
+                ]}
+              />
+              <ProjectCard
+                title="Robotics Competition Components"
+                category="High School / STEM"
+                material="Carbon Fiber PETG"
+                turnaround="2 Days"
+                description="Custom robot chassis and mechanical parts for FIRST Robotics competition. Strength-to-weight ratio optimized."
+                highlights={[
+                  "Rapid iteration for competition deadline",
+                  "Lightweight yet strong design",
+                  "Team advanced to nationals",
+                ]}
+              />
+            </CategorySection>
           </div>
         </div>
       </section>
