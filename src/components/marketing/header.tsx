@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Box, ChevronDown } from "lucide-react";
+import { ArrowUpRight, ChevronDown } from "lucide-react";
+
+import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
 
 const services = [
   {
@@ -42,9 +44,7 @@ export function MarketingHeader() {
     <header className="sticky top-0 z-30 border-b border-border/70 bg-surface-overlay/90 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/75">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
         <Link href="/" className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 bg-white shadow-xs">
-            <Box className="h-4 w-4" aria-hidden />
-          </span>
+          <AnimatedCubeLogo />
           <span className="tracking-tight">3D Print Sydney</span>
         </Link>
 
