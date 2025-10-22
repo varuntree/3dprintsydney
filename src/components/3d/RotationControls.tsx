@@ -24,42 +24,42 @@ export default function RotationControls({
   disabled = false,
 }: RotationControlsProps) {
   return (
-    <div className="space-y-4 rounded-lg border border-border bg-surface-overlay p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-3 rounded-lg border border-border bg-surface-overlay p-3 sm:space-y-4 sm:p-4">
+      {/* Header - Mobile optimized: Stack on mobile */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold">Rotation Controls</h3>
         <p className="text-xs text-muted-foreground">
-          Rotate your model using mouse/touch for optimal print orientation
+          Rotate using mouse/touch for optimal orientation
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-2">
+      {/* Action Buttons - Mobile optimized: Full-width on mobile, auto width on sm+ */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Button
-          size="sm"
+          size="default"
           variant="outline"
           onClick={onReset}
           disabled={disabled}
-          className="flex items-center gap-2"
+          className="flex w-full items-center justify-center gap-2 sm:w-auto"
         >
           <RefreshCw className="h-4 w-4" />
           Reset
         </Button>
         <Button
-          size="sm"
+          size="default"
           variant="outline"
           onClick={onCenter}
           disabled={disabled}
-          className="flex items-center gap-2"
+          className="flex w-full items-center justify-center gap-2 sm:w-auto"
         >
           <Maximize2 className="h-4 w-4" />
           Center
         </Button>
         <Button
-          size="sm"
+          size="default"
           onClick={onLockOrientation}
           disabled={disabled || isLocking}
-          className="ml-auto flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-500"
+          className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 sm:ml-auto sm:w-auto"
         >
           {isLocking ? (
             <>

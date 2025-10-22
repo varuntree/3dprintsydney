@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { PayOnlineButton } from "@/components/client/pay-online-button";
+import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 
 type InvoiceRow = {
   id: number;
@@ -51,11 +53,73 @@ export default function ClientOrdersPage() {
 
   return (
     <div className="space-y-4">
+      {/* Header - Mobile optimized */}
       <div>
-        <h1 className="text-lg font-semibold">Your Orders</h1>
+        <h1 className="text-xl font-semibold sm:text-2xl">Your Orders</h1>
         <p className="text-sm text-muted-foreground">Invoices generated from Quick Orders and other work.</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface-overlay">
+
+      {/* Mobile: Card View */}
+      <div className="space-y-3 sm:hidden">
+        {rows.map((r) => {
+          const isPaid = r.status === "PAID" || r.balanceDue <= 0;
+          return (
+            <div
+              key={r.id}
+              className="rounded-xl border border-border/60 bg-surface-overlay p-4 shadow-sm shadow-black/5"
+            >
+              {/* Header row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/client/orders/${r.id}`}
+                      className="font-semibold text-foreground hover:text-primary"
+                    >
+                      {r.number}
+                    </Link>
+                    <StatusBadge status={r.status} size="sm" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(r.issueDate).toLocaleDateString()}
+                  </p>
+                </div>
+                <Link href={`/client/orders/${r.id}`}>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </Link>
+              </div>
+
+              {/* Amount details */}
+              <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-medium">{formatCurrency(r.total)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Balance Due</p>
+                  <p className="font-semibold text-primary">{formatCurrency(r.balanceDue)}</p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              {!isPaid && (
+                <div className="mt-3">
+                  <PayOnlineButton
+                    invoiceId={r.id}
+                    balanceDue={r.balanceDue}
+                    walletBalance={walletBalance}
+                    size="default"
+                    className="w-full justify-center"
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: Table View */}
+      <div className="hidden rounded-lg border border-border bg-surface-overlay sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b">
@@ -102,10 +166,12 @@ export default function ClientOrdersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
       <div className="flex justify-center">
         <Button
           variant="outline"
-          size="sm"
+          size="default"
           disabled={!hasMore}
           onClick={() => {
             const n = page + 1;

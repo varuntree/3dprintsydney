@@ -33,6 +33,13 @@ const toneStyles: Record<string, { border: string; value: string; icon: string }
   },
 };
 
+/**
+ * DataCard - Mobile optimized
+ * - Reduced padding on mobile: p-4, sm:p-6
+ * - Responsive border radius: rounded-2xl on mobile, rounded-3xl on sm+
+ * - Smaller value text on mobile: text-2xl, sm:text-3xl
+ * - Tighter spacing on mobile for better content density
+ */
 export function DataCard({
   title,
   value,
@@ -46,23 +53,23 @@ export function DataCard({
   return (
     <div
       className={cn(
-        "rounded-3xl border bg-surface-overlay shadow-sm shadow-black/5 p-6",
+        "rounded-2xl border bg-surface-overlay shadow-sm shadow-black/5 p-4 sm:rounded-3xl sm:p-6",
         styles.border,
         className,
       )}
       role="region"
       aria-labelledby="data-card-title"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 space-y-4">
-          <div className="space-y-2">
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="flex-1 space-y-3 sm:space-y-4">
+          <div className="space-y-1.5 sm:space-y-2">
             <p
               id="data-card-title"
               className="text-xs uppercase tracking-[0.2em] text-muted-foreground/80 font-medium"
             >
               {title}
             </p>
-            <div className={cn("text-3xl font-semibold tracking-tight", styles.value)}>
+            <div className={cn("text-2xl font-semibold tracking-tight sm:text-3xl", styles.value)}>
               {value}
             </div>
           </div>

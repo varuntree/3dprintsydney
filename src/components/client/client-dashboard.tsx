@@ -98,10 +98,10 @@ export function ClientDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* Welcome Header - Mobile optimized */}
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome Back</h1>
+          <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Welcome Back</h1>
           <p className="text-sm text-muted-foreground">
             Manage your orders and communicate with our team
           </p>
@@ -110,7 +110,7 @@ export function ClientDashboard() {
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
             <p className="text-[11px] leading-snug">
-              We’re tuning the email system this week—SMS and portal messages still work, and we’ll re-enable emails soon.
+              We&apos;re tuning the email system this week—SMS and portal messages still work, and we&apos;ll re-enable emails soon.
               {" "}
               {prefsLoaded ? (
                 <span className="font-medium">
@@ -122,8 +122,9 @@ export function ClientDashboard() {
         </div>
       </div>
 
+      {/* Quick Order Banner - Mobile optimized: Stack on mobile, horizontal on sm+ */}
       <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 shadow-sm shadow-primary/20">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-primary">Need something printed fast?</p>
             <p className="text-xs text-primary/80">
@@ -132,7 +133,7 @@ export function ClientDashboard() {
           </div>
           <Link
             href="/quick-order"
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90 sm:h-auto sm:w-auto"
           >
             Open Quick Order
             <ChevronRight className="h-4 w-4" />
@@ -301,7 +302,7 @@ export function ClientDashboard() {
         </CardContent>
       </Card>
 
-      {/* Recent Orders */}
+      {/* Recent Orders - Mobile optimized: Card view on mobile, table on sm+ */}
       <Card className="border border-border bg-surface-overlay">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -319,45 +320,84 @@ export function ClientDashboard() {
           ) : recentOrders.length === 0 ? (
             <p className="text-sm text-muted-foreground">No orders yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">Number</th>
-                    <th className="pb-2 font-medium">Date</th>
-                    <th className="pb-2 font-medium">Status</th>
-                    <th className="pb-2 text-right font-medium">Total</th>
-                    <th className="pb-2 text-right font-medium">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="border-b last:border-0">
-                      <td className="py-2">
-                        <Link
-                          href={`/client/orders/${order.id}`}
-                          className="font-medium underline hover:text-primary"
-                        >
-                          {order.number}
-                        </Link>
-                      </td>
-                      <td className="py-2 text-muted-foreground">
-                        {new Date(order.issueDate).toLocaleDateString()}
-                      </td>
-                      <td className="py-2">
-                        <StatusBadge status={order.status} size="sm" />
-                      </td>
-                      <td className="py-2 text-right">
-                        {formatCurrency(order.total)}
-                      </td>
-                      <td className="py-2 text-right font-medium">
-                        {formatCurrency(order.balanceDue)}
-                      </td>
+            <>
+              {/* Mobile: Card View */}
+              <div className="space-y-3 sm:hidden">
+                {recentOrders.map((order) => (
+                  <Link
+                    key={order.id}
+                    href={`/client/orders/${order.id}`}
+                    className="block rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5 transition hover:bg-card"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-foreground">{order.number}</p>
+                          <StatusBadge status={order.status} size="sm" />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(order.issueDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="font-medium">{formatCurrency(order.total)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Balance Due</p>
+                        <p className="font-semibold text-primary">
+                          {formatCurrency(order.balanceDue)}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Desktop: Table View */}
+              <div className="hidden overflow-x-auto sm:block">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 font-medium">Number</th>
+                      <th className="pb-2 font-medium">Date</th>
+                      <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 text-right font-medium">Total</th>
+                      <th className="pb-2 text-right font-medium">Balance</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {recentOrders.map((order) => (
+                      <tr key={order.id} className="border-b last:border-0">
+                        <td className="py-2">
+                          <Link
+                            href={`/client/orders/${order.id}`}
+                            className="font-medium underline hover:text-primary"
+                          >
+                            {order.number}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-muted-foreground">
+                          {new Date(order.issueDate).toLocaleDateString()}
+                        </td>
+                        <td className="py-2">
+                          <StatusBadge status={order.status} size="sm" />
+                        </td>
+                        <td className="py-2 text-right">
+                          {formatCurrency(order.total)}
+                        </td>
+                        <td className="py-2 text-right font-medium">
+                          {formatCurrency(order.balanceDue)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

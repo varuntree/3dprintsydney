@@ -110,8 +110,8 @@ export function PaymentMethodModal({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Balance Summary */}
-        <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-4">
+        {/* Balance Summary - Mobile optimized: Reduced padding on mobile */}
+        <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3 sm:p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Invoice Balance:</span>
             <span className="font-semibold">{formatCurrency(balanceDue)}</span>

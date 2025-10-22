@@ -47,7 +47,8 @@ export function ChangePasswordForm({ email }: { email: string }) {
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
-      <div className="rounded-lg border border-border bg-surface-overlay p-6 shadow-sm">
+      {/* Mobile optimized: Reduced padding on mobile */}
+      <div className="rounded-lg border border-border bg-surface-overlay p-4 shadow-sm sm:p-6">
         <div>
           <h2 className="text-base font-semibold">Change Password</h2>
           <p className="text-sm text-muted-foreground">Signed in as {email}</p>
@@ -89,8 +90,9 @@ export function ChangePasswordForm({ email }: { email: string }) {
             />
           </div>
         </div>
+        {/* Mobile optimized: Full-width button on mobile */}
         <div className="mt-6 flex justify-end gap-2">
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
             {submitting ? "Updating…" : "Update password"}
           </Button>
         </div>

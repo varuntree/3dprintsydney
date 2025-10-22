@@ -283,19 +283,19 @@ function DashboardHeader({
   queuedJobs: number;
 }) {
   return (
-    <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+    <header className="rounded-2xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:rounded-3xl sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+        <div className="space-y-1 sm:space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             Daily Console
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground sm:text-sm">
             Real-time health of cashflow, production, and customer movement.
           </p>
         </div>
         <RangeToggle range={range} options={options} onChange={onRangeChange} />
       </div>
-      <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+      <div className="mt-4 grid gap-3 text-sm sm:mt-6 sm:grid-cols-3">
         <HeaderStat label="Revenue (range)" value={formatCurrency(revenue)} tone="emerald" />
         <HeaderStat label="Outstanding balance" value={formatCurrency(outstanding)} tone="slate" />
         <HeaderStat label="Jobs queued" value={`${queuedJobs}`} tone="amber" />

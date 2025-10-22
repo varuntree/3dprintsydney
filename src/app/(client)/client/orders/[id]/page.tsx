@@ -69,34 +69,35 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
 
     return (
       <div className="mx-auto max-w-4xl space-y-6">
-        {/* Invoice Summary */}
+        {/* Invoice Summary - Mobile optimized */}
         <Card className="border border-border bg-surface-overlay">
           <CardHeader>
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
               <div>
-                <CardTitle className="text-base">Invoice {detail.number}</CardTitle>
+                <CardTitle className="text-lg sm:text-xl">Invoice {detail.number}</CardTitle>
                 <p className="text-xs text-muted-foreground">Issued {detail.issueDate.toLocaleDateString()}</p>
               </div>
-              <Badge variant="outline">{detail.status}</Badge>
+              <Badge variant="outline" className="self-start sm:self-auto">{detail.status}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 text-sm">
-              <div>
-                <div className="text-muted-foreground">Subtotal</div>
-                <div>${detail.subtotal.toFixed(2)}</div>
+            {/* Financial details - Mobile optimized: 2 columns on mobile, 4 on sm+ */}
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 sm:gap-4">
+              <div className="rounded-lg bg-card/50 p-3">
+                <div className="text-xs text-muted-foreground">Subtotal</div>
+                <div className="mt-1 font-medium">${detail.subtotal.toFixed(2)}</div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Tax</div>
-                <div>${detail.taxTotal.toFixed(2)}</div>
+              <div className="rounded-lg bg-card/50 p-3">
+                <div className="text-xs text-muted-foreground">Tax</div>
+                <div className="mt-1 font-medium">${detail.taxTotal.toFixed(2)}</div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Total</div>
-                <div className="font-medium">${detail.total.toFixed(2)}</div>
+              <div className="rounded-lg bg-primary/10 p-3">
+                <div className="text-xs text-primary">Total</div>
+                <div className="mt-1 font-semibold text-primary">${detail.total.toFixed(2)}</div>
               </div>
-              <div>
-                <div className="text-muted-foreground">Balance</div>
-                <div className="font-medium">${detail.balanceDue.toFixed(2)}</div>
+              <div className="rounded-lg bg-amber-50 p-3">
+                <div className="text-xs text-amber-700">Balance Due</div>
+                <div className="mt-1 font-semibold text-amber-700">${detail.balanceDue.toFixed(2)}</div>
               </div>
             </div>
             {detail.balanceDue > 0 ? (
@@ -214,7 +215,7 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
           </Card>
         ) : null}
 
-        {/* Attachments */}
+        {/* Attachments - Mobile optimized: Card view on mobile, table on sm+ */}
         <Card className="border border-border bg-surface-overlay">
           <CardHeader>
             <CardTitle className="text-base">Attachments</CardTitle>
@@ -223,26 +224,50 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
             {detail.attachments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No attachments.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Size</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Mobile: Card View */}
+                <div className="space-y-2 sm:hidden">
                   {detail.attachments.map((att) => (
-                    <TableRow key={att.id}>
-                      <TableCell>
-                        <a href={`/api/attachments/${att.id}`} className="underline">{att.filename}</a>
-                      </TableCell>
-                      <TableCell>{att.filetype ?? ""}</TableCell>
-                      <TableCell className="text-right">{formatSize(att.size)}</TableCell>
-                    </TableRow>
+                    <a
+                      key={att.id}
+                      href={`/api/attachments/${att.id}`}
+                      className="flex items-center justify-between rounded-lg border border-border/60 bg-card/80 p-3 shadow-sm shadow-black/5 transition hover:bg-card"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{att.filename}</p>
+                        <p className="text-xs text-muted-foreground">{att.filetype ?? "Unknown"}</p>
+                      </div>
+                      <div className="ml-3 text-right">
+                        <p className="text-xs font-medium text-muted-foreground">{formatSize(att.size)}</p>
+                      </div>
+                    </a>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+
+                {/* Desktop: Table View */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>File</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Size</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detail.attachments.map((att) => (
+                        <TableRow key={att.id}>
+                          <TableCell>
+                            <a href={`/api/attachments/${att.id}`} className="underline">{att.filename}</a>
+                          </TableCell>
+                          <TableCell>{att.filetype ?? ""}</TableCell>
+                          <TableCell className="text-right">{formatSize(att.size)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

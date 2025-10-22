@@ -577,44 +577,46 @@ export default function QuickOrderPage() {
   const [showRotationControls, setShowRotationControls] = useState(false);
 
   return (
-    <div className="space-y-6">
-      {/* Workflow Steps */}
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-overlay p-4">
-        {steps.map((step, index) => {
-          const Icon = step.icon;
-          const isActive = index === currentStepIndex;
-          const isComplete = index < currentStepIndex;
+    <div className="space-y-4 sm:space-y-6">
+      {/* Workflow Steps - Mobile optimized: Compact on mobile */}
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface-overlay p-3 sm:p-4">
+        <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
+          {steps.map((step, index) => {
+            const Icon = step.icon;
+            const isActive = index === currentStepIndex;
+            const isComplete = index < currentStepIndex;
 
-          return (
-            <div key={step.id} className="flex flex-1 items-center">
-              <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors",
-                    isComplete
-                      ? "border-green-600 bg-green-600 text-white"
-                      : isActive
-                      ? "border-blue-600 bg-blue-600 text-white"
-                      : "border-gray-300 bg-white text-gray-400"
-                  )}
-                >
-                  {isComplete ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+            return (
+              <div key={step.id} className="flex flex-1 items-center">
+                <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-2">
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors sm:h-10 sm:w-10",
+                      isComplete
+                        ? "border-green-600 bg-green-600 text-white"
+                        : isActive
+                        ? "border-blue-600 bg-blue-600 text-white"
+                        : "border-gray-300 bg-white text-gray-400"
+                    )}
+                  >
+                    {isComplete ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className="h-4 w-4 sm:h-5 sm:w-5" />}
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium sm:text-sm",
+                      isActive ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {step.label}
+                  </span>
                 </div>
-                <span
-                  className={cn(
-                    "hidden text-sm font-medium sm:block",
-                    isActive ? "text-foreground" : "text-muted-foreground"
-                  )}
-                >
-                  {step.label}
-                </span>
+                {index < steps.length - 1 && (
+                  <div className="mx-1 h-0.5 flex-1 bg-gray-200 sm:mx-2" />
+                )}
               </div>
-              {index < steps.length - 1 && (
-                <div className="mx-2 h-0.5 flex-1 bg-gray-200" />
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {error && (
@@ -631,22 +633,22 @@ export default function QuickOrderPage() {
         </div>
       )}
 
-      {/* Two-Column Layout */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on lg+ */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Upload & File List */}
-          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+          {/* Upload & File List - Mobile optimized: Stack on mobile */}
+          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">Files</h2>
+                <h2 className="text-base font-semibold sm:text-lg">Files</h2>
                 <span className="text-xs text-muted-foreground">Upload STL or 3MF</span>
               </div>
               {hasUploads ? (
                 <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{uploads.length} file{uploads.length === 1 ? "" : "s"}</span>
               ) : null}
             </div>
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div
                 className={cn(
                   "relative flex min-h-[260px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/70 bg-surface-muted text-center transition",
@@ -761,14 +763,14 @@ export default function QuickOrderPage() {
             </div>
           </section>
 
-          {/* Files Configuration - Collapsible with Max Height */}
+          {/* Files Configuration - Mobile optimized: Reduced padding on mobile */}
           {uploads.length > 0 && (
-            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
+            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-lg font-semibold">File Settings</h2>
+                <h2 className="text-base font-semibold sm:text-lg">File Settings</h2>
               </div>
-              <div className="max-h-[500px] space-y-3 overflow-y-auto pr-2">
+              <div className="max-h-[500px] space-y-3 overflow-y-auto pr-1 sm:pr-2">
                 {uploads.map((u) => {
                   const isExpanded = expandedFiles.has(u.id);
                   const hasMetrics = !!metrics[u.id];
@@ -853,10 +855,10 @@ export default function QuickOrderPage() {
                         )}
                       </div>
 
-                      {/* File Settings - Collapsible */}
+                      {/* File Settings - Collapsible - Mobile optimized: Full width fields on mobile */}
                       {isExpanded && (
                         <div className="border-t border-border p-3">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                               <div className="flex items-center gap-2">
                                 <Label className="text-xs">Material</Label>
@@ -1056,12 +1058,13 @@ export default function QuickOrderPage() {
                   );
                 })}
               </div>
+              {/* Mobile optimized: Full-width button on mobile */}
               <div className="mt-4 flex justify-end">
                 <Button
                   onClick={computePrice}
                   disabled={uploads.length === 0 || loading || pricing}
                   className={cn(
-                    "flex items-center gap-2 bg-blue-600 text-white shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60",
+                    "flex w-full items-center justify-center gap-2 bg-blue-600 text-white shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto",
                     pricing ? "animate-pulse" : "hover:bg-blue-500"
                   )}
                 >
@@ -1078,14 +1081,14 @@ export default function QuickOrderPage() {
             </section>
           )}
 
-          {/* Orientation Step */}
+          {/* Orientation Step - Mobile optimized */}
           {currentStep === "orient" && uploads.length > 0 && (
-            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
-              <div className="mb-4 flex items-center justify-between">
+            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <Box className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <h2 className="text-lg font-semibold">Orient Your Models</h2>
+                    <h2 className="text-base font-semibold sm:text-lg">Orient Your Models</h2>
                     {currentlyOrienting && (
                       <p className="text-xs text-muted-foreground">
                         File {uploads.findIndex((u) => u.id === currentlyOrienting) + 1} of {uploads.length}
@@ -1110,16 +1113,19 @@ export default function QuickOrderPage() {
                   </Button>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => setCurrentStep("configure")}
                     disabled={isLocking}
+                    className="whitespace-nowrap"
                   >
-                    Skip Orientation
+                    Skip
                   </Button>
                 </div>
               </div>
 
-              {/* File Selection */}
-              <div className="mb-4 flex flex-wrap gap-2">
+              {/* File Selection - Mobile optimized: Horizontal scroll on mobile */}
+              <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                <div className="flex min-w-max gap-2 sm:flex-wrap">
                 {uploads.map((u) => {
                   const isOriented = !!orientedFileIds[u.id];
                   const isCurrent = currentlyOrienting === u.id;
@@ -1143,6 +1149,7 @@ export default function QuickOrderPage() {
                     </Button>
                   );
                 })}
+                </div>
               </div>
 
               {currentlyOrienting ? (
@@ -1204,14 +1211,14 @@ export default function QuickOrderPage() {
           )}
         </div>
 
-        {/* Right Column - Price Summary & Checkout */}
-        <div className="space-y-6">
-          {/* Price Summary */}
+        {/* Right Column - Price Summary & Checkout - Mobile optimized */}
+        <div className="space-y-4 sm:space-y-6">
+          {/* Price Summary - Mobile optimized: Reduced padding on mobile */}
           {priceData && (
-            <section className="rounded-lg border border-border bg-surface-overlay p-6">
+            <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Package className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-lg font-semibold">Price Summary</h2>
+                <h2 className="text-base font-semibold sm:text-lg">Price Summary</h2>
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -1244,12 +1251,12 @@ export default function QuickOrderPage() {
             </section>
           )}
 
-          {/* Shipping & Address */}
+          {/* Shipping & Address - Mobile optimized: Reduced padding on mobile */}
           {priceData && (
-            <section className="rounded-lg border border-border bg-surface-overlay p-6">
+            <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-lg font-semibold">Checkout</h2>
+                <h2 className="text-base font-semibold sm:text-lg">Checkout</h2>
               </div>
               <div className="space-y-4">
                 <div className="rounded-md border border-dashed border-border bg-surface-muted p-4">
@@ -1351,10 +1358,10 @@ export default function QuickOrderPage() {
             </section>
           )}
 
-          {/* Help Card */}
+          {/* Help Card - Mobile optimized: Reduced padding on mobile */}
           {uploads.length === 0 && (
-            <section className="rounded-lg border border-border bg-surface-overlay p-6">
-              <h3 className="mb-2 font-semibold">How it works</h3>
+            <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
+              <h3 className="mb-2 text-base font-semibold">How it works</h3>
               <ol className="space-y-2 text-sm text-muted-foreground">
                 <li>1. Upload your 3D model files</li>
                 <li>2. Configure print settings</li>

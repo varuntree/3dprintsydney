@@ -41,17 +41,17 @@ export function AdminShell({ children, user }: AdminShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - Mobile optimized logo/branding */}
       <aside className="sticky top-0 hidden h-[100svh] w-[260px] flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
         <div className="flex h-20 items-center gap-2 px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface-overlay text-sm font-semibold tracking-wider">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-border bg-surface-overlay text-sm font-semibold tracking-wider">
             3D
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="min-w-0">
+            <p className="truncate text-xs uppercase tracking-[0.3em] text-muted-foreground">
               Operations
             </p>
-            <p className="text-lg font-semibold tracking-tight text-foreground">
+            <p className="truncate text-lg font-semibold tracking-tight text-foreground">
               Print Studio
             </p>
           </div>
@@ -116,9 +116,9 @@ export function AdminShell({ children, user }: AdminShellProps) {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        {/* Header */}
+        {/* Header - Mobile optimized: reduced height on small screens */}
         <header className="sticky top-0 z-40 border-b border-border bg-surface-overlay backdrop-blur">
-          <div className="flex min-h-[5rem] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex min-h-[4rem] items-center justify-between gap-3 px-4 py-3 sm:min-h-[5rem] sm:gap-4 sm:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
               <div className="min-w-0 flex-1">
@@ -131,6 +131,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Desktop: Show all quick actions + logout */}
               <div className="hidden items-center gap-2 sm:flex">
                 {QUICK_ACTIONS.map((action) => {
                   const Icon = getIcon(action.icon);
@@ -156,26 +157,30 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   Logout
                 </button>
               </div>
-              <div className="flex items-center gap-2 sm:hidden">
-                {QUICK_ACTIONS.slice(0, 2).map((action) => {
-                  const Icon = getIcon(action.icon);
-                  return (
-                    <ActionButton
-                      key={action.href}
-                      href={action.href}
-                      variant="ghost"
-                      size="icon"
-                      className="h-9 w-9"
-                      title={action.name}
-                      aria-label={action.name}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </ActionButton>
-                  );
-                })}
+              {/* Mobile: Horizontal scroll for quick actions + logout button */}
+              <div className="flex items-center gap-2 overflow-x-auto sm:hidden">
+                <div className="flex items-center gap-2">
+                  {QUICK_ACTIONS.map((action) => {
+                    const Icon = getIcon(action.icon);
+                    return (
+                      <ActionButton
+                        key={action.href}
+                        href={action.href}
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 flex-shrink-0"
+                        title={action.name}
+                        aria-label={action.name}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </ActionButton>
+                    );
+                  })}
+                </div>
                 <button
                   onClick={handleLogout}
-                  className="rounded-md px-2 py-1 text-sm text-red-600 hover:text-red-700 underline"
+                  className="flex-shrink-0 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+                  aria-label="Logout"
                 >
                   Logout
                 </button>

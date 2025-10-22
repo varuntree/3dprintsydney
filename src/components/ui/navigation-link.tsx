@@ -59,10 +59,16 @@ export function NavigationLink({
   );
 
   // If used as child component (e.g., inside a Button), skip the default styles
+  /**
+   * NavigationLink - Mobile optimized
+   * - Touch target: min-h-11 (44px) on mobile for better touch interaction
+   * - Increased padding on mobile: py-2.5 instead of py-2
+   * - Better gap spacing
+   */
   const linkClassName = asChild
     ? className
     : cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-all",
+        "group relative flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all",
         fullWidth ? "w-full" : "w-auto",
         active
           ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"

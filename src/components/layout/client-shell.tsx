@@ -40,14 +40,14 @@ export function ClientShell({ children, user }: ClientShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - Mobile optimized logo/branding */}
       <aside className="sticky top-0 hidden h-[100svh] w-[260px] flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
         <div className="flex h-20 items-center gap-3 px-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/80 bg-gradient-to-br from-blue-600/10 to-cyan-500/10 text-sm font-semibold tracking-wider shadow-sm">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border/80 bg-gradient-to-br from-blue-600/10 to-cyan-500/10 text-sm font-semibold tracking-wider shadow-sm">
             3D
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-muted-foreground/80">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[10px] uppercase tracking-[0.35em] text-muted-foreground/80">
               Client Portal
             </p>
             <p className="truncate text-lg font-semibold tracking-tight text-foreground">
@@ -119,9 +119,9 @@ export function ClientShell({ children, user }: ClientShellProps) {
       </aside>
 
       <div className="flex flex-1 flex-col">
-        {/* Header */}
+        {/* Header - Mobile optimized: reduced height on small screens */}
         <header className="sticky top-0 z-40 border-b border-border bg-surface-overlay backdrop-blur">
-          <div className="flex min-h-[5rem] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex min-h-[4rem] items-center justify-between gap-3 px-4 py-3 sm:min-h-[5rem] sm:gap-4 sm:px-6">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
               <div className="min-w-0 flex-1">
@@ -134,9 +134,11 @@ export function ClientShell({ children, user }: ClientShellProps) {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* Logout button - mobile optimized touch target */}
               <button
                 onClick={handleLogout}
-                className="rounded-full border border-red-200 px-3 py-1 text-sm text-red-600 hover:border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                className="min-h-[44px] rounded-full border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+                aria-label="Logout"
               >
                 Logout
               </button>

@@ -58,6 +58,20 @@ function toCurrency(value: number, currency = "AUD") {
   return formatCurrency(value, currency);
 }
 
+function resolveTaxLabel(rate?: number | null): string | undefined {
+  if (rate === undefined || rate === null) {
+    return undefined;
+  }
+  const numeric = Number(rate);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return undefined;
+  }
+  const display = Number.isInteger(numeric)
+    ? numeric.toString()
+    : numeric.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  return `Tax (${display}%)`;
+}
+
 function sanitize(text: string | null | undefined): string {
   if (!text) return "";
   const trimmed = text.trim();
@@ -454,11 +468,11 @@ function renderBusinessBlock(info: BusinessInfo): string {
   if (info.businessAddress) {
     lines.push(`<span>${formatMultiline(info.businessAddress)}</span>`);
   }
-  const contact: string[] = [];
-  if (info.businessEmail) contact.push(sanitize(info.businessEmail));
-  if (info.businessPhone) contact.push(sanitize(info.businessPhone));
-  if (contact.length) {
-    lines.push(`<span>${contact.join(" • ")}</span>`);
+  if (info.businessEmail) {
+    lines.push(`<span>${sanitize(info.businessEmail)}</span>`);
+  }
+  if (info.businessPhone) {
+    lines.push(`<span>${sanitize(info.businessPhone)}</span>`);
   }
   if (info.abn) {
     lines.push(`<span>ABN: ${sanitize(info.abn)}</span>`);
@@ -505,11 +519,11 @@ function renderBillTo(client: QuoteDetailDTO["client"] | InvoiceDetailDTO["clien
   if (client.address) {
     detailLines.push(`<p>${formatMultiline(client.address)}</p>`);
   }
-  if (client.email || client.phone) {
-    const contacts: string[] = [];
-    if (client.email) contacts.push(sanitize(client.email));
-    if (client.phone) contacts.push(sanitize(client.phone));
-    detailLines.push(`<p>${contacts.join(" • ")}</p>`);
+  if (client.email) {
+    detailLines.push(`<p>${sanitize(client.email)}</p>`);
+  }
+  if (client.phone) {
+    detailLines.push(`<p>${sanitize(client.phone)}</p>`);
   }
   return `<div class="card">
       <div class="card-title">Bill to</div>
@@ -559,7 +573,15 @@ function renderLineItems(items: LineItem[], currency: string): string {
 }
 
 function renderTotalsSummary(
-  values: { subtotal: number; tax: number; total: number; discount?: number } & { balanceLabel?: string; balanceValue?: number },
+  values: {
+    subtotal: number;
+    tax: number;
+    total: number;
+    discount?: number;
+    taxLabel?: string;
+    balanceLabel?: string;
+    balanceValue?: number;
+  },
   currency?: string,
 ): string {
   const resolvedCurrency = currency ?? "AUD";
@@ -577,8 +599,9 @@ function renderTotalsSummary(
   }
 
   if (values.tax > 0) {
+    const label = values.taxLabel ? values.taxLabel : "Tax";
     rows.push(`<div class="totals-row">
-        <span class="totals-label">Tax</span>
+        <span class="totals-label">${escapeHtml(label)}</span>
         <span class="totals-value">${escapeHtml(toCurrency(values.tax, resolvedCurrency))}</span>
       </div>`);
   }
@@ -602,13 +625,21 @@ function renderTotalsSummary(
     </div>`;
 }
 
-function renderNotes(label: string, value: string | null | undefined): string {
+function renderInformationalParagraph(value: string | null | undefined): string {
   if (!value || value.trim().length === 0) {
     return "";
   }
   return `<section class="text-block">
-      <div class="section-title">${escapeHtml(label)}</div>
       <p>${formatMultiline(value)}</p>
+    </section>`;
+}
+
+function renderLegalText(label: string, value: string | null | undefined): string {
+  if (!value || value.trim().length === 0) {
+    return "";
+  }
+  return `<section class="text-block">
+      <p><strong>${escapeHtml(label)}:</strong> ${formatMultiline(value)}</p>
     </section>`;
 }
 
@@ -651,10 +682,7 @@ export function renderProductionQuoteHtml(quote: QuoteDetailDTO, options: Templa
     <section class="summary">
       ${renderBillTo(quote.client)}
       <div class="card highlight-card">
-        <div>
-          <p class="card-title">Quote value</p>
-          <p class="highlight-value">${escapeHtml(toCurrency(quote.total, currency))}</p>
-        </div>
+        <p class="highlight-value">${escapeHtml(toCurrency(quote.total, currency))}</p>
         <p class="highlight-hint">${escapeHtml(summaryText)}</p>
       </div>
     </section>
@@ -663,11 +691,12 @@ export function renderProductionQuoteHtml(quote: QuoteDetailDTO, options: Templa
       subtotal: quote.subtotal,
       tax: quote.taxTotal,
       total: quote.total,
+      taxLabel: resolveTaxLabel(quote.taxRate),
       balanceLabel: "Amount due",
       balanceValue: quote.total,
     }, currency)}
-    ${renderNotes("Notes", quote.notes)}
-    ${renderNotes("Terms & Conditions", quote.terms)}
+    ${renderInformationalParagraph(quote.notes)}
+    ${renderLegalText("Terms & Conditions", quote.terms)}
     ${renderFooterLine(referenceLine)}
   `;
 
@@ -753,13 +782,14 @@ export function renderProductionInvoiceHtml(invoice: InvoiceWithPayment, options
         <p class="highlight-hint">${escapeHtml(dueCopy.value)}</p>
       </div>
     </section>
-    ${renderNotes("Message", invoice.notes)}
+    ${renderInformationalParagraph(invoice.notes)}
     ${renderLineItems(lineItems, currency)}
     ${renderTotalsSummary(
       {
         subtotal: invoice.subtotal,
         tax: invoice.taxTotal,
         total: invoice.total,
+        taxLabel: resolveTaxLabel(invoice.taxRate),
         balanceLabel: "Amount due",
         balanceValue: invoice.balanceDue,
       },
@@ -769,7 +799,7 @@ export function renderProductionInvoiceHtml(invoice: InvoiceWithPayment, options
         <div class="section-title">Make payment</div>
         <div class="payment-grid">${paymentCards}</div>
       </section>` : ""}
-    ${renderNotes("Terms & Conditions", invoice.terms)}
+    ${renderLegalText("Terms & Conditions", invoice.terms)}
     ${renderFooterLine(referenceLine)}
   `;
 
