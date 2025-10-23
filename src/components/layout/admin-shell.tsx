@@ -40,7 +40,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-background text-foreground">
       {/* Desktop Sidebar - Mobile optimized logo/branding */}
       <aside className="sticky top-0 hidden h-[100svh] w-[260px] flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground backdrop-blur lg:flex">
         <div className="flex h-20 items-center gap-2 px-6">
