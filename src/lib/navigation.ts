@@ -16,7 +16,7 @@ export const OWNER_NAV_SECTIONS: NavSection[] = [
   {
     title: "Catalog",
     items: [
-      { name: "Materials", href: "/materials", icon: "beaker" },
+      { name: "Materials", href: "/dashboard/materials-admin", icon: "beaker" },
       { name: "Products", href: "/products", icon: "package" },
       { name: "Printers", href: "/printers", icon: "printer" },
     ],

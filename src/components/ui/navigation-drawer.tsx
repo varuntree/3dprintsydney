@@ -46,8 +46,11 @@ export function NavigationDrawer() {
           <Menu className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[280px] p-0 bg-sidebar text-sidebar-foreground">
-        <SheetHeader className="px-6 py-5">
+      <SheetContent
+        side="left"
+        className="w-[280px] max-h-[100svh] gap-0 overflow-hidden p-0 bg-sidebar text-sidebar-foreground"
+      >
+        <SheetHeader className="shrink-0 px-6 py-5">
           <div className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-full border border-border bg-surface-overlay backdrop-blur flex items-center justify-center text-sm font-semibold tracking-wider">
               3D
@@ -63,9 +66,9 @@ export function NavigationDrawer() {
           </div>
         </SheetHeader>
 
-        <Separator className="mx-6" />
+        <Separator className="mx-6 shrink-0" />
 
-        <ScrollArea className="flex-1 px-4 py-4">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-4">
           <nav className="flex flex-col gap-6">
             {/* Quick Actions */}
             {role === 'ADMIN' && (
