@@ -7,5 +7,5 @@ export default async function MeRedirect() {
   const user = await getUserFromCookies();
   if (!user) redirect("/login");
   if (user.role === "CLIENT") redirect("/client/messages");
-  redirect("/");
+  redirect("/dashboard");
 }
