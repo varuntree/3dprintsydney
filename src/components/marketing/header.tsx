@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 
@@ -39,6 +39,33 @@ const navigation = [
 
 export function MarketingHeader() {
   const [isServicesOpen, setIsServicesOpen] = useState(false);
+  const closeMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimeout = useCallback(() => {
+    if (closeMenuTimeoutRef.current) {
+      clearTimeout(closeMenuTimeoutRef.current);
+      closeMenuTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleServicesOpen = useCallback(() => {
+    clearCloseTimeout();
+    setIsServicesOpen(true);
+  }, [clearCloseTimeout]);
+
+  const handleServicesClose = useCallback(() => {
+    clearCloseTimeout();
+    closeMenuTimeoutRef.current = setTimeout(() => {
+      setIsServicesOpen(false);
+      closeMenuTimeoutRef.current = null;
+    }, 180);
+  }, [clearCloseTimeout]);
+
+  useEffect(() => {
+    return () => {
+      clearCloseTimeout();
+    };
+  }, [clearCloseTimeout]);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-surface-overlay/90 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/75">
@@ -48,36 +75,46 @@ export function MarketingHeader() {
           <span className="tracking-tight">3D Print Sydney</span>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm text-foreground/70 md:flex">
+        <nav className="hidden items-center gap-6 text-sm text-foreground/80 md:flex">
           <div
             className="relative"
-            onMouseEnter={() => setIsServicesOpen(true)}
-            onMouseLeave={() => setIsServicesOpen(false)}
+            onMouseEnter={handleServicesOpen}
+            onMouseLeave={handleServicesClose}
           >
-            <button className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-foreground/75 transition hover:bg-surface-subtle hover:text-foreground">
+            <button className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-foreground/80 transition-colors hover:bg-surface-subtle hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2">
               Services
               <ChevronDown className="h-3.5 w-3.5" aria-hidden />
             </button>
             {isServicesOpen && (
-              <div className="absolute left-0 mt-3 w-72 rounded-xl border border-border/60 bg-surface-elevated p-3 shadow-lg">
-                <div className="flex flex-col">
-                  {services.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="rounded-lg px-3 py-2 text-left transition hover:bg-surface-subtle"
-                    >
-                      <div className="text-sm font-medium text-foreground">{item.title}</div>
-                      <div className="text-xs text-foreground/60">{item.description}</div>
-                    </Link>
-                  ))}
+              <div
+                className="absolute left-0 top-full z-20 w-72 pt-3"
+                onMouseEnter={handleServicesOpen}
+                onMouseLeave={handleServicesClose}
+              >
+                <div className="rounded-xl border border-border/60 bg-surface-elevated p-3 shadow-lg">
+                  <div className="flex flex-col">
+                    {services.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="rounded-lg px-3 py-2 text-left text-foreground/80 transition-colors hover:bg-surface-subtle hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+                      >
+                        <div className="text-sm font-medium text-foreground">{item.title}</div>
+                        <div className="text-xs text-foreground/60">{item.description}</div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
           {navigation.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-foreground">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-foreground/80 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+            >
               {item.label}
             </Link>
           ))}
