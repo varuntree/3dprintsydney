@@ -21,22 +21,20 @@ export function Hero() {
     <section className="marketing-section" data-variant="hero">
       <div
         aria-hidden
-        className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#dceaff] opacity-80 blur-3xl mix-blend-screen"
+        className="pointer-events-none absolute -left-24 top-10 h-72 w-72 rounded-full bg-[#dceaff] opacity-80 blur-3xl mix-blend-screen hidden sm:block"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute right-[-10rem] top-[-6rem] h-64 w-64 rounded-full bg-[#ffe6b5] opacity-70 blur-[110px] mix-blend-screen"
+        className="pointer-events-none absolute right-[-10rem] top-[-6rem] h-64 w-64 rounded-full bg-[#ffe6b5] opacity-70 blur-[110px] mix-blend-screen hidden sm:block"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute -right-16 bottom-[-5rem] h-80 w-80 rounded-full bg-[#ffd9c2] opacity-70 blur-3xl mix-blend-screen"
+        className="pointer-events-none absolute -right-16 bottom-[-5rem] h-80 w-80 rounded-full bg-[#ffd9c2] opacity-70 blur-3xl mix-blend-screen hidden sm:block"
       />
       <div className="marketing-section__container relative pb-14 pt-4 md:pb-18 md:pt-10">
         <div className="grid items-start gap-8 sm:gap-12 xl:gap-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-white/80 px-4 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-primary/70 shadow-sm backdrop-blur">
-              Sydney additive manufacturing studio
-            </span>
+            {/* Top pill removed per request */}
             <h1 className="mt-4 text-4xl leading-[1.05] text-foreground sm:mt-5 sm:text-5xl md:mt-6 md:text-[3.65rem]">
               Precision
               <span className="relative mx-2 inline-block">
@@ -103,7 +101,6 @@ export function Hero() {
                 muted
                 playsInline
                 preload="auto"
-                poster="/hero.png"
                 className="relative z-[1] aspect-[4/5] w-full object-cover"
               >
                 <source src="/hero.webm" type="video/webm" />

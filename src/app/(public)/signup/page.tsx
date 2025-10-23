@@ -30,7 +30,7 @@ export default function SignupPage() {
       return;
     }
     const { data } = await res.json();
-    router.replace(data.role === "ADMIN" ? "/" : "/me");
+    router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
   }
 
   return (

@@ -40,7 +40,7 @@ export default function LoginPage() {
     fetch("/api/auth/me").then(async (r) => {
       if (r.ok) {
         const { data } = await r.json();
-        router.replace(data.role === "ADMIN" ? "/" : "/me");
+        router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
       }
     });
   }, [router]);
@@ -61,7 +61,7 @@ export default function LoginPage() {
       return;
     }
     const { data } = await res.json();
-    router.replace(data.role === "ADMIN" ? "/" : "/me");
+    router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
   }
 
   return (
@@ -76,7 +76,7 @@ export default function LoginPage() {
       />
 
       <div className="relative grid overflow-hidden rounded-[inherit] sm:grid-cols-[1.05fr_0.95fr]">
-        <div className="relative space-y-10 border-b border-border/60 bg-gradient-to-br from-surface-subtle/95 via-surface-subtle/75 to-surface-overlay/40 p-6 sm:border-b-0 sm:border-r sm:p-10">
+        <div className="relative order-2 space-y-10 border-b border-border/60 bg-gradient-to-br from-surface-subtle/95 via-surface-subtle/75 to-surface-overlay/40 p-6 sm:order-1 sm:border-b-0 sm:border-r sm:p-10">
           <div className="flex items-center justify-between">
             <Link
               href="/"
@@ -137,7 +137,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative space-y-8 bg-surface-overlay/90 p-6 sm:p-10">
+        <div className="relative order-1 space-y-8 bg-surface-overlay/90 p-6 sm:order-2 sm:p-10">
           <div className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/55">Sign in</span>
             <h2 className="text-2xl font-semibold text-foreground">Access your workspace</h2>
@@ -187,12 +187,6 @@ export default function LoginPage() {
               className="inline-flex items-center gap-1 font-medium text-primary transition hover:text-primary/80"
             >
               Create an account
-            </Link>
-            <Link
-              href="/forgot-password"
-              className="inline-flex items-center gap-1 font-medium text-primary transition hover:text-primary/80"
-            >
-              Forgot password?
             </Link>
           </div>
         </div>

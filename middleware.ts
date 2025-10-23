@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 
-const PUBLIC_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES = ["/login", "/signup"];
 const MARKETING_ROUTES = [
   "/",
   "/services",
