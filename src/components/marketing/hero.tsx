@@ -56,18 +56,19 @@ export function Hero() {
               Prototype, iterate, and ship with confidence. We combine professional machines, premium materials, and hands-on advice to get your parts in hand within hours.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3 text-sm text-foreground/70 sm:gap-4">
-              {highlights.map(({ icon: Icon, label }) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-white/80 px-3 py-2 shadow-sm backdrop-blur"
-                >
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
-                    <Icon className="h-3.5 w-3.5" aria-hidden />
-                  </span>
-                  <span className="font-medium text-foreground/80">{label}</span>
-                </span>
-              ))}
+            <div className="mt-8 rounded-2xl border border-border/50 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
+              <div className="flex flex-col gap-4 text-sm text-foreground/70 sm:flex-row sm:items-center sm:justify-between">
+                {highlights.map(({ icon: Icon, label }) => (
+                  <div key={label} className="flex items-start gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Icon className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span className="max-w-[13rem] font-medium leading-snug text-foreground/80 sm:max-w-none">
+                      {label}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:mt-10 sm:flex-row sm:items-center">
