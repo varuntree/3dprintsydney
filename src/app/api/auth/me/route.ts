@@ -8,7 +8,14 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getAuthUser(req);
     if (!user) return fail("UNAUTHORIZED", "Unauthorized", 401);
-    return ok({ id: user.id, email: user.email, role: user.role, clientId: user.clientId });
+    return ok({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      clientId: user.clientId,
+      studentDiscountEligible: Boolean(user.studentDiscountEligible),
+      studentDiscountRate: user.studentDiscountRate ?? 0,
+    });
   } catch (error) {
     if (error instanceof AppError) {
       return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);

@@ -18,6 +18,8 @@ export type ClientSummaryDTO = {
   phone: string;
   paymentTerms: string | null;
   notifyOnJobStatus: boolean;
+  studentDiscountEligible: boolean;
+  studentDiscountRate: number;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
@@ -45,6 +47,8 @@ export type ClientDetailDTO = {
     walletBalance: number;
     createdAt: Date;
     updatedAt: Date;
+    studentDiscountEligible: boolean;
+    studentDiscountRate: number;
   };
   invoices: {
     id: number;

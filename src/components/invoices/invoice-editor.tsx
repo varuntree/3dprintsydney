@@ -175,6 +175,22 @@ export function InvoiceEditor({
   const selectedClient = useMemo(() => {
     return clients.find((client) => client.id === watchedClientId) ?? null;
   }, [clients, watchedClientId]);
+  const discountLocked = selectedClient?.studentDiscountEligible ?? false;
+  const lockedDiscountRate = selectedClient?.studentDiscountRate ?? 0;
+
+  useEffect(() => {
+    if (!selectedClient || !selectedClient.studentDiscountEligible) {
+      return;
+    }
+    const currentType = form.getValues("discountType");
+    const currentValue = form.getValues("discountValue") ?? 0;
+    if (currentType !== "PERCENT") {
+      form.setValue("discountType", "PERCENT", { shouldDirty: true, shouldValidate: true });
+    }
+    if (currentValue !== lockedDiscountRate) {
+      form.setValue("discountValue", lockedDiscountRate, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [selectedClient, lockedDiscountRate, form]);
 
   const resolvedPaymentTerm = useMemo(() => {
     if (paymentTermOptions.length === 0) {
@@ -602,9 +618,16 @@ export function InvoiceEditor({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discount type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(value) => {
+                        if (discountLocked) return;
+                        field.onChange(value);
+                      }}
+                      value={field.value}
+                      disabled={discountLocked}
+                    >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger disabled={discountLocked}>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                       </FormControl>
@@ -616,6 +639,11 @@ export function InvoiceEditor({
                         ))}
                       </SelectContent>
                     </Select>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Locked to the automatic student discount.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -637,8 +665,14 @@ export function InvoiceEditor({
                             normalizeNumber(event.target.valueAsNumber),
                           )
                         }
+                        disabled={discountLocked}
                       />
                     </FormControl>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Fixed at {lockedDiscountRate}% for student pricing.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}

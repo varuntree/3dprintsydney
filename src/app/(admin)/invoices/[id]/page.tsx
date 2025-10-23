@@ -131,6 +131,8 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
         : null,
       subtotal: detail.subtotal,
+      discountType: detail.discountType,
+      discountValue: detail.discountValue,
       shippingCost: detail.shippingCost,
       taxTotal: detail.taxTotal,
       total: detail.total,

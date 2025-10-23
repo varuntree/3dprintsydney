@@ -59,8 +59,13 @@ export function ClientPickerDialog({ clients, value, onSelect, disabled }: Clien
           className="justify-between"
           disabled={disabled}
         >
-          <span className="truncate">
-            {current ? current.name : "Select client"}
+          <span className="flex min-w-0 items-center gap-2 truncate">
+            <span className="truncate">{current ? current.name : "Select client"}</span>
+            {current?.studentDiscountEligible ? (
+              <span className="flex-shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                {current.studentDiscountRate}% off
+              </span>
+            ) : null}
           </span>
           <Search className="h-4 w-4 text-muted-foreground" />
         </Button>
@@ -95,6 +100,11 @@ export function ClientPickerDialog({ clients, value, onSelect, disabled }: Clien
                         <span className="text-xs text-muted-foreground">
                           {[client.company, client.email].filter(Boolean).join(" • ") || "No contact info"}
                         </span>
+                        {client.studentDiscountEligible ? (
+                          <span className="mt-1 text-[11px] font-medium text-emerald-600">
+                            {client.studentDiscountRate}% student discount
+                          </span>
+                        ) : null}
                       </span>
                       {isActive ? <Check className="h-4 w-4 text-primary" /> : null}
                     </button>

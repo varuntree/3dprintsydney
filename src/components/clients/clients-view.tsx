@@ -62,6 +62,8 @@ export type ClientSummaryRecord = {
   phone: string;
   paymentTerms?: string | null;
   notifyOnJobStatus: boolean;
+  studentDiscountEligible: boolean;
+  studentDiscountRate: number;
   outstandingBalance: number;
   totalInvoices: number;
   totalQuotes: number;
@@ -267,6 +269,11 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
                           Created{" "}
                           {new Date(client.createdAt).toLocaleDateString()}
                         </span>
+                        {client.studentDiscountEligible ? (
+                          <Badge className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+                            Student {client.studentDiscountRate}% off
+                          </Badge>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell>

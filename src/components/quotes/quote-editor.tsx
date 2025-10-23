@@ -21,6 +21,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -177,6 +178,22 @@ export function QuoteEditor({
   const selectedClient = useMemo(() => {
     return clients.find((client) => client.id === watchedClientId) ?? null;
   }, [clients, watchedClientId]);
+  const discountLocked = selectedClient?.studentDiscountEligible ?? false;
+  const lockedDiscountRate = selectedClient?.studentDiscountRate ?? 0;
+
+  useEffect(() => {
+    if (!selectedClient || !selectedClient.studentDiscountEligible) {
+      return;
+    }
+    const currentType = form.getValues("discountType");
+    const currentValue = form.getValues("discountValue") ?? 0;
+    if (currentType !== "PERCENT") {
+      form.setValue("discountType", "PERCENT", { shouldDirty: true, shouldValidate: true });
+    }
+    if (currentValue !== lockedDiscountRate) {
+      form.setValue("discountValue", lockedDiscountRate, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [selectedClient, lockedDiscountRate, form]);
 
   const resolvedPaymentTerm = useMemo(() => {
     if (!paymentTermOptions.length) {
@@ -476,9 +493,16 @@ export function QuoteEditor({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discount type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(value) => {
+                        if (discountLocked) return;
+                        field.onChange(value);
+                      }}
+                      value={field.value}
+                      disabled={discountLocked}
+                    >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger disabled={discountLocked}>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                       </FormControl>
@@ -490,6 +514,11 @@ export function QuoteEditor({
                         ))}
                       </SelectContent>
                     </Select>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Locked to the automatic student discount.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -511,8 +540,14 @@ export function QuoteEditor({
                             normalizeNumber(event.target.valueAsNumber),
                           )
                         }
+                        disabled={discountLocked}
                       />
                     </FormControl>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Fixed at {lockedDiscountRate}% for student pricing.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
