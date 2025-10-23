@@ -444,7 +444,7 @@ export function InvoiceEditor({
   return (
     <Form {...form}>
       <form
-        className="space-y-8"
+        className="space-y-8 pb-28"
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       >
         <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
@@ -1251,17 +1251,37 @@ export function InvoiceEditor({
           </CardFooter>
         </Card>
 
-        <div className="flex justify-between">
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" className="rounded-full" disabled={mutation.isPending}>
-            {mutation.isPending
-              ? "Saving…"
-              : mode === "create"
-                ? "Create invoice"
-                : "Save changes"}
-          </Button>
+        <div className="sticky bottom-4 z-30 mt-6 flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/95 px-4 py-3 shadow-lg shadow-black/15 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">
+              {mode === "create" ? "Draft invoice" : "Unsaved changes"}
+            </p>
+            <p className="hidden text-[11px] sm:block">
+              Review totals before sending to the client. Primary actions stay pinned so you can save from anywhere on the page.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => router.back()}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="rounded-full"
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending
+                ? "Saving…"
+                : mode === "create"
+                  ? "Create invoice"
+                  : "Save changes"}
+            </Button>
+          </div>
         </div>
       </form>
 

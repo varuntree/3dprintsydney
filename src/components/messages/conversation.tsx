@@ -136,12 +136,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const grouped = groupMessages(messages);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-[320px] flex-1 flex-col">
       {/* Messages area */}
       <div
         ref={containerRef}
-        className="flex-1 space-y-1 overflow-y-auto px-4 py-4"
-        style={{ maxHeight: "calc(100vh - 300px)" }}
+        className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
       >
         {/* Load more button */}
         {hasMore && (
@@ -220,7 +219,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       </div>
 
       {/* Message input */}
-      <div className="border-t border-border bg-surface-overlay p-4">
+      <div className="border-t border-border bg-surface-overlay p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="flex gap-2">
           <Textarea
             value={content}

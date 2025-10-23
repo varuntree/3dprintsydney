@@ -5,8 +5,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { usePaymentTerms } from "@/hooks/use-payment-terms";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -48,11 +47,25 @@ import {
   FormMessage,
   FormDescription,
 } from "@/components/ui/form";
+import {
+  DataList,
+  DataListBadge,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 import { mutateJson, getJson } from "@/lib/http";
-import { clientInputSchema } from "@/lib/schemas/clients";
 import { formatCurrency } from "@/lib/currency";
 import { UserPlus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import {
+  clientFormResolver,
+  defaultClientFormValues,
+  PAYMENT_TERMS_INHERIT_VALUE,
+  type ClientFormValues,
+} from "./client-form-shared";
 
 export type ClientSummaryRecord = {
   id: number;
@@ -75,40 +88,7 @@ interface ClientsViewProps {
   startOpen?: boolean;
 }
 
-type ClientFormValues = {
-  name: string;
-  company?: string;
-  abn?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  paymentTerms?: string;
-  notes?: string;
-  tags?: string[];
-  notifyOnJobStatus?: boolean;
-};
-
-const PAYMENT_TERMS_INHERIT_VALUE = "__inherit_payment_terms__";
-
 const queryKey = ["clients"] as const;
-const clientResolver = zodResolver(
-  clientInputSchema,
-) as Resolver<ClientFormValues>;
-
-function defaults(): ClientFormValues {
-  return {
-    name: "",
-    company: "",
-    abn: "",
-    email: "",
-    phone: "",
-    address: "",
-    paymentTerms: "",
-    notes: "",
-    tags: [],
-    notifyOnJobStatus: false,
-  };
-}
 
 export function ClientsView({ initialClients, startOpen = false }: ClientsViewProps) {
   const queryClient = useQueryClient();
@@ -122,8 +102,8 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
   } = usePaymentTerms();
 
   const form = useForm<ClientFormValues>({
-    resolver: clientResolver,
-    defaultValues: defaults(),
+    resolver: clientFormResolver,
+    defaultValues: defaultClientFormValues(),
   });
 
   const { data } = useQuery({
@@ -163,7 +143,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
   useEffect(() => {
     if (startOpen && !hasAppliedStartOpen.current) {
       form.reset({
-        ...defaults(),
+        ...defaultClientFormValues(),
         paymentTerms: defaultTermCode,
         notifyOnJobStatus: notificationsEnabledDefault,
       });
@@ -178,7 +158,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
 
   function openDialog() {
     form.reset({
-      ...defaults(),
+      ...defaultClientFormValues(),
       paymentTerms: defaultTermCode,
       notifyOnJobStatus: notificationsEnabledDefault,
     });
@@ -244,64 +224,116 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
               className="rounded-2xl border-border"
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Outstanding</TableHead>
-                  <TableHead className="text-right">Docs</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <DataList className="md:hidden">
                 {clients.map((client) => (
-                  <TableRow key={client.id} className="hover:bg-muted/40 transition-colors">
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
+                  <DataListItem key={client.id}>
+                    <DataListHeader>
+                      <div className="space-y-1">
                         <NavigationLink
                           href={`/clients/${client.id}`}
-                          className="font-medium text-foreground hover:underline"
+                          className="text-base font-semibold text-foreground hover:underline"
                         >
                           {client.name}
                         </NavigationLink>
-                        <span className="text-xs text-muted-foreground/80">
-                          Created{" "}
-                          {new Date(client.createdAt).toLocaleDateString()}
-                        </span>
-                        {client.studentDiscountEligible ? (
-                          <Badge className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
-                            Student {client.studentDiscountRate}% off
-                          </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          Created {new Date(client.createdAt).toLocaleDateString()}
+                        </p>
+                        {client.company ? (
+                          <p className="text-sm text-muted-foreground/90">{client.company}</p>
                         ) : null}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {client.company || (
-                        <span className="text-xs text-muted-foreground/80">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {client.email || (
-                        <span className="text-xs text-muted-foreground/80">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {formatCurrency(client.outstandingBalance)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge
-                        variant="outline"
-                        className="border-border text-muted-foreground"
-                      >
-                        {client.totalInvoices} invoices · {client.totalQuotes}{" "}
-                        quotes
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          Outstanding
+                        </p>
+                        <DataListValue>
+                          {formatCurrency(client.outstandingBalance)}
+                        </DataListValue>
+                      </div>
+                    </DataListHeader>
+                    <DataListContent>
+                      {client.studentDiscountEligible ? (
+                        <Badge className="w-fit border-emerald-200 bg-emerald-50 text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                          Student {client.studentDiscountRate}% off
+                        </Badge>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        {client.notifyOnJobStatus
+                          ? "Job status emails enabled"
+                          : "Notifications disabled"}
+                      </p>
+                    </DataListContent>
+                    <DataListFooter>
+                      <span>{client.email || "No email"}</span>
+                      <DataListBadge>
+                        {client.totalInvoices} invoices · {client.totalQuotes} quotes
+                      </DataListBadge>
+                    </DataListFooter>
+                  </DataListItem>
                 ))}
-              </TableBody>
-            </Table>
+              </DataList>
+
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Outstanding</TableHead>
+                      <TableHead className="text-right">Docs</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clients.map((client) => (
+                      <TableRow
+                        key={client.id}
+                        className="transition-colors hover:bg-muted/40"
+                      >
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <NavigationLink
+                              href={`/clients/${client.id}`}
+                              className="font-medium text-foreground hover:underline"
+                            >
+                              {client.name}
+                            </NavigationLink>
+                            <span className="text-xs text-muted-foreground/80">
+                              Created {new Date(client.createdAt).toLocaleDateString()}
+                            </span>
+                            {client.studentDiscountEligible ? (
+                              <Badge className="w-fit border-emerald-200 bg-emerald-50 text-emerald-700">
+                                Student {client.studentDiscountRate}% off
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {client.company || (
+                            <span className="text-xs text-muted-foreground/80">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {client.email || (
+                            <span className="text-xs text-muted-foreground/80">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{formatCurrency(client.outstandingBalance)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge
+                            variant="outline"
+                            className="border-border text-muted-foreground"
+                          >
+                            {client.totalInvoices} invoices · {client.totalQuotes} quotes
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -310,7 +342,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5">
+        <DialogContent className="w-[min(100vw-2rem,640px)] max-w-2xl rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5 sm:w-auto">
           <DialogHeader>
             <DialogTitle>Add Client</DialogTitle>
           </DialogHeader>

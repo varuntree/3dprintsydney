@@ -55,6 +55,7 @@ export function ClientDashboard() {
   const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const [studentDiscount, setStudentDiscount] = useState<{ eligible: boolean; rate: number } | null>(null);
+  const [showAlerts, setShowAlerts] = useState(true);
 
   useEffect(() => {
     loadDashboard();
@@ -121,32 +122,49 @@ export function ClientDashboard() {
             Manage your orders and communicate with our team
           </p>
         </div>
-      <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
-          <p className="text-[11px] leading-snug">
-            We&apos;re tuning the email system this week—SMS and portal messages still work, and we&apos;ll re-enable emails soon.
-            {" "}
-            {prefsLoaded ? (
-              <span className="font-medium">
-                Your email preference is safely set to {notifyOnJobStatus ? "on" : "off"}.
-              </span>
+      <div className="rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">
+        <button
+          type="button"
+          onClick={() => setShowAlerts((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-foreground"
+        >
+          Account notices
+          {showAlerts ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        {showAlerts ? (
+          <div className="space-y-3 border-t border-border/70 px-4 py-4 text-sm">
+            <div className="flex items-start gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
+                <p className="text-[11px] leading-snug">
+                  We&apos;re tuning the email system this week—SMS and portal messages still work, and we&apos;ll re-enable emails soon.
+                  {" "}
+                  {prefsLoaded ? (
+                    <span className="font-medium">
+                      Your email preference is safely set to {notifyOnJobStatus ? "on" : "off"}.
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+            {studentDiscount?.eligible ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+                <GraduationCap className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
+                <div>
+                  <p className="text-sm font-semibold">Student pricing active</p>
+                  <p className="text-xs text-emerald-700/90">
+                    A {studentDiscount.rate}% discount is automatically applied to every order in this account.
+                  </p>
+                </div>
+              </div>
             ) : null}
-          </p>
-        </div>
-      </div>
-
-      {studentDiscount?.eligible ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
-          <GraduationCap className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
-          <div>
-            <p className="text-sm font-semibold">Student pricing active</p>
-            <p className="text-xs text-emerald-700/90">
-              A {studentDiscount.rate}% discount is automatically applied to every order in this account.
-            </p>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       </div>
 
       {/* Quick Order Banner - Mobile optimized: Stack on mobile, horizontal on sm+ */}
