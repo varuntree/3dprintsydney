@@ -6,7 +6,7 @@ export type NavSection = {
 export const OWNER_NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { name: "Dashboard", href: "/", icon: "layout-dashboard" },
+      { name: "Dashboard", href: "/dashboard", icon: "layout-dashboard" },
       { name: "Clients", href: "/clients", icon: "users" },
       { name: "Quotes", href: "/quotes", icon: "file-text" },
       { name: "Invoices", href: "/invoices", icon: "receipt" },

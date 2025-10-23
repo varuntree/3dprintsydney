@@ -19,7 +19,7 @@ export default async function PublicLayout({
   // Redirect authenticated users to their dashboard
   if (user) {
     if (user.role === "ADMIN") {
-      redirect("/");
+      redirect("/dashboard");
     } else {
       redirect("/client");
     }

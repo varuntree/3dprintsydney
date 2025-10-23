@@ -57,7 +57,7 @@ interface ClientInvoicePageProps {
 export default async function ClientInvoiceDetailPage({ params }: ClientInvoicePageProps) {
   const user = await getUserFromCookies();
   if (!user) redirect("/login");
-  if (user.role !== "CLIENT") redirect("/");
+  if (user.role !== "CLIENT") redirect("/dashboard");
 
   const { id: raw } = await params;
   const id = Number(raw);

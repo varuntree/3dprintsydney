@@ -66,7 +66,7 @@ export async function requireAdmin(): Promise<LegacyUser> {
  * Use this ONLY in Server Components (page.tsx, layout.tsx) that require client access.
  * For API routes, use requireClient from @/server/auth/api-helpers instead.
  *
- * This function redirects non-client users to / (admin dashboard).
+ * This function redirects non-client users to /dashboard (admin dashboard).
  *
  * @returns Client user
  * @redirects /login if not authenticated, / if not a client
@@ -82,7 +82,7 @@ export async function requireAdmin(): Promise<LegacyUser> {
 export async function requireClient(): Promise<LegacyUser> {
   const user = await requireAuth();
   if (user.role !== "CLIENT") {
-    redirect("/");
+    redirect("/dashboard");
   }
   return user;
 }
