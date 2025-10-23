@@ -41,6 +41,14 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Package2 } from "lucide-react";
+import {
+  DataList,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 
 export type MaterialRecord = {
   id: number;
@@ -212,7 +220,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
             <DialogTrigger asChild>
               <Button className="rounded-full" onClick={handleCreate}>Add Material</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg rounded-3xl">
+            <DialogContent className="w-[min(100vw-2rem,600px)] max-w-lg rounded-3xl sm:w-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editing ? `Edit ${editing.name}` : "New material"}
@@ -384,93 +392,149 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
           </h2>
         </div>
         <div className="p-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Colour</TableHead>
-                <TableHead>Cost / g</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {grouped.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <EmptyState
-                      title="No materials yet"
-                      description="Add your first material to start pricing accurately."
-                      icon={<Package2 className="h-8 w-8" />}
-                      actions={
-                        <Button className="rounded-full" onClick={handleCreate}>
-                          Add Material
-                        </Button>
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                grouped.map((material) => (
-                  <TableRow key={material.id} className="hover:bg-white/80">
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-zinc-900">
+          {grouped.length === 0 ? (
+            <EmptyState
+              title="No materials yet"
+              description="Add your first material to start pricing accurately."
+              icon={<Package2 className="h-8 w-8" />}
+              actions={
+                <Button className="rounded-full" onClick={handleCreate}>
+                  Add Material
+                </Button>
+              }
+              className="rounded-2xl border-border"
+            />
+          ) : (
+            <>
+              <DataList className="md:hidden">
+                {grouped.map((material) => (
+                  <DataListItem key={material.id}>
+                    <DataListHeader>
+                      <div className="space-y-1">
+                        <p className="text-base font-semibold text-foreground">
                           {material.name}
-                        </span>
-                        {material.notes ? (
-                          <span className="text-xs text-zinc-500">
-                            {material.notes}
-                          </span>
+                        </p>
+                        {material.category ? (
+                          <Badge
+                            variant="outline"
+                            className="border-border/60 bg-background/60 text-xs uppercase tracking-wide text-muted-foreground"
+                          >
+                            {material.category}
+                          </Badge>
                         ) : null}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {material.category ? (
-                        <Badge
-                          variant="outline"
-                          className="border-zinc-300/70 text-zinc-600"
-                        >
-                          {material.category}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-zinc-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {material.color || (
-                        <span className="text-xs text-zinc-400">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {formatCurrency(material.costPerGram, "AUD")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full"
-                          onClick={() => handleEdit(material)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full text-red-500 hover:text-red-600"
-                          onClick={() => handleDelete(material)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="text-right">
+                        <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                          Cost / g
+                        </p>
+                        <DataListValue>
+                          {formatCurrency(material.costPerGram, "AUD")}
+                        </DataListValue>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                    </DataListHeader>
+                    <DataListContent>
+                      <p className="text-xs text-muted-foreground">
+                        {material.color || "No colour specified"}
+                      </p>
+                      {material.notes ? (
+                        <p className="text-xs text-muted-foreground">{material.notes}</p>
+                      ) : null}
+                    </DataListContent>
+                    <DataListFooter className="gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 rounded-full"
+                        onClick={() => handleEdit(material)}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" /> Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 rounded-full border-red-200 text-red-600 hover:border-red-500 hover:bg-red-600 hover:text-white"
+                        onClick={() => handleDelete(material)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </Button>
+                    </DataListFooter>
+                  </DataListItem>
+                ))}
+              </DataList>
+
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Colour</TableHead>
+                      <TableHead>Cost / g</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {grouped.map((material) => (
+                      <TableRow key={material.id} className="transition-colors hover:bg-white/80">
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-zinc-900">
+                              {material.name}
+                            </span>
+                            {material.notes ? (
+                              <span className="text-xs text-zinc-500">{material.notes}</span>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {material.category ? (
+                            <Badge
+                              variant="outline"
+                              className="border-zinc-300/70 text-zinc-600"
+                            >
+                              {material.category}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-zinc-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {material.color || (
+                            <span className="text-xs text-zinc-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formatCurrency(material.costPerGram, "AUD")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-full"
+                              onClick={() => handleEdit(material)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="rounded-full text-red-500 hover:text-red-600"
+                              onClick={() => handleDelete(material)}
+                              disabled={deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

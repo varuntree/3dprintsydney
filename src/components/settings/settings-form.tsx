@@ -323,12 +323,12 @@ export function SettingsForm({ initial }: SettingsFormProps) {
       </header>
 
       <Form {...form}>
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form onSubmit={onSubmit} className="space-y-6 pb-28">
           {mutation.isPending ? (
             <InlineLoader label="Saving settings…" className="text-sm" />
           ) : null}
           <Tabs defaultValue="identity" className="space-y-4">
-            <TabsList className="flex flex-wrap gap-2 rounded-full border border-border bg-surface-overlay p-1">
+            <TabsList className="flex gap-2 overflow-x-auto rounded-full border border-border bg-surface-overlay p-1 text-sm [scrollbar-width:none] sm:flex-wrap">
               {tabs.map((tab) => (
                 <TabsTrigger key={tab.value} value={tab.value} className="rounded-full">
                   {tab.label}
@@ -1182,24 +1182,32 @@ export function SettingsForm({ initial }: SettingsFormProps) {
           </TabsContent>
           </Tabs>
 
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => form.reset(normalizeSettings(initial))}
-              disabled={mutation.isPending}
-              className="gap-2 rounded-full"
-            >
-              Reset
-            </Button>
-            <LoadingButton
-              type="submit"
-              loading={mutation.isPending}
-              loadingText="Saving settings…"
-              className="gap-2 rounded-full"
-            >
-              Save settings
-            </LoadingButton>
+          <div className="sticky bottom-4 z-30 mt-6 flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/95 px-4 py-3 shadow-lg shadow-black/15 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              <p className="font-semibold text-foreground">Account configuration</p>
+              <p className="hidden text-[11px] sm:block">
+                Changes apply to new invoices, quotes, and client flows immediately after saving.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => form.reset(normalizeSettings(initial))}
+                disabled={mutation.isPending}
+                className="gap-2 rounded-full"
+              >
+                Reset
+              </Button>
+              <LoadingButton
+                type="submit"
+                loading={mutation.isPending}
+                loadingText="Saving settings…"
+                className="gap-2 rounded-full"
+              >
+                Save settings
+              </LoadingButton>
+            </div>
           </div>
         </form>
       </Form>

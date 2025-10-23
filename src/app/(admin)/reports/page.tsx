@@ -107,7 +107,7 @@ export default function ReportsPage() {
         isExporting={Boolean(busy)}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr] lg:items-start">
         <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-muted-foreground">
@@ -131,6 +131,14 @@ export default function ReportsPage() {
             >
               Reset to last 30 days
             </Button>
+            <div className="mt-4 sm:hidden">
+              <RangeToggle
+                range={quickRange}
+                options={options}
+                onChange={onQuickRangeChange}
+                className="w-full overflow-x-auto"
+              />
+            </div>
           </CardContent>
         </Card>
         <Card className="rounded-3xl border border-border/60 bg-card/90 shadow-sm shadow-black/5">
@@ -264,7 +272,7 @@ function ReportsHeader({
 }) {
   return (
     <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Reports & Exports
@@ -273,7 +281,9 @@ function ReportsHeader({
             Export invoices, payments, jobs, and utilization metrics for deeper analysis.
           </p>
         </div>
-        <RangeToggle range={quickRange} options={options} onChange={onQuickRangeChange} />
+        <div className="hidden sm:block">
+          <RangeToggle range={quickRange} options={options} onChange={onQuickRangeChange} />
+        </div>
       </div>
       <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
         <HeaderStat label="Date Range" value={dateSummary} tone="slate" />
@@ -297,13 +307,20 @@ function RangeToggle({
   range,
   options,
   onChange,
+  className,
 }: {
   range: RangeKey;
   options: readonly RangeOption[];
   onChange: (value: RangeKey) => void;
+  className?: string;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-full border border-border/60 bg-card/70 p-1 text-xs font-medium shadow-inner shadow-black/5">
+    <div
+      className={cn(
+        "flex items-center gap-1 rounded-full border border-border/60 bg-card/70 p-1 text-xs font-medium shadow-inner shadow-black/5",
+        className,
+      )}
+    >
       {options.map((option) => {
         const active = range === option.key;
         return (

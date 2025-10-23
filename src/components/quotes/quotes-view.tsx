@@ -23,6 +23,14 @@ import { FileText } from "lucide-react";
 import { InlineLoader } from "@/components/ui/loader";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { DataCard } from "@/components/ui/data-card";
+import {
+  DataList,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 
 export type QuoteSummaryRecord = {
   id: number;
@@ -185,43 +193,82 @@ export function QuotesView({ initial }: QuotesViewProps) {
                   className="rounded-2xl border-border"
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Quote</TableHead>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Issued</TableHead>
-                      <TableHead>Expires</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <>
+                  <DataList className="md:hidden">
                     {filtered.map((quote) => (
-                      <TableRow key={quote.id} className="hover:bg-surface-elevated transition-colors">
-                        <TableCell>
-                          <NavigationLink
-                            href={`/quotes/${quote.id}`}
-                            className="font-medium text-foreground hover:underline"
-                          >
-                            {quote.number}
-                          </NavigationLink>
-                        </TableCell>
-                        <TableCell>{quote.clientName}</TableCell>
-                        <TableCell>
+                      <DataListItem key={quote.id}>
+                        <DataListHeader>
+                          <div className="space-y-1">
+                            <NavigationLink
+                              href={`/quotes/${quote.id}`}
+                              className="text-base font-semibold text-foreground hover:underline"
+                            >
+                              {quote.number}
+                            </NavigationLink>
+                            <p className="text-sm text-muted-foreground">{quote.clientName}</p>
+                          </div>
                           <StatusBadge status={quote.status} size="sm" />
-                        </TableCell>
-                        <TableCell>{formatDate(quote.issueDate)}</TableCell>
-                        <TableCell>
-                          {quote.expiryDate ? formatDate(quote.expiryDate) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(quote.total)}
-                        </TableCell>
-                      </TableRow>
+                        </DataListHeader>
+                        <DataListContent className="space-y-1 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-2 uppercase tracking-[0.2em]">
+                            <span>Issued {formatDate(quote.issueDate)}</span>
+                            <span>•</span>
+                            <span>
+                              Expires {quote.expiryDate ? formatDate(quote.expiryDate) : "—"}
+                            </span>
+                          </div>
+                        </DataListContent>
+                        <DataListFooter className="justify-between">
+                          <span className="text-xs font-medium text-muted-foreground">Quote total</span>
+                          <DataListValue>{formatCurrency(quote.total)}</DataListValue>
+                        </DataListFooter>
+                      </DataListItem>
                     ))}
-                  </TableBody>
-                </Table>
+                  </DataList>
+
+                  <div className="hidden overflow-x-auto md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Quote</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Issued</TableHead>
+                          <TableHead>Expires</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.map((quote) => (
+                          <TableRow
+                            key={quote.id}
+                            className="transition-colors hover:bg-surface-elevated"
+                          >
+                            <TableCell>
+                              <NavigationLink
+                                href={`/quotes/${quote.id}`}
+                                className="font-medium text-foreground hover:underline"
+                              >
+                                {quote.number}
+                              </NavigationLink>
+                            </TableCell>
+                            <TableCell>{quote.clientName}</TableCell>
+                            <TableCell>
+                              <StatusBadge status={quote.status} size="sm" />
+                            </TableCell>
+                            <TableCell>{formatDate(quote.issueDate)}</TableCell>
+                            <TableCell>
+                              {quote.expiryDate ? formatDate(quote.expiryDate) : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(quote.total)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

@@ -41,14 +41,15 @@ export function NavigationDrawer() {
         <Button
           variant="outline"
           size="icon"
-          className="lg:hidden border-border bg-surface-overlay text-foreground backdrop-blur"
+          className="h-11 w-11 rounded-xl border-border bg-surface-overlay/80 text-foreground backdrop-blur lg:hidden"
+          aria-label="Open navigation"
         >
           <Menu className="h-4 w-4" />
         </Button>
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-[280px] max-h-[100svh] gap-0 overflow-hidden p-0 bg-sidebar text-sidebar-foreground"
+        className="w-[300px] max-h-[100svh] gap-0 overflow-hidden p-0 bg-sidebar text-sidebar-foreground"
       >
         <SheetHeader className="shrink-0 px-6 py-5">
           <div className="flex items-center gap-2">
@@ -68,32 +69,34 @@ export function NavigationDrawer() {
 
         <Separator className="mx-6 shrink-0" />
 
-        <ScrollArea className="flex-1 min-h-0 px-4 py-4">
+        <ScrollArea className="flex-1 min-h-0 px-4 py-5">
           <nav className="flex flex-col gap-6">
             {/* Quick Actions */}
-            {role === 'ADMIN' && (
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground/60">
-                Quick Actions
-              </p>
-              <div className="space-y-1">
-                {QUICK_ACTIONS.map((action) => {
-                  const Icon = getIcon(action.icon);
-                  return (
-                    <NavigationLink
-                      key={action.href}
-                      href={action.href}
-                      onClick={closeDrawer}
-                      className="bg-surface-elevated hover:bg-primary hover:text-primary-foreground font-medium"
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{action.name}</span>
-                    </NavigationLink>
-                  );
-                })}
+            {role === "ADMIN" ? (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground/60">
+                  Quick actions
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_ACTIONS.map((action) => {
+                    const Icon = getIcon(action.icon);
+                    return (
+                      <NavigationLink
+                        key={action.href}
+                        href={action.href}
+                        onClick={closeDrawer}
+                        className="w-auto rounded-full border border-border/60 bg-background/80 px-3 py-2 text-xs font-semibold hover:border-primary/60 hover:bg-primary hover:text-primary-foreground"
+                        aria-label={action.name}
+                        fullWidth={false}
+                      >
+                        <Icon className="mr-2 h-4 w-4" />
+                        <span>{action.name}</span>
+                      </NavigationLink>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            )}
+            ) : null}
 
             <Separator className="mx-2" />
 

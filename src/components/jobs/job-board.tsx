@@ -98,6 +98,8 @@ import {
   ArrowRight,
   CalendarClock,
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Pause,
   Play,
@@ -417,9 +419,16 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   const [statusNote, setStatusNote] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [controlsOpen, setControlsOpen] = useState(false);
 
   type ViewMode = "active" | "completed-today" | "archived" | "all";
   const [view, setView] = useState<ViewMode>("active");
+  const viewFilters: { key: ViewMode; label: string }[] = [
+    { key: "active", label: "Active" },
+    { key: "completed-today", label: "Completed" },
+    { key: "archived", label: "Archived" },
+    { key: "all", label: "All" },
+  ];
 
   useEffect(() => {
     try {
@@ -977,17 +986,10 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
                 )}
               </div>
             </div>
-            <ActionRail align="start" wrap>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="hidden w-full sm:block">
+              <ActionRail align="start" wrap className="w-full">
                 <div className="flex w-full overflow-hidden rounded-full border border-input bg-background text-xs font-medium shadow-sm sm:w-auto">
-                  {(
-                    [
-                      { key: "active", label: "Active" },
-                      { key: "completed-today", label: "Completed" },
-                      { key: "archived", label: "Archived" },
-                      { key: "all", label: "All" },
-                    ] as { key: ViewMode; label: string }[]
-                  ).map((opt) => (
+                  {viewFilters.map((opt) => (
                     <button
                       key={opt.key}
                       type="button"
@@ -1007,12 +1009,62 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
                   size="sm"
                   variant={selectMode ? "default" : "outline"}
                   onClick={() => setSelectMode((v) => !v)}
-                  className="sm:shrink-0 rounded-full"
+                  className="rounded-full"
                 >
                   {selectMode ? "Selecting…" : "Select"}
                 </Button>
-              </div>
-            </ActionRail>
+              </ActionRail>
+            </div>
+            <div className="w-full sm:hidden">
+              <button
+                type="button"
+                onClick={() => setControlsOpen((open) => !open)}
+                className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-card/80 px-4 py-2 text-sm font-medium text-foreground shadow-sm shadow-black/5"
+                aria-expanded={controlsOpen}
+              >
+                Board controls
+                {controlsOpen ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
+              {controlsOpen ? (
+                <div className="mt-3 space-y-3 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-sm shadow-black/5">
+                  <div className="flex w-full overflow-hidden rounded-full border border-input bg-background text-xs font-medium shadow-sm">
+                    {viewFilters.map((opt) => (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setView(opt.key);
+                          setControlsOpen(false);
+                        }}
+                        className={cn(
+                          "flex-1 px-3 py-1.5 transition rounded-full",
+                          view === opt.key
+                            ? "bg-accent-soft text-foreground"
+                            : "text-muted-foreground hover:bg-surface-subtle",
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={selectMode ? "default" : "outline"}
+                    onClick={() => {
+                      setSelectMode((v) => !v);
+                      setControlsOpen(false);
+                    }}
+                    className="w-full rounded-full"
+                  >
+                    {selectMode ? "Selecting…" : "Select"}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1075,7 +1127,7 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex flex-col gap-4 md:flex-row md:min-w-max">
+            <div className="flex min-w-full gap-4 pb-4 md:min-w-max md:pb-0">
               {board.columns.map((column) => (
                 <JobColumn
                   key={column.key}
@@ -1098,7 +1150,7 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
               ))}
             </div>
           </DndContext>
-          <ScrollBar orientation="horizontal" className="hidden md:flex" />
+          <ScrollBar orientation="horizontal" className="mt-2" />
         </ScrollArea>
 
         <Sheet
@@ -1461,7 +1513,10 @@ function JobColumn({
   });
 
   return (
-    <div className="flex w-full flex-col gap-4 md:w-80" ref={setNodeRef}>
+    <div
+      className="flex w-[min(320px,100vw-3rem)] min-w-[260px] flex-shrink-0 flex-col gap-4 md:w-80"
+      ref={setNodeRef}
+    >
       <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">
         <CardHeader>
           <div className="flex items-start justify-between gap-2">

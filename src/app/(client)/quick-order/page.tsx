@@ -634,9 +634,9 @@ export default function QuickOrderPage() {
   const [showRotationControls, setShowRotationControls] = useState(false);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Workflow Steps - Mobile optimized: Compact on mobile */}
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface-overlay p-3 sm:p-4">
+    <div className="space-y-4 pb-24 sm:space-y-6">
+      {/* Workflow Steps - Sticky compact progress */}
+      <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-3 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-4">
         <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
           {steps.map((step, index) => {
             const Icon = step.icon;
@@ -1236,17 +1236,19 @@ export default function QuickOrderPage() {
 
                   {/* Rotation Controls */}
                   {showRotationControls ? (
-                    <RotationControls
-                      onReset={() => {
-                        viewerRef.current?.resetOrientation();
-                      }}
-                      onCenter={() => {
-                        viewerRef.current?.centerModel();
-                      }}
-                      onLockOrientation={handleLockOrientation}
-                      isLocking={isLocking}
-                      disabled={false}
-                    />
+                    <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
+                      <RotationControls
+                        onReset={() => {
+                          viewerRef.current?.resetOrientation();
+                        }}
+                        onCenter={() => {
+                          viewerRef.current?.centerModel();
+                        }}
+                        onLockOrientation={handleLockOrientation}
+                        isLocking={isLocking}
+                        disabled={false}
+                      />
+                    </div>
                   ) : null}
                 </div>
               ) : Object.keys(orientedFileIds).length === uploads.length ? (
