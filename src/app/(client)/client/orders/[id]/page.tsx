@@ -67,6 +67,18 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
     const detail = await getInvoiceDetail(id);
     if (user.clientId !== detail.client.id) redirect("/client/orders");
 
+    const hasDiscount =
+      (detail.discountType === "PERCENT" && detail.discountValue > 0) ||
+      (detail.discountType === "FIXED" && detail.discountValue > 0);
+    const discountAmount = hasDiscount
+      ? detail.discountType === "PERCENT"
+        ? Math.max(0, detail.subtotal * (detail.discountValue / 100))
+        : Math.max(0, detail.discountValue)
+      : 0;
+    const discountedSubtotal = hasDiscount
+      ? Math.max(0, detail.subtotal - discountAmount)
+      : detail.subtotal;
+
     return (
       <div className="mx-auto max-w-4xl space-y-6">
         {/* Invoice Summary - Mobile optimized */}
@@ -84,8 +96,15 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
             {/* Financial details - Mobile optimized: 2 columns on mobile, 4 on sm+ */}
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 sm:gap-4">
               <div className="rounded-lg bg-card/50 p-3">
-                <div className="text-xs text-muted-foreground">Subtotal</div>
-                <div className="mt-1 font-medium">${detail.subtotal.toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">
+                  {hasDiscount ? "Subtotal after discount" : "Subtotal"}
+                </div>
+                <div className="mt-1 font-medium">${discountedSubtotal.toFixed(2)}</div>
+                {hasDiscount ? (
+                  <p className="mt-1 text-[11px] text-emerald-700">
+                    Saved ${discountAmount.toFixed(2)} ({detail.discountValue.toFixed(0)}% student discount)
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-lg bg-card/50 p-3">
                 <div className="text-xs text-muted-foreground">Tax</div>

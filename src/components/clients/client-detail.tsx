@@ -54,7 +54,7 @@ import { usePaymentTerms, findPaymentTermLabel } from "@/hooks/use-payment-terms
 import { useNavigation } from "@/hooks/useNavigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign } from "lucide-react";
+import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Conversation } from "@/components/messages/conversation";
@@ -75,6 +75,8 @@ export type ClientDetailRecord = {
     walletBalance: number;
     createdAt: string;
     updatedAt: string;
+    studentDiscountEligible: boolean;
+    studentDiscountRate: number;
   };
   invoices: {
     id: number;
@@ -263,6 +265,12 @@ export function ClientDetail({ detail }: ClientDetailProps) {
         <span className="flex items-center gap-1">
           <Phone className="h-3 w-3" />
           {current.client.phone}
+        </span>
+      ) : null}
+      {current.client.studentDiscountEligible ? (
+        <span className="flex items-center gap-1 text-emerald-600">
+          <GraduationCap className="h-3 w-3" />
+          {current.client.studentDiscountRate}% student discount
         </span>
       ) : null}
       <span className="text-xs uppercase tracking-[0.3em] text-muted-foreground/80">

@@ -14,6 +14,7 @@ import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions } from '@/server/services/settings';
 import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl, deleteFromStorage } from '@/server/storage/supabase';
+import { coerceStudentDiscount, getClientStudentDiscount } from '@/server/services/student-discount';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 import { validateInvoiceAttachment } from '@/lib/utils/validators';
 import type {
@@ -449,33 +450,42 @@ async function insertInvoiceActivities(invoiceId: number, clientId: number, acti
  */
 export async function createInvoice(input: InvoiceInput) {
   const supabase = getServiceSupabase();
-  const totals = computeTotals(input);
-  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
-  const paymentTerm = await resolveClientPaymentTerm(input.clientId);
-  const dueDate = deriveDueDate(issueDate, paymentTerm, input.dueDate ? new Date(input.dueDate) : null);
+  const studentDiscount = await getClientStudentDiscount(input.clientId);
+  const coercedDiscount = coerceStudentDiscount(studentDiscount);
+  const payload: InvoiceInput = studentDiscount.eligible
+    ? {
+        ...input,
+        discountType: coercedDiscount.discountType,
+        discountValue: coercedDiscount.discountValue,
+      }
+    : { ...input, discountValue: input.discountValue ?? 0 };
+  const totals = computeTotals(payload);
+  const issueDate = payload.issueDate ? new Date(payload.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(payload.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, payload.dueDate ? new Date(payload.dueDate) : null);
   const number = await nextDocumentNumber('invoice');
 
   const invoiceRecord = {
     number,
-    client_id: input.clientId,
+    client_id: payload.clientId,
     status: InvoiceStatus.PENDING,
     issue_date: issueDate.toISOString(),
     due_date: dueDate?.toISOString() ?? '',
-    tax_rate: toDecimal(input.taxRate) ?? '',
-    discount_type: input.discountType,
-    discount_value: toDecimal(input.discountValue) ?? '',
-    shipping_cost: toDecimal(input.shippingCost) ?? '',
-    shipping_label: input.shippingLabel ?? '',
-    notes: input.notes ?? '',
-    terms: input.terms ?? '',
-    po_number: input.poNumber ?? '',
+    tax_rate: toDecimal(payload.taxRate) ?? '',
+    discount_type: payload.discountType,
+    discount_value: toDecimal(payload.discountValue) ?? '',
+    shipping_cost: toDecimal(payload.shippingCost) ?? '',
+    shipping_label: payload.shippingLabel ?? '',
+    notes: payload.notes ?? '',
+    terms: payload.terms ?? '',
+    po_number: payload.poNumber ?? '',
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
   };
 
-  const lineInserts = input.lines.map((line, index) => ({
+  const lineInserts = payload.lines.map((line, index) => ({
     product_template_id: line.productTemplateId ?? '',
     name: line.name,
     description: line.description ?? '',
@@ -502,7 +512,7 @@ export async function createInvoice(input: InvoiceInput) {
 
   const invoiceId = (data.invoice as { id: number }).id;
 
-  await insertInvoiceActivities(invoiceId, input.clientId, 'INVOICE_CREATED', `Invoice ${number} created`);
+  await insertInvoiceActivities(invoiceId, payload.clientId, 'INVOICE_CREATED', `Invoice ${number} created`);
 
   const policy = await getJobCreationPolicy();
   if (policy === 'ON_INVOICE') {
@@ -523,30 +533,39 @@ export async function createInvoice(input: InvoiceInput) {
  */
 export async function updateInvoice(id: number, input: InvoiceInput) {
   const supabase = getServiceSupabase();
-  const totals = computeTotals(input);
-  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
-  const paymentTerm = await resolveClientPaymentTerm(input.clientId);
-  const dueDate = deriveDueDate(issueDate, paymentTerm, input.dueDate ? new Date(input.dueDate) : null);
+  const studentDiscount = await getClientStudentDiscount(input.clientId);
+  const coercedDiscount = coerceStudentDiscount(studentDiscount);
+  const payload: InvoiceInput = studentDiscount.eligible
+    ? {
+        ...input,
+        discountType: coercedDiscount.discountType,
+        discountValue: coercedDiscount.discountValue,
+      }
+    : { ...input, discountValue: input.discountValue ?? 0 };
+  const totals = computeTotals(payload);
+  const issueDate = payload.issueDate ? new Date(payload.issueDate) : new Date();
+  const paymentTerm = await resolveClientPaymentTerm(payload.clientId);
+  const dueDate = deriveDueDate(issueDate, paymentTerm, payload.dueDate ? new Date(payload.dueDate) : null);
 
   const invoiceRecord = {
-    client_id: input.clientId,
+    client_id: payload.clientId,
     issue_date: issueDate.toISOString(),
     due_date: dueDate?.toISOString() ?? '',
-    tax_rate: toDecimal(input.taxRate) ?? '',
-    discount_type: input.discountType,
-    discount_value: toDecimal(input.discountValue) ?? '',
-    shipping_cost: toDecimal(input.shippingCost) ?? '',
-    shipping_label: input.shippingLabel ?? '',
-    notes: input.notes ?? '',
-    terms: input.terms ?? '',
-    po_number: input.poNumber ?? '',
+    tax_rate: toDecimal(payload.taxRate) ?? '',
+    discount_type: payload.discountType,
+    discount_value: toDecimal(payload.discountValue) ?? '',
+    shipping_cost: toDecimal(payload.shippingCost) ?? '',
+    shipping_label: payload.shippingLabel ?? '',
+    notes: payload.notes ?? '',
+    terms: payload.terms ?? '',
+    po_number: payload.poNumber ?? '',
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
   };
 
-  const lineInserts = input.lines.map((line, index) => ({
+  const lineInserts = payload.lines.map((line, index) => ({
     product_template_id: line.productTemplateId ?? '',
     name: line.name,
     description: line.description ?? '',
@@ -573,7 +592,7 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
   }
 
   const updatedInvoice = data.invoice as { number?: string };
-  await insertInvoiceActivities(id, input.clientId, 'INVOICE_UPDATED', `Invoice ${updatedInvoice?.number ?? id} updated`);
+  await insertInvoiceActivities(id, payload.clientId, 'INVOICE_UPDATED', `Invoice ${updatedInvoice?.number ?? id} updated`);
 
   logger.info({ scope: 'invoices.update', data: { id } });
   return getInvoice(id);
@@ -1301,7 +1320,7 @@ export async function listClientInvoices(
 
   const { data, error } = await supabase
     .from('invoices')
-    .select('id, number, status, total, issue_date, balance_due, stripe_checkout_url')
+    .select('id, number, status, total, issue_date, balance_due, stripe_checkout_url, discount_type, discount_value')
     .eq('client_id', clientId)
     .order('issue_date', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -1322,6 +1341,8 @@ export async function listClientInvoices(
     issueDate: row.issue_date,
     balanceDue: decimalToNumber(row.balance_due),
     stripeCheckoutUrl: row.stripe_checkout_url,
+    discountType: row.discount_type ?? 'NONE',
+    discountValue: row.discount_value ? Number(row.discount_value) : 0,
   }));
 }
 

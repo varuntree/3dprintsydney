@@ -7,7 +7,7 @@ import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList, Wallet } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList, Wallet, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type DashboardStats = {
@@ -54,6 +54,7 @@ export function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [studentDiscount, setStudentDiscount] = useState<{ eligible: boolean; rate: number } | null>(null);
 
   useEffect(() => {
     loadDashboard();
@@ -62,11 +63,12 @@ export function ClientDashboard() {
   async function loadDashboard() {
     setLoading(true);
     try {
-      const [statsRes, ordersRes, jobsRes, prefsRes] = await Promise.all([
+      const [statsRes, ordersRes, jobsRes, prefsRes, authRes] = await Promise.all([
         fetch("/api/client/dashboard"),
         fetch("/api/client/invoices?limit=5&offset=0"),
         fetch("/api/client/jobs"),
         fetch("/api/client/preferences"),
+        fetch("/api/auth/me"),
       ]);
 
       if (statsRes.ok) {
@@ -88,6 +90,19 @@ export function ClientDashboard() {
         const { data } = await prefsRes.json();
         setNotifyOnJobStatus(Boolean(data?.notifyOnJobStatus));
       }
+
+      if (authRes.ok) {
+        const { data } = await authRes.json();
+        if (data) {
+          setStudentDiscount({
+            eligible: Boolean(data.studentDiscountEligible),
+            rate:
+              typeof data.studentDiscountRate === "number"
+                ? data.studentDiscountRate
+                : 0,
+          });
+        }
+      }
     } finally {
       setLoading(false);
       setPrefsLoaded(true);
@@ -106,20 +121,32 @@ export function ClientDashboard() {
             Manage your orders and communicate with our team
           </p>
         </div>
-        <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
-            <p className="text-[11px] leading-snug">
-              We&apos;re tuning the email system this week—SMS and portal messages still work, and we&apos;ll re-enable emails soon.
-              {" "}
-              {prefsLoaded ? (
-                <span className="font-medium">
-                  Your email preference is safely set to {notifyOnJobStatus ? "on" : "off"}.
-                </span>
-              ) : null}
+      <div className="flex items-center gap-3 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-amber-900">
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide">Email alerts paused</p>
+          <p className="text-[11px] leading-snug">
+            We&apos;re tuning the email system this week—SMS and portal messages still work, and we&apos;ll re-enable emails soon.
+            {" "}
+            {prefsLoaded ? (
+              <span className="font-medium">
+                Your email preference is safely set to {notifyOnJobStatus ? "on" : "off"}.
+              </span>
+            ) : null}
+          </p>
+        </div>
+      </div>
+
+      {studentDiscount?.eligible ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+          <GraduationCap className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
+          <div>
+            <p className="text-sm font-semibold">Student pricing active</p>
+            <p className="text-xs text-emerald-700/90">
+              A {studentDiscount.rate}% discount is automatically applied to every order in this account.
             </p>
           </div>
         </div>
+      ) : null}
       </div>
 
       {/* Quick Order Banner - Mobile optimized: Stack on mobile, horizontal on sm+ */}

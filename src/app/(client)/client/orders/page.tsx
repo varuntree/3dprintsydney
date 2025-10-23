@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { PayOnlineButton } from "@/components/client/pay-online-button";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, GraduationCap } from "lucide-react";
 import Link from "next/link";
 
 type InvoiceRow = {
@@ -16,6 +16,8 @@ type InvoiceRow = {
   issueDate: string;
   balanceDue: number;
   stripeCheckoutUrl?: string | null;
+  discountType?: string;
+  discountValue?: number;
 };
 
 export default function ClientOrdersPage() {
@@ -89,6 +91,13 @@ export default function ClientOrdersPage() {
                 </Link>
               </div>
 
+              {r.discountType === "PERCENT" && (r.discountValue ?? 0) > 0 ? (
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-emerald-600">
+                  <GraduationCap className="h-3.5 w-3.5" />
+                  <span>{(r.discountValue ?? 0).toFixed(0)}% student discount applied</span>
+                </div>
+              ) : null}
+
               {/* Amount details */}
               <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-sm">
                 <div>
@@ -140,6 +149,11 @@ export default function ClientOrdersPage() {
                     <a href={`/client/orders/${r.id}`} className="underline">
                       {r.number}
                     </a>
+                    {r.discountType === "PERCENT" && (r.discountValue ?? 0) > 0 ? (
+                      <div className="text-[11px] font-medium text-emerald-600">
+                        {(r.discountValue ?? 0).toFixed(0)}% student discount
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2">{new Date(r.issueDate).toLocaleDateString()}</td>
                   <td className="px-3 py-2">

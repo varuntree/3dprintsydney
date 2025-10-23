@@ -62,10 +62,24 @@ type FileStatusState = {
   fallback?: boolean;
 };
 
+type PriceDataState = {
+  originalSubtotal: number;
+  subtotal: number;
+  discountAmount: number;
+  discountType: "NONE" | "PERCENT" | "FIXED";
+  discountValue: number;
+  shipping: number;
+  taxAmount: number;
+  taxRate?: number;
+  total: number;
+};
+
 export default function QuickOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>("upload");
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
+  const [studentDiscountEligible, setStudentDiscountEligible] = useState(false);
+  const [studentDiscountRate, setStudentDiscountRate] = useState(0);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [settings, setSettings] = useState<Record<string, FileSettings>>({});
@@ -84,11 +98,7 @@ export default function QuickOrderPage() {
     postcode: "",
     phone: "",
   });
-  const [priceData, setPriceData] = useState<{
-    subtotal: number;
-    shipping: number;
-    total: number;
-  } | null>(null);
+  const [priceData, setPriceData] = useState<PriceDataState | null>(null);
   const [loading, setLoading] = useState(false);
   const [pricing, setPricing] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -113,7 +123,13 @@ export default function QuickOrderPage() {
         return;
       }
       const { data } = await r.json();
-      setRole(data.role);
+      setRole(data.role ?? null);
+      if (typeof data.studentDiscountEligible === "boolean") {
+        setStudentDiscountEligible(data.studentDiscountEligible);
+      }
+      if (typeof data.studentDiscountRate === "number") {
+        setStudentDiscountRate(data.studentDiscountRate);
+      }
     });
     fetch("/api/client/materials").then(async (r) => {
       try {
@@ -458,12 +474,37 @@ export default function QuickOrderPage() {
       const { data } = await res.json();
       const quote: ShippingQuote | null = data.shipping ?? null;
       setShippingQuote(quote);
-      const subtotal = Math.round((data.subtotal ?? 0) * 100) / 100;
-      const shippingAmount = quote ? Math.round((quote.amount ?? 0) * 100) / 100 : 0;
+      if (typeof data.studentDiscountEligible === "boolean") {
+        setStudentDiscountEligible(data.studentDiscountEligible);
+      }
+      if (typeof data.studentDiscountRate === "number") {
+        setStudentDiscountRate(data.studentDiscountRate);
+      }
+      const shippingAmount = quote ? Number(quote.amount ?? 0) : 0;
+      const originalSubtotalRaw = Number(data.originalSubtotal ?? data.subtotal ?? 0);
+      const subtotalRaw = Number(data.subtotal ?? originalSubtotalRaw);
+      const discountAmountRaw = Number(
+        data.discountAmount ?? Math.max(0, originalSubtotalRaw - subtotalRaw),
+      );
+      const rawDiscountType = typeof data.discountType === "string" ? data.discountType : "NONE";
+      const discountType: PriceDataState["discountType"] =
+        rawDiscountType === "PERCENT" || rawDiscountType === "FIXED" ? rawDiscountType : "NONE";
+      const discountValue = Number(data.discountValue ?? 0);
+      const taxAmountRaw = Number(data.taxAmount ?? 0);
+      const totalRaw = Number(
+        data.total ?? subtotalRaw + shippingAmount + taxAmountRaw,
+      );
+      const taxRate = typeof data.taxRate === "number" ? data.taxRate : undefined;
       setPriceData({
-        subtotal,
-        shipping: shippingAmount,
-        total: Math.round((subtotal + shippingAmount) * 100) / 100,
+        originalSubtotal: Math.round(originalSubtotalRaw * 100) / 100,
+        subtotal: Math.round(subtotalRaw * 100) / 100,
+        discountAmount: Math.round(discountAmountRaw * 100) / 100,
+        discountType,
+        discountValue,
+        shipping: Math.round(shippingAmount * 100) / 100,
+        taxAmount: Math.round(taxAmountRaw * 100) / 100,
+        taxRate,
+        total: Math.round(totalRaw * 100) / 100,
       });
       setCurrentStep("price");
     } catch (err) {
@@ -563,6 +604,22 @@ export default function QuickOrderPage() {
   const fallbackNeedsAttention = uploads.some(
     (u) => metrics[u.id]?.fallback && !acceptedFallbacks.has(u.id),
   );
+  const hasStudentDiscount = Boolean(
+    priceData && priceData.discountType === "PERCENT" && priceData.discountValue > 0,
+  );
+  const displayDiscountRate = hasStudentDiscount
+    ? priceData?.discountValue ?? studentDiscountRate
+    : studentDiscountRate;
+  const formattedDisplayDiscountRate =
+    typeof displayDiscountRate === "number"
+      ? displayDiscountRate % 1 === 0
+        ? displayDiscountRate.toFixed(0)
+        : displayDiscountRate.toFixed(2)
+      : "0";
+  const taxLabelSuffix =
+    typeof priceData?.taxRate === "number"
+      ? ` (${priceData.taxRate % 1 === 0 ? priceData.taxRate.toFixed(0) : priceData.taxRate.toFixed(2)}%)`
+      : "";
 
   const steps = [
     { id: "upload", label: "Upload", icon: UploadCloud },
@@ -630,6 +687,21 @@ export default function QuickOrderPage() {
           {fallbackNeedsAttention
             ? "One or more files are using estimated metrics. Accept the estimate or adjust settings and prepare again before pricing."
             : "You’re using estimated metrics for at least one file. You can proceed, but re-run Prepare later for exact figures."}
+        </div>
+      )}
+
+      {studentDiscountEligible && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+          <div className="flex items-start gap-2">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">Student pricing applied</p>
+              <p className="text-xs sm:text-sm">
+                A {formattedDisplayDiscountRate}% discount is automatically applied to your subtotal whenever you checkout with
+                your student account.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1221,16 +1293,37 @@ export default function QuickOrderPage() {
                 <h2 className="text-base font-semibold sm:text-lg">Price Summary</h2>
               </div>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">${priceData.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
+                {hasStudentDiscount ? (
+                  <>
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>Original subtotal</span>
+                      <span className="line-through">${priceData.originalSubtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-emerald-600">
+                      <span>
+                        Student discount (
+                        {priceData.discountValue % 1 === 0
+                          ? priceData.discountValue.toFixed(0)
+                          : priceData.discountValue.toFixed(2)}
+                        %)
+                      </span>
+                      <span>- ${priceData.discountAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Subtotal after discount</span>
+                      <span className="font-medium">${priceData.subtotal.toFixed(2)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">${priceData.subtotal.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Shipping</span>
                   <span className="font-medium">
-                    {shippingQuote
-                      ? `$${priceData.shipping.toFixed(2)}`
-                      : "Awaiting address"}
+                    {shippingQuote ? `$${priceData.shipping.toFixed(2)}` : "Awaiting address"}
                   </span>
                 </div>
                 {shippingQuote ? (
@@ -1241,6 +1334,12 @@ export default function QuickOrderPage() {
                       : ""}
                   </p>
                 ) : null}
+                {priceData.taxAmount > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">{`Tax${taxLabelSuffix}`}</span>
+                    <span className="font-medium">${priceData.taxAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between text-base font-semibold">
                     <span>Total</span>

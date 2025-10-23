@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { LegacyUser } from "@/lib/types/user";
+import { resolveStudentDiscount } from "@/lib/student-discount";
 import { logger } from "@/lib/logger";
 import { UnauthorizedError, AppError } from "@/lib/errors";
 
@@ -21,7 +22,7 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, role, client_id")
+    .select("id, email, role, client_id, clients(email)")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
@@ -30,6 +31,9 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
   }
   if (!data) return null;
 
+  const discountSource = data.client_id ? (data.clients as { email?: string } | null) : null;
+  const discount = resolveStudentDiscount(discountSource?.email ?? data.email ?? null);
+
   return {
     id: data.id,
     email: data.email,
@@ -37,6 +41,8 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
     clientId: data.client_id,
     name: null,
     phone: null,
+    studentDiscountEligible: discount.eligible,
+    studentDiscountRate: discount.rate,
   };
 }
 

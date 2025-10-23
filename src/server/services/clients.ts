@@ -4,6 +4,7 @@ import { DEFAULT_PAYMENT_TERMS } from '@/lib/schemas/settings';
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 import type { ClientSummaryDTO, ClientDetailDTO, ClientFilters } from '@/lib/types/clients';
+import { resolveStudentDiscount } from '@/lib/student-discount';
 
 /**
  * Normalize and validate payment terms code against system settings
@@ -111,6 +112,7 @@ function mapClientSummary(row: ClientRow): ClientSummaryDTO {
     }
     return sum + Number(invoice.balance_due ?? 0);
   }, 0);
+  const discount = resolveStudentDiscount(row.email ?? '');
 
   return {
     id: row.id,
@@ -120,6 +122,8 @@ function mapClientSummary(row: ClientRow): ClientSummaryDTO {
     phone: row.phone ?? '',
     paymentTerms: row.payment_terms,
     notifyOnJobStatus: row.notify_on_job_status,
+    studentDiscountEligible: discount.eligible,
+    studentDiscountRate: discount.rate,
     outstandingBalance: outstanding,
     totalInvoices: invoices.length,
     totalQuotes: (row.quotes ?? []).length,
@@ -420,6 +424,7 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
     }
     return sum + invoice.total;
   }, 0);
+  const discount = resolveStudentDiscount(data.email ?? '');
 
   const openJobStatuses = new Set([
     'QUEUED',
@@ -514,6 +519,8 @@ export async function getClientDetail(id: number): Promise<ClientDetailDTO> {
       walletBalance: Number(data.wallet_balance ?? 0),
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+      studentDiscountEligible: discount.eligible,
+      studentDiscountRate: discount.rate,
     },
     invoices,
     quotes,

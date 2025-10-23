@@ -12,6 +12,7 @@ import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
+import { GraduationCap } from "lucide-react";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -98,6 +99,12 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 <span className="mt-1 inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                   {user.role}
                 </span>
+                {user.studentDiscountEligible ? (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                    <GraduationCap className="h-3 w-3" />
+                    {user.studentDiscountRate ?? 0}% off
+                  </span>
+                ) : null}
               </div>
             </div>
             <Link
@@ -131,6 +138,12 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 <p className="hidden text-sm text-muted-foreground sm:block">
                   Manage your orders and messages.
                 </p>
+                {user.studentDiscountEligible ? (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    <GraduationCap className="h-3 w-3" />
+                    {user.studentDiscountRate ?? 0}% student discount active
+                  </span>
+                ) : null}
               </div>
             </div>
             <div className="flex items-center gap-2">

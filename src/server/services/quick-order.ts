@@ -3,6 +3,8 @@ import type { SettingsInput } from "@/lib/schemas/settings";
 import { logger } from "@/lib/logger";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError, BadRequestError } from '@/lib/errors';
+import { calculateDocumentTotals, type DiscountType } from '@/lib/calculations';
+import { coerceStudentDiscount, getClientStudentDiscount } from '@/server/services/student-discount';
 import { createInvoice, addInvoiceAttachment } from "@/server/services/invoices";
 import {
   requireTmpFile,
@@ -52,9 +54,15 @@ export type QuickOrderPrice = {
     total: number;
     breakdown: Record<string, number>;
   }[];
+  originalSubtotal: number;
+  discountType: DiscountType;
+  discountValue: number;
+  discountAmount: number;
   subtotal: number;
   shipping: QuickOrderShippingQuote;
   taxRate?: number;
+  taxAmount: number;
+  total: number;
 };
 
 type ShippingLocation = {
@@ -65,6 +73,10 @@ type ShippingLocation = {
 let cachedSettings: Awaited<ReturnType<typeof getSettings>> | null = null;
 let cachedSettingsAt = 0;
 const SETTINGS_TTL_MS = 60_000;
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
 
 function resolveShippingRegion(
   settings: SettingsInput,
@@ -159,6 +171,7 @@ function resolveShippingRegion(
 export async function priceQuickOrder(
   items: QuickOrderItemInput[],
   location: ShippingLocation = {},
+  options: { discountType?: DiscountType; discountValue?: number } = {},
 ): Promise<QuickOrderPrice> {
   const now = Date.now();
   if (!cachedSettings || now - cachedSettingsAt > SETTINGS_TTL_MS) {
@@ -189,7 +202,6 @@ export async function priceQuickOrder(
   const setupFee = settings.calculatorConfig.setupFee ?? 20;
   const minimumPrice = settings.calculatorConfig.minimumPrice ?? 35;
 
-  let subtotal = 0;
   const priced = items.map((it) => {
     const costPerGram = materialMap.get(it.materialId) ?? 0.05;
     const grams = Math.max(0, it.metrics.grams);
@@ -199,7 +211,6 @@ export async function priceQuickOrder(
     const base = materialCost + timeCost + setupFee;
     const unitPrice = Math.max(minimumPrice, Math.round(base * 100) / 100);
     const total = Math.round(unitPrice * it.quantity * 100) / 100;
-    subtotal += total;
     return {
       filename: it.filename,
       unitPrice,
@@ -210,12 +221,51 @@ export async function priceQuickOrder(
   });
 
   const shipping = resolveShippingRegion(settings, location);
+  let discountType: DiscountType = options.discountType ?? 'NONE';
+  let discountValue = options.discountValue ?? 0;
+
+  if (discountType === 'PERCENT') {
+    discountValue = Math.max(0, discountValue);
+    if (discountValue <= 0) {
+      discountType = 'NONE';
+      discountValue = 0;
+    }
+  } else if (discountType === 'FIXED') {
+    discountValue = Math.max(0, discountValue);
+    if (discountValue <= 0) {
+      discountType = 'NONE';
+      discountValue = 0;
+    }
+  } else {
+    discountType = 'NONE';
+    discountValue = 0;
+  }
+
+  const docTotals = calculateDocumentTotals({
+    lines: priced.map((line) => ({ total: line.total })),
+    discountType,
+    discountValue,
+    shippingCost: shipping.amount,
+    taxRate: settings.taxRate ?? 0,
+  });
+
+  const originalSubtotal = roundCurrency(docTotals.subtotal);
+  const discountedSubtotal = roundCurrency(docTotals.discounted);
+  const discountAmount = roundCurrency(docTotals.subtotal - docTotals.discounted);
+  const taxAmount = roundCurrency(docTotals.tax);
+  const total = roundCurrency(docTotals.total);
 
   return {
     items: priced,
-    subtotal: Math.round(subtotal * 100) / 100,
+    originalSubtotal,
+    discountType,
+    discountValue,
+    discountAmount,
+    subtotal: discountedSubtotal,
     shipping,
     taxRate: settings.taxRate,
+    taxAmount,
+    total,
   };
 }
 
@@ -427,11 +477,13 @@ export async function createQuickOrderInvoice(
   clientId: number,
   address: Record<string, unknown> = {},
 ): Promise<{ invoiceId: number; checkoutUrl: string | null }> {
+  const studentDiscount = await getClientStudentDiscount(clientId);
+  const { discountType, discountValue } = coerceStudentDiscount(studentDiscount);
   // Recompute price server-side
   const priced = await priceQuickOrder(items, {
     state: typeof address?.state === "string" ? address.state : undefined,
     postcode: typeof address?.postcode === "string" ? address.postcode : undefined,
-  });
+  }, { discountType, discountValue });
   const shippingQuote = priced.shipping;
   const shippingCost = shippingQuote.amount;
 
@@ -441,8 +493,8 @@ export async function createQuickOrderInvoice(
   // Create invoice
   const invoice = await createInvoice({
     clientId,
-    discountType: "NONE",
-    discountValue: 0,
+    discountType,
+    discountValue,
     shippingCost,
     shippingLabel: shippingQuote.label,
     lines,
