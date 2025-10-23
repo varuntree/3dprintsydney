@@ -19,6 +19,15 @@ type InvoiceWithPayment = InvoiceDetailDTO & {
   stripeCheckoutUrl?: string | null;
 };
 
+type ClientInfo = {
+  id: number;
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+};
+
 // Exact colors from old Flask PDF
 const COLORS = {
   darkText: "#1a1a1a",
@@ -478,7 +487,7 @@ function renderDocInfo(
     </table>`;
 }
 
-function renderBusinessAndClientInfo(businessInfo: BusinessInfo, client: any): string {
+function renderBusinessAndClientInfo(businessInfo: BusinessInfo, client: ClientInfo): string {
   const businessLines: string[] = [];
   if (businessInfo.businessName) {
     businessLines.push(`<strong>${sanitize(businessInfo.businessName)}</strong>`);
@@ -635,43 +644,6 @@ function renderTotals(
       <div class="totals-table">
         ${rows.join("")}
       </div>
-    </div>`;
-}
-
-function renderPaymentConfirmation(
-  paymentMethod: string | null,
-  paidDate: Date | null,
-): string {
-  const rows: string[] = [];
-
-  if (paymentMethod && paymentMethod !== "Unknown") {
-    const methodDisplay = paymentMethod
-      .replace(/_/g, " ")
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-    rows.push(`<tr>
-        <td>Payment Method</td>
-        <td>${escapeHtml(methodDisplay)}</td>
-      </tr>`);
-  }
-
-  if (paidDate) {
-    rows.push(`<tr>
-        <td>Date Paid</td>
-        <td>${escapeHtml(formatDate(paidDate))}</td>
-      </tr>`);
-  }
-
-  if (rows.length === 0) {
-    return "";
-  }
-
-  return `<div class="payment-confirmation">
-      <div class="payment-confirmation-title">✓ PAYMENT RECEIVED</div>
-      <table class="payment-details-table">
-        ${rows.join("")}
-      </table>
     </div>`;
 }
 

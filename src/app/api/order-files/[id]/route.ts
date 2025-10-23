@@ -17,7 +17,7 @@ export async function GET(
     let fileId: number;
     try {
       fileId = parseNumericId(resolvedParams.id);
-    } catch (error) {
+    } catch {
       return fail("VALIDATION_ERROR", "Invalid file ID", 400);
     }
 

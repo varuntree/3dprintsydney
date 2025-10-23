@@ -11,7 +11,7 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id } = await paramsPromise;
   try {
     return parseNumericId(id);
-  } catch (error) {
+  } catch {
     throw new Error("Invalid invoice id");
   }
 }

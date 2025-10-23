@@ -780,7 +780,6 @@ export async function deletePayment(paymentId: number) {
 export async function uploadInvoiceAttachment(
   invoiceId: number,
   file: File,
-  userId?: number
 ) {
   // Define allowed types and max size for invoice attachments
   const MAX_FILE_SIZE_MB = 200;
