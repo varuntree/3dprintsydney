@@ -65,76 +65,113 @@ const faqs = [
 
 export default function ContactPage() {
   return (
-    <div className="bg-surface-canvas">
-      <section className="border-b border-border/60 bg-surface-subtle py-20">
-        <div className="mx-auto max-w-4xl px-4 text-center md:px-8">
-          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">Contact</span>
-          <h1 className="mt-4 text-4xl tracking-tight text-foreground sm:text-5xl">Let’s discuss your project.</h1>
-          <p className="mt-5 text-base text-foreground/70">Send files for quoting, ask technical questions or schedule a consultation. We respond within two business hours.</p>
+    <div className="bg-gradient-to-b from-[#edf4ff] via-white to-[#fff5ea]">
+      <section className="marketing-section" data-variant="hero">
+        <div className="marketing-section__container">
+          <div className="mx-auto max-w-4xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-white/80 px-4 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-primary/70 shadow-sm backdrop-blur">
+              Contact
+            </span>
+            <h1 className="mt-6 text-4xl tracking-tight text-foreground sm:text-5xl">Let’s discuss your project.</h1>
+            <p className="mt-5 text-base text-foreground/70">
+              Send files for quoting, ask technical questions or schedule a consultation. We respond within two business hours.
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-white py-20">
-        <div className="mx-auto max-w-5xl px-4 md:px-8">
-          <div className="grid gap-4 md:grid-cols-3">
+      <section className="marketing-section" data-variant="cloud">
+        <div className="marketing-section__container">
+          <div className="grid gap-5 md:grid-cols-3">
             {contactMethods.map((method) => {
               const Icon = method.icon;
+              const external = method.href.startsWith("http");
               return (
                 <a
                   key={method.title}
                   href={method.href}
-                  target={method.href.startsWith("http") ? "_blank" : undefined}
-                  rel={method.href.startsWith("http") ? "noopener noreferrer" : undefined}
-                  className="group rounded-2xl border border-border/60 bg-surface-subtle p-6 transition hover:border-foreground/40"
+                  target={external ? "_blank" : undefined}
+                  rel={external ? "noopener noreferrer" : undefined}
+                  className="group relative overflow-hidden rounded-3xl border border-border/30 bg-white/90 p-6 shadow-sm shadow-primary/10 transition duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
                 >
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-white">
-                    <Icon className="h-4 w-4 text-foreground" aria-hidden />
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-primary/10 opacity-0 blur-3xl transition duration-300 group-hover:opacity-100"
+                  />
+                  <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" aria-hidden />
                   </span>
-                <h2 className="mt-4 text-lg font-semibold text-foreground">{method.title}</h2>
-                <p className="mt-2 text-sm font-medium text-foreground">{method.details}</p>
-                <p className="mt-1 text-sm text-foreground/70">{method.description}</p>
+                  <h2 className="relative mt-5 text-lg font-semibold text-foreground">{method.title}</h2>
+                  <p className="relative mt-2 text-sm font-medium text-foreground">{method.details}</p>
+                  <p className="relative mt-1 text-sm text-foreground/70">{method.description}</p>
                 </a>
               );
             })}
           </div>
 
-          <div className="mt-12 rounded-3xl border border-border/60 bg-surface-subtle p-8 md:p-12">
-            <h2 className="text-2xl font-semibold text-foreground text-center">Send us a message</h2>
-            <p className="mt-2 text-sm text-foreground/70 text-center">We&apos;ll review and get back to you with recommendations and next steps.</p>
-            <div className="mt-8">
+          <div className="mt-12 overflow-hidden rounded-3xl border border-border/30 bg-white/95 p-8 shadow-lg shadow-primary/10 backdrop-blur md:p-12">
+            <span className="pointer-events-none absolute inset-x-10 -top-20 h-36 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+            <div className="relative mx-auto max-w-3xl text-center">
+              <h2 className="text-2xl font-semibold text-foreground">Send us a message</h2>
+              <p className="mt-2 text-sm text-foreground/70">
+                We&apos;ll review and get back to you with recommendations and next steps.
+              </p>
+            </div>
+            <div className="relative mt-8">
               <ContactForm />
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-surface-subtle py-20">
-        <div className="mx-auto max-w-4xl px-4 md:px-8">
-          <div className="rounded-3xl border border-border/60 bg-white p-8 md:p-10">
-            <h2 className="text-2xl font-semibold text-foreground text-center">Business hours</h2>
-            <div className="mt-6 space-y-3 text-sm text-foreground/70">
+      <section className="marketing-section" data-variant="horizon">
+        <div className="marketing-section__container">
+          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl border border-border/30 bg-white/95 p-8 shadow-lg shadow-primary/10 md:p-10">
+            <span className="absolute -top-16 right-8 h-40 w-40 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+            <span className="absolute -bottom-16 left-8 h-44 w-44 rounded-full bg-primary/5 blur-[120px]" aria-hidden />
+            <div className="relative text-center">
+              <h2 className="text-2xl font-semibold text-foreground">Business hours</h2>
+              <p className="mt-3 text-sm text-foreground/65">
+                Need us outside these times? Call and we&apos;ll confirm availability.
+              </p>
+            </div>
+            <div className="relative mt-8 space-y-3 text-sm text-foreground/70">
               <HoursRow day="Monday – Friday" hours="9:00am – 6:00pm" />
               <HoursRow day="Saturday" hours="By appointment" />
               <HoursRow day="Sunday" hours="Closed" />
             </div>
-            <div className="mt-6 rounded-2xl bg-surface-subtle p-4 text-sm text-foreground/70">
-              <p><strong>Same-day service:</strong> Files received before 10am can be delivered the same day (subject to complexity and availability).</p>
+            <div className="relative mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-5 text-sm text-foreground/70">
+              <p>
+                <strong className="font-semibold text-foreground">Same-day service:</strong> Files received before 10am can be delivered the same day (subject to complexity and availability).
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-white py-20">
-        <div className="mx-auto max-w-5xl px-4 md:px-8">
-          <h2 className="text-3xl font-semibold text-foreground">Delivery & service areas</h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
+      <section className="marketing-section" data-variant="peach">
+        <div className="marketing-section__container">
+          <div className="mx-auto max-w-5xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-white/90 px-4 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-primary/70 shadow-sm backdrop-blur">
+              Delivery
+            </span>
+            <h2 className="mt-6 text-3xl font-semibold text-foreground">Delivery & service areas</h2>
+          </div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2">
             {serviceAreas.map((area) => (
-              <div key={area.title} className="rounded-2xl border border-border/60 bg-surface-subtle p-6">
-                <h3 className="text-lg font-semibold text-foreground">{area.title}</h3>
-                <ul className="mt-3 space-y-2 text-sm text-foreground/70">
+              <div
+                key={area.title}
+                className="group relative overflow-hidden rounded-3xl border border-border/30 bg-white/90 p-7 shadow-sm shadow-primary/10 transition duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
+              >
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute -right-14 top-12 h-36 w-36 rounded-full bg-primary/10 opacity-0 blur-3xl transition duration-300 group-hover:opacity-100"
+                />
+                <h3 className="relative text-lg font-semibold text-foreground">{area.title}</h3>
+                <ul className="relative mt-4 space-y-3 text-sm text-foreground/70">
                   {area.items.map((item) => (
                     <li key={item} className="flex items-start gap-3">
-                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-foreground/40" aria-hidden />
+                      <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary/40" aria-hidden />
                       {item}
                     </li>
                   ))}
@@ -145,13 +182,23 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="border-b border-border/60 bg-surface-subtle py-20">
-        <div className="mx-auto max-w-4xl px-4 md:px-8">
-          <h2 className="text-3xl font-semibold text-foreground text-center">Quick questions</h2>
-          <div className="mt-8 space-y-4">
+      <section className="marketing-section" data-variant="cloud">
+        <div className="marketing-section__container">
+          <div className="mx-auto max-w-4xl text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-white/90 px-4 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-primary/70 shadow-sm backdrop-blur">
+              Quick questions
+            </span>
+            <h2 className="mt-6 text-3xl font-semibold text-foreground">Need answers fast?</h2>
+          </div>
+          <div className="mt-10 space-y-4">
             {faqs.map((faq) => (
-              <details key={faq.question} className="rounded-2xl border border-border/60 bg-white p-6 text-sm text-foreground/70">
-                <summary className="cursor-pointer list-none text-base font-semibold text-foreground">{faq.question}</summary>
+              <details
+                key={faq.question}
+                className="group overflow-hidden rounded-3xl border border-border/30 bg-white/90 p-6 text-sm text-foreground/70 shadow-sm shadow-primary/10 transition duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl"
+              >
+                <summary className="cursor-pointer list-none text-base font-semibold text-foreground">
+                  {faq.question}
+                </summary>
                 <p className="mt-2 text-sm text-foreground/70">{faq.answer}</p>
               </details>
             ))}
@@ -159,24 +206,32 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section className="bg-white py-20">
-        <div className="mx-auto max-w-4xl rounded-3xl border border-border/60 bg-surface-subtle px-6 py-12 text-center shadow-sm md:px-10">
-          <h2 className="text-3xl tracking-tight text-foreground">Prefer to start with a quote?</h2>
-          <p className="mt-4 text-base text-foreground/70">Upload your files for instant pricing or share a brief and we&apos;ll respond with tailored recommendations.</p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
-              href="/quick-order"
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-            >
-              Get instant quote
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </Link>
-            <Link
-              href="/contact"
-              className="inline-flex items-center gap-2 rounded-full border border-border/70 px-6 py-3 text-sm font-medium text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
-            >
-              Book a consultation
-            </Link>
+      <section className="marketing-section" data-variant="peach">
+        <div className="marketing-section__container">
+          <div className="relative mx-auto max-w-4xl overflow-hidden rounded-3xl border border-border/30 bg-white/90 px-6 py-12 text-center shadow-lg shadow-primary/10 md:px-10">
+            <span className="absolute -top-16 left-1/2 h-36 w-36 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" aria-hidden />
+            <span className="absolute -bottom-20 left-10 h-44 w-44 rounded-full bg-primary/5 blur-[120px]" aria-hidden />
+            <div className="relative">
+              <h2 className="text-3xl tracking-tight text-foreground">Prefer to start with a quote?</h2>
+              <p className="mt-4 text-base text-foreground/70">
+                Upload your files for instant pricing or share a brief and we&apos;ll respond with tailored recommendations.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Link
+                  href="/quick-order"
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:bg-primary/90 hover:shadow-lg"
+                >
+                  Get instant quote
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-white/80 px-6 py-3 text-sm font-semibold text-foreground/75 transition hover:border-foreground/40 hover:text-foreground"
+                >
+                  Book a consultation
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -186,9 +241,9 @@ export default function ContactPage() {
 
 function HoursRow({ day, hours }: { day: string; hours: string }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-subtle px-4 py-3">
-      <span className="text-sm font-medium text-foreground">{day}</span>
-      <span className="text-sm text-foreground/70">{hours}</span>
+    <div className="flex items-center justify-between rounded-2xl border border-border/30 bg-white/90 px-4 py-3 shadow-sm shadow-primary/5">
+      <span className="text-sm font-semibold text-foreground/80">{day}</span>
+      <span className="text-sm text-foreground/60">{hours}</span>
     </div>
   )
 }

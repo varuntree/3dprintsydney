@@ -113,8 +113,8 @@ export default function LoginPage() {
                   className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-lime-200/30 opacity-0 transition group-hover:opacity-100"
                 />
                 <div className="relative flex items-start gap-3">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-white text-foreground">
-                    <Icon className="h-4 w-4" aria-hidden />
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-white text-foreground">
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden />
                   </span>
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-foreground">{title}</p>

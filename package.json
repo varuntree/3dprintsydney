@@ -52,6 +52,7 @@
     "immer": "^10.1.3",
     "json2csv": "^6.0.0-alpha.2",
     "lucide-react": "^0.544.0",
+    "motion": "^12.0.0",
     "next": "15.5.3",
     "nextjs-toploader": "^3.9.17",
     "puppeteer": "^24.21.0",

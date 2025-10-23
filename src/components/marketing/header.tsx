@@ -70,9 +70,14 @@ export function MarketingHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-border/70 bg-surface-overlay/90 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/75">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
-        <Link href="/" className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <AnimatedCubeLogo />
-          <span className="tracking-tight">3D Print Sydney</span>
+        <Link
+          href="/"
+          className="flex items-center gap-[0.85rem] text-base font-semibold text-foreground md:text-lg"
+        >
+          <AnimatedCubeLogo className="h-11 w-11" iconClassName="h-5 w-5" />
+          <span className="tracking-tight text-[1.2rem] font-semibold leading-tight md:text-[1.4rem]">
+            3D Print Sydney
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm text-foreground/80 md:flex">
