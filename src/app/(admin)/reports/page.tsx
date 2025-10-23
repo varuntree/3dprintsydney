@@ -134,8 +134,8 @@ export default function ReportsPage() {
             <div className="mt-4 sm:hidden">
               <RangeToggle
                 range={quickRange}
-                options={options}
-                onChange={onQuickRangeChange}
+                options={rangeOptions}
+                onChange={handleQuickRangeChange}
                 className="w-full overflow-x-auto"
               />
             </div>
