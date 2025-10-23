@@ -387,7 +387,7 @@ export function ProductsView({
                       variant="outline"
                       size="sm"
                       className="flex-1 rounded-full"
-                      onClick={() => handleEdit(template)}
+                      onClick={() => openEdit(template)}
                     >
                       <Pencil className="mr-2 h-4 w-4" /> Edit
                     </Button>
