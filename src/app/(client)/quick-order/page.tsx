@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +22,7 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import STLViewerWrapper, { type STLViewerRef } from "@/components/3d/STLViewerWrapper";
