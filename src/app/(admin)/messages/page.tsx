@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { MessageSquare, User, Loader2 } from "lucide-react";
 import { Conversation } from "@/components/messages/conversation";
 
@@ -73,85 +71,82 @@ export default function AdminMessagesPage() {
   }
 
   const rosterPanel = (closeOnSelect: boolean) => (
-    <Card className="w-full max-w-full rounded-3xl border border-border/60 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
-      <CardHeader className="flex items-center justify-between gap-3">
+    <div className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
+      <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-5">
         <div className="min-w-0 flex-1 space-y-1">
-          <CardTitle className="text-base font-semibold text-foreground">
-            Conversations
-          </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
-            Browse contacts to start messaging.
-          </CardDescription>
+          <p className="text-sm font-medium uppercase tracking-[0.28em] text-muted-foreground/70">Inbox</p>
+          <p className="truncate text-lg font-semibold text-foreground">Conversations</p>
+          <p className="text-xs text-muted-foreground">Browse contacts to start messaging.</p>
         </div>
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-subtle text-muted-foreground">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-surface-subtle text-muted-foreground">
           <MessageSquare className="h-5 w-5" />
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      </div>
+      <div className="border-t border-border/60 px-5 py-4">
         <Input
-          placeholder="Search users..."
+          placeholder="Search users"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="w-full"
+          className="w-full rounded-2xl border-border/60 bg-background/90"
         />
-        <ScrollArea className="max-h-[60vh] w-full rounded-2xl border border-border/60 bg-background/85">
-          {loading ? (
-            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
-              <p className="text-sm text-muted-foreground">Loading conversations…</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center text-sm text-muted-foreground">
-              <User className="h-10 w-10 text-muted-foreground/50" />
-              No users found
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 p-2">
-              {filtered.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleSelectUser(String(u.id), closeOnSelect)}
-                  className={cn(
-                    "flex w-full max-w-full min-w-0 items-center gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-3 text-left transition-all duration-150",
-                    selected === u.id
-                      ? "border-border/70 bg-surface-muted/80 shadow-sm shadow-black/5"
-                      : "hover:border-border/60 hover:bg-surface-muted/60",
-                  )}
-                >
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600/90 via-blue-500/90 to-sky-500/80 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
-                    {u.email[0]?.toUpperCase() ?? "?"}
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 pb-5 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70">
+        {loading ? (
+          <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
+            <p className="text-sm text-muted-foreground">Loading conversations…</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-6 py-10 text-center text-sm text-muted-foreground">
+            <User className="h-10 w-10 text-muted-foreground/50" />
+            No users found
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => handleSelectUser(String(u.id), closeOnSelect)}
+                className={cn(
+                  "flex w-full min-w-0 items-center gap-3 rounded-2xl border border-transparent bg-background/80 px-4 py-3 text-left transition-all duration-150",
+                  selected === u.id
+                    ? "border-border/70 bg-surface-muted/80 shadow-sm shadow-black/5"
+                    : "hover:border-border/70 hover:bg-surface-muted/60",
+                )}
+              >
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
+                  {u.email[0]?.toUpperCase() ?? "?"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{u.email}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
+                    >
+                      {u.role === "CLIENT" ? "Client" : "Admin"}
+                    </Badge>
+                    <span className="shrink-0">{u.messageCount} message{u.messageCount !== 1 ? "s" : ""}</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{u.email}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
-                      >
-                        {u.role === "CLIENT" ? "Client" : "Admin"}
-                      </Badge>
-                      <span className="shrink-0">{u.messageCount} message{u.messageCount !== 1 ? "s" : ""}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </ScrollArea>
-      </CardContent>
-    </Card>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   return (
-    <div className="flex w-full max-w-full min-h-[min(70vh,720px)] flex-col gap-5 overflow-hidden lg:flex-row lg:items-stretch lg:gap-6">
+    <div className="grid w-full max-w-full gap-5 lg:grid-cols-[360px,minmax(0,1fr)] lg:items-start lg:gap-6">
       {/* User List Sidebar */}
-      <aside className="hidden w-full max-w-sm flex-shrink-0 lg:block">
+      <aside className="hidden h-full min-h-[480px] lg:flex">
         {rosterPanel(false)}
       </aside>
 
       {/* Conversation Area */}
-      <section className="flex min-h-[480px] min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+      <section className="flex min-h-[500px] min-w-0 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
@@ -222,12 +217,9 @@ export default function AdminMessagesPage() {
       </section>
 
       <Sheet open={rosterOpen} onOpenChange={setRosterOpen}>
-        <SheetContent className="flex h-[85vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-surface-overlay/95 p-0 backdrop-blur-sm sm:max-w-md sm:rounded-3xl">
-          <SheetHeader className="px-6 pt-[calc(1.25rem+env(safe-area-inset-top))]">
-            <SheetTitle className="text-base font-semibold">Conversations</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-6 pb-10">
-            <div className="space-y-4">{rosterPanel(true)}</div>
+        <SheetContent className="flex h-[88svh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl border border-border/60 bg-surface-overlay/95 p-0 text-foreground backdrop-blur-sm sm:max-w-md sm:rounded-3xl">
+          <div className="flex-1 overflow-hidden px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))]">
+            {rosterPanel(true)}
           </div>
         </SheetContent>
       </Sheet>
