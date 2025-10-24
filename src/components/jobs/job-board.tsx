@@ -1120,14 +1120,14 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
           </div>
         )}
 
-        <ScrollArea className="rounded-3xl border border-border bg-surface-overlay p-4 shadow-sm">
+        <ScrollArea className="rounded-3xl border border-border bg-surface-overlay p-3 shadow-sm shadow-black/5 sm:p-4">
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex min-w-full gap-4 pb-4 md:min-w-max md:pb-0">
+            <div className="flex flex-col gap-4 pb-2 md:min-w-max md:flex-row md:gap-6 md:pb-0">
               {board.columns.map((column) => (
                 <JobColumn
                   key={column.key}
@@ -1150,7 +1150,7 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
               ))}
             </div>
           </DndContext>
-          <ScrollBar orientation="horizontal" className="mt-2" />
+          <ScrollBar orientation="horizontal" className="mt-2 hidden md:flex" />
         </ScrollArea>
 
         <Sheet
@@ -1514,7 +1514,7 @@ function JobColumn({
 
   return (
     <div
-      className="flex w-[min(320px,100vw-3rem)] min-w-[260px] flex-shrink-0 flex-col gap-4 md:w-80"
+      className="flex w-full min-w-0 flex-col gap-4 md:w-80 md:min-w-[320px] md:flex-shrink-0"
       ref={setNodeRef}
     >
       <Card className="rounded-3xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">

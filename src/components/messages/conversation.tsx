@@ -136,11 +136,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const grouped = groupMessages(messages);
 
   return (
-    <div className="flex min-h-[320px] flex-1 flex-col">
+    <div className="flex min-h-[320px] flex-1 flex-col bg-surface-subtle/40">
       {/* Messages area */}
       <div
         ref={containerRef}
-        className="flex-1 space-y-2 overflow-y-auto px-4 py-4"
+        className="flex-1 space-y-4 overflow-y-auto px-4 py-6 sm:px-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
       >
         {/* Load more button */}
         {hasMore && (
@@ -148,6 +148,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
             <Button
               variant="outline"
               size="sm"
+              className="rounded-full border-border/70 bg-background/80 px-4 py-2 text-xs font-medium shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
               disabled={loading}
               onClick={() => {
                 const n = page + 1;
@@ -171,7 +172,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
               {isFirstGroupWithDate && <DateHeader date={group.date} />}
 
               {/* Messages in this group */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {group.messages.map((message, msgIndex) => {
                   const isOwn = role === message.sender;
                   const isLastInGroup = msgIndex === group.messages.length - 1;
@@ -203,15 +204,15 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
 
         {/* Error state */}
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <div className="rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
             {error}
           </div>
         )}
 
         {/* Empty state */}
         {messages.length === 0 && !loading && !error && (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">No messages yet. Start the conversation!</p>
+          <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
+            No messages yet. Start the conversation!
           </div>
         )}
 
@@ -219,17 +220,23 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       </div>
 
       {/* Message input */}
-      <div className="border-t border-border bg-surface-overlay p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="flex gap-2">
+      <div className="border-t border-border/80 bg-surface-overlay/95 px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_-24px_rgba(0,0,0,0.45)] sm:px-6 sm:py-5">
+        <div className="flex items-end gap-2 rounded-2xl border border-border/70 bg-background/90 p-2 shadow-sm shadow-black/10">
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Shift+Enter for new line)"
-            className="min-h-[60px] max-h-[120px] resize-none"
+            className="min-h-[60px] max-h-[140px] flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0"
             rows={2}
           />
-          <Button onClick={send} disabled={!content.trim()} size="icon" className="h-[60px] w-[60px]">
+          <Button
+            onClick={send}
+            disabled={!content.trim()}
+            size="icon"
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/40 transition hover:bg-blue-500 disabled:bg-blue-400/60 sm:h-14 sm:w-14"
+            aria-label="Send message"
+          >
             <Send className="h-5 w-5" />
           </Button>
         </div>

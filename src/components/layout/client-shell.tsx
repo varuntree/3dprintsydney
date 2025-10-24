@@ -125,19 +125,19 @@ export function ClientShell({ children, user }: ClientShellProps) {
       </aside>
 
       <div className="flex min-h-svh flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay/80 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 md:px-8">
+        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay/80 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/60">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 md:px-8 md:pb-4">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
-                  My Dashboard
-                </h1>
-                <p className="hidden text-sm text-muted-foreground sm:block">
-                  Manage your orders and messages.
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="hidden text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground/70 sm:block">
+                  Client Portal
                 </p>
+                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                  My Workspace
+                </h1>
                 {user.studentDiscountEligible ? (
-                  <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
                     <GraduationCap className="h-3 w-3" />
                     {user.studentDiscountRate ?? 0}% student discount active
                   </span>
@@ -153,7 +153,7 @@ export function ClientShell({ children, user }: ClientShellProps) {
             </button>
           </div>
           <div className="md:hidden">
-            <div className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6" role="list">
+            <div className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
               <button
                 onClick={handleLogout}
                 className="flex min-h-[44px] flex-shrink-0 items-center justify-center rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
@@ -165,7 +165,7 @@ export function ClientShell({ children, user }: ClientShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 bg-surface-canvas px-4 pb-16 pt-6 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
+        <main className="flex-1 bg-surface-canvas px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
           <div className="mx-auto w-full max-w-[1440px] space-y-6 sm:space-y-8">
             {children}
           </div>

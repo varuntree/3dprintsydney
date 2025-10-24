@@ -323,20 +323,24 @@ export function SettingsForm({ initial }: SettingsFormProps) {
       </header>
 
       <Form {...form}>
-        <form onSubmit={onSubmit} className="space-y-6 pb-28">
+        <form onSubmit={onSubmit} className="space-y-7 pb-28">
           {mutation.isPending ? (
             <InlineLoader label="Saving settings…" className="text-sm" />
           ) : null}
-          <Tabs defaultValue="identity" className="space-y-4">
-            <TabsList className="flex gap-2 overflow-x-auto rounded-full border border-border bg-surface-overlay p-1 text-sm [scrollbar-width:none] sm:flex-wrap">
+          <Tabs defaultValue="identity" className="space-y-5">
+            <TabsList className="flex gap-2 overflow-x-auto rounded-full border border-border/60 bg-surface-overlay/90 p-1.5 text-sm shadow-sm shadow-black/5 backdrop-blur [scrollbar-width:none] sm:flex-wrap">
               {tabs.map((tab) => (
-                <TabsTrigger key={tab.value} value={tab.value} className="rounded-full">
+                <TabsTrigger
+                  key={tab.value}
+                  value={tab.value}
+                  className="rounded-full px-4 py-2 text-sm font-medium transition data-[state=active]:bg-foreground data-[state=active]:text-background"
+                >
                   {tab.label}
                 </TabsTrigger>
               ))}
             </TabsList>
 
-          <TabsContent value="identity" className="focus-visible:outline-none">
+          <TabsContent value="identity" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Business identity"
               description="Appears on quotes, invoices, and the dashboard."
@@ -420,7 +424,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             </SettingsCard>
           </TabsContent>
 
-          <TabsContent value="numbering">
+          <TabsContent value="numbering" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Tax & numbering"
               description="Control numbering prefixes and default GST rate."
@@ -514,7 +518,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             </SettingsCard>
           </TabsContent>
 
-          <TabsContent value="payments">
+          <TabsContent value="payments" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Payments"
               description="Manage payment terms and bank transfer details used across documents."
@@ -638,7 +642,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             </SettingsCard>
           </TabsContent>
 
-          <TabsContent value="shipping">
+          <TabsContent value="shipping" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Shipping"
               description="Configure shipping regions for delivery estimates across quick orders, quotes, and invoices."
@@ -862,7 +866,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             </SettingsCard>
           </TabsContent>
 
-          <TabsContent value="calculator">
+          <TabsContent value="calculator" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="3D printing calculator"
               description="Defaults for hour, material, and quality multipliers."
@@ -977,7 +981,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
             </SettingsCard>
           </TabsContent>
 
-          <TabsContent value="jobs">
+          <TabsContent value="jobs" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Job automation"
               description="Control when jobs are created from invoices."
