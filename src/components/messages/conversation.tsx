@@ -136,11 +136,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const grouped = groupMessages(messages);
 
   return (
-    <div className="flex min-h-[320px] flex-1 flex-col bg-surface-subtle/40">
+    <div className="flex min-h-[320px] flex-1 flex-col bg-transparent">
       {/* Messages area */}
       <div
         ref={containerRef}
-        className="flex-1 space-y-4 overflow-y-auto px-4 py-6 sm:px-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
+        className="flex-1 space-y-4 overflow-y-auto px-5 py-6 sm:px-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
       >
         {/* Load more button */}
         {hasMore && (
@@ -220,8 +220,8 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       </div>
 
       {/* Message input */}
-      <div className="border-t border-border/80 bg-surface-overlay/95 px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_-24px_rgba(0,0,0,0.45)] sm:px-6 sm:py-5">
-        <div className="flex items-end gap-2 rounded-2xl border border-border/70 bg-background/90 p-2 shadow-sm shadow-black/10">
+      <div className="border-t border-border/70 bg-surface-overlay/90 px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)] sm:px-6 sm:py-5">
+        <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2.5 shadow-sm shadow-black/10">
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}

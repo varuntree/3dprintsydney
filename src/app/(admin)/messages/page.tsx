@@ -73,7 +73,7 @@ export default function AdminMessagesPage() {
   }
 
   const rosterPanel = (closeOnSelect: boolean) => (
-    <Card className="rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+    <Card className="rounded-3xl border border-border/60 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
       <CardHeader className="flex items-center justify-between gap-3">
         <div className="space-y-1">
           <CardTitle className="text-base font-semibold text-foreground">
@@ -94,7 +94,7 @@ export default function AdminMessagesPage() {
           onChange={(e) => setQ(e.target.value)}
           className="w-full"
         />
-        <ScrollArea className="max-h-[60vh] rounded-2xl border border-border/60 bg-background/80">
+        <ScrollArea className="max-h-[60vh] rounded-2xl border border-border/60 bg-background/85">
           {loading ? (
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
@@ -144,15 +144,15 @@ export default function AdminMessagesPage() {
   );
 
   return (
-    <div className="flex min-h-[min(70vh,720px)] flex-col gap-4 lg:flex-row lg:items-start">
+    <div className="flex w-full min-h-[min(70vh,720px)] flex-col gap-5 lg:flex-row lg:items-stretch lg:gap-6">
       {/* User List Sidebar */}
       <aside className="hidden w-full max-w-sm flex-shrink-0 lg:block">
         {rosterPanel(false)}
       </aside>
 
       {/* Conversation Area */}
-      <section className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5">
-        <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3 lg:hidden">
+      <section className="flex min-h-[480px] flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
               {selectedUser?.email ?? "Messages"}
@@ -188,7 +188,7 @@ export default function AdminMessagesPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-4">
+              <div className="flex items-center justify-between gap-3 border-b border-border/70 px-6 py-5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
                     {selectedUser?.email[0]?.toUpperCase() ?? "?"}
@@ -207,9 +207,9 @@ export default function AdminMessagesPage() {
                   </div>
                 </div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="rounded-full text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                  className="rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
                   onClick={() => setRosterOpen(true)}
                 >
                   Switch
@@ -222,9 +222,9 @@ export default function AdminMessagesPage() {
       </section>
 
       <Sheet open={rosterOpen} onOpenChange={setRosterOpen}>
-        <SheetContent className="flex h-[85vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-background/95 p-0 sm:max-w-md sm:rounded-3xl">
-          <SheetHeader className="px-6 pt-6">
-            <SheetTitle>Conversations</SheetTitle>
+        <SheetContent className="flex h-[85vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-surface-overlay/95 p-0 backdrop-blur-sm sm:max-w-md sm:rounded-3xl">
+          <SheetHeader className="px-6 pt-[calc(1.25rem+env(safe-area-inset-top))]">
+            <SheetTitle className="text-base font-semibold">Conversations</SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto px-6 pb-10">
             <div className="space-y-4">{rosterPanel(true)}</div>
