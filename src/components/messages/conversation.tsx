@@ -136,11 +136,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const grouped = groupMessages(messages);
 
   return (
-    <div className="flex min-h-[320px] flex-1 flex-col bg-transparent">
+    <div className="flex min-h-[320px] w-full max-w-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
       {/* Messages area */}
       <div
         ref={containerRef}
-        className="flex-1 space-y-4 overflow-y-auto px-5 py-6 sm:px-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
+        className="flex-1 w-full space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
       >
         {/* Load more button */}
         {hasMore && (
@@ -220,24 +220,24 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       </div>
 
       {/* Message input */}
-      <div className="border-t border-border/70 bg-surface-overlay/90 px-5 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)] sm:px-6 sm:py-5">
-        <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2.5 shadow-sm shadow-black/10">
+      <div className="w-full border-t border-border/70 bg-surface-overlay/90 px-4 py-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)] sm:px-5 sm:py-4">
+        <div className="flex w-full max-w-full items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2 shadow-sm shadow-black/10 sm:p-2.5">
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Shift+Enter for new line)"
-            className="min-h-[60px] max-h-[140px] flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0"
+            className="min-h-[56px] max-h-[120px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0 sm:min-h-[60px] sm:max-h-[140px] sm:px-3 sm:py-3"
             rows={2}
           />
           <Button
             onClick={send}
             disabled={!content.trim()}
             size="icon"
-            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/40 transition hover:bg-blue-500 disabled:bg-blue-400/60 sm:h-14 sm:w-14"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/40 transition hover:bg-blue-500 disabled:bg-blue-400/60 sm:h-12 sm:w-12"
             aria-label="Send message"
           >
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
         </div>
       </div>
