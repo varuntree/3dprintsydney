@@ -561,8 +561,8 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
             >
               <div className="space-y-6">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
                       <h3 className="text-sm font-semibold text-foreground">Payment terms</h3>
                       <p className="text-sm text-muted-foreground">Define the options available when creating clients. Codes should be unique.</p>
                     </div>
@@ -577,7 +577,7 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
                           days: 0,
                         } as SettingsInput["paymentTerms"][number])
                       }
-                      className="flex items-center gap-2 rounded-full"
+                      className="flex w-full items-center justify-center gap-2 rounded-full sm:w-auto"
                     >
                       <Plus className="h-4 w-4" /> Add term
                     </Button>
@@ -893,7 +893,7 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
                         postcodePrefixes: [],
                       } as SettingsInput["shippingRegions"][number])
                     }
-                    className="gap-2 rounded-full"
+                    className="w-full gap-2 rounded-full sm:w-auto"
                   >
                     <Plus className="h-4 w-4" /> Add shipping region
                   </Button>
@@ -1263,9 +1263,9 @@ interface SettingsCardProps {
 
 function SettingsCard({ title, description, children }: SettingsCardProps) {
   return (
-    <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
+    <Card className="min-w-0 overflow-hidden rounded-3xl border border-border bg-surface-overlay shadow-sm">
       <CardHeader className="space-y-2">
-        <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
+        <CardTitle className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
           {title}
         </CardTitle>
         <CardDescription className="text-sm text-muted-foreground">

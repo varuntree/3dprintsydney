@@ -367,13 +367,13 @@ export function ProductsView({
                     </Badge>
                   </DataListHeader>
                   <DataListContent className="space-y-1 text-xs text-muted-foreground">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="uppercase tracking-[0.2em]">Material</span>
                       <DataListValue className="text-xs font-medium">
                         {template.materialName ?? "Any"}
                       </DataListValue>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="uppercase tracking-[0.2em]">Price</span>
                       <DataListValue className="text-xs font-medium">
                         {template.pricingType === "FIXED"
