@@ -78,13 +78,10 @@ export default function LoginPage() {
       <div className="relative grid overflow-hidden rounded-[inherit] sm:grid-cols-[1.05fr_0.95fr]">
         <div className="relative order-2 space-y-10 border-b border-border/60 bg-gradient-to-br from-surface-subtle/95 via-surface-subtle/75 to-surface-overlay/40 p-6 sm:order-1 sm:border-b-0 sm:border-r sm:p-10">
           <div className="flex items-center justify-between">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-3 text-sm font-semibold text-foreground transition hover:text-foreground/80"
-            >
+            <div className="inline-flex items-center gap-3 text-sm font-semibold text-foreground">
               <AnimatedCubeLogo className="h-10 w-10" />
               <span className="tracking-tight">3D Print Sydney</span>
-            </Link>
+            </div>
             <span className="hidden text-xs font-medium text-foreground/60 sm:inline-flex">Sydney · AEST</span>
           </div>
 
