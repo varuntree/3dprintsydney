@@ -12,7 +12,8 @@ import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Settings } from "lucide-react";
+import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -44,15 +45,15 @@ export function ClientShell({ children, user }: ClientShellProps) {
       <aside className="sticky top-0 z-30 hidden h-[100svh] w-[270px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
         <div className="flex h-full flex-col">
           <div className="flex items-center gap-3 px-6 pb-5 pt-8">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/10 via-cyan-500/10 to-sky-400/10 text-sm font-semibold uppercase tracking-[0.25em] text-blue-700">
-              3D
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/10 via-cyan-500/10 to-sky-400/10">
+              <AnimatedCubeLogo className="h-7 w-7" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[11px] uppercase tracking-[0.4em] text-muted-foreground/70">
                 Client Portal
               </p>
               <p className="truncate text-lg font-semibold tracking-tight text-foreground">
-                Print Studio
+                3D Print Sydney
               </p>
             </div>
           </div>
@@ -105,12 +106,6 @@ export function ClientShell({ children, user }: ClientShellProps) {
                   ) : null}
                 </div>
               </div>
-              <Link
-                href="/client/account"
-                className="mt-3 block w-full rounded-lg border border-border/60 px-3 py-2 text-sm text-muted-foreground transition hover:border-border hover:bg-background/50 hover:text-foreground"
-              >
-                Account settings
-              </Link>
               <button
                 onClick={handleLogout}
                 title="Logout"
@@ -144,16 +139,36 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 ) : null}
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="hidden min-h-[44px] items-center justify-center rounded-full border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white md:inline-flex"
-              aria-label="Logout"
-            >
-              Logout
-            </button>
+            <div className="hidden items-center gap-2 md:flex">
+              <Link
+                href="/client/account"
+                className="flex items-center justify-center rounded-full border border-border/70 bg-background/80 px-4 py-2 font-medium text-foreground shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
+                title="Account settings"
+                aria-label="Account settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="hidden lg:inline ml-2">Settings</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="min-h-[44px] flex items-center justify-center rounded-full border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+                aria-label="Logout"
+              >
+                Logout
+              </button>
+            </div>
           </div>
           <div className="md:hidden">
             <div className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
+              <Link
+                href="/client/account"
+                className="flex min-h-[44px] flex-shrink-0 items-center justify-center gap-1 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-semibold transition hover:border-border hover:bg-background"
+                title="Account settings"
+                aria-label="Account settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex min-h-[44px] flex-shrink-0 items-center justify-center rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"

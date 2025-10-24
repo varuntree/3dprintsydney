@@ -7,12 +7,13 @@ import { OWNER_NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
 import { isNavItemActive } from "@/lib/nav-utils";
 import { getIcon } from "@/lib/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { ActionButton } from "@/components/ui/action-button";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
+import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
+import { Settings } from "lucide-react";
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -44,21 +45,28 @@ export function AdminShell({ children, user }: AdminShellProps) {
       {/* Desktop Sidebar */}
       <aside className="sticky top-0 z-30 hidden h-[100svh] w-[280px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-3 px-6 pb-5 pt-8">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-surface-overlay text-sm font-semibold uppercase tracking-[0.3em]">
-              3D
+          <div className="border-b border-border/70 bg-sidebar/90 px-6 pb-6 pt-[calc(1.75rem+env(safe-area-inset-top))]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-surface-overlay text-foreground">
+                <AnimatedCubeLogo className="h-6 w-6 text-foreground" />
+              </div>
+              <div className="min-w-0 space-y-1">
+                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground/70">
+                  Operations
+                </p>
+                <p className="truncate text-lg font-semibold tracking-tight text-foreground">
+                  3D Print Sydney
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-[11px] uppercase tracking-[0.4em] text-muted-foreground/70">
-                Operations
-              </p>
-              <p className="truncate text-lg font-semibold tracking-tight text-foreground">
-                Print Studio
-              </p>
+            {/* Keep only the Admin pill in the sidebar header */}
+            <div className="mt-6 flex items-center justify-end gap-2 text-[11px] font-medium uppercase tracking-[0.35em] text-muted-foreground/70">
+              <span className="flex shrink-0 items-center rounded-full border border-border/60 px-2 py-0.5 text-[10px] tracking-[0.3em] text-muted-foreground">
+                Admin
+              </span>
             </div>
           </div>
-          <Separator className="mx-4" />
-          <ScrollArea className="flex-1 px-4 py-6">
+          <ScrollArea className="flex-1 px-6 py-6">
             <nav className="flex flex-col gap-7">
               {OWNER_NAV_SECTIONS.map((section) => (
                 <div key={section.title ?? "main"} className="space-y-3">
@@ -97,20 +105,12 @@ export function AdminShell({ children, user }: AdminShellProps) {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">{user.role}</p>
               </div>
             </div>
-            <div className="mt-4 space-y-2">
-              <Link
-                href="/account"
-                className="block w-full rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground transition hover:border-border hover:bg-sidebar-accent hover:text-foreground"
-              >
-                Account settings
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </aside>
@@ -121,10 +121,11 @@ export function AdminShell({ children, user }: AdminShellProps) {
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
               <div className="min-w-0 flex-1 space-y-1">
-                <p className="hidden text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground/70 sm:block">
+                {/* Hide duplicated branding on desktop; show only on mobile */}
+                <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground/70 sm:hidden">
                   Operations Console
                 </p>
-                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:hidden">
                   3D Print Sydney
                 </h1>
               </div>
@@ -147,6 +148,15 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   </ActionButton>
                 );
               })}
+              <Link
+                href="/account"
+                className="flex items-center justify-center rounded-full border border-border/70 bg-background/80 px-4 py-2 font-medium text-foreground shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
+                title="Account settings"
+                aria-label="Account settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span className="hidden lg:inline ml-2">Settings</span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
@@ -174,6 +184,15 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   </ActionButton>
                 );
               })}
+              <Link
+                href="/account"
+                className="flex-shrink-0 flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-3 py-2 text-xs font-semibold transition hover:border-border hover:bg-background"
+                title="Account settings"
+                aria-label="Account settings"
+              >
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex-shrink-0 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
