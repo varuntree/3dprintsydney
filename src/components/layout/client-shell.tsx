@@ -7,7 +7,6 @@ import { CLIENT_NAV_SECTIONS } from "@/lib/navigation";
 import { isNavItemActive } from "@/lib/nav-utils";
 import { getIcon } from "@/lib/icons";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { MutationLoader } from "@/components/ui/mutation-loader";
@@ -44,21 +43,28 @@ export function ClientShell({ children, user }: ClientShellProps) {
     <div className="flex min-h-svh w-full bg-background text-foreground">
       <aside className="sticky top-0 z-30 hidden h-[100svh] w-[270px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
         <div className="flex h-full flex-col">
-          <div className="flex items-center gap-3 px-6 pb-5 pt-8">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/10 via-cyan-500/10 to-sky-400/10">
-              <AnimatedCubeLogo className="h-7 w-7" />
+          <div className="border-b border-border/70 bg-sidebar/90 px-6 pb-6 pt-[calc(1.75rem+env(safe-area-inset-top))]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-gradient-to-br from-blue-600/10 via-cyan-500/10 to-sky-400/10">
+                <AnimatedCubeLogo className="h-7 w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] uppercase tracking-[0.4em] text-muted-foreground/70">
+                  Client Portal
+                </p>
+                <p className="truncate text-lg font-semibold tracking-tight text-foreground">
+                  3D Print Sydney
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] uppercase tracking-[0.4em] text-muted-foreground/70">
-                Client Portal
-              </p>
-              <p className="truncate text-lg font-semibold tracking-tight text-foreground">
-                3D Print Sydney
-              </p>
+            {/* CLIENT badge pill */}
+            <div className="mt-6 flex items-center justify-end gap-2 text-[11px] font-medium uppercase tracking-[0.35em] text-muted-foreground/70">
+              <span className="flex shrink-0 items-center rounded-full border border-border/60 px-2 py-0.5 text-[10px] tracking-[0.3em] text-muted-foreground">
+                Client
+              </span>
             </div>
           </div>
-          <Separator className="mx-4" />
-          <ScrollArea className="flex-1 px-4 py-6">
+          <ScrollArea className="flex-1 px-6 py-6">
             <nav className="flex flex-col gap-7">
               {CLIENT_NAV_SECTIONS.map((section) => (
                 <div key={section.title ?? "main"} className="space-y-3">
