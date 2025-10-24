@@ -165,8 +165,8 @@ export function ClientShell({ children, user }: ClientShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 bg-surface-canvas px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
-          <div className="mx-auto w-full max-w-[1440px] space-y-6 sm:space-y-8">
+        <main className="flex-1 overflow-x-hidden bg-surface-canvas px-4 pb-[max(3.5rem,env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
+          <div className="mx-auto w-full max-w-full space-y-6 sm:space-y-8 md:max-w-[1440px]">
             {children}
           </div>
         </main>

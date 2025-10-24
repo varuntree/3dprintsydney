@@ -73,9 +73,9 @@ export default function AdminMessagesPage() {
   }
 
   const rosterPanel = (closeOnSelect: boolean) => (
-    <Card className="rounded-3xl border border-border/60 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
+    <Card className="w-full max-w-full rounded-3xl border border-border/60 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
       <CardHeader className="flex items-center justify-between gap-3">
-        <div className="space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
           <CardTitle className="text-base font-semibold text-foreground">
             Conversations
           </CardTitle>
@@ -83,7 +83,7 @@ export default function AdminMessagesPage() {
             Browse contacts to start messaging.
           </CardDescription>
         </div>
-        <div className="flex size-10 items-center justify-center rounded-xl bg-surface-subtle text-muted-foreground">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-subtle text-muted-foreground">
           <MessageSquare className="h-5 w-5" />
         </div>
       </CardHeader>
@@ -94,7 +94,7 @@ export default function AdminMessagesPage() {
           onChange={(e) => setQ(e.target.value)}
           className="w-full"
         />
-        <ScrollArea className="max-h-[60vh] rounded-2xl border border-border/60 bg-background/85">
+        <ScrollArea className="max-h-[60vh] w-full rounded-2xl border border-border/60 bg-background/85">
           {loading ? (
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
@@ -113,7 +113,7 @@ export default function AdminMessagesPage() {
                   type="button"
                   onClick={() => handleSelectUser(String(u.id), closeOnSelect)}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-3 text-left transition-all duration-150",
+                    "flex w-full max-w-full min-w-0 items-center gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-3 text-left transition-all duration-150",
                     selected === u.id
                       ? "border-border/70 bg-surface-muted/80 shadow-sm shadow-black/5"
                       : "hover:border-border/60 hover:bg-surface-muted/60",
@@ -124,14 +124,14 @@ export default function AdminMessagesPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-foreground">{u.email}</p>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <Badge
                         variant="outline"
-                        className="rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
+                        className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
                       >
                         {u.role === "CLIENT" ? "Client" : "Admin"}
                       </Badge>
-                      <span>{u.messageCount} message{u.messageCount !== 1 ? "s" : ""}</span>
+                      <span className="shrink-0">{u.messageCount} message{u.messageCount !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
                 </button>
@@ -144,14 +144,14 @@ export default function AdminMessagesPage() {
   );
 
   return (
-    <div className="flex w-full min-h-[min(70vh,720px)] flex-col gap-5 lg:flex-row lg:items-stretch lg:gap-6">
+    <div className="flex w-full max-w-full min-h-[min(70vh,720px)] flex-col gap-5 overflow-hidden lg:flex-row lg:items-stretch lg:gap-6">
       {/* User List Sidebar */}
       <aside className="hidden w-full max-w-sm flex-shrink-0 lg:block">
         {rosterPanel(false)}
       </aside>
 
       {/* Conversation Area */}
-      <section className="flex min-h-[480px] flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+      <section className="flex min-h-[480px] min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">
@@ -188,28 +188,28 @@ export default function AdminMessagesPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3 border-b border-border/70 px-6 py-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
+              <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6 sm:py-5">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
                     {selectedUser?.email[0]?.toUpperCase() ?? "?"}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-foreground">{selectedUser?.email}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <Badge
                         variant="outline"
-                        className="rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]"
+                        className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]"
                       >
                         {selectedUser?.role === "CLIENT" ? "Client" : "Admin"}
                       </Badge>
-                      <span>{selectedUser?.messageCount ?? 0} message{(selectedUser?.messageCount ?? 0) !== 1 ? "s" : ""}</span>
+                      <span className="shrink-0">{selectedUser?.messageCount ?? 0} message{(selectedUser?.messageCount ?? 0) !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                  className="shrink-0 rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
                   onClick={() => setRosterOpen(true)}
                 >
                   Switch

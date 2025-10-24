@@ -107,7 +107,7 @@ export function NavigationDrawer() {
 
         <Separator className="mx-6 shrink-0" />
 
-        <ScrollArea className="min-h-0 flex-1 px-4 py-5">
+        <ScrollArea className="min-h-0 flex-1 overflow-hidden px-4 py-5">
           <nav className="flex flex-col gap-6">
             {/* Quick Actions */}
             {role === "ADMIN" ? (
@@ -167,7 +167,7 @@ export function NavigationDrawer() {
             ))}
           </nav>
         </ScrollArea>
-        <div className="shrink-0 border-t border-border/60 bg-sidebar/80 px-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-5 text-sidebar-foreground/90 backdrop-blur-sm">
+        <div className="shrink-0 border-t border-border/60 bg-sidebar/80 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 text-sidebar-foreground/90 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-surface-overlay text-sm font-semibold uppercase tracking-[0.2em] text-sidebar-foreground">
               {profile?.email ? profile.email[0]?.toUpperCase() : "3D"}
@@ -181,7 +181,7 @@ export function NavigationDrawer() {
               </p>
             </div>
           </div>
-          <div className="mt-4 grid gap-2">
+          <div className="mt-3 grid gap-2">
             <Link
               href={role === "CLIENT" ? "/client/account" : "/account"}
               onClick={closeDrawer}
