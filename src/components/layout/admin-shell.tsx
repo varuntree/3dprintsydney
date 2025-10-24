@@ -41,7 +41,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
   return (
     <div className="flex min-h-svh w-full bg-background text-foreground">
       {/* Desktop Sidebar */}
-      <aside className="sticky top-0 z-30 hidden h-[100svh] w-[280px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
+      <aside className="sticky top-0 z-30 hidden h-[100svh] supports-[height:100dvh]:h-[100dvh] w-[280px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
         <div className="flex h-full flex-col">
           <div className="border-b border-border/70 bg-sidebar/90 px-6 pb-6 pt-[calc(1.75rem+env(safe-area-inset-top))]">
             <div className="flex items-center gap-3">
