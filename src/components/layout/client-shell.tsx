@@ -57,12 +57,6 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 </p>
               </div>
             </div>
-            {/* CLIENT badge pill */}
-            <div className="mt-6 flex items-center justify-end gap-2 text-[11px] font-medium uppercase tracking-[0.35em] text-muted-foreground/70">
-              <span className="flex shrink-0 items-center rounded-full border border-border/60 px-2 py-0.5 text-[10px] tracking-[0.3em] text-muted-foreground">
-                Client
-              </span>
-            </div>
           </div>
           <ScrollArea className="flex-1 px-6 py-6">
             <nav className="flex flex-col gap-7">
@@ -93,35 +87,6 @@ export function ClientShell({ children, user }: ClientShellProps) {
               ))}
             </nav>
           </ScrollArea>
-          <div className="border-t border-border/70 bg-sidebar/60 px-6 py-6 backdrop-blur-sm">
-            <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600/15 via-cyan-500/15 to-sky-400/15 text-sm font-medium">
-                  {user.email[0]?.toUpperCase() ?? "?"}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user.email}</p>
-                  <span className="mt-1 inline-flex items-center rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {user.role}
-                  </span>
-                  {user.studentDiscountEligible ? (
-                    <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                      <GraduationCap className="h-3 w-3" />
-                      {user.studentDiscountRate ?? 0}% off
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                title="Logout"
-                className="mt-3 w-full rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
-                aria-label="Logout"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
         </div>
       </aside>
 

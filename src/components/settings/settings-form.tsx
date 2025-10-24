@@ -40,6 +40,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash } from "lucide-react";
 import { mutateJson, getJson } from "@/lib/http";
+import { ChangePasswordForm } from "@/components/account/change-password-form";
+import type { LegacyUser } from "@/lib/types/user";
 import {
   calculatorConfigSchema,
   settingsInputSchema,
@@ -57,6 +59,7 @@ export type SettingsPayload = SettingsInput & {
 
 interface SettingsFormProps {
   initial: SettingsPayload;
+  user: LegacyUser;
 }
 
 const queryKey = ["settings"] as const;
@@ -220,7 +223,7 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
 }
 
 
-export function SettingsForm({ initial }: SettingsFormProps) {
+export function SettingsForm({ initial, user }: SettingsFormProps) {
   const queryClient = useQueryClient();
   const defaults = normalizeSettings(initial);
 
@@ -301,6 +304,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
   });
 
   const tabs = [
+    { value: "profile", label: "Profile" },
     { value: "identity", label: "Business" },
     { value: "numbering", label: "Tax & Numbering" },
     { value: "payments", label: "Payments" },
@@ -309,16 +313,32 @@ export function SettingsForm({ initial }: SettingsFormProps) {
     { value: "jobs", label: "Jobs" },
   ] as const;
 
+  const roleLabel = user.role === "ADMIN" ? "Admin" : user.role === "CLIENT" ? "Client" : user.role;
+
   return (
     <div className="flex flex-col gap-6">
       <header className="rounded-3xl border border-border bg-surface-elevated/80 p-4 shadow-sm shadow-black/5 backdrop-blur sm:p-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Settings
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Configure business details, payment terms, and system preferences.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Settings
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Configure business details, payment terms, and system preferences.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm shadow-black/5 sm:min-w-[240px]">
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground/70">
+              Signed in as
+            </p>
+            <p className="truncate text-sm font-medium text-foreground">{user.email}</p>
+            <Badge
+              variant="outline"
+              className="w-fit rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
+            >
+              {roleLabel}
+            </Badge>
+          </div>
         </div>
       </header>
 
@@ -327,18 +347,34 @@ export function SettingsForm({ initial }: SettingsFormProps) {
           {mutation.isPending ? (
             <InlineLoader label="Saving settings…" className="text-sm" />
           ) : null}
-          <Tabs defaultValue="identity" className="space-y-5">
-            <TabsList className="flex gap-2 overflow-x-auto rounded-full border border-border/60 bg-surface-overlay/90 p-1.5 text-sm shadow-sm shadow-black/5 backdrop-blur [scrollbar-width:none] sm:flex-wrap">
+          <Tabs defaultValue="profile" className="space-y-5">
+            <TabsList>
               {tabs.map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="rounded-full px-4 py-2 text-sm font-medium transition data-[state=active]:bg-foreground data-[state=active]:text-background"
-                >
+                <TabsTrigger key={tab.value} value={tab.value}>
                   {tab.label}
                 </TabsTrigger>
               ))}
             </TabsList>
+
+          <TabsContent value="profile" className="space-y-6 focus-visible:outline-none">
+            <SettingsCard
+              title="Account profile"
+              description="View your account details and manage your password."
+            >
+              <div className="space-y-6">
+                <div className="rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm shadow-black/5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-muted-foreground/70">
+                    Email
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{user.email}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This address receives all administrative notifications.
+                  </p>
+                </div>
+                <ChangePasswordForm email={user.email} />
+              </div>
+            </SettingsCard>
+          </TabsContent>
 
           <TabsContent value="identity" className="space-y-6 focus-visible:outline-none">
             <SettingsCard

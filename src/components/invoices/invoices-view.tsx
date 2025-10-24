@@ -189,7 +189,7 @@ export function InvoicesView({ initial }: InvoicesViewProps) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="flex flex-wrap gap-2 rounded-3xl border border-border bg-surface-overlay p-1">
+        <TabsList>
           {STATUS_TABS.map((status) => (
             <TabsTrigger key={status.value} value={status.value}>
               {status.label}

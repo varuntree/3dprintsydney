@@ -61,7 +61,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ActionRail } from "@/components/ui/action-rail";
 import {
   Form,
   FormControl,
@@ -93,13 +92,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertCircle,
   ArrowRight,
   CalendarClock,
   Check,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Pause,
   Play,
@@ -419,7 +417,6 @@ export function JobsBoard({ initial }: JobsBoardProps) {
   const [statusNote, setStatusNote] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
-  const [controlsOpen, setControlsOpen] = useState(false);
 
   type ViewMode = "active" | "completed-today" | "archived" | "all";
   const [view, setView] = useState<ViewMode>("active");
@@ -986,85 +983,6 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
                 )}
               </div>
             </div>
-            <div className="hidden w-full sm:block">
-              <ActionRail align="start" wrap className="w-full">
-                <div className="flex w-full overflow-hidden rounded-full border border-input bg-background text-xs font-medium shadow-sm sm:w-auto">
-                  {viewFilters.map((opt) => (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => setView(opt.key)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 transition rounded-full",
-                        view === opt.key
-                          ? "bg-accent-soft text-foreground"
-                          : "text-muted-foreground hover:bg-surface-subtle",
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <Button
-                  size="sm"
-                  variant={selectMode ? "default" : "outline"}
-                  onClick={() => setSelectMode((v) => !v)}
-                  className="rounded-full"
-                >
-                  {selectMode ? "Selecting…" : "Select"}
-                </Button>
-              </ActionRail>
-            </div>
-            <div className="w-full sm:hidden">
-              <button
-                type="button"
-                onClick={() => setControlsOpen((open) => !open)}
-                className="flex w-full items-center justify-between rounded-2xl border border-border/70 bg-card/80 px-4 py-2 text-sm font-medium text-foreground shadow-sm shadow-black/5"
-                aria-expanded={controlsOpen}
-              >
-                Board controls
-                {controlsOpen ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </button>
-              {controlsOpen ? (
-                <div className="mt-3 space-y-3 rounded-2xl border border-border/70 bg-card/80 p-3 shadow-sm shadow-black/5">
-                  <div className="flex w-full overflow-hidden rounded-full border border-input bg-background text-xs font-medium shadow-sm">
-                    {viewFilters.map((opt) => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => {
-                          setView(opt.key);
-                          setControlsOpen(false);
-                        }}
-                        className={cn(
-                          "flex-1 px-3 py-1.5 transition rounded-full",
-                          view === opt.key
-                            ? "bg-accent-soft text-foreground"
-                            : "text-muted-foreground hover:bg-surface-subtle",
-                        )}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant={selectMode ? "default" : "outline"}
-                    onClick={() => {
-                      setSelectMode((v) => !v);
-                      setControlsOpen(false);
-                    }}
-                    className="w-full rounded-full"
-                  >
-                    {selectMode ? "Selecting…" : "Select"}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
           </div>
         </header>
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1091,36 +1009,56 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
           />
         </section>
 
-        {(selected.size > 0 || selectMode) && (
-          <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground shadow-sm shadow-black/5 sm:flex-row sm:items-center">
-            <span className="font-medium text-foreground">
-              Selected: {selected.size}
-            </span>
-            <div className="flex flex-wrap gap-2 sm:ml-auto">
-              <LoadingButton
-                size="sm"
-                variant="outline"
-                className="rounded-full"
-                loading={bulkArchiveMutation.isPending}
-                loadingText="Archiving…"
-                disabled={selected.size === 0 || bulkArchiveMutation.isPending}
-                onClick={() => bulkArchiveMutation.mutate(Array.from(selected))}
-              >
-                Archive selected
-              </LoadingButton>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-full"
-                onClick={() => setSelected(new Set())}
-              >
-                Clear
-              </Button>
-            </div>
+        <Tabs value={view} onValueChange={(val) => setView(val as typeof view)} className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList>
+              {viewFilters.map((opt) => (
+                <TabsTrigger key={opt.key} value={opt.key}>
+                  {opt.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <Button
+              size="sm"
+              variant={selectMode ? "default" : "outline"}
+              onClick={() => setSelectMode((v) => !v)}
+              className="rounded-full"
+            >
+              {selectMode ? "Selecting…" : "Select"}
+            </Button>
           </div>
-        )}
 
-        <ScrollArea className="rounded-3xl border border-border bg-surface-overlay p-3 shadow-sm shadow-black/5 sm:p-4">
+          <TabsContent value={view} className="space-y-4 focus-visible:outline-none">
+            {(selected.size > 0 || selectMode) && (
+              <div className="flex flex-col gap-2 rounded-3xl border border-border/60 bg-card/80 p-3 text-sm text-muted-foreground shadow-sm shadow-black/5 sm:flex-row sm:items-center">
+                <span className="font-medium text-foreground">
+                  Selected: {selected.size}
+                </span>
+                <div className="flex flex-wrap gap-2 sm:ml-auto">
+                  <LoadingButton
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    loading={bulkArchiveMutation.isPending}
+                    loadingText="Archiving…"
+                    disabled={selected.size === 0 || bulkArchiveMutation.isPending}
+                    onClick={() => bulkArchiveMutation.mutate(Array.from(selected))}
+                  >
+                    Archive selected
+                  </LoadingButton>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full"
+                    onClick={() => setSelected(new Set())}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <ScrollArea className="rounded-3xl border border-border bg-surface-overlay p-3 shadow-sm shadow-black/5 sm:p-4">
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
@@ -1152,6 +1090,8 @@ function handleRequestStatus(job: JobCardClient, status: JobStatusType) {
           </DndContext>
           <ScrollBar orientation="horizontal" className="mt-2 hidden md:flex" />
         </ScrollArea>
+          </TabsContent>
+        </Tabs>
 
         <Sheet
           open={Boolean(editingJob)}

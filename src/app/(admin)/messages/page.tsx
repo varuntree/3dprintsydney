@@ -70,8 +70,15 @@ export default function AdminMessagesPage() {
     }
   }
 
-  const rosterPanel = (closeOnSelect: boolean) => (
-    <div className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur">
+  const rosterPanel = (closeOnSelect: boolean, variant: "card" | "sidebar" = "card") => (
+    <div
+      className={cn(
+        "flex h-full min-h-[420px] flex-col overflow-hidden",
+        variant === "card"
+          ? "rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur"
+          : "bg-sidebar/90"
+      )}
+    >
       <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-5">
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-sm font-medium uppercase tracking-[0.28em] text-muted-foreground/70">Inbox</p>
@@ -115,7 +122,7 @@ export default function AdminMessagesPage() {
                     : "hover:border-border/70 hover:bg-surface-muted/60",
                 )}
               >
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-border/70 bg-surface-muted text-sm font-semibold text-foreground shadow-sm shadow-black/5">
                   {u.email[0]?.toUpperCase() ?? "?"}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -139,80 +146,84 @@ export default function AdminMessagesPage() {
   );
 
   return (
-    <div className="grid w-full max-w-full gap-5 lg:grid-cols-[360px,minmax(0,1fr)] lg:items-start lg:gap-6">
-      {/* User List Sidebar */}
-      <aside className="hidden h-full min-h-[480px] lg:flex">
-        {rosterPanel(false)}
-      </aside>
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+        <div className="flex flex-col lg:flex-row lg:items-stretch">
+          {/* User List Sidebar */}
+          <aside className="hidden lg:flex lg:w-[340px] lg:flex-shrink-0 lg:flex-col lg:overflow-hidden lg:border-r lg:border-border/70">
+            {rosterPanel(false, "sidebar")}
+          </aside>
 
-      {/* Conversation Area */}
-      <section className="flex min-h-[500px] min-w-0 flex-col overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-foreground">
-              {selectedUser?.email ?? "Messages"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {selectedUser
-                ? selectedUser.role === "CLIENT"
-                  ? "Client"
-                  : "Admin"
-                : "Browse contacts to start messaging"}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            className="rounded-full"
-            onClick={() => setRosterOpen(true)}
-          >
-            Browse
-          </Button>
-        </div>
-        <div className="relative flex flex-1 flex-col">
-          {loading ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
-              <Loader2 className="mb-4 h-12 w-12 animate-spin text-muted-foreground/50" />
-              <h2 className="mb-1 text-lg font-semibold text-foreground">Loading conversations…</h2>
-              <p className="text-sm text-muted-foreground">Fetching your latest messages</p>
-            </div>
-          ) : !selected ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
-              <MessageSquare className="mb-4 h-12 w-12 text-muted-foreground/50" />
-              <h2 className="mb-1 text-lg font-semibold text-foreground">Select a conversation</h2>
-              <p className="text-sm text-muted-foreground">Choose a user from your roster to view the thread.</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6 sm:py-5">
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
-                    {selectedUser?.email[0]?.toUpperCase() ?? "?"}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{selectedUser?.email}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]"
-                      >
-                        {selectedUser?.role === "CLIENT" ? "Client" : "Admin"}
-                      </Badge>
-                      <span className="shrink-0">{selectedUser?.messageCount ?? 0} message{(selectedUser?.messageCount ?? 0) !== 1 ? "s" : ""}</span>
-                    </div>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
-                  onClick={() => setRosterOpen(true)}
-                >
-                  Switch
-                </Button>
+          {/* Conversation Area */}
+          <div className="flex min-h-[60svh] min-w-0 flex-1 flex-col lg:min-h-[620px]">
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {selectedUser?.email ?? "Messages"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedUser
+                    ? selectedUser.role === "CLIENT"
+                      ? "Client"
+                      : "Admin"
+                    : "Browse contacts to start messaging"}
+                </p>
               </div>
-              <Conversation key={selected} userId={selected} currentUserRole="ADMIN" />
-            </>
-          )}
+              <Button
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setRosterOpen(true)}
+              >
+                Browse
+              </Button>
+            </div>
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              {loading ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+                  <Loader2 className="mb-4 h-12 w-12 animate-spin text-muted-foreground/50" />
+                  <h2 className="mb-1 text-lg font-semibold text-foreground">Loading conversations…</h2>
+                  <p className="text-sm text-muted-foreground">Fetching your latest messages</p>
+                </div>
+              ) : !selected ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+                  <MessageSquare className="mb-4 h-12 w-12 text-muted-foreground/50" />
+                  <h2 className="mb-1 text-lg font-semibold text-foreground">Select a conversation</h2>
+                  <p className="text-sm text-muted-foreground">Choose a user from your roster to view the thread.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6 sm:py-5">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/70 bg-surface-muted text-sm font-semibold text-foreground shadow-sm shadow-black/5">
+                        {selectedUser?.email[0]?.toUpperCase() ?? "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-foreground">{selectedUser?.email}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]"
+                          >
+                            {selectedUser?.role === "CLIENT" ? "Client" : "Admin"}
+                          </Badge>
+                          <span className="shrink-0">{selectedUser?.messageCount ?? 0} message{(selectedUser?.messageCount ?? 0) !== 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                      onClick={() => setRosterOpen(true)}
+                    >
+                      Switch
+                    </Button>
+                  </div>
+                  <Conversation key={selected} userId={selected} currentUserRole="ADMIN" />
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 

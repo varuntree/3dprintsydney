@@ -1,9 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useRouter } from "nextjs-toploader/app";
 import { Menu } from "lucide-react";
 import { getNavSections, QUICK_ACTIONS } from "@/lib/navigation";
 import { getIcon } from "@/lib/icons";
@@ -18,6 +16,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NavigationLink } from "./navigation-link";
+import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
 
 type DrawerUser = {
   email: string;
@@ -27,9 +26,7 @@ type DrawerUser = {
 export function NavigationDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
   const [profile, setProfile] = useState<DrawerUser | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,11 +47,6 @@ export function NavigationDrawer() {
         if (user) {
           setProfile(user);
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingProfile(false);
-        }
       });
     return () => {
       cancelled = true;
@@ -65,12 +57,6 @@ export function NavigationDrawer() {
   const role = profile?.role ?? fallbackRole;
 
   const closeDrawer = () => setIsOpen(false);
-
-  const handleLogout = useCallback(async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setIsOpen(false);
-    router.replace("/login");
-  }, [router]);
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -91,12 +77,12 @@ export function NavigationDrawer() {
         <div className="flex h-full flex-col">
           <SheetHeader className="shrink-0 border-b border-border/60 px-6 pb-6 pt-[calc(1.25rem+env(safe-area-inset-top))]">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-surface-overlay/80 text-sm font-semibold uppercase tracking-[0.35em]">
-                3D
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/70 bg-surface-overlay/80">
+                <AnimatedCubeLogo className="h-6 w-6" />
               </div>
               <div className="min-w-0">
                 <SheetTitle className="truncate text-left text-lg font-semibold tracking-tight text-foreground">
-                  Print Studio
+                  3D Print Sydney
                 </SheetTitle>
                 <p className="text-xs uppercase tracking-[0.32em] text-muted-foreground/70">
                   {role === "CLIENT" ? "Client Portal" : "Operations"}
@@ -163,38 +149,6 @@ export function NavigationDrawer() {
               </section>
             </div>
           </ScrollArea>
-
-          <div className="shrink-0 border-t border-border/60 bg-sidebar/85 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom)+1rem)] pt-5 text-sidebar-foreground/90 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-surface-overlay text-sm font-semibold uppercase tracking-[0.2em] text-sidebar-foreground">
-                {profile?.email ? profile.email[0]?.toUpperCase() : "3D"}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">
-                  {profile?.email || (loadingProfile ? "Loading…" : "")}
-                </p>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground/80">
-                  {role === "ADMIN" ? "Admin" : "Client"}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              <Link
-                href={role === "CLIENT" ? "/client/account" : "/account"}
-                onClick={closeDrawer}
-                className="flex items-center justify-center rounded-xl border border-border/60 bg-transparent px-3 py-2 text-sm font-medium text-sidebar-foreground transition hover:border-border hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-              >
-                Account settings
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="flex items-center justify-center rounded-xl border border-red-200/80 px-3 py-2 text-sm font-semibold text-red-500 transition hover:border-red-500 hover:bg-red-500 hover:text-white"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -19,10 +19,10 @@ function Tabs({
 }
 
 /**
- * TabsList - Mobile optimized
+ * TabsList - Mobile optimized with enhanced styling
  * - Horizontal scroll on mobile with overflow-x-auto
  * - Increased height on mobile: h-11 for better touch targets
- * - Snap scroll for better UX on mobile
+ * - Enhanced visual design with proper padding and shadows
  * - Full-width on mobile, w-fit on sm+
  */
 function TabsList({
@@ -34,7 +34,7 @@ function TabsList({
       <TabsPrimitive.List
         data-slot="tabs-list"
         className={cn(
-          "inline-flex h-11 w-fit min-w-full items-center justify-start rounded-lg bg-zinc-100 p-[3px] text-zinc-500 sm:h-9 sm:min-w-0 sm:justify-center",
+          "inline-flex h-auto w-fit min-w-full items-center justify-start gap-2 rounded-2xl border border-border/70 bg-surface-overlay/90 p-2 shadow-sm backdrop-blur sm:min-w-0 sm:justify-center",
           className,
         )}
         {...props}
@@ -44,9 +44,10 @@ function TabsList({
 }
 
 /**
- * TabsTrigger - Mobile optimized
+ * TabsTrigger - Mobile optimized with enhanced active state
  * - Increased padding on mobile: px-4 py-2 for better touch
  * - Min width to prevent cramping
+ * - Visible active state with primary color background
  * - Better touch targets
  */
 function TabsTrigger({
@@ -57,7 +58,13 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "inline-flex h-[calc(100%-1px)] min-w-[80px] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-4 py-2 text-sm font-medium text-zinc-600 transition-[color,box-shadow] focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px] data-[state=active]:border-zinc-200 data-[state=active]:bg-white data-[state=active]:text-zinc-900 data-[state=active]:shadow-sm disabled:pointer-events-none disabled:opacity-50 sm:min-w-0 sm:px-3 sm:py-1 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "inline-flex h-9 min-w-[80px] items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-all",
+        "text-muted-foreground hover:text-foreground hover:bg-surface-muted/50",
+        "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "sm:min-w-0 sm:px-3",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}

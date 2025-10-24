@@ -52,18 +52,12 @@ export function AdminShell({ children, user }: AdminShellProps) {
               </div>
               <div className="min-w-0 space-y-1">
                 <p className="truncate text-[11px] font-semibold uppercase tracking-[0.4em] text-muted-foreground/70">
-                  Operations
+                  Admin Portal
                 </p>
                 <p className="truncate text-lg font-semibold tracking-tight text-foreground">
                   3D Print Sydney
                 </p>
               </div>
-            </div>
-            {/* Keep only the Admin pill in the sidebar header */}
-            <div className="mt-6 flex items-center justify-end gap-2 text-[11px] font-medium uppercase tracking-[0.35em] text-muted-foreground/70">
-              <span className="flex shrink-0 items-center rounded-full border border-border/60 px-2 py-0.5 text-[10px] tracking-[0.3em] text-muted-foreground">
-                Admin
-              </span>
             </div>
           </div>
           <ScrollArea className="flex-1 px-6 py-6">
@@ -95,23 +89,6 @@ export function AdminShell({ children, user }: AdminShellProps) {
               ))}
             </nav>
           </ScrollArea>
-          <div className="border-t border-border/70 bg-sidebar/60 px-6 py-6 backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-overlay text-sm font-medium">
-                {user.email[0]?.toUpperCase() ?? "?"}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{user.email}</p>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{user.role}</p>
-              </div>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
-            >
-              Logout
-            </button>
-          </div>
         </div>
       </aside>
 
@@ -123,7 +100,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
               <div className="min-w-0 flex-1 space-y-1">
                 {/* Hide duplicated branding on desktop; show only on mobile */}
                 <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground/70 sm:hidden">
-                  Operations Console
+                  Admin Portal
                 </p>
                 <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:hidden">
                   3D Print Sydney

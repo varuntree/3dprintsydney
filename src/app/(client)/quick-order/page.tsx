@@ -763,8 +763,8 @@ export default function QuickOrderPage() {
                   disabled={loading}
                 />
               </div>
-              <div className="rounded-2xl border border-border/70 bg-background/70 p-4">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/70 p-4">
+                <div className="mb-3 flex flex-shrink-0 items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">Uploaded files</h3>
                   <Button
                     type="button"
@@ -777,7 +777,7 @@ export default function QuickOrderPage() {
                   </Button>
                 </div>
                 {hasUploads ? (
-                  <ul className="space-y-2 max-h-64 overflow-y-auto overflow-x-hidden pr-1">
+                  <ul className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin]">
                     {uploads.map((file) => {
                       const isExpanded = expandedFiles.has(file.id);
                       const fileMetrics = metrics[file.id];
@@ -826,7 +826,7 @@ export default function QuickOrderPage() {
                     })}
                   </ul>
                 ) : (
-                  <div className="flex h-full min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/60 text-center text-sm text-muted-foreground">
+                  <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/60 p-4 text-center text-sm text-muted-foreground">
                     <p>No files yet. Drag and drop or click the square to upload.</p>
                   </div>
                 )}

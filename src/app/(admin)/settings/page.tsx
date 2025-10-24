@@ -3,19 +3,12 @@ import {
   type SettingsPayload,
 } from "@/components/settings/settings-form";
 import { getSettings } from "@/server/services/settings";
-import { PageHeader } from "@/components/ui/page-header";
+import { requireAdmin } from "@/lib/auth-utils";
 
 export default async function SettingsPage() {
+  const user = await requireAdmin();
   const settings = await getSettings();
   const initial = JSON.parse(JSON.stringify(settings)) as SettingsPayload;
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Settings"
-        description="Configure business identity, numbering, payments, and job policies."
-      />
-      <SettingsForm initial={initial} />
-    </div>
-  );
+  return <SettingsForm initial={initial} user={user} />;
 }
