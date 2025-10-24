@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { toast } from "sonner";
+import { Users as UsersIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
+  DataList,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type UserRow = {
   id: number;
@@ -125,7 +136,9 @@ function InviteUserDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm">Invite User</Button>
+        <Button size="sm" className="w-full sm:w-auto">
+          Invite User
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -216,6 +229,14 @@ export default function AdminUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    [],
+  );
 
   useEffect(() => {
     const abort = new AbortController();
@@ -258,31 +279,109 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-semibold">Users</h1>
-        <InviteUserDialog clients={clients} onCreated={handleCreated} />
+        <div className="w-full sm:w-auto">
+          <InviteUserDialog clients={clients} onCreated={handleCreated} />
+        </div>
       </div>
-      <div className="overflow-hidden rounded-lg border border-border bg-surface-overlay">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Messages</TableHead>
-              <TableHead>Created</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u) => (
-              <TableRow key={u.id} className="cursor-pointer" onClick={() => router.push(`/users/${u.id}`)}>
-                <TableCell>{u.email}</TableCell>
-                <TableCell>{u.role}</TableCell>
-                <TableCell>{u.messageCount}</TableCell>
-                <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+
+      <DataList className="md:hidden">
+        {users.length === 0 ? (
+          <EmptyState
+            title="No team members yet"
+            description="Invite your team to collaborate on jobs, quotes, and invoices."
+            icon={<UsersIcon className="h-8 w-8" />}
+            className="rounded-2xl border-border/60 bg-card/80 shadow-sm shadow-black/5"
+          />
+        ) : (
+          users.map((user) => {
+            const roleLabel = user.role === "ADMIN" ? "Admin" : "Client";
+            const subtitle =
+              user.role === "CLIENT"
+                ? user.clientId
+                  ? `Client user • ID ${user.clientId}`
+                  : "Client user"
+                : "Admin user";
+            const createdLabel = dateFormatter.format(new Date(user.createdAt));
+
+            return (
+              <DataListItem key={user.id} asChild>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/users/${user.id}`)}
+                  className="flex w-full flex-col gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                >
+                  <DataListHeader>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold text-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">{subtitle}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs uppercase tracking-[0.2em]">
+                      {roleLabel}
+                    </Badge>
+                  </DataListHeader>
+                  <DataListContent className="space-y-2 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="uppercase tracking-[0.2em]">Messages</span>
+                      <DataListValue className="text-xs font-semibold">
+                        {user.messageCount}
+                      </DataListValue>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="uppercase tracking-[0.2em]">Joined</span>
+                      <DataListValue className="text-xs font-medium">
+                        {createdLabel}
+                      </DataListValue>
+                    </div>
+                  </DataListContent>
+                  <DataListFooter className="justify-end text-xs font-semibold text-blue-600">
+                    Tap to manage
+                  </DataListFooter>
+                </button>
+              </DataListItem>
+            );
+          })
+        )}
+      </DataList>
+
+      <div className="hidden md:block">
+        <div className="overflow-hidden rounded-lg border border-border bg-surface-overlay">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Messages</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
+                      Invite your first teammate to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  users.map((u) => (
+                    <TableRow
+                      key={u.id}
+                      className="cursor-pointer"
+                      onClick={() => router.push(`/users/${u.id}`)}
+                    >
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>{u.role}</TableCell>
+                      <TableCell>{u.messageCount}</TableCell>
+                      <TableCell>{dateFormatter.format(new Date(u.createdAt))}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
     </div>
   );
