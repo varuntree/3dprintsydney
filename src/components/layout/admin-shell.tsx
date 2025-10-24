@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "nextjs-toploader/app";
 import { OWNER_NAV_SECTIONS, QUICK_ACTIONS } from "@/lib/navigation";
@@ -13,7 +12,6 @@ import { ActionButton } from "@/components/ui/action-button";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
 import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
-import { Settings } from "lucide-react";
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -125,15 +123,6 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   </ActionButton>
                 );
               })}
-              <Link
-                href="/account"
-                className="flex items-center justify-center rounded-full border border-border/70 bg-background/80 px-4 py-2 font-medium text-foreground shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
-                title="Account settings"
-                aria-label="Account settings"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="hidden lg:inline ml-2">Settings</span>
-              </Link>
               <button
                 onClick={handleLogout}
                 className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
@@ -161,15 +150,6 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   </ActionButton>
                 );
               })}
-              <Link
-                href="/account"
-                className="flex-shrink-0 flex items-center gap-1 rounded-full border border-border/60 bg-background/70 px-3 py-2 text-xs font-semibold transition hover:border-border hover:bg-background"
-                title="Account settings"
-                aria-label="Account settings"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </Link>
               <button
                 onClick={handleLogout}
                 className="flex-shrink-0 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
