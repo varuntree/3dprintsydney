@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/server/auth/api-helpers";
+import { requireClientWithId } from "@/server/auth/api-helpers";
 import {
   createQuickOrderInvoice,
   type QuickOrderItemInput,
@@ -17,10 +17,7 @@ import { logger } from "@/lib/logger";
  */
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    if (!user.clientId) {
-      return fail("NO_CLIENT", "User not linked to client", 400);
-    }
+    const user = await requireClientWithId(req);
 
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
@@ -34,7 +31,7 @@ export async function POST(req: NextRequest) {
     const result = await createQuickOrderInvoice(
       items,
       user.id,
-      user.clientId, // TypeScript knows this is number due to guard above
+      user.clientId,
       address,
     );
 

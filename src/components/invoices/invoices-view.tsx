@@ -25,6 +25,15 @@ import { InlineLoader } from "@/components/ui/loader";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { useStripeStatus } from "@/hooks/use-stripe-status";
 import { DataCard } from "@/components/ui/data-card";
+import {
+  DataList,
+  DataListBadge,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 
 
 export type InvoiceSummaryRecord = {
@@ -195,72 +204,131 @@ export function InvoicesView({ initial }: InvoicesViewProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Issued</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="p-0">
-                        <EmptyState
-                          title="No invoices in this view"
-                          description="Adjust filters or create a new invoice to see it here."
-                          className="rounded-2xl border-border"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filtered.map((invoice) => (
-                      <TableRow
-                        key={invoice.id}
-                        className="hover:bg-surface-elevated transition-colors"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <NavigationLink
-                              href={`/invoices/${invoice.id}`}
-                              className="font-medium text-foreground hover:underline"
-                            >
-                              {invoice.number}
-                            </NavigationLink>
-                            {invoice.hasStripeLink ? (
-                              <Badge
-                                variant="outline"
-                                className="px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] border-emerald-200/70 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-900/20 dark:text-emerald-300"
-                              >
-                                Stripe
-                              </Badge>
-                            ) : null}
+              <DataList className="md:hidden">
+                {filtered.length === 0 ? (
+                  <EmptyState
+                    title="No invoices in this view"
+                    description="Adjust filters or create a new invoice to see it here."
+                    className="rounded-2xl border-border"
+                  />
+                ) : (
+                  filtered.map((invoice) => (
+                    <DataListItem key={invoice.id}>
+                      <DataListHeader>
+                        <div className="space-y-1">
+                          <NavigationLink
+                            href={`/invoices/${invoice.id}`}
+                            className="text-base font-semibold text-foreground hover:underline"
+                          >
+                            {invoice.number}
+                          </NavigationLink>
+                          <p className="text-sm text-muted-foreground">{invoice.clientName}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                            <span>Issued {formatDate(invoice.issueDate)}</span>
+                            <span>•</span>
+                            <span>Due {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}</span>
                           </div>
-                        </TableCell>
-                        <TableCell>{invoice.clientName}</TableCell>
-                        <TableCell>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
                           <StatusBadge status={invoice.status} size="sm" />
-                        </TableCell>
-                        <TableCell>{formatDate(invoice.issueDate)}</TableCell>
-                        <TableCell>
-                          {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(invoice.total)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(invoice.balanceDue)}
+                          {invoice.hasStripeLink ? (
+                            <DataListBadge className="border-emerald-200/70 bg-emerald-50 text-emerald-700">
+                              Stripe
+                            </DataListBadge>
+                          ) : null}
+                        </div>
+                      </DataListHeader>
+                      <DataListContent className="grid grid-cols-2 gap-3 text-left text-xs text-muted-foreground">
+                        <div>
+                          <p className="uppercase tracking-[0.2em]">Total</p>
+                          <DataListValue>{formatCurrency(invoice.total)}</DataListValue>
+                        </div>
+                        <div className="text-right">
+                          <p className="uppercase tracking-[0.2em]">Balance</p>
+                          <DataListValue>{formatCurrency(invoice.balanceDue)}</DataListValue>
+                        </div>
+                      </DataListContent>
+                      <DataListFooter className="justify-end">
+                        <NavigationLink
+                          href={`/invoices/${invoice.id}`}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          View invoice
+                        </NavigationLink>
+                      </DataListFooter>
+                    </DataListItem>
+                  ))
+                )}
+              </DataList>
+
+              <div className="hidden overflow-x-auto md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Invoice</TableHead>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Issued</TableHead>
+                      <TableHead>Due</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="p-0">
+                          <EmptyState
+                            title="No invoices in this view"
+                            description="Adjust filters or create a new invoice to see it here."
+                            className="rounded-2xl border-border"
+                          />
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filtered.map((invoice) => (
+                        <TableRow
+                          key={invoice.id}
+                          className="transition-colors hover:bg-surface-elevated"
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <NavigationLink
+                                href={`/invoices/${invoice.id}`}
+                                className="font-medium text-foreground hover:underline"
+                              >
+                                {invoice.number}
+                              </NavigationLink>
+                              {invoice.hasStripeLink ? (
+                                <Badge
+                                  variant="outline"
+                                  className="px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] border-emerald-200/70 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-900/20 dark:text-emerald-300"
+                                >
+                                  Stripe
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell>{invoice.clientName}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={invoice.status} size="sm" />
+                          </TableCell>
+                          <TableCell>{formatDate(invoice.issueDate)}</TableCell>
+                          <TableCell>
+                            {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(invoice.total)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(invoice.balanceDue)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

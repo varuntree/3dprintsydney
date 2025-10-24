@@ -7,6 +7,8 @@ export type LegacyUser = {
   clientId: number | null;
   name?: string | null;
   phone?: string | null;
+  studentDiscountEligible?: boolean;
+  studentDiscountRate?: number;
 };
 
 /**
@@ -19,6 +21,8 @@ export type UserDTO = {
   clientId: number | null;
   createdAt: string;
   messageCount?: number;
+  studentDiscountEligible?: boolean;
+  studentDiscountRate?: number;
 };
 
 /**

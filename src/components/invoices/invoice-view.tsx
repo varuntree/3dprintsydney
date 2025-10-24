@@ -42,6 +42,8 @@ export interface InvoiceViewModel {
   clientName: string;
   paymentTerms: { label: string; days: number } | null;
   subtotal: number;
+  discountType: string;
+  discountValue: number;
   shippingCost: number;
   taxTotal: number;
   total: number;
@@ -532,6 +534,8 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
 
       <TotalsSection
         subtotal={invoice.subtotal}
+        discountType={invoice.discountType}
+        discountValue={invoice.discountValue}
         shippingCost={invoice.shippingCost}
         taxTotal={invoice.taxTotal}
         total={invoice.total}
@@ -621,6 +625,8 @@ function SummaryCard({
 
 function TotalsSection({
   subtotal,
+  discountType,
+  discountValue,
   shippingCost,
   taxTotal,
   total,
@@ -629,6 +635,8 @@ function TotalsSection({
   paidAt,
 }: {
   subtotal: number;
+  discountType: string;
+  discountValue: number;
   shippingCost: number;
   taxTotal: number;
   total: number;
@@ -636,17 +644,55 @@ function TotalsSection({
   currency: string;
   paidAt: Date | null;
 }) {
+  const hasDiscount =
+    (discountType === "PERCENT" && discountValue > 0) ||
+    (discountType === "FIXED" && discountValue > 0);
+  const discountAmount = hasDiscount
+    ? discountType === "PERCENT"
+      ? Math.max(0, subtotal * (discountValue / 100))
+      : Math.max(0, discountValue)
+    : 0;
+  const discountedSubtotal = hasDiscount
+    ? Math.max(0, subtotal - discountAmount)
+    : subtotal;
   return (
     <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
       <CardContent className="flex justify-end">
         <table className="w-full max-w-sm text-sm">
           <tbody>
-            <tr>
-              <td>Subtotal</td>
-              <td className="text-right">
-                {formatCurrency(subtotal, currency)}
-              </td>
-            </tr>
+            {hasDiscount ? (
+              <>
+                <tr className="text-muted-foreground">
+                  <td>Original subtotal</td>
+                  <td className="text-right line-through">
+                    {formatCurrency(subtotal, currency)}
+                  </td>
+                </tr>
+                <tr className="text-emerald-700">
+                  <td>
+                    Discount (
+                    {discountType === "PERCENT"
+                      ? `${discountValue}%`
+                      : formatCurrency(discountValue, currency)}
+                    )
+                  </td>
+                  <td className="text-right">- {formatCurrency(discountAmount, currency)}</td>
+                </tr>
+                <tr>
+                  <td>Subtotal after discount</td>
+                  <td className="text-right">
+                    {formatCurrency(discountedSubtotal, currency)}
+                  </td>
+                </tr>
+              </>
+            ) : (
+              <tr>
+                <td>Subtotal</td>
+                <td className="text-right">
+                  {formatCurrency(subtotal, currency)}
+                </td>
+              </tr>
+            )}
             <tr>
               <td>Shipping</td>
               <td className="text-right">

@@ -51,6 +51,14 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Printer, Settings, Zap } from "lucide-react";
+import {
+  DataList,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 
 export type PrinterRecord = {
   id: number;
@@ -291,6 +299,80 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
           </h2>
         </div>
         <div className="p-6">
+          <DataList className="md:hidden">
+            {printers.length === 0 ? (
+              <EmptyState
+                title="No printers registered yet"
+                description="Add your primary machines here."
+                icon={<Printer className="h-8 w-8" />}
+                actions={
+                  <Button className="rounded-full" onClick={openCreate}>
+                    Add Printer
+                  </Button>
+                }
+                className="rounded-2xl border-border"
+              />
+            ) : (
+              printers.map((printer) => (
+                <DataListItem key={printer.id}>
+                  <DataListHeader>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold text-foreground">
+                        {printer.name}
+                      </p>
+                      {printer.notes ? (
+                        <p className="text-xs text-muted-foreground">{printer.notes}</p>
+                      ) : null}
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={statusBadgeStyles[printer.status]}
+                    >
+                      {statusLabels[printer.status]}
+                    </Badge>
+                  </DataListHeader>
+                  <DataListContent className="grid gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span className="uppercase tracking-[0.2em]">Model</span>
+                      <DataListValue className="text-xs font-medium">
+                        {printer.model || "—"}
+                      </DataListValue>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="uppercase tracking-[0.2em]">Build Volume</span>
+                      <DataListValue className="text-xs font-medium">
+                        {printer.buildVolume || "—"}
+                      </DataListValue>
+                    </div>
+                  </DataListContent>
+                  <DataListFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-full"
+                      onClick={() => openEdit(printer)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-full border-red-200 text-red-600 hover:border-red-500 hover:bg-red-600 hover:text-white"
+                      onClick={() => {
+                        if (deleteMutation.isPending) return;
+                        const confirmDelete = window.confirm(`Delete ${printer.name}?`);
+                        if (confirmDelete) deleteMutation.mutate(printer.id);
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </Button>
+                  </DataListFooter>
+                </DataListItem>
+              ))
+            )}
+          </DataList>
+          <div className="hidden overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -394,6 +476,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
 
@@ -401,7 +484,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-xl rounded-3xl">
+        <DialogContent className="w-[min(100vw-2rem,520px)] max-w-xl rounded-3xl sm:w-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New printer"}

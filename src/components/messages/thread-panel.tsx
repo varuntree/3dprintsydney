@@ -25,13 +25,13 @@ export function ThreadPanel({ invoiceId }: { invoiceId: number }) {
   }, [invoiceId, tab]);
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="space-y-3">
-      <TabsList className="flex flex-wrap gap-2 rounded-3xl border border-border bg-surface-overlay p-1">
+    <Tabs value={tab} onValueChange={setTab} className="w-full max-w-full space-y-3">
+      <TabsList className="flex w-full flex-wrap gap-2 rounded-3xl border border-border bg-surface-overlay p-1">
         <TabsTrigger value="activity">Activity</TabsTrigger>
         <TabsTrigger value="messages">Messages</TabsTrigger>
       </TabsList>
       <TabsContent value="activity">
-        <Card className="border border-border bg-surface-overlay">
+        <Card className="w-full max-w-full border border-border bg-surface-overlay">
           <CardContent className="divide-y">
             {loading ? (
               <p className="py-3 text-sm text-muted-foreground">Loading…</p>
@@ -50,8 +50,8 @@ export function ThreadPanel({ invoiceId }: { invoiceId: number }) {
         </Card>
       </TabsContent>
       <TabsContent value="messages">
-        <Card className="border border-border bg-surface-overlay">
-          <CardContent>
+        <Card className="w-full max-w-full overflow-hidden border border-border bg-surface-overlay">
+          <CardContent className="p-0">
             <Conversation invoiceId={invoiceId} />
           </CardContent>
         </Card>

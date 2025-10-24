@@ -22,6 +22,7 @@ import type {
   QuoteStatus as QuoteStatusValue,
 } from "@/lib/constants/enums";
 import { getInvoice } from "@/server/services/invoices";
+import { coerceStudentDiscount, getClientStudentDiscount } from '@/server/services/student-discount';
 import { AppError, NotFoundError } from "@/lib/errors";
 import { deleteFromStorage } from "@/server/storage/supabase";
 import type {
@@ -362,28 +363,37 @@ function computeTotals(payload: QuoteInput) {
  * @throws AppError if database operations fail
  */
 export async function createQuote(input: QuoteInput) {
-  const totals = computeTotals(input);
+  const studentDiscount = await getClientStudentDiscount(input.clientId);
+  const coercedDiscount = coerceStudentDiscount(studentDiscount);
+  const payload: QuoteInput = studentDiscount.eligible
+    ? {
+        ...input,
+        discountType: coercedDiscount.discountType,
+        discountValue: coercedDiscount.discountValue,
+      }
+    : { ...input, discountValue: input.discountValue ?? 0 };
+  const totals = computeTotals(payload);
 
   const supabase = getServiceSupabase();
-  const issueDate = input.issueDate ? new Date(input.issueDate) : new Date();
-  const expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
+  const issueDate = payload.issueDate ? new Date(payload.issueDate) : new Date();
+  const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
   const number = await nextDocumentNumber("quote");
 
   const { data: created, error } = await supabase
     .from("quotes")
     .insert({
       number,
-      client_id: input.clientId,
+      client_id: payload.clientId,
       status: QuoteStatusEnum.DRAFT,
       issue_date: issueDate.toISOString(),
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(input.taxRate),
-      discount_type: mapDiscount(input.discountType),
-      discount_value: toDecimal(input.discountValue),
-      shipping_cost: toDecimal(input.shippingCost),
-      shipping_label: input.shippingLabel || null,
-      notes: input.notes || null,
-      terms: input.terms || null,
+      tax_rate: toDecimal(payload.taxRate),
+      discount_type: mapDiscount(payload.discountType),
+      discount_value: toDecimal(payload.discountValue),
+      shipping_cost: toDecimal(payload.shippingCost),
+      shipping_label: payload.shippingLabel || null,
+      notes: payload.notes || null,
+      terms: payload.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -395,7 +405,7 @@ export async function createQuote(input: QuoteInput) {
     throw new AppError(`Failed to create quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = input.lines.map((line, index) => ({
+  const itemPayload = payload.lines.map((line, index) => ({
     quote_id: created.id,
     product_template_id: line.productTemplateId ?? null,
     name: line.name,
@@ -447,24 +457,33 @@ export async function createQuote(input: QuoteInput) {
  * @throws AppError if database operations fail
  */
 export async function updateQuote(id: number, input: QuoteInput) {
-  const totals = computeTotals(input);
+  const studentDiscount = await getClientStudentDiscount(input.clientId);
+  const coercedDiscount = coerceStudentDiscount(studentDiscount);
+  const payload: QuoteInput = studentDiscount.eligible
+    ? {
+        ...input,
+        discountType: coercedDiscount.discountType,
+        discountValue: coercedDiscount.discountValue,
+      }
+    : { ...input, discountValue: input.discountValue ?? 0 };
+  const totals = computeTotals(payload);
   const supabase = getServiceSupabase();
-  const issueDate = input.issueDate ? new Date(input.issueDate) : undefined;
-  const expiryDate = input.expiryDate ? new Date(input.expiryDate) : null;
+  const issueDate = payload.issueDate ? new Date(payload.issueDate) : undefined;
+  const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
 
   const { data: updated, error } = await supabase
     .from("quotes")
     .update({
-      client_id: input.clientId,
+      client_id: payload.clientId,
       issue_date: issueDate ? issueDate.toISOString() : undefined,
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(input.taxRate),
-      discount_type: mapDiscount(input.discountType),
-      discount_value: toDecimal(input.discountValue),
-      shipping_cost: toDecimal(input.shippingCost),
-      shipping_label: input.shippingLabel || null,
-      notes: input.notes || null,
-      terms: input.terms || null,
+      tax_rate: toDecimal(payload.taxRate),
+      discount_type: mapDiscount(payload.discountType),
+      discount_value: toDecimal(payload.discountValue),
+      shipping_cost: toDecimal(payload.shippingCost),
+      shipping_label: payload.shippingLabel || null,
+      notes: payload.notes || null,
+      terms: payload.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -485,7 +504,7 @@ export async function updateQuote(id: number, input: QuoteInput) {
     throw new AppError(`Failed to reset quote items: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = input.lines.map((line, index) => ({
+  const itemPayload = payload.lines.map((line, index) => ({
     quote_id: id,
     product_template_id: line.productTemplateId ?? null,
     name: line.name,

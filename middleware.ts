@@ -5,7 +5,6 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 
 const PUBLIC_ROUTES = ["/login", "/signup"];
-const MARKETING_ROUTES: string[] = [];
 const ACCESS_COOKIE = "sb:token";
 const REFRESH_COOKIE = "sb:refresh-token";
 
@@ -53,13 +52,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
-  const isMarketing = MARKETING_ROUTES.some((route) =>
-    pathname === route || pathname.startsWith(route + "/")
-  );
 
-  // Allow marketing routes for everyone (authenticated or not)
-  if (isMarketing) {
-    return response;
+  // Redirect root path based on authentication status
+  if (pathname === "/") {
+    if (!authUser) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    // If authenticated, continue to check profile and redirect to dashboard below
   }
 
   if (!authUser) {
@@ -85,7 +84,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isPublic) {
+  if (isPublic || pathname === "/") {
     const homeUrl = profile.role === "ADMIN" ? "/dashboard" : "/client";
     return NextResponse.redirect(new URL(homeUrl, request.url));
   }

@@ -175,6 +175,22 @@ export function InvoiceEditor({
   const selectedClient = useMemo(() => {
     return clients.find((client) => client.id === watchedClientId) ?? null;
   }, [clients, watchedClientId]);
+  const discountLocked = selectedClient?.studentDiscountEligible ?? false;
+  const lockedDiscountRate = selectedClient?.studentDiscountRate ?? 0;
+
+  useEffect(() => {
+    if (!selectedClient || !selectedClient.studentDiscountEligible) {
+      return;
+    }
+    const currentType = form.getValues("discountType");
+    const currentValue = form.getValues("discountValue") ?? 0;
+    if (currentType !== "PERCENT") {
+      form.setValue("discountType", "PERCENT", { shouldDirty: true, shouldValidate: true });
+    }
+    if (currentValue !== lockedDiscountRate) {
+      form.setValue("discountValue", lockedDiscountRate, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [selectedClient, lockedDiscountRate, form]);
 
   const resolvedPaymentTerm = useMemo(() => {
     if (paymentTermOptions.length === 0) {
@@ -428,7 +444,7 @@ export function InvoiceEditor({
   return (
     <Form {...form}>
       <form
-        className="space-y-8"
+        className="space-y-8 pb-28"
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       >
         <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
@@ -602,9 +618,16 @@ export function InvoiceEditor({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Discount type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(value) => {
+                        if (discountLocked) return;
+                        field.onChange(value);
+                      }}
+                      value={field.value}
+                      disabled={discountLocked}
+                    >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger disabled={discountLocked}>
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                       </FormControl>
@@ -616,6 +639,11 @@ export function InvoiceEditor({
                         ))}
                       </SelectContent>
                     </Select>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Locked to the automatic student discount.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -637,8 +665,14 @@ export function InvoiceEditor({
                             normalizeNumber(event.target.valueAsNumber),
                           )
                         }
+                        disabled={discountLocked}
                       />
                     </FormControl>
+                    {discountLocked ? (
+                      <FormDescription className="text-emerald-700">
+                        Fixed at {lockedDiscountRate}% for student pricing.
+                      </FormDescription>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1217,17 +1251,37 @@ export function InvoiceEditor({
           </CardFooter>
         </Card>
 
-        <div className="flex justify-between">
-          <Button type="button" variant="outline" className="rounded-full" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" className="rounded-full" disabled={mutation.isPending}>
-            {mutation.isPending
-              ? "Saving…"
-              : mode === "create"
-                ? "Create invoice"
-                : "Save changes"}
-          </Button>
+        <div className="sticky bottom-4 z-30 mt-6 flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/95 px-4 py-3 shadow-lg shadow-black/15 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">
+              {mode === "create" ? "Draft invoice" : "Unsaved changes"}
+            </p>
+            <p className="hidden text-[11px] sm:block">
+              Review totals before sending to the client. Primary actions stay pinned so you can save from anywhere on the page.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => router.back()}
+              disabled={mutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="rounded-full"
+              disabled={mutation.isPending}
+            >
+              {mutation.isPending
+                ? "Saving…"
+                : mode === "create"
+                  ? "Create invoice"
+                  : "Save changes"}
+            </Button>
+          </div>
         </div>
       </form>
 

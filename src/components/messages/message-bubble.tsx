@@ -27,26 +27,26 @@ export function MessageBubble({ message, isOwn, showTime = true }: MessageBubble
   return (
     <div
       className={cn(
-        "flex w-full",
+        "flex w-full max-w-full min-w-0",
         isOwn ? "justify-end" : "justify-start"
       )}
     >
       <div
         className={cn(
-          "max-w-[75%] rounded-lg px-3 py-2 shadow-sm",
+          "max-w-[90%] min-w-0 rounded-2xl px-3 py-2.5 text-sm leading-relaxed shadow-sm shadow-black/10 sm:max-w-[85%] sm:px-4 sm:py-3 md:max-w-[75%]",
           isOwn
-            ? "rounded-br-sm bg-blue-600 text-white"
-            : "rounded-bl-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+            ? "rounded-br-md bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-white"
+            : "rounded-bl-md border border-border/60 bg-background/95 text-foreground"
         )}
       >
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+        <p className="whitespace-pre-wrap break-words overflow-wrap-anywhere">
           {message.content}
         </p>
         {showTime && (
           <p
             className={cn(
-              "mt-1 text-right text-xs",
-              isOwn ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
+              "mt-1.5 text-right text-[11px] sm:mt-2",
+              isOwn ? "text-blue-100/90" : "text-muted-foreground"
             )}
           >
             {formatMessageTime(message.createdAt)}

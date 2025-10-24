@@ -57,7 +57,7 @@ interface ClientInvoicePageProps {
 export default async function ClientInvoiceDetailPage({ params }: ClientInvoicePageProps) {
   const user = await getUserFromCookies();
   if (!user) redirect("/login");
-  if (user.role !== "CLIENT") redirect("/");
+  if (user.role !== "CLIENT") redirect("/dashboard");
 
   const { id: raw } = await params;
   const id = Number(raw);
@@ -66,6 +66,18 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
   try {
     const detail = await getInvoiceDetail(id);
     if (user.clientId !== detail.client.id) redirect("/client/orders");
+
+    const hasDiscount =
+      (detail.discountType === "PERCENT" && detail.discountValue > 0) ||
+      (detail.discountType === "FIXED" && detail.discountValue > 0);
+    const discountAmount = hasDiscount
+      ? detail.discountType === "PERCENT"
+        ? Math.max(0, detail.subtotal * (detail.discountValue / 100))
+        : Math.max(0, detail.discountValue)
+      : 0;
+    const discountedSubtotal = hasDiscount
+      ? Math.max(0, detail.subtotal - discountAmount)
+      : detail.subtotal;
 
     return (
       <div className="mx-auto max-w-4xl space-y-6">
@@ -81,19 +93,26 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Financial details - Mobile optimized: 2 columns on mobile, 4 on sm+ */}
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4 sm:gap-4">
+            {/* Financial details */}
+            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
               <div className="rounded-lg bg-card/50 p-3">
-                <div className="text-xs text-muted-foreground">Subtotal</div>
-                <div className="mt-1 font-medium">${detail.subtotal.toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">
+                  {hasDiscount ? "Subtotal after discount" : "Subtotal"}
+                </div>
+                <div className="mt-1 font-medium">${discountedSubtotal.toFixed(2)}</div>
+                {hasDiscount ? (
+                  <p className="mt-1 text-[11px] text-emerald-700">
+                    Saved ${discountAmount.toFixed(2)} ({detail.discountValue.toFixed(0)}% student discount)
+                  </p>
+                ) : null}
               </div>
               <div className="rounded-lg bg-card/50 p-3">
                 <div className="text-xs text-muted-foreground">Tax</div>
                 <div className="mt-1 font-medium">${detail.taxTotal.toFixed(2)}</div>
               </div>
-              <div className="rounded-lg bg-primary/10 p-3">
+              <div className="rounded-lg bg-primary/10 p-3 text-primary">
                 <div className="text-xs text-primary">Total</div>
-                <div className="mt-1 font-semibold text-primary">${detail.total.toFixed(2)}</div>
+                <div className="mt-1 text-sm font-semibold">${detail.total.toFixed(2)}</div>
               </div>
               <div className="rounded-lg bg-amber-50 p-3">
                 <div className="text-xs text-amber-700">Balance Due</div>
@@ -165,36 +184,45 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
                         </div>
                         <StatusBadge status={job.status} size="sm" />
                       </div>
-                      <ol className="mt-3 space-y-2">
+                      <ol className="relative mt-3 space-y-3 pl-4">
                         {JOB_STATUS_FLOW.map((status, stepIndex) => {
                           const reached = stepIndex <= safeIndex;
                           const isCurrent = stepIndex === safeIndex;
                           const icon = isCurrent
                             ? job.status === "PAUSED"
                               ? (
-                                  <PauseCircle className="h-4 w-4 text-warning" />
+                                  <PauseCircle className="h-3.5 w-3.5 text-warning" />
                                 )
                               : (
-                                  <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                                  <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
                                 )
                             : reached
                               ? (
-                                  <CheckCircle2 className="h-4 w-4 text-success" />
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                                 )
                               : (
-                                  <Circle className="h-4 w-4 text-muted-foreground" />
+                                  <Circle className="h-3.5 w-3.5 text-muted-foreground" />
                                 );
 
                           return (
-                            <li
-                              key={status}
-                              className="flex items-center gap-2 text-xs uppercase tracking-wide"
-                            >
-                              {icon}
+                            <li key={status} className="relative pl-6">
                               <span
                                 className={cn(
+                                  "absolute left-0 top-1 flex h-4 w-4 items-center justify-center rounded-full border bg-background",
+                                  reached ? "border-primary/60" : "border-border",
+                                  isCurrent && "border-primary bg-primary text-primary-foreground",
+                                )}
+                              >
+                                {icon}
+                              </span>
+                              {stepIndex < JOB_STATUS_FLOW.length - 1 ? (
+                                <span className="absolute left-[7px] top-4 h-[calc(100%-16px)] w-px bg-border/60" aria-hidden />
+                              ) : null}
+                              <span
+                                className={cn(
+                                  "text-xs uppercase tracking-wide",
                                   reached ? "text-foreground" : "text-muted-foreground",
-                                  isCurrent ? "font-medium" : undefined,
+                                  isCurrent ? "font-semibold" : undefined,
                                 )}
                               >
                                 {JOB_STATUS_LABELS[status]}

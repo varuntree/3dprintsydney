@@ -52,6 +52,14 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { DataCard } from "@/components/ui/data-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Package, Zap } from "lucide-react";
+import {
+  DataList,
+  DataListContent,
+  DataListFooter,
+  DataListHeader,
+  DataListItem,
+  DataListValue,
+} from "@/components/ui/data-list";
 
 export type TemplateRecord = {
   id: number;
@@ -327,7 +335,78 @@ export function ProductsView({
           </h2>
         </div>
         <div className="p-6">
-          <Table>
+          <DataList className="md:hidden">
+            {templates.length === 0 ? (
+              <EmptyState
+                title="No templates yet"
+                description="Create one to standardize your quotes."
+                icon={<Package className="h-8 w-8" />}
+                actions={
+                  <Button className="rounded-full" onClick={openCreate}>
+                    Add Template
+                  </Button>
+                }
+                className="rounded-2xl border-border"
+              />
+            ) : (
+              templates.map((template) => (
+                <DataListItem key={template.id}>
+                  <DataListHeader>
+                    <div className="space-y-1">
+                      <p className="text-base font-semibold text-foreground">
+                        {template.name}
+                      </p>
+                      {template.description ? (
+                        <p className="text-xs text-muted-foreground">
+                          {template.description}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Badge variant="outline" className="text-xs uppercase tracking-[0.2em]">
+                      {template.pricingType === "FIXED" ? "Fixed" : "Calculated"}
+                    </Badge>
+                  </DataListHeader>
+                  <DataListContent className="space-y-1 text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span className="uppercase tracking-[0.2em]">Material</span>
+                      <DataListValue className="text-xs font-medium">
+                        {template.materialName ?? "Any"}
+                      </DataListValue>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="uppercase tracking-[0.2em]">Price</span>
+                      <DataListValue className="text-xs font-medium">
+                        {template.pricingType === "FIXED"
+                          ? formatCurrency(template.basePrice ?? 0)
+                          : "Use calculator"}
+                      </DataListValue>
+                    </div>
+                  </DataListContent>
+                  <DataListFooter className="gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-full"
+                      onClick={() => openEdit(template)}
+                    >
+                      <Pencil className="mr-2 h-4 w-4" /> Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-full border-red-200 text-red-600 hover:border-red-500 hover:bg-red-600 hover:text-white"
+                      onClick={() => handleDelete(template)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </Button>
+                  </DataListFooter>
+                </DataListItem>
+              ))
+            )}
+          </DataList>
+          <div className="hidden overflow-x-auto md:block">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -424,7 +503,8 @@ export function ProductsView({
                 ))
               )}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </div>
       </div>
 
@@ -432,7 +512,7 @@ export function ProductsView({
         open={open}
         onOpenChange={(next) => (!next ? closeDialog() : setOpen(true))}
       >
-        <DialogContent className="max-w-2xl rounded-3xl">
+        <DialogContent className="w-[min(100vw-2rem,640px)] max-w-2xl rounded-3xl sm:w-auto">
           <DialogHeader>
             <DialogTitle>
               {editing ? `Edit ${editing.name}` : "New template"}

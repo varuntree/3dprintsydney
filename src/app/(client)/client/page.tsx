@@ -7,7 +7,7 @@ import { ClientDashboard } from "@/components/client/client-dashboard";
 export default async function ClientHome() {
   const user = await getUserFromCookies();
   if (!user) redirect("/login");
-  if (user.role !== "CLIENT") redirect("/");
+  if (user.role !== "CLIENT") redirect("/dashboard");
 
   return <ClientDashboard />;
 }
