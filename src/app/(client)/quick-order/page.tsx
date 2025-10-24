@@ -16,7 +16,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Info,
   X,
   Loader2,
   FileText,
@@ -860,19 +859,7 @@ export default function QuickOrderPage() {
                         <div className="border-t border-border p-3">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs">Material</Label>
-                                <Link
-                                  href="/materials"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(event) => event.stopPropagation()}
-                                  className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline"
-                                >
-                                  <Info className="h-3 w-3" />
-                                  Info
-                                </Link>
-                              </div>
+                              <Label className="text-xs">Material</Label>
                               <Select
                                 value={String(settings[u.id]?.materialId ?? "")}
                                 onValueChange={(v) =>

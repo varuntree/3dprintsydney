@@ -5,15 +5,7 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 
 const PUBLIC_ROUTES = ["/login", "/signup"];
-const MARKETING_ROUTES = [
-  "/",
-  "/services",
-  "/pricing",
-  "/about",
-  "/contact",
-  "/portfolio",
-  "/materials",
-];
+const MARKETING_ROUTES: string[] = [];
 const ACCESS_COOKIE = "sb:token";
 const REFRESH_COOKIE = "sb:refresh-token";
 
