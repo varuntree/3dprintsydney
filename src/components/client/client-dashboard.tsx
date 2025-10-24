@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList, Wallet, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type DashboardStats = {
   totalOrders: number;
@@ -448,8 +449,8 @@ export function ClientDashboard() {
       </Card>
 
       {/* Messages - Compact & Expandable */}
-      <Card className="border border-border bg-surface-overlay">
-        <CardHeader>
+      <Card className="rounded-3xl border border-border/70 bg-surface-overlay shadow-sm shadow-black/5">
+        <CardHeader className="border-b border-border/70">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-base">Messages</CardTitle>
@@ -460,6 +461,7 @@ export function ClientDashboard() {
             <Button
               variant="ghost"
               size="sm"
+              className="rounded-full"
               onClick={() => setMessagesExpanded(!messagesExpanded)}
             >
               {messagesExpanded ? (
@@ -477,7 +479,12 @@ export function ClientDashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className={messagesExpanded ? "h-[600px]" : "h-[300px]"}>
+          <div
+            className={cn(
+              "overflow-hidden rounded-3xl bg-surface-overlay",
+              messagesExpanded ? "h-[600px]" : "h-[340px]"
+            )}
+          >
             <Conversation currentUserRole="CLIENT" />
           </div>
         </CardContent>

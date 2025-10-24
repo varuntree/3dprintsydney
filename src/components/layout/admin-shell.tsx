@@ -116,17 +116,17 @@ export function AdminShell({ children, user }: AdminShellProps) {
       </aside>
 
       <div className="flex min-h-svh flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay/80 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-6 md:px-8">
+        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay/80 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/60">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 md:px-8 md:pb-4">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
-                  Daily Console
-                </h1>
-                <p className="hidden text-sm text-muted-foreground sm:block">
-                  Manage quotes, invoices, jobs, and printers at a glance.
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="hidden text-[11px] font-semibold uppercase tracking-[0.35em] text-muted-foreground/70 sm:block">
+                  Operations Console
                 </p>
+                <h1 className="truncate text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                  3D Print Sydney
+                </h1>
               </div>
             </div>
             <div className="hidden items-center gap-2 md:flex">
@@ -138,7 +138,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
                     href={action.href}
                     variant="outline"
                     size="sm"
-                    className="rounded-full"
+                    className="rounded-full border-border/70 bg-background/80 px-4 py-2 font-medium text-foreground shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
                     title={action.name}
                     aria-label={action.name}
                   >
@@ -149,14 +149,14 @@ export function AdminShell({ children, user }: AdminShellProps) {
               })}
               <button
                 onClick={handleLogout}
-                className="rounded-full border border-red-200 px-3 py-1.5 text-sm text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+                className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
               >
                 Logout
               </button>
             </div>
           </div>
           <div className="md:hidden">
-            <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 sm:px-6" role="list">
+            <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
               {QUICK_ACTIONS.map((action) => {
                 const Icon = getIcon(action.icon);
                 return (
@@ -165,7 +165,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
                     href={action.href}
                     variant="ghost"
                     size="sm"
-                    className="flex-shrink-0 rounded-full border border-border/60 bg-background/60 px-3 py-2 text-xs font-semibold"
+                    className="flex-shrink-0 rounded-full border border-border/60 bg-background/70 px-3 py-2 text-xs font-semibold shadow-sm shadow-black/5"
                     title={action.name}
                     aria-label={action.name}
                   >
@@ -185,7 +185,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 bg-surface-canvas px-4 pb-16 pt-6 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
+        <main className="flex-1 bg-surface-canvas px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pb-20 sm:pt-8 md:px-8">
           <div className="mx-auto w-full max-w-[1440px] space-y-6 sm:space-y-8">
             {children}
           </div>

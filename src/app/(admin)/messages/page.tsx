@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MessageSquare, User, Loader2 } from "lucide-react";
 import { Conversation } from "@/components/messages/conversation";
@@ -70,71 +73,89 @@ export default function AdminMessagesPage() {
   }
 
   const rosterPanel = (closeOnSelect: boolean) => (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Conversations</h1>
-        <MessageSquare className="h-5 w-5 text-muted-foreground" />
-      </div>
-      <Input
-        placeholder="Search users..."
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        className="w-full"
-      />
-      <div className="h-full overflow-y-auto rounded-lg border border-border bg-surface-overlay">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">Loading conversations…</p>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center">
-            <User className="mb-2 h-12 w-12 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">No users found</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
-            {filtered.map((u) => (
-              <li
-                key={u.id}
-                className={cn(
-                  "cursor-pointer p-4 transition-colors hover:bg-surface-muted",
-                  selected === u.id && "bg-surface-muted",
-                )}
-                onClick={() => handleSelectUser(String(u.id), closeOnSelect)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-medium text-white">
+    <Card className="rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+      <CardHeader className="flex items-center justify-between gap-3">
+        <div className="space-y-1">
+          <CardTitle className="text-base font-semibold text-foreground">
+            Conversations
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Browse contacts to start messaging.
+          </CardDescription>
+        </div>
+        <div className="flex size-10 items-center justify-center rounded-xl bg-surface-subtle text-muted-foreground">
+          <MessageSquare className="h-5 w-5" />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Input
+          placeholder="Search users..."
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="w-full"
+        />
+        <ScrollArea className="max-h-[60vh] rounded-2xl border border-border/60 bg-background/80">
+          {loading ? (
+            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">Loading conversations…</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 py-10 text-center text-sm text-muted-foreground">
+              <User className="h-10 w-10 text-muted-foreground/50" />
+              No users found
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 p-2">
+              {filtered.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => handleSelectUser(String(u.id), closeOnSelect)}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-2xl border border-transparent bg-transparent px-3 py-3 text-left transition-all duration-150",
+                    selected === u.id
+                      ? "border-border/70 bg-surface-muted/80 shadow-sm shadow-black/5"
+                      : "hover:border-border/60 hover:bg-surface-muted/60",
+                  )}
+                >
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600/90 via-blue-500/90 to-sky-500/80 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
                     {u.email[0]?.toUpperCase() ?? "?"}
                   </div>
-                  <div className="flex-1 overflow-hidden">
-                    <div className="truncate font-medium">{u.email}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {u.messageCount} message{u.messageCount !== 1 ? "s" : ""}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{u.email}</p>
+                    <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em] text-muted-foreground"
+                      >
+                        {u.role === "CLIENT" ? "Client" : "Admin"}
+                      </Badge>
+                      <span>{u.messageCount} message{u.messageCount !== 1 ? "s" : ""}</span>
                     </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 
   return (
-    <div className="flex h-[calc(100vh-200px)] flex-col gap-4 lg:flex-row">
+    <div className="flex min-h-[min(70vh,720px)] flex-col gap-4 lg:flex-row lg:items-start">
       {/* User List Sidebar */}
-      <aside className="hidden w-full flex-shrink-0 space-y-3 lg:block lg:w-80">
+      <aside className="hidden w-full max-w-sm flex-shrink-0 lg:block">
         {rosterPanel(false)}
       </aside>
 
       {/* Conversation Area */}
-      <div className="flex-1 rounded-lg border border-border bg-surface-overlay">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 lg:hidden">
+      <section className="flex flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-surface-overlay shadow-sm shadow-black/5">
+        <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-3 lg:hidden">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">
-              {selectedUser?.email ?? "Select a conversation"}
+            <p className="truncate text-sm font-semibold text-foreground">
+              {selectedUser?.email ?? "Messages"}
             </p>
             <p className="text-xs text-muted-foreground">
               {selectedUser
@@ -152,48 +173,62 @@ export default function AdminMessagesPage() {
             Browse
           </Button>
         </div>
-        {loading ? (
-          <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-            <Loader2 className="mb-4 h-16 w-16 animate-spin text-muted-foreground/50" />
-            <h2 className="mb-2 text-lg font-semibold">Loading conversations...</h2>
-            <p className="text-sm text-muted-foreground">
-              Fetching your messages
-            </p>
-          </div>
-        ) : !selected ? (
-          <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-            <MessageSquare className="mb-4 h-16 w-16 text-muted-foreground/50" />
-            <h2 className="mb-2 text-lg font-semibold">Select a conversation</h2>
-            <p className="text-sm text-muted-foreground">
-              Choose a user from the list to view their messages
-            </p>
-          </div>
-        ) : (
-          <div className="flex h-full flex-col">
-            {/* Header */}
-            <div className="flex items-center gap-3 border-b border-border p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-medium text-white">
-                {selectedUser?.email[0]?.toUpperCase() ?? "?"}
-              </div>
-              <div>
-                <div className="font-medium">{selectedUser?.email}</div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedUser?.role === "CLIENT" ? "Client" : "Admin"}
-                </div>
-              </div>
+        <div className="relative flex flex-1 flex-col">
+          {loading ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+              <Loader2 className="mb-4 h-12 w-12 animate-spin text-muted-foreground/50" />
+              <h2 className="mb-1 text-lg font-semibold text-foreground">Loading conversations…</h2>
+              <p className="text-sm text-muted-foreground">Fetching your latest messages</p>
             </div>
+          ) : !selected ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+              <MessageSquare className="mb-4 h-12 w-12 text-muted-foreground/50" />
+              <h2 className="mb-1 text-lg font-semibold text-foreground">Select a conversation</h2>
+              <p className="text-sm text-muted-foreground">Choose a user from your roster to view the thread.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-3 border-b border-border/80 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-blue-500 to-sky-500 text-sm font-semibold text-white shadow-sm shadow-blue-500/40">
+                    {selectedUser?.email[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-foreground">{selectedUser?.email}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]"
+                      >
+                        {selectedUser?.role === "CLIENT" ? "Client" : "Admin"}
+                      </Badge>
+                      <span>{selectedUser?.messageCount ?? 0} message{(selectedUser?.messageCount ?? 0) !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                  onClick={() => setRosterOpen(true)}
+                >
+                  Switch
+                </Button>
+              </div>
+              <Conversation key={selected} userId={selected} currentUserRole="ADMIN" />
+            </>
+          )}
+        </div>
+      </section>
 
-            {/* Conversation Component */}
-            <Conversation key={selected} userId={selected} currentUserRole="ADMIN" />
-          </div>
-        )}
-      </div>
       <Sheet open={rosterOpen} onOpenChange={setRosterOpen}>
-        <SheetContent className="h-[80vh] overflow-y-auto rounded-t-3xl bg-background p-6 sm:max-w-md sm:rounded-3xl">
-          <SheetHeader className="px-0">
+        <SheetContent className="flex h-[85vh] w-full max-w-full flex-col overflow-hidden rounded-t-3xl bg-background/95 p-0 sm:max-w-md sm:rounded-3xl">
+          <SheetHeader className="px-6 pt-6">
             <SheetTitle>Conversations</SheetTitle>
           </SheetHeader>
-          <div className="mt-4 space-y-4">{rosterPanel(true)}</div>
+          <div className="flex-1 overflow-y-auto px-6 pb-10">
+            <div className="space-y-4">{rosterPanel(true)}</div>
+          </div>
         </SheetContent>
       </Sheet>
     </div>
