@@ -14,10 +14,7 @@ export default function NotFound() {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Button asChild>
-            <Link href="/">Go to Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/login">Back to Login</Link>
+            <Link href="/login">Go to Login</Link>
           </Button>
         </div>
       </div>
