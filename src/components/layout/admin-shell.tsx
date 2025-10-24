@@ -57,7 +57,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
               </p>
             </div>
           </div>
-          <Separator className="mx-6" />
+          <Separator className="mx-4" />
           <ScrollArea className="flex-1 px-4 py-6">
             <nav className="flex flex-col gap-7">
               {OWNER_NAV_SECTIONS.map((section) => (
@@ -100,7 +100,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
             <div className="mt-4 space-y-2">
               <Link
                 href="/account"
-                className="block w-full rounded-lg border border-border/70 px-3 py-2 text-sm transition hover:border-blue-500 hover:bg-blue-500/10"
+                className="block w-full rounded-lg border border-border/70 px-3 py-2 text-sm text-muted-foreground transition hover:border-border hover:bg-sidebar-accent hover:text-foreground"
               >
                 Account settings
               </Link>

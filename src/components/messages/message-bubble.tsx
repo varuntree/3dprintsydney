@@ -46,7 +46,7 @@ export function MessageBubble({ message, isOwn, showTime = true }: MessageBubble
           <p
             className={cn(
               "mt-1.5 text-right text-[11px] sm:mt-2",
-              isOwn ? "text-blue-100/90" : "text-muted-foreground"
+              isOwn ? "text-white/70" : "text-muted-foreground"
             )}
           >
             {formatMessageTime(message.createdAt)}

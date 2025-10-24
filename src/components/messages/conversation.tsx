@@ -196,7 +196,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className={`flex w-full ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
-                <div className="h-16 w-3/4 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
+                <div className="h-16 w-3/4 animate-pulse rounded-lg bg-[var(--color-info-bg)]" />
               </div>
             ))}
           </div>
@@ -234,7 +234,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
             onClick={send}
             disabled={!content.trim()}
             size="icon"
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/40 transition hover:bg-blue-500 disabled:bg-blue-400/60 sm:h-12 sm:w-12"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-blue-accent)] text-white shadow-lg shadow-[var(--color-blue-accent)]/40 transition hover:bg-[var(--color-blue-accent-dark)] disabled:bg-[var(--color-blue-accent)]/60 sm:h-12 sm:w-12"
             aria-label="Send message"
           >
             <Send className="h-4 w-4 sm:h-5 sm:w-5" />
