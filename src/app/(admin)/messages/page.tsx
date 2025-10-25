@@ -155,7 +155,7 @@ export default function AdminMessagesPage() {
           </aside>
 
           {/* Conversation Area */}
-          <div className="flex min-h-[60svh] min-w-0 flex-1 flex-col lg:min-h-[620px]">
+          <div className="flex min-h-[70svh] min-w-0 flex-1 flex-col lg:min-h-[620px]">
             <div className="flex items-center justify-between gap-3 border-b border-border/70 px-5 py-4 lg:hidden">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-foreground">
