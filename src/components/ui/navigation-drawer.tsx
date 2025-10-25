@@ -72,7 +72,7 @@ export function NavigationDrawer() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="flex h-[100svh] supports-[height:100dvh]:h-[100dvh] w-full max-w-full flex-col overflow-hidden border-r border-border/60 bg-sidebar/95 p-0 text-sidebar-foreground backdrop-blur sm:w-[360px]"
+        className="flex h-full w-full max-w-full flex-col overflow-hidden border-r border-border/60 bg-sidebar/95 p-0 text-sidebar-foreground backdrop-blur sm:w-[360px]"
       >
         <div className="flex h-full flex-col">
           <SheetHeader className="shrink-0 border-b border-border/60 px-6 pb-6 pt-[calc(1.25rem+env(safe-area-inset-top))]">
