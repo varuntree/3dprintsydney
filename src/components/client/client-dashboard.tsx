@@ -7,9 +7,8 @@ import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronRight, ChevronUp, Receipt, DollarSign, Clock, UploadCloud, ClipboardList, Wallet, GraduationCap } from "lucide-react";
+import { ChevronDown, ChevronRight, Receipt, DollarSign, Clock, ClipboardList, Wallet, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 type DashboardStats = {
   totalOrders: number;
@@ -44,14 +43,13 @@ type JobRow = {
  * Provides a comprehensive overview for clients:
  * - Statistics cards (orders, pending, paid, total spent)
  * - Recent orders table (last 5 invoices)
- * - Compact messages (expandable)
+ * - Messages section
  * - Quick actions
  */
 export function ClientDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<InvoiceRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
-  const [messagesExpanded, setMessagesExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -188,40 +186,19 @@ export function ClientDashboard() {
       </div>
 
       {/* Primary Actions */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Link href="/quick-order" className="block h-full">
-          <Card className="h-full gap-4 border-transparent bg-primary text-primary-foreground shadow-lg shadow-primary/40 transition-transform duration-200 hover:-translate-y-1 hover:shadow-primary/60">
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div className="space-y-2">
-                <CardTitle className="text-lg font-semibold">Quick Order</CardTitle>
-                <p className="text-sm text-primary-foreground/80">
-                  Upload STL files and request a quote in minutes.
-                </p>
-              </div>
-              <UploadCloud className="h-6 w-6 text-primary-foreground/85" />
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary-foreground/10 px-4 py-2 text-sm font-medium">
-                Start order
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/client/orders" className="block h-full">
-          <Card className="h-full border border-border bg-surface-overlay transition-transform duration-200 hover:-translate-y-1 hover:bg-surface-muted">
-            <CardHeader className="flex flex-row items-start justify-between">
-              <div className="space-y-2">
-                <CardTitle className="text-base font-semibold">View All Orders</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Track production status, invoices, and payments.
-                </p>
-              </div>
-              <ClipboardList className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-          </Card>
-        </Link>
-      </div>
+      <Link href="/client/orders" className="block">
+        <Card className="border border-border bg-surface-overlay transition-transform duration-200 hover:-translate-y-1 hover:bg-surface-muted">
+          <CardHeader className="flex flex-row items-start justify-between">
+            <div className="space-y-2">
+              <CardTitle className="text-base font-semibold">View All Orders</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Track production status, invoices, and payments.
+              </p>
+            </div>
+            <ClipboardList className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
+        </Card>
+      </Link>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -448,43 +425,18 @@ export function ClientDashboard() {
         </CardContent>
       </Card>
 
-      {/* Messages - Compact & Expandable */}
+      {/* Messages */}
       <Card className="rounded-3xl border border-border/70 bg-surface-overlay shadow-sm shadow-black/5">
         <CardHeader className="border-b border-border/70">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Messages</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Chat with our team about your orders
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-full"
-              onClick={() => setMessagesExpanded(!messagesExpanded)}
-            >
-              {messagesExpanded ? (
-                <>
-                  <ChevronUp className="h-4 w-4 mr-1" />
-                  Collapse
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                  Expand
-                </>
-              )}
-            </Button>
+          <div>
+            <CardTitle className="text-base">Messages</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Chat with our team about your orders
+            </p>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div
-            className={cn(
-              "overflow-hidden rounded-3xl bg-surface-overlay",
-              messagesExpanded ? "h-[600px]" : "h-[340px]"
-            )}
-          >
+          <div className="h-[600px] overflow-hidden rounded-3xl bg-surface-overlay">
             <Conversation currentUserRole="CLIENT" />
           </div>
         </CardContent>

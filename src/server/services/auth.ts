@@ -40,7 +40,14 @@ export type SignupResult = {
  */
 export async function signupClient(
   email: string,
-  password: string
+  password: string,
+  options?: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    businessName?: string;
+    position?: string;
+  }
 ): Promise<SignupResult> {
   const supabase = getServiceSupabase();
 
@@ -81,11 +88,21 @@ export async function signupClient(
   const authUserId = authUser.user.id;
 
   // Create client record
+  const firstName = options?.firstName || '';
+  const lastName = options?.lastName || '';
+  const fullName = firstName && lastName ? `${firstName} ${lastName}` : email.split('@')[0];
+
   const { data: client, error: clientError } = await supabase
     .from('clients')
     .insert({
-      name: email.split('@')[0],
+      name: fullName,
+      first_name: firstName,
+      last_name: lastName,
       email,
+      phone: options?.phone || null,
+      company: options?.businessName || null,
+      // Note: position field doesn't exist in clients table,
+      // it could be added in a future migration if needed for display purposes
     })
     .select('id')
     .single();
@@ -318,10 +335,17 @@ export async function handleLogin(
  */
 export async function handleSignup(
   email: string,
-  password: string
+  password: string,
+  options?: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    businessName?: string;
+    position?: string;
+  }
 ): Promise<SignupWorkflowResult> {
   // Create user (handles all database operations)
-  const result = await signupClient(email, password);
+  const result = await signupClient(email, password, options);
 
   // Create auth session
   const authClient = createClient(getSupabaseUrl(), getSupabaseAnonKey(), {

@@ -8,10 +8,16 @@ import { handleError, fail, ok } from "@/server/api/respond";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password } = signupSchema.parse(body);
+    const { email, password, firstName, lastName, phone, businessName, position } = signupSchema.parse(body);
 
     // Handle complete signup workflow
-    const { session, profile } = await handleSignup(email, password);
+    const { session, profile } = await handleSignup(email, password, {
+      firstName,
+      lastName,
+      phone,
+      businessName,
+      position,
+    });
 
     // Create response with user data
     const response = ok({

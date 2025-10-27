@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { groupMessages, type Message } from "@/lib/chat/group-messages";
 import { MessageBubble } from "./message-bubble";
 import { DateHeader } from "./date-header";
 import { Send } from "lucide-react";
+import { subscribeToMessages } from "@/lib/messages/events";
 
 export type ConversationMessage = Message;
 
@@ -14,6 +15,23 @@ interface ConversationProps {
   invoiceId?: number;
   userId?: number | string; // For admin viewing specific user thread
   currentUserRole?: "ADMIN" | "CLIENT";
+}
+
+function mergeMessageLists(
+  existing: ConversationMessage[],
+  incoming: ConversationMessage[],
+): ConversationMessage[] {
+  if (incoming.length === 0 && existing.length === 0) return [];
+  const map = new Map<number, ConversationMessage>();
+  for (const message of existing) {
+    map.set(message.id, message);
+  }
+  for (const message of incoming) {
+    map.set(message.id, message);
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 }
 
 /**
@@ -35,8 +53,19 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
+  const [viewerId, setViewerId] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      if (!endRef.current) return;
+      window.requestAnimationFrame(() => {
+        endRef.current?.scrollIntoView({ behavior });
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     // Fetch current user role if not provided
@@ -56,7 +85,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId, userId]);
 
-  async function loadPage(p: number, replace = false) {
+  async function loadPage(p: number, replace = false, scrollToBottom = false) {
     if (loading) return;
     setLoading(true);
     setError(null);
@@ -85,7 +114,12 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       setHasMore(list.length === limit);
       if (replace) setMessages(list);
       else setMessages((prev) => [...list, ...prev]);
-      if (replace) setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+
+      // Only scroll to bottom when explicitly requested (e.g., after sending a message)
+      // Not on initial page load
+      if (scrollToBottom) {
+        setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+      }
     } catch {
       setLoading(false);
       setError("Network error. Please check your connection.");
@@ -119,7 +153,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       }
 
       setContent("");
-      await loadPage(0, true);
+      await loadPage(0, true, true); // Scroll to bottom after sending
     } catch {
       setError("Network error. Please try again.");
     }

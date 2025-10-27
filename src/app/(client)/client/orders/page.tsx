@@ -182,21 +182,26 @@ export default function ClientOrdersPage() {
         </table>
       </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center">
-        <Button
-          variant="outline"
-          size="default"
-          disabled={!hasMore}
-          onClick={() => {
-            const n = page + 1;
-            setPage(n);
-            load(n);
-          }}
-        >
-          Load more
-        </Button>
-      </div>
+      {/* Pagination and Empty State */}
+      {rows.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-muted-foreground">No orders to view</p>
+        </div>
+      ) : hasMore ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => {
+              const n = page + 1;
+              setPage(n);
+              load(n);
+            }}
+          >
+            Load more
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }
