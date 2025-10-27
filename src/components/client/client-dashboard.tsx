@@ -7,7 +7,7 @@ import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronRight, Receipt, DollarSign, Clock, ClipboardList, Wallet, GraduationCap } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Receipt, DollarSign, Clock, ClipboardList, Wallet, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type DashboardStats = {

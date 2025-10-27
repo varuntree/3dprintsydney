@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { groupMessages, type Message } from "@/lib/chat/group-messages";
 import { MessageBubble } from "./message-bubble";
 import { DateHeader } from "./date-header";
 import { Send } from "lucide-react";
-import { subscribeToMessages } from "@/lib/messages/events";
 
 export type ConversationMessage = Message;
 
