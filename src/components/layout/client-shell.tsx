@@ -13,6 +13,7 @@ import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
 import { GraduationCap, Settings } from "lucide-react";
 import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
+import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 
 interface ClientShellProps {
   children: React.ReactNode;
@@ -120,6 +121,7 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 <Settings className="h-4 w-4" />
                 <span className="hidden lg:inline ml-2">Settings</span>
               </Link>
+              <NotificationDropdown user={user} />
               <button
                 onClick={handleLogout}
                 className="min-h-[44px] flex items-center justify-center rounded-full border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
@@ -129,13 +131,16 @@ export function ClientShell({ children, user }: ClientShellProps) {
               </button>
             </div>
           </div>
-          <div className="md:hidden">
-            <div className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
-              <Link
-                href="/client/account"
-                className="flex min-h-[44px] flex-shrink-0 items-center justify-center gap-1 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-semibold transition hover:border-border hover:bg-background"
-                title="Account settings"
-                aria-label="Account settings"
+            <div className="md:hidden">
+              <div className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
+                <div className="flex min-h-[44px] flex-shrink-0 items-center">
+                  <NotificationDropdown user={user} />
+                </div>
+                <Link
+                  href="/client/account"
+                  className="flex min-h-[44px] flex-shrink-0 items-center justify-center gap-1 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-semibold transition hover:border-border hover:bg-background"
+                  title="Account settings"
+                  aria-label="Account settings"
               >
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>

@@ -12,6 +12,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
 import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
+import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -123,6 +124,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
                   </ActionButton>
                 );
               })}
+              <NotificationDropdown user={user} />
               <button
                 onClick={handleLogout}
                 className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
@@ -131,13 +133,16 @@ export function AdminShell({ children, user }: AdminShellProps) {
               </button>
             </div>
           </div>
-          <div className="md:hidden">
-            <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
-              {QUICK_ACTIONS.map((action) => {
-                const Icon = getIcon(action.icon);
-                return (
-                  <ActionButton
-                    key={action.href}
+            <div className="md:hidden">
+              <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
+                <div className="flex-shrink-0">
+                  <NotificationDropdown user={user} />
+                </div>
+                {QUICK_ACTIONS.map((action) => {
+                  const Icon = getIcon(action.icon);
+                  return (
+                    <ActionButton
+                      key={action.href}
                     href={action.href}
                     variant="ghost"
                     size="sm"
@@ -149,11 +154,11 @@ export function AdminShell({ children, user }: AdminShellProps) {
                     {action.name}
                   </ActionButton>
                 );
-              })}
-              <button
-                onClick={handleLogout}
-                className="flex-shrink-0 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
-                aria-label="Logout"
+                })}
+                <button
+                  onClick={handleLogout}
+                  className="flex-shrink-0 rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
+                  aria-label="Logout"
               >
                 Logout
               </button>
