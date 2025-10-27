@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRouter } from "nextjs-toploader/app";
 import { CLIENT_NAV_SECTIONS } from "@/lib/navigation";
@@ -11,7 +9,7 @@ import { NavigationLink } from "@/components/ui/navigation-link";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { MutationLoader } from "@/components/ui/mutation-loader";
 import type { LegacyUser } from "@/lib/types/user";
-import { GraduationCap, Settings } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { AnimatedCubeLogo } from "@/components/branding/animated-cube-logo";
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
 
@@ -112,15 +110,6 @@ export function ClientShell({ children, user }: ClientShellProps) {
               </div>
             </div>
             <div className="hidden items-center gap-2 md:flex">
-              <Link
-                href="/client/account"
-                className="flex items-center justify-center rounded-full border border-border/70 bg-background/80 px-4 py-2 font-medium text-foreground shadow-sm shadow-black/5 transition hover:border-border hover:bg-background"
-                title="Account settings"
-                aria-label="Account settings"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="hidden lg:inline ml-2">Settings</span>
-              </Link>
               <NotificationDropdown user={user} />
               <button
                 onClick={handleLogout}
@@ -136,15 +125,6 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 <div className="flex min-h-[44px] flex-shrink-0 items-center">
                   <NotificationDropdown user={user} />
                 </div>
-                <Link
-                  href="/client/account"
-                  className="flex min-h-[44px] flex-shrink-0 items-center justify-center gap-1 rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-semibold transition hover:border-border hover:bg-background"
-                  title="Account settings"
-                  aria-label="Account settings"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </Link>
               <button
                 onClick={handleLogout}
                 className="flex min-h-[44px] flex-shrink-0 items-center justify-center rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"

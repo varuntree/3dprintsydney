@@ -123,13 +123,6 @@ export default function LoginPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-sm text-foreground/70">
-            <Link
-              href="/quick-order"
-              className="inline-flex items-center gap-2 font-semibold text-primary transition hover:text-primary/80"
-            >
-              Need a quote instead?
-              <ArrowUpRight className="h-4 w-4" aria-hidden />
-            </Link>
             <span className="hidden sm:inline">Same-day production available</span>
           </div>
         </div>

@@ -164,7 +164,7 @@ export default function ClientOrdersPage() {
                   <td className="px-3 py-2 text-right">{formatCurrency(r.balanceDue)}</td>
                   <td className="px-3 py-2 text-right">
                     {isPaid ? (
-                      <span className="text-xs font-medium text-muted-foreground">Paid</span>
+                      <span className="block w-full text-center text-xs font-medium text-muted-foreground">Paid</span>
                     ) : (
                       <PayOnlineButton
                         invoiceId={r.id}

@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   UploadCloud,
   Settings2,
@@ -23,6 +31,7 @@ import {
   Eye,
   EyeOff,
   Info,
+  Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import STLViewerWrapper, { type STLViewerRef } from "@/components/3d/STLViewerWrapper";
@@ -73,6 +82,24 @@ type PriceDataState = {
   total: number;
 };
 
+type DraftState = {
+  timestamp: number;
+  step: Step;
+  uploads: Array<{ id: string; filename: string; size: number }>;
+  settings: Record<string, FileSettings>;
+  orientedFileIds: Record<string, string>;
+  address: {
+    name: string;
+    line1: string;
+    line2: string;
+    city: string;
+    state: string;
+    postcode: string;
+    phone: string;
+  };
+  metrics: Record<string, { grams: number; timeSec: number; fallback?: boolean; error?: string }>;
+};
+
 export default function QuickOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>("upload");
@@ -112,6 +139,93 @@ export default function QuickOrderPage() {
   const [isLocking, setIsLocking] = useState(false);
   const viewerRef = useRef<STLViewerRef>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
+
+  // Draft auto-save state
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const draftLoadedRef = useRef(false);
+
+  // Draft localStorage management
+  const DRAFT_KEY = "quick-order-draft";
+
+  const saveDraft = useCallback(() => {
+    try {
+      const draft = {
+        timestamp: Date.now(),
+        step: currentStep,
+        uploads: uploads.map((u) => ({ id: u.id, filename: u.filename, size: u.size })),
+        settings,
+        orientedFileIds,
+        address,
+        metrics,
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+    }
+  }, [currentStep, uploads, settings, orientedFileIds, address, metrics]);
+
+  const loadDraft = useCallback((): DraftState | null => {
+    try {
+      const stored = localStorage.getItem(DRAFT_KEY);
+      if (!stored) return null;
+      return JSON.parse(stored) as DraftState;
+    } catch (error) {
+      console.error("Failed to load draft:", error);
+      return null;
+    }
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      setHasDraft(false);
+    } catch (error) {
+      console.error("Failed to clear draft:", error);
+    }
+  }, []);
+
+  const restoreDraft = useCallback((draft: DraftState) => {
+    try {
+      if (draft.step) setCurrentStep(draft.step);
+      if (draft.uploads && Array.isArray(draft.uploads)) {
+        // Note: Can't restore actual file objects, just metadata
+        // Files will need to be re-uploaded if they've expired from temp storage
+      }
+      if (draft.settings) setSettings(draft.settings);
+      if (draft.orientedFileIds) setOrientedFileIds(draft.orientedFileIds);
+      if (draft.address) setAddress(draft.address);
+      if (draft.metrics) setMetrics(draft.metrics);
+      setShowResumeDialog(false);
+      draftLoadedRef.current = true;
+    } catch (error) {
+      console.error("Failed to restore draft:", error);
+    }
+  }, []);
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && !draftLoadedRef.current) {
+      setHasDraft(true);
+      setShowResumeDialog(true);
+    }
+  }, [loadDraft]);
+
+  // Auto-save on changes
+  useEffect(() => {
+    if (!draftLoadedRef.current && uploads.length === 0) return; // Don't save empty state on initial load
+    if (uploads.length === 0 && Object.keys(settings).length === 0) return; // Don't save completely empty
+
+    const timeoutId = setTimeout(() => {
+      saveDraft();
+    }, 1000); // Debounce saves by 1 second
+
+    return () => clearTimeout(timeoutId);
+  }, [uploads, settings, orientedFileIds, address, saveDraft]);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -559,6 +673,10 @@ export default function QuickOrderPage() {
       return;
     }
     const { data } = await res.json();
+
+    // Clear draft on successful checkout
+    clearDraft();
+
     if (data.checkoutUrl) {
       window.location.href = data.checkoutUrl;
     } else {
@@ -568,13 +686,14 @@ export default function QuickOrderPage() {
   }
 
   function toggleFileExpanded(id: string) {
-    const next = new Set(expandedFiles);
-    if (next.has(id)) {
-      next.delete(id);
+    // Accordion behavior: only one file open at a time
+    if (expandedFiles.has(id)) {
+      // Close if already open
+      setExpandedFiles(new Set());
     } else {
-      next.add(id);
+      // Open this file and close all others
+      setExpandedFiles(new Set([id]));
     }
-    setExpandedFiles(next);
   }
 
   function acceptFallback(id: string) {
@@ -634,6 +753,48 @@ export default function QuickOrderPage() {
 
   return (
     <div className="space-y-4 pb-24 sm:space-y-6">
+      {/* Resume Draft Dialog */}
+      <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resume Previous Order?</DialogTitle>
+            <DialogDescription>
+              You have an unsaved draft from a previous session. Would you like to continue where you left off?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                clearDraft();
+                setShowResumeDialog(false);
+              }}
+            >
+              Start Fresh
+            </Button>
+            <Button
+              onClick={() => {
+                const draft = loadDraft();
+                if (draft) {
+                  restoreDraft(draft);
+                }
+              }}
+            >
+              Resume Draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Draft Saved Indicator */}
+      {draftSaved && (
+        <div className="fixed right-4 top-20 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-800 shadow-lg dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+            Draft saved
+          </div>
+        </div>
+      )}
+
       {/* Workflow Steps - Sticky compact progress */}
       <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-3 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-4">
         <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
@@ -1309,20 +1470,25 @@ export default function QuickOrderPage() {
                     <span className="font-medium">${priceData.subtotal.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-medium">
-                    {shippingQuote ? `$${priceData.shipping.toFixed(2)}` : "Awaiting address"}
-                  </span>
+                <div className="border-t border-border/50 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Truck className="h-3.5 w-3.5" />
+                      Delivery
+                    </span>
+                    <span className="font-medium">
+                      {shippingQuote ? `$${priceData.shipping.toFixed(2)}` : "Awaiting address"}
+                    </span>
+                  </div>
+                  {shippingQuote ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {shippingQuote.label}
+                      {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge
+                        ? ` (+$${shippingQuote.remoteSurcharge.toFixed(2)} remote surcharge)`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
-                {shippingQuote ? (
-                  <p className="text-xs text-muted-foreground">
-                    {shippingQuote.label}
-                    {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge
-                      ? ` (includes +$${shippingQuote.remoteSurcharge.toFixed(2)} remote surcharge)`
-                      : ""}
-                  </p>
-                ) : null}
                 {priceData.taxAmount > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">{`Tax${taxLabelSuffix}`}</span>
@@ -1339,32 +1505,53 @@ export default function QuickOrderPage() {
             </section>
           )}
 
-          {/* Shipping & Address - Mobile optimized: Reduced padding on mobile */}
+          {/* Delivery Details - Mobile optimized: Reduced padding on mobile */}
           {priceData && (
             <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-base font-semibold sm:text-lg">Checkout</h2>
+                <Truck className="h-5 w-5 text-muted-foreground" />
+                <h2 className="text-base font-semibold sm:text-lg">Delivery Details</h2>
               </div>
               <div className="space-y-4">
-                <div className="rounded-md border border-dashed border-border bg-surface-muted p-4">
+                {/* Delivery Summary Card */}
+                <div className="rounded-xl border border-blue-200/60 bg-gradient-to-br from-blue-50/50 to-blue-100/30 p-4 dark:border-blue-800/40 dark:from-blue-950/20 dark:to-blue-900/10">
                   {shippingQuote ? (
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium text-foreground">
-                        {shippingQuote.label} ({shippingQuote.code})
-                      </p>
-                      <p className="text-muted-foreground">
-                        Estimated shipping: ${shippingQuote.amount.toFixed(2)}
-                      </p>
-                      {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge ? (
-                        <p className="text-xs text-amber-600">
-                          Remote surcharge +${shippingQuote.remoteSurcharge.toFixed(2)} applied based on postcode.
-                        </p>
-                      ) : null}
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-1">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                            <Truck className="h-4 w-4" />
+                            {shippingQuote.label}
+                          </p>
+                          <p className="text-xs text-blue-700 dark:text-blue-300">
+                            Delivery cost: ${shippingQuote.amount.toFixed(2)}
+                            {shippingQuote.remoteApplied && shippingQuote.remoteSurcharge
+                              ? ` (incl. +$${shippingQuote.remoteSurcharge.toFixed(2)} remote area)`
+                              : ""}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Show delivery address if entered */}
+                      {address.line1 && address.city && address.state && address.postcode && (
+                        <div className="border-t border-blue-200/60 pt-2.5 dark:border-blue-800/40">
+                          <p className="mb-1 text-xs font-medium text-blue-900 dark:text-blue-100">
+                            Delivering to:
+                          </p>
+                          <div className="text-xs text-blue-700 dark:text-blue-300">
+                            {address.name && <p className="font-medium">{address.name}</p>}
+                            <p>{address.line1}</p>
+                            {address.line2 && <p>{address.line2}</p>}
+                            <p>
+                              {address.city}, {address.state} {address.postcode}
+                            </p>
+                            {address.phone && <p>Ph: {address.phone}</p>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      Provide a state and postcode to calculate shipping.
+                      Enter address below to calculate delivery cost
                     </p>
                   )}
                 </div>

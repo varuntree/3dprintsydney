@@ -101,8 +101,7 @@ export async function signupClient(
       email,
       phone: options?.phone || null,
       company: options?.businessName || null,
-      // Note: position field doesn't exist in clients table,
-      // it could be added in a future migration if needed for display purposes
+      position: options?.position || null,
     })
     .select('id')
     .single();
