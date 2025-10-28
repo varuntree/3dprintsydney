@@ -37,31 +37,82 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me").then(async (r) => {
-      if (r.ok) {
-        const { data } = await r.json();
-        router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
-      }
-    });
+    let active = true;
+
+    fetch("/api/auth/me")
+      .then(async (r) => {
+        if (!r.ok) {
+          return;
+        }
+
+        const contentType = r.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          return;
+        }
+
+        const payload = (await r.json().catch(() => null)) as
+          | { data?: { role?: string | null } }
+          | null;
+
+        if (!active || !payload?.data?.role) {
+          return;
+        }
+
+        router.replace(payload.data.role === "ADMIN" ? "/dashboard" : "/me");
+      })
+      .catch(() => {
+        // Swallow the error – if the session check fails we should still
+        // allow the user to attempt to log in without crashing the page.
+      });
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error || "Login failed");
-      return;
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const payload = contentType.includes("application/json")
+        ? await res.json().catch(() => null)
+        : null;
+
+      if (!res.ok) {
+        const message =
+          (payload &&
+            typeof payload === "object" &&
+            payload !== null &&
+            "error" in payload &&
+            payload.error) ||
+          "Login failed";
+        setError(typeof message === "string" ? message : "Login failed");
+        return;
+      }
+
+      const role = payload && typeof payload === "object" ? (payload as { data?: { role?: string } }).data?.role : undefined;
+
+      if (!role) {
+        setError("Unexpected response from server. Please try again.");
+        return;
+      }
+
+      router.replace(role === "ADMIN" ? "/dashboard" : "/me");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
+    } finally {
+      setLoading(false);
     }
-    const { data } = await res.json();
-    router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
   }
 
   return (
