@@ -1,26 +1,17 @@
 import { formatCurrency } from "@/lib/currency";
 import { escapeHtml, formatMultiline } from "@/server/pdf/templates/shared/utils";
-import type { QuoteDetailDTO } from "@/lib/types/quotes";
-import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 
-type BusinessInfo = {
-  logoDataUrl?: string;
-  businessName?: string;
-  businessAddress?: string;
-  businessPhone?: string;
-  businessEmail?: string;
+export type PdfBusinessInfo = {
+  name: string;
+  address?: string;
+  email?: string;
+  phone?: string;
   abn?: string;
   bankDetails?: string;
+  logoDataUrl?: string;
 };
 
-type TemplateOptions = BusinessInfo & { currency?: string };
-
-type InvoiceWithPayment = InvoiceDetailDTO & {
-  stripeCheckoutUrl?: string | null;
-};
-
-type ClientInfo = {
-  id: number;
+export type PdfClientInfo = {
   name: string;
   company?: string | null;
   email?: string | null;
@@ -28,7 +19,104 @@ type ClientInfo = {
   address?: string | null;
 };
 
-// Exact colors from old Flask PDF
+export type PdfLineItem = {
+  title: string;
+  description?: string;
+  detailLines: string[];
+  quantityDisplay: string;
+  originalUnitPrice: number;
+  discountedUnitPrice: number;
+  total: number;
+  discountDisplay?: string;
+  discountNote?: string;
+};
+
+export type PdfTotals = {
+  subtotal: number;
+  discount?: {
+    label: string;
+    amount: number;
+    subtotalAfter: number;
+  };
+  shipping?: {
+    label: string;
+    amount: number;
+  };
+  tax?: {
+    label: string;
+    amount: number;
+  };
+  total: number;
+  amountDue: {
+    label: string;
+    amount: number;
+    displayOverride?: string;
+  };
+};
+
+export type PdfPaymentSection = {
+  bankDetails?: string;
+  stripeUrl?: string;
+  amountDue: number;
+  reference: string;
+};
+
+export type PdfPaymentConfirmation = {
+  method?: string;
+  paidDate?: Date | null;
+  reference?: string;
+  amount?: number;
+};
+
+export type PdfDocumentInfo = {
+  number: string;
+  issueDate: Date;
+  columns: [
+    { label: string; value: string },
+    { label: string; value: string },
+    { label: string; value: string },
+  ];
+};
+
+export type QuotePdfTemplate = {
+  currency: string;
+  business: PdfBusinessInfo;
+  client: PdfClientInfo;
+  logoDataUrl?: string;
+  document: PdfDocumentInfo & {
+    validUntilLabel: string;
+    footerText: string;
+    largeAmountText: string;
+  };
+  lines: PdfLineItem[];
+  totals: PdfTotals;
+  notes?: string;
+  termsConditions: string;
+  footerReference: string;
+};
+
+export type InvoicePdfTemplate = {
+  currency: string;
+  business: PdfBusinessInfo;
+  client: PdfClientInfo;
+  logoDataUrl?: string;
+  document: PdfDocumentInfo & {
+    footerText: string;
+    largeAmountText: string;
+    isPaid: boolean;
+    paidIndicator: boolean;
+  };
+  lines: PdfLineItem[];
+  totals: PdfTotals;
+  notes?: string;
+  termsConditions: string;
+  footerReference: string;
+  reviewHtml?: string;
+  thankYouText?: string;
+  paymentSection?: PdfPaymentSection;
+  paymentConfirmation?: PdfPaymentConfirmation;
+};
+
 const COLORS = {
   darkText: "#1a1a1a",
   mediumText: "#4a4a4a",
@@ -46,24 +134,26 @@ const DATE_FORMAT: Intl.DateTimeFormatOptions = {
   year: "numeric",
 };
 
-function formatDate(value: Date | null): string {
-  if (!value) {
-    return "N/A";
-  }
+function formatDate(value: Date | null | undefined): string {
+  if (!value) return "N/A";
   return value.toLocaleDateString("en-US", DATE_FORMAT);
 }
 
-function toCurrency(value: number, currency = "AUD") {
-  return formatCurrency(value, currency);
+function sanitizeLines(lines: string[]): string {
+  return lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => escapeHtml(line.trim()))
+    .join("<br/>");
 }
 
-function sanitize(text: string | null | undefined): string {
-  if (!text) return "";
-  const trimmed = text.trim();
-  return escapeHtml(trimmed);
+function sanitizeDetails(lines: string[]): string {
+  return lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => `• ${escapeHtml(line.trim())}`)
+    .join("<br/>");
 }
 
-function wrapDocument(title: string, content: string): string {
+function wrapDocument(title: string, content: string) {
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -73,13 +163,11 @@ function wrapDocument(title: string, content: string): string {
     <style>
       * {
         box-sizing: border-box;
-        margin: 0;
-        padding: 0;
       }
 
       @page {
         size: A4 portrait;
-        margin: 12mm 12mm 32mm 12mm;
+        margin: 12mm 12mm 18mm 12mm;
       }
 
       html, body {
@@ -89,18 +177,37 @@ function wrapDocument(title: string, content: string): string {
         color: ${COLORS.darkText};
         background: #fff;
         font-size: 11pt;
-        line-height: 1.4;
+        line-height: 1.5;
+        min-height: 100%;
       }
 
       body {
-        padding: 0;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
       }
 
-      .page-content {
+      .page-shell {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+      }
+
+      main.page-content {
         width: 100%;
+        flex: 1 0 auto;
+        padding-bottom: 12mm;
       }
 
-      /* Header with title and logo */
+      .section {
+        page-break-inside: avoid;
+      }
+
+      .block-avoid {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
       .header-table {
         width: 100%;
         margin-bottom: 8mm;
@@ -114,7 +221,6 @@ function wrapDocument(title: string, content: string): string {
         font-size: 32pt;
         font-weight: bold;
         color: ${COLORS.darkText};
-        font-family: Helvetica, Arial, sans-serif;
       }
 
       .logo-cell {
@@ -127,7 +233,6 @@ function wrapDocument(title: string, content: string): string {
         object-fit: contain;
       }
 
-      /* PAID indicator */
       .paid-indicator {
         text-align: center;
         font-size: 14pt;
@@ -136,7 +241,6 @@ function wrapDocument(title: string, content: string): string {
         margin: 8mm 0;
       }
 
-      /* Document info table (3 columns) */
       .doc-info-table {
         width: 100%;
         margin-bottom: 4mm;
@@ -145,6 +249,7 @@ function wrapDocument(title: string, content: string): string {
 
       .doc-info-table td {
         vertical-align: top;
+        width: 33.33%;
         padding-bottom: 3mm;
       }
 
@@ -160,7 +265,6 @@ function wrapDocument(title: string, content: string): string {
         color: ${COLORS.lightText};
       }
 
-      /* Business and client info side by side */
       .info-table {
         width: 100%;
         margin-bottom: 15mm;
@@ -170,20 +274,21 @@ function wrapDocument(title: string, content: string): string {
       .info-table td {
         vertical-align: top;
         width: 50%;
+        padding-right: 4mm;
       }
 
       .info-block {
         font-size: 11pt;
         color: ${COLORS.mediumText};
         line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
 
       .info-block strong {
         color: ${COLORS.darkText};
-        font-weight: bold;
       }
 
-      /* Large amount display */
       .large-amount {
         font-size: 24pt;
         font-weight: bold;
@@ -211,15 +316,15 @@ function wrapDocument(title: string, content: string): string {
         margin-bottom: 6mm;
       }
 
-      /* Line items table */
-      .items-table {
+      table.items-table {
         width: 100%;
         border-collapse: collapse;
         margin-bottom: 8mm;
         font-size: 9pt;
+        page-break-inside: auto;
       }
 
-      .items-table thead th {
+      table.items-table thead th {
         background-color: ${COLORS.lightGray};
         color: ${COLORS.mediumText};
         font-weight: bold;
@@ -228,58 +333,71 @@ function wrapDocument(title: string, content: string): string {
         border: 0.5pt solid ${COLORS.borderGray};
       }
 
-      .items-table tbody td {
-        padding: 4mm 3mm;
-        border: 0.5pt solid ${COLORS.borderGray};
-        vertical-align: top;
-        color: ${COLORS.darkText};
+      table.items-table thead {
+        display: table-header-group;
       }
 
-      .items-table tbody td:first-child {
+      table.items-table tbody {
+        display: table-row-group;
+      }
+
+      table.items-table tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      table.items-table tbody td {
+        padding: 4mm 3mm;
+        border: 0.5pt solid ${COLORS.borderGray};
+        color: ${COLORS.darkText};
+        vertical-align: top;
+      }
+
+      table.items-table tbody td:first-child {
         text-align: left;
       }
 
-      .items-table tbody td:not(:first-child) {
+      table.items-table tbody td:not(:first-child) {
         text-align: right;
       }
 
-      .item-description {
-        font-size: 9pt;
-        color: ${COLORS.mediumText};
-        line-height: 1.4;
+      .item-title {
+        font-weight: bold;
+        color: ${COLORS.darkText};
+        margin-bottom: 1mm;
       }
 
-      /* Totals section - right aligned */
+      .item-description {
+        color: ${COLORS.mediumText};
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
       .totals-wrapper {
         width: 100%;
         margin-bottom: 20mm;
+        display: flex;
+        justify-content: flex-end;
       }
 
       .totals-table {
-        float: right;
         width: 70mm;
       }
 
       .totals-row {
+        display: flex;
+        justify-content: space-between;
         margin-bottom: 1mm;
-        line-height: 1.5;
-      }
-
-      .totals-row::after {
-        content: "";
-        display: table;
-        clear: both;
+        line-height: 1.4;
       }
 
       .totals-label {
-        float: left;
         font-size: 11pt;
         color: ${COLORS.mediumText};
-        text-align: right;
       }
 
       .totals-value {
-        float: right;
         font-size: 11pt;
         color: ${COLORS.mediumText};
         text-align: right;
@@ -291,10 +409,11 @@ function wrapDocument(title: string, content: string): string {
         color: ${COLORS.darkText};
       }
 
-      /* Payment confirmation section */
       .payment-confirmation {
         text-align: center;
         margin-bottom: 20mm;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .payment-confirmation-title {
@@ -326,9 +445,10 @@ function wrapDocument(title: string, content: string): string {
         text-align: right;
       }
 
-      /* Payment section */
       .payment-section {
         margin-bottom: 20mm;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .payment-section-title {
@@ -347,6 +467,8 @@ function wrapDocument(title: string, content: string): string {
       .payment-methods-table td {
         vertical-align: top;
         width: 50%;
+        padding: 0 2mm;
+        word-break: break-word;
       }
 
       .payment-method-title {
@@ -360,6 +482,8 @@ function wrapDocument(title: string, content: string): string {
         font-size: 11pt;
         color: ${COLORS.mediumText};
         line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
 
       .payment-method-content strong {
@@ -393,9 +517,10 @@ function wrapDocument(title: string, content: string): string {
         margin-top: 2mm;
       }
 
-      /* Notes section */
       .notes-section {
         margin-bottom: 8mm;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
 
       .notes-title {
@@ -409,28 +534,23 @@ function wrapDocument(title: string, content: string): string {
         font-size: 11pt;
         color: ${COLORS.mediumText};
         line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
       }
 
-      /* Footer */
-      .footer {
-        position: fixed;
-        bottom: 0;
-        left: 12mm;
-        right: 12mm;
+      footer {
         font-size: 7pt;
         color: ${COLORS.footerGray};
         line-height: 1.4;
-        page-break-inside: avoid;
-      }
-
-      .footer-terms {
-        margin-bottom: 3mm;
+        margin-top: auto;
+        padding-top: 4mm;
       }
 
       .footer-reference {
         font-size: 9pt;
         color: ${COLORS.lightText};
         text-align: center;
+        margin-top: 3mm;
       }
 
       .clearfix::after {
@@ -446,447 +566,310 @@ function wrapDocument(title: string, content: string): string {
 </html>`;
 }
 
-function renderHeader(title: string, logoDataUrl?: string): string {
-  const logoHtml = logoDataUrl
-    ? `<img src="${logoDataUrl}" alt="Logo" class="brand-logo" />`
-    : "";
-
-  return `<table class="header-table">
-      <tr>
-        <td>
-          <div class="doc-title">${escapeHtml(title)}</div>
-        </td>
-        <td class="logo-cell">
-          ${logoHtml}
-        </td>
-      </tr>
-    </table>`;
+function renderHeader(title: string, logoDataUrl?: string) {
+  const logo = logoDataUrl ? `<img src="${logoDataUrl}" alt="Logo" class="brand-logo" />` : "";
+  return `<table class="header-table section">
+    <tr>
+      <td>
+        <div class="doc-title">${escapeHtml(title)}</div>
+      </td>
+      <td class="logo-cell">${logo}</td>
+    </tr>
+  </table>`;
 }
 
-function renderDocInfo(
-  docType: string,
-  number: string,
-  date: string,
-  thirdColumn: { label: string; value: string },
-): string {
-  return `<table class="doc-info-table">
-      <tr>
-        <td style="width: 33.33%;">
-          <div class="doc-info-label"><strong>${docType} number</strong></div>
-          <div class="doc-info-value">${escapeHtml(number)}</div>
-        </td>
-        <td style="width: 33.33%;">
-          <div class="doc-info-label"><strong>${docType === "Quote" ? "Valid until" : "Date issued"}</strong></div>
-          <div class="doc-info-value">${escapeHtml(date)}</div>
-        </td>
-        <td style="width: 33.33%;">
-          <div class="doc-info-label"><strong>${escapeHtml(thirdColumn.label)}</strong></div>
-          <div class="doc-info-value">${escapeHtml(thirdColumn.value)}</div>
-        </td>
-      </tr>
-    </table>`;
+function renderDocumentInfo(doc: PdfDocumentInfo) {
+  const columns = doc.columns
+    .map(({ label, value }) => `
+      <td>
+        <div class="doc-info-label"><strong>${escapeHtml(label)}</strong></div>
+        <div class="doc-info-value">${escapeHtml(value)}</div>
+      </td>
+    `)
+    .join("");
+  return `<table class="doc-info-table section">
+    <tr>
+      ${columns}
+    </tr>
+  </table>`;
 }
 
-function renderBusinessAndClientInfo(businessInfo: BusinessInfo, client: ClientInfo): string {
+function renderBusinessAndClientInfo(business: PdfBusinessInfo, client: PdfClientInfo) {
   const businessLines: string[] = [];
-  if (businessInfo.businessName) {
-    businessLines.push(`<strong>${sanitize(businessInfo.businessName)}</strong>`);
-  }
-  if (businessInfo.businessAddress) {
-    businessLines.push(sanitize(businessInfo.businessAddress));
-  }
-  if (businessInfo.businessEmail) {
-    businessLines.push(sanitize(businessInfo.businessEmail));
-  }
-  if (businessInfo.businessPhone) {
-    businessLines.push(sanitize(businessInfo.businessPhone));
-  }
-  if (businessInfo.abn) {
-    businessLines.push(`ABN: ${sanitize(businessInfo.abn)}`);
-  }
+  if (business.name) businessLines.push(`<strong>${escapeHtml(business.name)}</strong>`);
+  if (business.address) businessLines.push(escapeHtml(business.address));
+  if (business.email) businessLines.push(escapeHtml(business.email));
+  if (business.phone) businessLines.push(escapeHtml(business.phone));
+  if (business.abn) businessLines.push(`ABN: ${escapeHtml(business.abn)}`);
 
   const clientLines: string[] = [];
   clientLines.push(`<strong>Bill to</strong>`);
-  clientLines.push(`${sanitize(client.name)}`);
-  if (client.email) {
-    clientLines.push(sanitize(client.email));
-  }
-  if (client.phone) {
-    clientLines.push(sanitize(client.phone));
-  }
-  if (client.address) {
-    clientLines.push(sanitize(client.address));
-  }
+  clientLines.push(escapeHtml(client.name));
+  if (client.company) clientLines.push(escapeHtml(client.company));
+  if (client.email) clientLines.push(escapeHtml(client.email));
+  if (client.phone) clientLines.push(escapeHtml(client.phone));
+  if (client.address) clientLines.push(escapeHtml(client.address));
 
-  return `<table class="info-table">
-      <tr>
-        <td>
-          <div class="info-block">
-            ${businessLines.join("<br/>")}
-          </div>
-        </td>
-        <td>
-          <div class="info-block">
-            ${clientLines.join("<br/>")}
-          </div>
-        </td>
-      </tr>
-    </table>`;
+  return `<table class="info-table section">
+    <tr>
+      <td>
+        <div class="info-block">${businessLines.join("<br/>")}</div>
+      </td>
+      <td>
+        <div class="info-block">${clientLines.join("<br/>")}</div>
+      </td>
+    </tr>
+  </table>`;
 }
 
-function renderLineItemsTable(
-  items: Array<{
-    name: string;
-    description?: string;
-    quantity: number;
-    unit?: string;
-    unitPrice: number;
-    total: number;
-  }>,
-  currency: string,
-): string {
-  const rows = items
-    .map((item) => {
-      const descParts: string[] = [];
-      if (item.description) {
-        const lines = item.description.split("\n").filter((l) => l.trim());
-        lines.forEach((line) => {
-          descParts.push(`• ${escapeHtml(line.trim())}`);
-        });
-      }
+function renderLargeAmount(text: string) {
+  return `<div class="large-amount section">${escapeHtml(text)}</div>`;
+}
 
-      const descHtml = descParts.length
-        ? `<div class="item-description">${descParts.join("<br/>")}</div>`
-        : "";
+function renderReviewHtml(html?: string) {
+  if (!html) return "";
+  return `<div class="review-text section">${html}</div>`;
+}
 
-      const fullDesc = `${escapeHtml(item.name)}${descHtml ? `<br/>${descHtml}` : ""}`;
+function renderThankYou(text?: string) {
+  if (!text) return "";
+  return `<div class="thank-you-text section">${escapeHtml(text)}</div>`;
+}
 
-      const qtyDisplay =
-        item.quantity === Math.floor(item.quantity)
-          ? item.quantity.toString()
-          : item.quantity.toFixed(1);
+function renderLineItems(lines: PdfLineItem[], currency: string) {
+  if (lines.length === 0) return "";
+  const hasDiscount = lines.some((line) => Boolean(line.discountDisplay));
+  const colGroup = hasDiscount
+    ? `<col style="width:85mm" />
+       <col style="width:15mm" />
+       <col style="width:25mm" />
+       <col style="width:20mm" />
+       <col style="width:25mm" />
+       <col style="width:16mm" />`
+    : `<col style="width:120mm" />
+       <col style="width:20mm" />
+       <col style="width:25mm" />
+       <col style="width:21mm" />`;
 
-      return `<tr>
-          <td>${fullDesc}</td>
-          <td>${escapeHtml(qtyDisplay)}</td>
-          <td>${escapeHtml(toCurrency(item.unitPrice, currency))}</td>
-          <td>${escapeHtml(toCurrency(item.total, currency))}</td>
-        </tr>`;
-    })
-    .join("");
-
-  return `<table class="items-table">
-      <thead>
+  const headerRow = hasDiscount
+    ? `
+        <tr>
+          <th>Description</th>
+          <th>Qty</th>
+          <th>Orig. Price</th>
+          <th>Discount</th>
+          <th>Disc. Price</th>
+          <th>Total</th>
+        </tr>
+      `
+    : `
         <tr>
           <th>Description</th>
           <th>Qty</th>
           <th>Unit Price</th>
           <th>Total</th>
         </tr>
-      </thead>
-      <tbody>
-        ${rows}
-      </tbody>
-    </table>`;
+      `;
+
+  const rows = lines
+    .map((line) => {
+      const title = `<div class="item-title">${escapeHtml(line.title)}</div>`;
+      const description = line.description ? sanitizeLines([line.description]) : "";
+      const details = line.detailLines.length > 0 ? sanitizeDetails(line.detailLines) : "";
+      const descriptionBlock = [description, details].filter(Boolean).join("<br/>");
+      const descriptionCell = `${title}${descriptionBlock ? `<div class="item-description">${descriptionBlock}</div>` : ""}`;
+
+      if (hasDiscount) {
+        const discount = line.discountDisplay
+          ? line.discountNote
+            ? `${escapeHtml(line.discountDisplay)}<br/><span style="font-size:8pt;color:#d32f2f"><i>${escapeHtml(line.discountNote)}</i></span>`
+            : escapeHtml(line.discountDisplay)
+          : "-";
+
+        return `<tr>
+          <td>${descriptionCell}</td>
+          <td>${escapeHtml(line.quantityDisplay)}</td>
+          <td>${escapeHtml(formatCurrency(line.originalUnitPrice, currency))}</td>
+          <td>${discount}</td>
+          <td>${escapeHtml(formatCurrency(line.discountedUnitPrice, currency))}</td>
+          <td>${escapeHtml(formatCurrency(line.total, currency))}</td>
+        </tr>`;
+      }
+
+      return `<tr>
+        <td>${descriptionCell}</td>
+        <td>${escapeHtml(line.quantityDisplay)}</td>
+        <td>${escapeHtml(formatCurrency(line.originalUnitPrice, currency))}</td>
+        <td>${escapeHtml(formatCurrency(line.total, currency))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<table class="items-table section">
+    <colgroup>
+      ${colGroup}
+    </colgroup>
+    <thead>${headerRow}</thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
-function renderTotals(
-  subtotal: number,
-  taxRate: number | null,
-  taxTotal: number,
-  total: number,
-  globalDiscount: number,
-  amountDueLabel: string,
-  amountDueValue: number,
-  currency: string,
-): string {
+function renderTotals(totals: PdfTotals, currency: string) {
   const rows: string[] = [];
+  rows.push(`<div class="totals-row"><span class="totals-label">Subtotal</span><span class="totals-value">${escapeHtml(formatCurrency(totals.subtotal, currency))}</span></div>`);
 
-  if (globalDiscount > 0) {
-    rows.push(`<div class="totals-row">
-        <span class="totals-label">Subtotal</span>
-        <span class="totals-value">${escapeHtml(toCurrency(subtotal, currency))}</span>
-      </div>`);
-    rows.push(`<div class="totals-row">
-        <span class="totals-label">Discount</span>
-        <span class="totals-value">−${escapeHtml(toCurrency(globalDiscount, currency))}</span>
-      </div>`);
-    rows.push(`<div class="totals-row">
-        <span class="totals-label">Subtotal after discount</span>
-        <span class="totals-value">${escapeHtml(toCurrency(subtotal - globalDiscount, currency))}</span>
-      </div>`);
-  } else {
-    rows.push(`<div class="totals-row">
-        <span class="totals-label">Subtotal</span>
-        <span class="totals-value">${escapeHtml(toCurrency(subtotal, currency))}</span>
-      </div>`);
+  if (totals.discount && totals.discount.amount > 0) {
+    rows.push(`<div class="totals-row"><span class="totals-label">${escapeHtml(totals.discount.label)}</span><span class="totals-value">−${escapeHtml(formatCurrency(totals.discount.amount, currency))}</span></div>`);
+    rows.push(`<div class="totals-row"><span class="totals-label">Subtotal after discount</span><span class="totals-value">${escapeHtml(formatCurrency(totals.discount.subtotalAfter, currency))}</span></div>`);
   }
 
-  if (taxTotal > 0) {
-    const taxLabel = taxRate ? `Tax (${taxRate.toFixed(0)}%)` : "Tax";
-    rows.push(`<div class="totals-row">
-        <span class="totals-label">${escapeHtml(taxLabel)}</span>
-        <span class="totals-value">${escapeHtml(toCurrency(taxTotal, currency))}</span>
-      </div>`);
+  if (totals.shipping && totals.shipping.amount > 0) {
+    rows.push(`<div class="totals-row"><span class="totals-label">${escapeHtml(totals.shipping.label)}</span><span class="totals-value">${escapeHtml(formatCurrency(totals.shipping.amount, currency))}</span></div>`);
   }
 
-  rows.push(`<div class="totals-row bold">
-      <span class="totals-label">Total</span>
-      <span class="totals-value">${escapeHtml(toCurrency(total, currency))}</span>
-    </div>`);
+  if (totals.tax && totals.tax.amount > 0) {
+    rows.push(`<div class="totals-row"><span class="totals-label">${escapeHtml(totals.tax.label)}</span><span class="totals-value">${escapeHtml(formatCurrency(totals.tax.amount, currency))}</span></div>`);
+  }
 
-  rows.push(`<div class="totals-row bold">
-      <span class="totals-label">${escapeHtml(amountDueLabel)}</span>
-      <span class="totals-value">${escapeHtml(toCurrency(amountDueValue, currency))}</span>
-    </div>`);
+  rows.push(`<div class="totals-row bold"><span class="totals-label">Total</span><span class="totals-value">${escapeHtml(formatCurrency(totals.total, currency))}</span></div>`);
 
-  return `<div class="totals-wrapper clearfix">
-      <div class="totals-table">
-        ${rows.join("")}
+  const amountDueValue = totals.amountDue.displayOverride
+    ? escapeHtml(totals.amountDue.displayOverride)
+    : escapeHtml(formatCurrency(totals.amountDue.amount, currency));
+
+  rows.push(`<div class="totals-row bold"><span class="totals-label">${escapeHtml(totals.amountDue.label)}</span><span class="totals-value">${amountDueValue}</span></div>`);
+
+  return `<div class="totals-wrapper block-avoid"><div class="totals-table">${rows.join("")}</div></div>`;
+}
+
+function renderPaymentSection(section: PdfPaymentSection | undefined, currency: string) {
+  if (!section) return "";
+  const hasStripe = Boolean(section.stripeUrl);
+  const hasBank = Boolean(section.bankDetails);
+  if (!hasStripe && !hasBank) return "";
+
+  if (hasStripe && hasBank) {
+    return `<div class="payment-section block-avoid">
+      <div class="payment-section-title">MAKE PAYMENT</div>
+      <table class="payment-methods-table">
+        <tr>
+          <td>
+            <div class="payment-method-title">Pay with bank transfer</div>
+            <div class="payment-method-content">
+              Please transfer payment to:<br/><br/>
+              ${formatMultiline(section.bankDetails!)}
+              <br/><strong>Reference</strong> — ${escapeHtml(section.reference)}
+              <br/><br/>
+              <span class="payment-important">IMPORTANT: You MUST include the invoice number as the payment reference.</span>
+            </div>
+          </td>
+          <td>
+            <div class="stripe-box">
+              <div class="payment-method-title">Pay online with card</div>
+              <div class="payment-method-content">
+                Click the link below to pay securely with your credit or debit card:
+                <br/><br/>
+                <a href="${escapeHtml(section.stripeUrl!)}" class="stripe-link">Pay ${escapeHtml(formatCurrency(section.amountDue, currency))} Online</a>
+                <br/><br/>
+                <div class="stripe-note">Secure payment powered by Stripe</div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>`;
+  }
+
+  if (hasBank) {
+    return `<div class="payment-section block-avoid">
+      <div class="payment-section-title">MAKE PAYMENT</div>
+      <div class="payment-method-title">Pay with bank transfer</div>
+      <div class="payment-method-content">
+        Please transfer payment to the following account:<br/><br/>
+        ${formatMultiline(section.bankDetails!)}
+        <br/><strong>Reference</strong> — ${escapeHtml(section.reference)}
+        <br/><br/>
+        <span class="payment-important">IMPORTANT: You MUST include the invoice number as the payment reference.</span>
       </div>
     </div>`;
-}
-
-function renderPaymentSection(
-  invoice: InvoiceWithPayment,
-  businessInfo: BusinessInfo,
-  currency: string,
-): string {
-  const bankDetails = businessInfo.bankDetails;
-  const stripeUrl = invoice.stripeCheckoutUrl;
-
-  if (!bankDetails && !stripeUrl) {
-    return "";
   }
 
-  if (stripeUrl && bankDetails) {
-    // Two payment options side by side
-    return `<div class="payment-section">
-        <div class="payment-section-title">MAKE PAYMENT</div>
-        <table class="payment-methods-table">
-          <tr>
-            <td style="padding-right: 2mm;">
-              <div class="payment-method-title">Pay with bank transfer</div>
-              <div class="payment-method-content">
-                Please transfer payment to:<br/><br/>
-                ${sanitize(bankDetails).replace(/\n/g, "<br/>")}
-                <br/><strong>Reference</strong> — ${escapeHtml(invoice.number)}
-                <br/><br/>
-                <span class="payment-important">IMPORTANT: You MUST include the invoice number as the payment reference.</span>
-              </div>
-            </td>
-            <td style="padding-left: 2mm;">
-              <div class="stripe-box">
-                <div class="payment-method-title">Pay online with card</div>
-                <div class="payment-method-content">
-                  Click the link below to pay securely with your credit or debit card:
-                  <br/><br/>
-                  <a href="${stripeUrl}" class="stripe-link">Pay ${escapeHtml(toCurrency(invoice.balanceDue, currency))} Online</a>
-                  <br/><br/>
-                  <div class="stripe-note">Secure payment powered by Stripe</div>
-                </div>
-              </div>
-            </td>
-          </tr>
-        </table>
-      </div>`;
-  } else if (bankDetails) {
-    // Bank transfer only
-    return `<div class="payment-section">
-        <div class="payment-method-title">Pay with bank transfer</div>
-        <div class="payment-method-content">
-          Please transfer payment to the following account:<br/><br/>
-          ${sanitize(bankDetails).replace(/\n/g, "<br/>")}
-          <br/><strong>Reference</strong> — ${escapeHtml(invoice.number)}
-          <br/><br/>
-          <span class="payment-important">IMPORTANT: You MUST include the invoice number as the payment reference.</span>
-        </div>
-      </div>`;
-  }
-
-  return "";
-}
-
-function renderNotes(notes: string | null): string {
-  if (!notes || !notes.trim()) {
-    return "";
-  }
-
-  return `<div class="notes-section">
-      <div class="notes-title">Notes</div>
-      <div class="notes-content">${formatMultiline(notes)}</div>
-    </div>`;
-}
-
-function renderFooter(
-  termsConditions: string | null,
-  referenceText: string,
-): string {
-  const terms = termsConditions
-    ? sanitize(termsConditions).replace(/\n/g, "<br/>")
-    : `Terms & Conditions: Payment must be made before work commences unless otherwise agreed in writing.<br/>
-       We take no responsibility if 3D models are not fit for purpose - we print what you request.<br/>
-       No refunds will be given if printed items do not work for your intended application.`;
-
-  return `<div class="footer">
-      <div class="footer-terms">${terms}</div>
-      <div class="footer-reference">${escapeHtml(referenceText)}</div>
-    </div>`;
-}
-
-export function renderProductionQuoteHtml(
-  quote: QuoteDetailDTO,
-  options: TemplateOptions = {},
-): string {
-  const { currency = "AUD", ...businessInfo } = options;
-
-  const expiryDateStr = quote.expiryDate ? formatDate(quote.expiryDate) : formatDate(quote.issueDate);
-  const paymentTermsDisplay = quote.paymentTerms ? quote.paymentTerms.label : "Quote Terms";
-
-  const lineItems = quote.lines.map((line) => ({
-    name: line.name,
-    description: line.description ?? "",
-    quantity: line.quantity,
-    unit: line.unit ?? "",
-    unitPrice: line.unitPrice,
-    total: line.total,
-  }));
-
-  const summaryText = quote.expiryDate
-    ? `valid until ${formatDate(quote.expiryDate)}`
-    : "";
-  const footerText = quote.expiryDate
-    ? `quote expires ${formatDate(quote.expiryDate)}`
-    : "";
-
-  const referenceText = `${quote.number} • ${toCurrency(quote.total, currency)} ${footerText}`;
-
-  const termsConditions = quote.terms || `Terms & Conditions: Quote valid until expiry date. Prices include GST.
-Payment required in full before production begins.
-We take no responsibility if 3D models are not fit for purpose - we print what you request.`;
-
-  const content = `
-    <div class="page-content">
-      ${renderHeader("Quote", businessInfo.logoDataUrl)}
-      ${renderDocInfo("Quote", quote.number, expiryDateStr, {
-        label: "Quote terms",
-        value: paymentTermsDisplay,
-      })}
-      ${renderBusinessAndClientInfo(businessInfo, quote.client)}
-      <div class="large-amount">${escapeHtml(toCurrency(quote.total, currency))} ${summaryText}</div>
-      ${renderLineItemsTable(lineItems, currency)}
-      ${renderTotals(
-        quote.subtotal,
-        quote.taxRate ?? null,
-        quote.taxTotal,
-        quote.total,
-        0,
-        "Amount due",
-        quote.total,
-        currency,
-      )}
-      ${renderNotes(quote.notes)}
-      ${renderFooter(termsConditions, referenceText)}
+  return `<div class="payment-section block-avoid">
+    <div class="payment-section-title">MAKE PAYMENT</div>
+    <div class="stripe-box">
+      <div class="payment-method-title">Pay online with card</div>
+      <div class="payment-method-content">
+        Click the link below to pay securely with your credit or debit card:
+        <br/><br/>
+        <a href="${escapeHtml(section.stripeUrl!)}" class="stripe-link">Pay ${escapeHtml(formatCurrency(section.amountDue, currency))} Online</a>
+        <br/><br/>
+        <div class="stripe-note">Secure payment powered by Stripe</div>
+      </div>
     </div>
-  `;
-
-  return wrapDocument(`Quote ${quote.number}`, content);
+  </div>`;
 }
 
-export function renderProductionInvoiceHtml(
-  invoice: InvoiceWithPayment,
-  options: TemplateOptions = {},
-): string {
-  const { currency = "AUD", ...businessInfo } = options;
+function renderPaymentConfirmation(conf?: PdfPaymentConfirmation, currency?: string) {
+  if (!conf) return "";
+  const rows: string[] = [];
+  if (conf.method) rows.push(`<tr><td>Payment Method</td><td>${escapeHtml(conf.method)}</td></tr>`);
+  if (conf.paidDate) rows.push(`<tr><td>Date Paid</td><td>${escapeHtml(formatDate(conf.paidDate))}</td></tr>`);
+  if (conf.reference) rows.push(`<tr><td>Reference</td><td>${escapeHtml(conf.reference)}</td></tr>`);
+  if (conf.amount !== undefined && currency) rows.push(`<tr><td>Amount</td><td>${escapeHtml(formatCurrency(conf.amount, currency))}</td></tr>`);
+  if (rows.length === 0) return "";
+  return `<div class="payment-confirmation block-avoid">
+    <div class="payment-confirmation-title">✓ PAYMENT RECEIVED</div>
+    <table class="payment-details-table">${rows.join("")}</table>
+  </div>`;
+}
 
-  const isPaid = invoice.balanceDue <= 0;
-  const dateIssued = formatDate(invoice.issueDate);
+function renderNotes(notes?: string) {
+  if (!notes || !notes.trim()) return "";
+  return `<div class="notes-section block-avoid">
+    <div class="notes-title">Notes</div>
+    <div class="notes-content">${formatMultiline(notes)}</div>
+  </div>`;
+}
 
-  let thirdColumnLabel = "Payment terms";
-  let thirdColumnValue = invoice.paymentTerms ? invoice.paymentTerms.label : "COD";
+function renderFooter(termsConditions: string, referenceText: string) {
+  const termsHtml = formatMultiline(termsConditions);
+  return `<footer>
+    <div>${termsHtml}</div>
+    <div class="footer-reference">${escapeHtml(referenceText)}</div>
+  </footer>`;
+}
 
-  if (isPaid) {
-    thirdColumnLabel = "Paid on";
-    thirdColumnValue = "PAID";
-    // Try to find actual paid date if available
-    // The invoice might have a paidAt field or similar
-    // For now, we'll use the placeholder
-  }
+export function renderProductionQuoteHtml(data: QuotePdfTemplate): string {
+  const docTitle = "Quote";
+  const sections = [
+    renderHeader(docTitle, data.logoDataUrl || data.business.logoDataUrl),
+    renderDocumentInfo(data.document),
+    renderBusinessAndClientInfo(data.business, data.client),
+    renderLargeAmount(data.document.largeAmountText),
+    renderLineItems(data.lines, data.currency),
+    renderTotals(data.totals, data.currency),
+    renderNotes(data.notes),
+  ].join("");
 
-  const lineItems = invoice.lines.map((line) => ({
-    name: line.name,
-    description: line.description ?? "",
-    quantity: line.quantity,
-    unit: line.unit ?? "",
-    unitPrice: line.unitPrice,
-    total: line.total,
-  }));
+  const content = `<div class="page-shell"><main class="page-content">${sections}</main>${renderFooter(data.termsConditions, data.footerReference)}</div>`;
+  return wrapDocument(`${docTitle} ${data.document.number}`, content);
+}
 
-  let amountText = "";
-  let reviewOrThankYouHtml = "";
+export function renderProductionInvoiceHtml(data: InvoicePdfTemplate): string {
+  const docTitle = "Invoice";
+  const sections = [
+    renderHeader(docTitle, data.logoDataUrl || data.business.logoDataUrl),
+    data.document.paidIndicator ? '<div class="paid-indicator">✓ PAID</div>' : '<div style="margin-bottom: 8mm;"></div>',
+    renderDocumentInfo(data.document),
+    renderBusinessAndClientInfo(data.business, data.client),
+    renderLargeAmount(data.document.largeAmountText),
+    data.document.isPaid ? renderThankYou(data.thankYouText) : renderReviewHtml(data.reviewHtml),
+    renderLineItems(data.lines, data.currency),
+    renderTotals(data.totals, data.currency),
+    data.document.isPaid ? renderPaymentConfirmation(data.paymentConfirmation, data.currency) : renderPaymentSection(data.paymentSection, data.currency),
+    renderNotes(data.notes),
+  ].join("");
 
-  if (isPaid) {
-    amountText = `${toCurrency(invoice.total, currency)} PAID`;
-    reviewOrThankYouHtml = `<div class="thank-you-text">Thank you for your payment!</div>`;
-  } else {
-    const dueText = invoice.dueDate ? `due ${formatDate(invoice.dueDate)}` : "due immediately";
-    amountText = `${toCurrency(invoice.total, currency)} ${dueText}`;
-    reviewOrThankYouHtml = `<div class="review-text">
-      Loved our service? A <a href="https://g.page/r/CdO3kF8ywZAKEAE/review">Google Review</a> would really help other customers discover us, and you'll receive <strong>30% off the first $100 of an order of your choice</strong> as our way of saying thanks!
-    </div>`;
-  }
-
-  const footerDueText = isPaid ? "PAID" : (invoice.dueDate ? `due ${formatDate(invoice.dueDate)}` : "due immediately");
-  const referenceText = `${invoice.number} • ${toCurrency(invoice.total, currency)} ${footerDueText}`;
-
-  const termsConditions = invoice.terms || (isPaid
-    ? `Terms & Conditions: This invoice has been paid in full.
-We take no responsibility if 3D models are not fit for purpose - we print what you request.
-No refunds will be given if printed items do not work for your intended application.`
-    : `Terms & Conditions: Payment must be made before work commences unless otherwise agreed in writing.
-We take no responsibility if 3D models are not fit for purpose - we print what you request.
-No refunds will be given if printed items do not work for your intended application.`);
-
-  const paidIndicator = isPaid ? `<div class="paid-indicator">✓ PAID</div>` : `<div style="margin-bottom: 8mm;"></div>`;
-
-  // Payment confirmation or payment section
-  let paymentHtml = "";
-  if (isPaid) {
-    // For paid invoices, show payment confirmation if we have payment method
-    // Since we don't have paymentMethod in the DTO, we'll skip it for now
-    // paymentHtml = renderPaymentConfirmation(invoice.paymentMethod, invoice.paidAt);
-  } else {
-    // For unpaid invoices, show payment options
-    paymentHtml = renderPaymentSection(invoice, businessInfo, currency);
-  }
-
-  const content = `
-    <div class="page-content">
-      ${renderHeader("Invoice", businessInfo.logoDataUrl)}
-      ${paidIndicator}
-      ${renderDocInfo("Invoice", invoice.number, dateIssued, {
-        label: thirdColumnLabel,
-        value: thirdColumnValue,
-      })}
-      ${renderBusinessAndClientInfo(businessInfo, invoice.client)}
-      <div class="large-amount">${amountText}</div>
-      ${reviewOrThankYouHtml}
-      ${renderLineItemsTable(lineItems, currency)}
-      ${renderTotals(
-        invoice.subtotal,
-        invoice.taxRate ?? null,
-        invoice.taxTotal,
-        invoice.total,
-        0,
-        isPaid ? "Status" : "Amount due",
-        isPaid ? 0 : invoice.balanceDue,
-        currency,
-      )}
-      ${paymentHtml}
-      ${renderNotes(invoice.notes)}
-      ${renderFooter(termsConditions, referenceText)}
-    </div>
-  `;
-
-  return wrapDocument(`Invoice ${invoice.number}`, content);
+  const content = `<div class="page-shell"><main class="page-content">${sections}</main>${renderFooter(data.termsConditions, data.footerReference)}</div>`;
+  return wrapDocument(`${docTitle} ${data.document.number}`, content);
 }

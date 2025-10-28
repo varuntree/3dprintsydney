@@ -629,6 +629,7 @@ The application uses a single production-quality template with dynamic rendering
 - Embedded business logo (base64 data URLs)
 - Professional typography and layout
 - Print-optimized styling
+- Legacy Flask PDF layout replicated for pixel-perfect parity
 - Dynamic line item rendering
 - Stripe payment links (invoices only)
 - Tax and shipping calculations
@@ -654,17 +655,10 @@ if (existsSync(logoFile)) {
 export async function generateQuotePdf(id: number) {
   const quote = await getQuoteDetail(id);
   const settings = await getSettings().catch(() => null);
+  const logoDataUrl = await resolveLogoDataUrl();
 
-  const html = renderProductionQuoteHtml(quote, {
-    logoDataUrl,
-    businessName: settings?.businessName ?? '3D Print Sydney',
-    businessAddress: settings?.businessAddress ?? '',
-    businessPhone: settings?.businessPhone ?? '',
-    businessEmail: settings?.businessEmail ?? '',
-    abn: settings?.abn ?? '',
-    bankDetails: settings?.bankDetails ?? '',
-  });
-
+  const template = buildQuoteTemplate(quote, settings, logoDataUrl);
+  const html = renderProductionQuoteHtml(template);
   const filename = `quote-${quote.number}.pdf`;
   const { buffer, path, storageKey } = await renderPdf(html, filename);
   return { buffer, filename, path, storageKey };
@@ -677,20 +671,21 @@ export async function generateInvoicePdf(id: number) {
   let invoice = await getInvoiceDetail(id);
   const settings = await getSettings().catch(() => null);
 
-  // Generate Stripe checkout URL if balance due
   if (invoice.balanceDue > 0) {
-    try {
-      const session = await createStripeCheckoutSession(id);
-      if (session.url) {
-        invoice = { ...invoice, stripeCheckoutUrl: session.url };
+    const session = await createStripeCheckoutSession(id).catch((error) => {
+      if (!(error instanceof Error && error.message === 'Invoice is already paid')) {
+        logger.warn({ scope: 'pdf.invoice.stripe', error });
       }
-    } catch (error) {
-      // Gracefully handle Stripe errors
-      logger.warn({ scope: 'pdf.invoice.stripe', error });
+      return null;
+    });
+    if (session?.url) {
+      invoice = { ...invoice, stripeCheckoutUrl: session.url };
     }
   }
 
-  const html = renderProductionInvoiceHtml(invoice, businessInfo);
+  const logoDataUrl = await resolveLogoDataUrl();
+  const template = buildInvoiceTemplate(invoice, settings, logoDataUrl);
+  const html = renderProductionInvoiceHtml(template);
   const filename = `invoice-${invoice.number}.pdf`;
   const { buffer, path, storageKey } = await renderPdf(html, filename);
   return { buffer, filename, path, storageKey };
