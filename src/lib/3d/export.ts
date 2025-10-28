@@ -6,7 +6,7 @@
 
 import * as THREE from "three";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
-import { applyTransformToGeometry, centerModelOnBed } from "./coordinates";
+import { recenterObjectToGround } from "./coordinates";
 
 /**
  * Exports a Three.js mesh to STL format (binary or ASCII)
@@ -17,22 +17,23 @@ import { applyTransformToGeometry, centerModelOnBed } from "./coordinates";
  * @returns Promise<Blob> - STL file as a Blob
  */
 export async function exportSTL(
-  mesh: THREE.Mesh,
+  object: THREE.Object3D,
   binary: boolean = true
 ): Promise<Blob> {
-  // Clone the mesh to avoid modifying the original
-  const clonedMesh = mesh.clone();
-  clonedMesh.geometry = mesh.geometry.clone();
+  const clone = object.clone(true);
+  clone.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) {
+      const mesh = node as THREE.Mesh;
+      mesh.geometry = mesh.geometry.clone();
+      mesh.updateMatrixWorld(true);
+    }
+  });
 
-  // Bake transformations into geometry
-  applyTransformToGeometry(clonedMesh);
+  clone.updateMatrixWorld(true);
+  recenterObjectToGround(clone);
 
-  // Re-center on bed
-  centerModelOnBed(clonedMesh);
-
-  // Export to STL
   const exporter = new STLExporter();
-  const result = exporter.parse(clonedMesh, { binary });
+  const result = exporter.parse(clone, { binary });
 
   // Convert to Blob
   if (binary) {

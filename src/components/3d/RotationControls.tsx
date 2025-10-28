@@ -1,87 +1,162 @@
 "use client";
 
+import { useMemo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
-  RefreshCw,
+  ArrowDownCircle,
+  ArrowLeftCircle,
+  ArrowRightCircle,
+  ArrowUpCircle,
+  Axis3D,
+  Compass,
   Maximize2,
-  Lock,
-  Loader2,
+  RefreshCcw,
+  RotateCcw,
+  Square,
 } from "lucide-react";
 
 interface RotationControlsProps {
   onReset: () => void;
-  onCenter: () => void;
-  onLockOrientation: () => void;
+  onRecenter: () => void;
+  onFitView: () => void;
+  onLock: () => void;
+  onRotate: (axis: "x" | "y" | "z", degrees: number) => void;
   isLocking?: boolean;
   disabled?: boolean;
 }
 
+type ControlAction = {
+  label: string;
+  axis: "x" | "y" | "z";
+  degrees: number;
+  icon: ReactNode;
+};
+
 export default function RotationControls({
   onReset,
-  onCenter,
-  onLockOrientation,
+  onRecenter,
+  onFitView,
+  onLock,
+  onRotate,
   isLocking = false,
   disabled = false,
 }: RotationControlsProps) {
+  const primaryActions = useMemo<ControlAction[]>(
+    () => [
+      {
+        label: "Rotate Left",
+        axis: "y",
+        degrees: -45,
+        icon: <ArrowLeftCircle className="h-4 w-4" />,
+      },
+      {
+        label: "Rotate Right",
+        axis: "y",
+        degrees: 45,
+        icon: <ArrowRightCircle className="h-4 w-4" />,
+      },
+      {
+        label: "Tilt Forward",
+        axis: "x",
+        degrees: -45,
+        icon: <ArrowDownCircle className="h-4 w-4" />,
+      },
+      {
+        label: "Tilt Back",
+        axis: "x",
+        degrees: 45,
+        icon: <ArrowUpCircle className="h-4 w-4" />,
+      },
+      {
+        label: "Rotate Z",
+        axis: "z",
+        degrees: 90,
+        icon: <RotateCcw className="h-4 w-4" />,
+      },
+    ],
+    []
+  );
+
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-surface-overlay p-3 sm:space-y-4 sm:p-4">
-      {/* Header - Mobile optimized: Stack on mobile */}
+    <div className="space-y-3 rounded-xl border border-border bg-surface-overlay/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold">Rotation Controls</h3>
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Axis3D className="h-4 w-4" />
+          Orientation Controls
+        </div>
         <p className="text-xs text-muted-foreground">
-          Rotate using mouse/touch for optimal orientation
+          Fine tune orientation before locking it in.
         </p>
       </div>
 
-      {/* Action Buttons - Mobile optimized: Full-width on mobile, auto width on sm+ */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <div className="grid gap-2 sm:grid-cols-5">
+        {primaryActions.map((action) => (
+          <Button
+            key={`${action.axis}-${action.degrees}`}
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            className="flex w-full items-center justify-center gap-2"
+            onClick={() => onRotate(action.axis, action.degrees)}
+          >
+            {action.icon}
+            <span className="text-xs font-medium">{action.label}</span>
+          </Button>
+        ))}
+      </div>
+
+      <Separator className="bg-border/60" />
+
+      <div className="grid gap-2 sm:grid-cols-4">
         <Button
-          size="default"
-          variant="outline"
-          onClick={onReset}
+          type="button"
+          variant="secondary"
           disabled={disabled}
-          className="flex w-full items-center justify-center gap-2 sm:w-auto"
+          className="flex w-full items-center justify-center gap-2"
+          onClick={onRecenter}
         >
-          <RefreshCw className="h-4 w-4" />
+          <Square className="h-4 w-4" />
+          Recenter
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled}
+          className="flex w-full items-center justify-center gap-2"
+          onClick={onFitView}
+        >
+          <Maximize2 className="h-4 w-4" />
+          Fit View
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className="flex w-full items-center justify-center gap-2"
+          onClick={onReset}
+        >
+          <RefreshCcw className="h-4 w-4" />
           Reset
         </Button>
         <Button
-          size="default"
-          variant="outline"
-          onClick={onCenter}
-          disabled={disabled}
-          className="flex w-full items-center justify-center gap-2 sm:w-auto"
-        >
-          <Maximize2 className="h-4 w-4" />
-          Center
-        </Button>
-        <Button
-          size="default"
-          onClick={onLockOrientation}
+          type="button"
           disabled={disabled || isLocking}
-          className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 sm:ml-auto sm:w-auto"
+          className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500"
+          onClick={onLock}
         >
           {isLocking ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Locking...
+              <Compass className="h-4 w-4 animate-spin" />
+              Saving…
             </>
           ) : (
             <>
-              <Lock className="h-4 w-4" />
+              <Compass className="h-4 w-4" />
               Lock Orientation
             </>
           )}
         </Button>
-      </div>
-
-      {/* Help Text */}
-      <div className="rounded-md bg-blue-50 p-3 text-xs text-blue-800">
-        <p className="font-medium">💡 Tip:</p>
-        <p className="mt-1">
-          Orient your model so the largest flat surface touches the build plate.
-          This reduces support material and improves print quality.
-        </p>
       </div>
     </div>
   );

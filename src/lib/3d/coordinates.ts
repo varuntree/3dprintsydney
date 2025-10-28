@@ -1,109 +1,136 @@
-/**
- * Coordinate System Utilities
- *
- * Handles conversion between Three.js coordinate system (Y-up) and
- * 3D printer coordinate system (Z-up, used by Bambu Studio, PrusaSlicer, etc.)
- */
-
 import * as THREE from "three";
 
-/**
- * Sets up a Three.js scene to use Z-up coordinate system
- * (standard for 3D printing software like Bambu Studio)
- */
-export function setupZUpScene(scene: THREE.Scene): void {
-  // Rotate scene to make Z-up instead of Y-up
-  scene.rotation.x = -Math.PI / 2;
+const workingBox = new THREE.Box3();
+const workingCenter = new THREE.Vector3();
+const workingSphere = new THREE.Sphere();
+
+function safeComputeBoundingBox(geometry: THREE.BufferGeometry) {
+  geometry.computeBoundingBox();
+  if (!geometry.boundingBox) {
+    geometry.computeBoundingSphere();
+  }
+  return geometry.boundingBox ?? null;
 }
 
-/**
- * Automatically aligns a model to lie flat on the build plate
- * by rotating it so its largest dimension is horizontal
- */
-export function alignMeshToHorizontalPlane(mesh: THREE.Mesh): void {
-  mesh.geometry.computeBoundingBox();
-  const bbox = mesh.geometry.boundingBox;
-
+export function normalizeGeometry(geometry: THREE.BufferGeometry): void {
+  const bbox = safeComputeBoundingBox(geometry);
   if (!bbox) return;
 
-  // Calculate dimensions
-  const dimX = bbox.max.x - bbox.min.x;
-  const dimY = bbox.max.y - bbox.min.y;
-  const dimZ = bbox.max.z - bbox.min.z;
+  const offsetX = (bbox.min.x + bbox.max.x) / 2;
+  const offsetZ = (bbox.min.z + bbox.max.z) / 2;
+  const offsetY = bbox.min.y;
 
-  // If Z dimension is the largest, rotate model to lay it flat
-  // This handles models imported in standing orientation
-  if (dimZ > dimX && dimZ > dimY) {
-    // Rotate 90 degrees around X axis to lay model flat
-    mesh.rotateX(Math.PI / 2);
-  }
-  // If Y dimension is very tall compared to X and Z, might also need rotation
-  else if (dimY > dimX * 1.5 && dimY > dimZ * 1.5) {
-    // Rotate around Z to lay it down
-    mesh.rotateZ(Math.PI / 2);
-  }
+  geometry.translate(-offsetX, -offsetY, -offsetZ);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
 }
 
-/**
- * Centers a model on the build plate and ensures bottom touches Z=0
- * Works correctly with Z-up coordinate system
- */
-export function centerModelOnBed(mesh: THREE.Mesh): void {
-  // Compute bounding box
-  mesh.geometry.computeBoundingBox();
-  const bbox = mesh.geometry.boundingBox;
-
+export function alignGeometryToHorizontalPlane(geometry: THREE.BufferGeometry): void {
+  const bbox = safeComputeBoundingBox(geometry);
   if (!bbox) return;
 
-  // Calculate center offset (XY plane)
-  const centerX = (bbox.max.x + bbox.min.x) / 2;
-  const centerY = (bbox.max.y + bbox.min.y) / 2;
+  const size = new THREE.Vector3();
+  bbox.getSize(size);
 
-  // Move model so it's centered on XY and bottom touches Z=0
-  mesh.position.set(-centerX, -centerY, -bbox.min.z);
+  const axes = [
+    { axis: "x" as const, size: size.x },
+    { axis: "y" as const, size: size.y },
+    { axis: "z" as const, size: size.z },
+  ].sort((a, b) => b.size - a.size);
+
+  const tallestAxis = axes[0]?.axis;
+
+  if (tallestAxis === "z") {
+    geometry.rotateX(Math.PI / 2);
+  } else if (tallestAxis === "x") {
+    geometry.rotateZ(Math.PI / 2);
+  }
+
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
 }
 
-/**
- * Applies the current transformation matrix to the geometry vertices
- * This "bakes" rotations/translations into the mesh so they persist when exported
- */
+export function recenterObjectToGround(object: THREE.Object3D): void {
+  workingBox.setFromObject(object);
+  if (!isFinite(workingBox.min.x) || !isFinite(workingBox.min.y) || !isFinite(workingBox.min.z)) {
+    return;
+  }
+
+  workingBox.getCenter(workingCenter);
+
+  object.position.x -= workingCenter.x;
+  object.position.z -= workingCenter.z;
+  object.position.y -= workingBox.min.y;
+  object.updateMatrixWorld(true);
+}
+
+export function fitObjectToView(
+  object: THREE.Object3D,
+  camera: THREE.PerspectiveCamera,
+  padding = 1.2
+): void {
+  workingBox.setFromObject(object);
+  if (workingBox.isEmpty()) {
+    return;
+  }
+
+  workingBox.getBoundingSphere(workingSphere);
+  const radius = workingSphere.radius * padding;
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const distance = radius / Math.tan(fov / 2);
+
+  camera.position.set(radius, radius * 0.75, distance * 1.1);
+  camera.near = Math.max(0.1, radius / 50);
+  camera.far = Math.max(camera.near + 1000, distance * 5);
+  camera.lookAt(0, radius * 0.25, 0);
+  camera.updateProjectionMatrix();
+}
+
 export function applyTransformToGeometry(mesh: THREE.Mesh): void {
-  // Update matrices
-  mesh.updateMatrix();
   mesh.updateMatrixWorld(true);
-
-  // Apply transformation to geometry
-  mesh.geometry.applyMatrix4(mesh.matrix);
-
-  // Reset position/rotation/scale after baking
+  mesh.geometry.applyMatrix4(mesh.matrixWorld);
   mesh.position.set(0, 0, 0);
   mesh.rotation.set(0, 0, 0);
   mesh.scale.set(1, 1, 1);
-  mesh.updateMatrix();
+  mesh.updateMatrixWorld(true);
 }
 
-/**
- * Rotates a mesh around a specific axis by degrees
- */
-export function rotateMesh(
-  mesh: THREE.Mesh,
+export function rotateObject(
+  object: THREE.Object3D,
   axis: "x" | "y" | "z",
   degrees: number
 ): void {
-  const radians = (degrees * Math.PI) / 180;
-
+  const radians = THREE.MathUtils.degToRad(degrees);
   switch (axis) {
     case "x":
-      mesh.rotateX(radians);
+      object.rotateX(radians);
       break;
     case "y":
-      mesh.rotateY(radians);
+      object.rotateY(radians);
       break;
     case "z":
-      mesh.rotateZ(radians);
+      object.rotateZ(radians);
       break;
   }
+  recenterObjectToGround(object);
+}
 
-  // Re-center after rotation
-  centerModelOnBed(mesh);
+// Backwards compatibility helpers (legacy callers expect these names)
+
+export function centerModelOnBed(object: THREE.Object3D): void {
+  recenterObjectToGround(object);
+}
+
+export function alignMeshToHorizontalPlane(mesh: THREE.Mesh): void {
+  const geometry = mesh.geometry as THREE.BufferGeometry;
+  alignGeometryToHorizontalPlane(geometry);
+  mesh.updateMatrixWorld(true);
+}
+
+export function rotateMesh(
+  mesh: THREE.Object3D,
+  axis: "x" | "y" | "z",
+  degrees: number
+): void {
+  rotateObject(mesh, axis, degrees);
 }

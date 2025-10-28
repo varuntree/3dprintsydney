@@ -388,7 +388,7 @@ export default function QuickOrderPage() {
       setIsLocking(true);
       setError(null);
 
-      const mesh = viewerRef.current.getMesh();
+      const mesh = viewerRef.current.getObject();
       if (!mesh) {
         setError("No model loaded in viewer");
         return;
@@ -1376,7 +1376,6 @@ export default function QuickOrderPage() {
                 <div className="space-y-4">
                   {/* 3D Viewer */}
                   <STLViewerWrapper
-                    key={currentlyOrienting}
                     ref={viewerRef}
                     url={`/api/tmp-file/${currentlyOrienting}`}
                     onError={(err) => setError(err.message)}
@@ -1386,13 +1385,11 @@ export default function QuickOrderPage() {
                   {showRotationControls ? (
                     <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
                       <RotationControls
-                        onReset={() => {
-                          viewerRef.current?.resetOrientation();
-                        }}
-                        onCenter={() => {
-                          viewerRef.current?.centerModel();
-                        }}
-                        onLockOrientation={handleLockOrientation}
+                        onReset={() => viewerRef.current?.resetView()}
+                        onRecenter={() => viewerRef.current?.recenter()}
+                        onFitView={() => viewerRef.current?.fit()}
+                        onLock={handleLockOrientation}
+                        onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
                         isLocking={isLocking}
                         disabled={false}
                       />
