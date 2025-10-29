@@ -26,6 +26,7 @@ export const OWNER_NAV_SECTIONS: NavSection[] = [
     items: [
       { name: "Messages", href: "/messages", icon: "messages-square" },
       { name: "Reports", href: "/reports", icon: "bar-chart-3" },
+      { name: "Business Guide", href: "/business-guide", icon: "book-open" },
       { name: "Settings", href: "/settings", icon: "settings" },
     ],
   },

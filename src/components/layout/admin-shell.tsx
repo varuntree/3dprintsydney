@@ -92,7 +92,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
       </aside>
 
       <div className="flex min-h-svh flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay/95 supports-[backdrop-filter]:bg-surface-overlay/75 md:bg-surface-overlay/80 md:supports-[backdrop-filter]:bg-surface-overlay/60 md:backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay backdrop-blur">
           <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 md:px-8 md:pb-4">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
