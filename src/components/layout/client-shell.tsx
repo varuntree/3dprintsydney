@@ -109,25 +109,11 @@ export function ClientShell({ children, user }: ClientShellProps) {
                 ) : null}
               </div>
             </div>
-            <div className="hidden items-center gap-2 md:flex">
+            <div className="flex items-center gap-2">
               <NotificationDropdown user={user} />
               <button
                 onClick={handleLogout}
                 className="min-h-[44px] flex items-center justify-center rounded-full border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
-                aria-label="Logout"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-            <div className="md:hidden">
-              <div className="flex gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
-                <div className="flex min-h-[44px] flex-shrink-0 items-center">
-                  <NotificationDropdown user={user} />
-                </div>
-              <button
-                onClick={handleLogout}
-                className="flex min-h-[44px] flex-shrink-0 items-center justify-center rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-600 hover:bg-red-600 hover:text-white"
                 aria-label="Logout"
               >
                 Logout

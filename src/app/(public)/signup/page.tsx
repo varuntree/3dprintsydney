@@ -43,7 +43,13 @@ export default function SignupPage() {
     setLoading(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error || "Signup failed");
+      setError(
+        typeof j?.error === "string"
+          ? j.error
+          : typeof j?.error?.message === "string"
+          ? j.error.message
+          : "Signup failed",
+      );
       return;
     }
     const { data } = await res.json();

@@ -1,5 +1,9 @@
 import * as THREE from "three";
 
+// World configuration: Y-up, horizontal ground plane is XZ
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
+// Reusable working objects (avoid allocations in tight paths)
 const workingBox = new THREE.Box3();
 const workingCenter = new THREE.Vector3();
 const workingSphere = new THREE.Sphere();
@@ -12,40 +16,68 @@ function safeComputeBoundingBox(geometry: THREE.BufferGeometry) {
   return geometry.boundingBox ?? null;
 }
 
+function evaluateOrientation(geometry: THREE.BufferGeometry, quat: THREE.Quaternion) {
+  const tmp = geometry.clone();
+  const m = new THREE.Matrix4().makeRotationFromQuaternion(quat);
+  tmp.applyMatrix4(m);
+  tmp.computeBoundingBox();
+  const bbox = tmp.boundingBox!;
+  const width = Math.max(0, bbox.max.x - bbox.min.x);
+  const depth = Math.max(0, bbox.max.z - bbox.min.z);
+  const height = Math.max(0, bbox.max.y - bbox.min.y);
+  const areaXZ = width * depth;
+  return { quat, width, depth, height, areaXZ };
+}
+
+function bestUprightQuaternion(geometry: THREE.BufferGeometry): THREE.Quaternion {
+  // Candidates: align each of ±X, ±Y, ±Z to +Y (world up)
+  const axes = [
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(-1, 0, 0),
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, -1, 0),
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(0, 0, -1),
+  ];
+
+  // Chosen convention: Prefer MIN height (sit flat on bed), tie-break by MIN footprint area
+  let best = { quat: new THREE.Quaternion(), height: Number.POSITIVE_INFINITY, areaXZ: Number.POSITIVE_INFINITY };
+  for (const a of axes) {
+    const q = new THREE.Quaternion().setFromUnitVectors(a, WORLD_UP);
+    const res = evaluateOrientation(geometry, q);
+    if (
+      res.height < best.height - 1e-6 ||
+      (Math.abs(res.height - best.height) <= 1e-6 && res.areaXZ < best.areaXZ - 1e-6)
+    ) {
+      best = { quat: q, height: res.height, areaXZ: res.areaXZ };
+    }
+  }
+  return best.quat;
+}
+
+export function alignGeometryToHorizontalPlane(geometry: THREE.BufferGeometry): void {
+  // Deterministic orientation: choose the rotation that minimizes model height (Y extent)
+  // and minimizes ground footprint (XZ area) as a tie-breaker so the model sits flat on the horizontal plane.
+  if (!geometry.attributes.position) return;
+
+  // Compute best rotation (min height) and apply
+  const q = bestUprightQuaternion(geometry);
+  const m = new THREE.Matrix4().makeRotationFromQuaternion(q);
+  geometry.applyMatrix4(m);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+}
+
 export function normalizeGeometry(geometry: THREE.BufferGeometry): void {
   const bbox = safeComputeBoundingBox(geometry);
   if (!bbox) return;
 
   const offsetX = (bbox.min.x + bbox.max.x) / 2;
   const offsetZ = (bbox.min.z + bbox.max.z) / 2;
-  const offsetY = bbox.min.y;
+  const offsetY = bbox.min.y; // place base on ground
 
   geometry.translate(-offsetX, -offsetY, -offsetZ);
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-}
-
-export function alignGeometryToHorizontalPlane(geometry: THREE.BufferGeometry): void {
-  const bbox = safeComputeBoundingBox(geometry);
-  if (!bbox) return;
-
-  const size = new THREE.Vector3();
-  bbox.getSize(size);
-
-  const axes = [
-    { axis: "x" as const, size: size.x },
-    { axis: "y" as const, size: size.y },
-    { axis: "z" as const, size: size.z },
-  ].sort((a, b) => b.size - a.size);
-
-  const tallestAxis = axes[0]?.axis;
-
-  if (tallestAxis === "z") {
-    geometry.rotateX(Math.PI / 2);
-  } else if (tallestAxis === "x") {
-    geometry.rotateZ(Math.PI / 2);
-  }
-
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
 }
@@ -55,9 +87,7 @@ export function recenterObjectToGround(object: THREE.Object3D): void {
   if (!isFinite(workingBox.min.x) || !isFinite(workingBox.min.y) || !isFinite(workingBox.min.z)) {
     return;
   }
-
   workingBox.getCenter(workingCenter);
-
   object.position.x -= workingCenter.x;
   object.position.z -= workingCenter.z;
   object.position.y -= workingBox.min.y;
@@ -70,9 +100,7 @@ export function fitObjectToView(
   padding = 1.2
 ): void {
   workingBox.setFromObject(object);
-  if (workingBox.isEmpty()) {
-    return;
-  }
+  if (workingBox.isEmpty()) return;
 
   workingBox.getBoundingSphere(workingSphere);
   const radius = workingSphere.radius * padding;
@@ -116,7 +144,6 @@ export function rotateObject(
 }
 
 // Backwards compatibility helpers (legacy callers expect these names)
-
 export function centerModelOnBed(object: THREE.Object3D): void {
   recenterObjectToGround(object);
 }

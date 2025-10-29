@@ -104,7 +104,13 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
 
       if (!r.ok) {
         const errorData = await r.json().catch(() => ({ error: "Failed to load messages" }));
-        setError(errorData.error || "Failed to load messages");
+        setError(
+          typeof (errorData as any)?.error === "string"
+            ? (errorData as any).error
+            : typeof (errorData as any)?.error?.message === "string"
+            ? (errorData as any).error.message
+            : "Failed to load messages",
+        );
         return;
       }
 
@@ -147,7 +153,13 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
 
       if (!r.ok) {
         const errorData = await r.json().catch(() => ({ error: "Failed to send message" }));
-        setError(errorData.error || "Failed to send message");
+        setError(
+          typeof (errorData as any)?.error === "string"
+            ? (errorData as any).error
+            : typeof (errorData as any)?.error?.message === "string"
+            ? (errorData as any).error.message
+            : "Failed to send message",
+        );
         return;
       }
 

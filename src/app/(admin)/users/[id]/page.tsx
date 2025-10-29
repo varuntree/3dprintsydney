@@ -42,7 +42,13 @@ export default function AdminUserDetailPage() {
     });
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error || "Failed to send");
+      setError(
+        typeof j?.error === "string"
+          ? j.error
+          : typeof j?.error?.message === "string"
+          ? j.error.message
+          : "Failed to send",
+      );
       return;
     }
     setContent("");

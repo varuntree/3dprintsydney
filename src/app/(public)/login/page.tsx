@@ -43,7 +43,7 @@ export default function LoginPage() {
         router.replace(data.role === "ADMIN" ? "/dashboard" : "/me");
       }
     });
-  }, [router]);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +57,13 @@ export default function LoginPage() {
     setLoading(false);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j.error || "Login failed");
+      setError(
+        typeof j?.error === "string"
+          ? j.error
+          : typeof j?.error?.message === "string"
+          ? j.error.message
+          : "Login failed",
+      );
       return;
     }
     const { data } = await res.json();

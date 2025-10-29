@@ -112,7 +112,13 @@ function InviteUserDialog({
       });
       const json = await response.json();
       if (!response.ok) {
-        setError(json?.error ?? "Failed to invite user");
+        setError(
+          typeof json?.error === "string"
+            ? json.error
+            : typeof json?.error?.message === "string"
+            ? json.error.message
+            : "Failed to invite user",
+        );
         return;
       }
       setResult(json.data);

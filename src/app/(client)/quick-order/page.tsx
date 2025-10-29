@@ -32,10 +32,13 @@ import {
   EyeOff,
   Info,
   Truck,
+  Axis3D,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import STLViewerWrapper, { type STLViewerRef } from "@/components/3d/STLViewerWrapper";
+import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
 import RotationControls from "@/components/3d/RotationControls";
+import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { exportSTL } from "@/lib/3d/export";
 
 type Upload = { id: string; filename: string; size: number };
@@ -137,14 +140,34 @@ export default function QuickOrderPage() {
   const [orientedFileIds, setOrientedFileIds] = useState<Record<string, string>>({});
   const [currentlyOrienting, setCurrentlyOrienting] = useState<string | null>(null);
   const [isLocking, setIsLocking] = useState(false);
-  const viewerRef = useRef<STLViewerRef>(null);
+  const viewerRef = useRef<ModelViewerRef>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
+  const [viewHelpersVisible, setViewHelpersVisible] = useState(false);
+  const [viewControlsOpen, setViewControlsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Draft auto-save state
   const [draftSaved, setDraftSaved] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
   const draftLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (!currentlyOrienting) return;
+    viewerRef.current?.setHelpersVisible(viewHelpersVisible);
+  }, [viewHelpersVisible, currentlyOrienting]);
+
+  useEffect(() => {
+    setViewHelpersVisible(false);
+    setViewControlsOpen(false);
+  }, [currentlyOrienting]);
+
+  useEffect(() => {
+    const update = () => setIsMobile(typeof window !== "undefined" && window.innerWidth < 768);
+    update();
+    window.addEventListener("resize", update, { passive: true });
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   // Draft localStorage management
   const DRAFT_KEY = "quick-order-draft";
@@ -192,13 +215,23 @@ export default function QuickOrderPage() {
     try {
       if (draft.step) setCurrentStep(draft.step);
       if (draft.uploads && Array.isArray(draft.uploads)) {
-        // Note: Can't restore actual file objects, just metadata
-        // Files will need to be re-uploaded if they've expired from temp storage
+        // Restore uploaded file metadata (IDs map to server-side tmp files)
+        setUploads(draft.uploads);
       }
       if (draft.settings) setSettings(draft.settings);
       if (draft.orientedFileIds) setOrientedFileIds(draft.orientedFileIds);
       if (draft.address) setAddress(draft.address);
       if (draft.metrics) setMetrics(draft.metrics);
+      // If returning to the Orient step, select a file to preview
+      if (draft.step === "orient") {
+        const pendingId = draft.uploads?.find(
+          (u) => !draft.orientedFileIds || !draft.orientedFileIds[u.id]
+        )?.id;
+        const firstId = draft.uploads?.[0]?.id;
+        setCurrentlyOrienting(pendingId || firstId || null);
+      } else {
+        setCurrentlyOrienting(null);
+      }
       setShowResumeDialog(false);
       draftLoadedRef.current = true;
     } catch (error) {
@@ -300,11 +333,6 @@ export default function QuickOrderPage() {
       uploaded.forEach((it) => {
         next[it.id] = { state: "idle" };
       });
-      return next;
-    });
-    setExpandedFiles((prev) => {
-      const next = new Set(prev);
-      uploaded.forEach((it) => next.add(it.id));
       return next;
     });
     if (uploads.length === 0) {
@@ -762,7 +790,7 @@ export default function QuickOrderPage() {
               You have an unsaved draft from a previous session. Would you like to continue where you left off?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-3">
             <Button
               variant="outline"
               onClick={() => {
@@ -810,10 +838,10 @@ export default function QuickOrderPage() {
                     className={cn(
                       "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors sm:h-10 sm:w-10",
                       isComplete
-                        ? "border-green-600 bg-green-600 text-white"
+                        ? "border-success bg-success text-white"
                         : isActive
-                        ? "border-blue-600 bg-blue-600 text-white"
-                        : "border-gray-300 bg-white text-gray-400"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card text-muted-foreground"
                     )}
                   >
                     {isComplete ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -1013,15 +1041,15 @@ export default function QuickOrderPage() {
                   const statusBadge = (() => {
                     switch (status) {
                       case "running":
-                        return { text: "Preparing...", className: "bg-blue-100 text-blue-700" };
+                        return { text: "Preparing...", className: "bg-info-subtle text-info-foreground" };
                       case "success":
-                        return { text: "Ready", className: "bg-green-100 text-green-700" };
+                        return { text: "Ready", className: "bg-success-subtle text-success-foreground" };
                       case "fallback":
                         return fallbackAccepted
-                          ? { text: "Estimate accepted", className: "bg-amber-100 text-amber-800" }
-                          : { text: "Needs review", className: "bg-red-100 text-red-700" };
+                          ? { text: "Estimate accepted", className: "bg-warning-subtle text-warning-foreground" }
+                          : { text: "Needs review", className: "bg-danger-subtle text-danger-foreground" };
                       case "error":
-                        return { text: "Error", className: "bg-red-100 text-red-700" };
+                        return { text: "Error", className: "bg-danger-subtle text-danger-foreground" };
                       default:
                         return null;
                     }
@@ -1116,19 +1144,26 @@ export default function QuickOrderPage() {
                               </Select>
                             </div>
                             <div>
-                              <Label className="text-xs">Layer Height (mm)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={settings[u.id]?.layerHeight ?? 0.2}
-                                onChange={(e) =>
+                              <Label className="text-xs">Layer Height</Label>
+                              <Select
+                                value={String(settings[u.id]?.layerHeight ?? 0.2)}
+                                onValueChange={(v) =>
                                   setSettings((s) => ({
                                     ...s,
-                                    [u.id]: { ...s[u.id], layerHeight: Number(e.target.value) },
+                                    [u.id]: { ...s[u.id], layerHeight: Number(v) },
                                   }))
                                 }
-                                className="h-9"
-                              />
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="0.12">0.12mm - Fine</SelectItem>
+                                  <SelectItem value="0.16">0.16mm - High</SelectItem>
+                                  <SelectItem value="0.20">0.20mm - Standard</SelectItem>
+                                  <SelectItem value="0.28">0.28mm - Draft</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                             <div>
                               <Label className="text-xs">Infill %</Label>
@@ -1284,8 +1319,8 @@ export default function QuickOrderPage() {
                   onClick={computePrice}
                   disabled={uploads.length === 0 || loading || pricing}
                   className={cn(
-                    "flex w-full items-center justify-center gap-2 bg-blue-600 text-white shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto",
-                    pricing ? "animate-pulse" : "hover:bg-blue-500"
+                    "flex w-full items-center justify-center gap-2 sm:w-auto",
+                    pricing && "animate-pulse"
                   )}
                 >
                   {pricing ? (
@@ -1374,12 +1409,72 @@ export default function QuickOrderPage() {
 
               {currentlyOrienting ? (
                 <div className="space-y-4">
-                  {/* 3D Viewer */}
-                  <STLViewerWrapper
-                    ref={viewerRef}
-                    url={`/api/tmp-file/${currentlyOrienting}`}
-                    onError={(err) => setError(err.message)}
-                  />
+                  {/* 3D Viewer with top-left trigger and controls panel below (non-overlapping) */}
+                  <div className="relative">
+                    <ModelViewerWrapper
+                      ref={viewerRef}
+                      url={`/api/tmp-file/${currentlyOrienting}`}
+                      filename={uploads.find((u) => u.id === currentlyOrienting)?.filename}
+                      onError={(err) => setError(err.message)}
+                    />
+                    {/* Trigger */}
+                    <button
+                      type="button"
+                      className="pointer-events-auto absolute left-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-overlay/80 shadow-sm backdrop-blur hover:bg-surface-overlay/90"
+                      aria-expanded={viewControlsOpen}
+                      aria-controls="view-controls-panel"
+                      onClick={() => setViewControlsOpen((v) => (isMobile ? true : !v))}
+                      title="View controls"
+                    >
+                      <Axis3D className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {!isMobile && viewControlsOpen ? (
+                    <div id="view-controls-panel" className="mt-2">
+                      <ViewNavigationControls
+                        helpersVisible={viewHelpersVisible}
+                        disabled={isLocking}
+                        onPan={(direction) => viewerRef.current?.pan(direction)}
+                        onZoom={(direction) => viewerRef.current?.zoom(direction)}
+                        onPreset={(preset) => viewerRef.current?.setView(preset)}
+                        onFit={() => viewerRef.current?.fit()}
+                        onReset={() => {
+                          setViewHelpersVisible(false);
+                          viewerRef.current?.resetView();
+                          setViewControlsOpen(false);
+                        }}
+                        onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
+                      />
+                    </div>
+                  ) : null}
+
+                  {isMobile ? (
+                    <Sheet open={viewControlsOpen} onOpenChange={setViewControlsOpen}>
+                      <SheetContent side="bottom" className="p-0 max-h-[70vh]">
+                        <SheetHeader className="border-b border-border px-4 py-3">
+                          <SheetTitle>View Controls</SheetTitle>
+                        </SheetHeader>
+                        <div className="p-3">
+                          <ViewNavigationControls
+                            mode="presets-only"
+                            helpersVisible={viewHelpersVisible}
+                            disabled={isLocking}
+                            onPan={(direction) => viewerRef.current?.pan(direction)}
+                            onZoom={(direction) => viewerRef.current?.zoom(direction)}
+                            onPreset={(preset) => viewerRef.current?.setView(preset)}
+                            onFit={() => viewerRef.current?.fit()}
+                            onReset={() => {
+                              setViewHelpersVisible(false);
+                              viewerRef.current?.resetView();
+                              setViewControlsOpen(false);
+                            }}
+                            onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
+                          />
+                        </div>
+                      </SheetContent>
+                    </Sheet>
+                  ) : null}
 
                   {/* Rotation Controls */}
                   {showRotationControls ? (
@@ -1388,6 +1483,7 @@ export default function QuickOrderPage() {
                         onReset={() => viewerRef.current?.resetView()}
                         onRecenter={() => viewerRef.current?.recenter()}
                         onFitView={() => viewerRef.current?.fit()}
+                        onAutoOrient={() => viewerRef.current?.autoOrient()}
                         onLock={handleLockOrientation}
                         onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
                         isLocking={isLocking}
@@ -1410,7 +1506,7 @@ export default function QuickOrderPage() {
                     </p>
                     <Button
                       onClick={() => setCurrentStep("configure")}
-                      className="mt-4 bg-green-600 text-white hover:bg-green-500"
+                      className="mt-4 bg-success text-white hover:bg-success-light"
                     >
                       Continue to Configure
                     </Button>
@@ -1620,7 +1716,7 @@ export default function QuickOrderPage() {
                 </div>
 
                 <Button
-                  className="w-full bg-blue-600 text-white shadow-md hover:bg-blue-500"
+                  className="w-full"
                   onClick={checkout}
                   disabled={!priceData || !shippingQuote || loading}
                 >
