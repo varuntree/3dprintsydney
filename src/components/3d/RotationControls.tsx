@@ -13,6 +13,7 @@ import {
   Maximize2,
   RefreshCcw,
   RotateCcw,
+  Sparkles,
   Square,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ interface RotationControlsProps {
   onReset: () => void;
   onRecenter: () => void;
   onFitView: () => void;
+  onAutoOrient: () => void;
   onLock: () => void;
   onRotate: (axis: "x" | "y" | "z", degrees: number) => void;
   isLocking?: boolean;
@@ -37,6 +39,7 @@ export default function RotationControls({
   onReset,
   onRecenter,
   onFitView,
+  onAutoOrient,
   onLock,
   onRotate,
   isLocking = false,
@@ -108,7 +111,7 @@ export default function RotationControls({
 
       <Separator className="bg-border/60" />
 
-      <div className="grid gap-2 sm:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-5">
         <Button
           type="button"
           variant="secondary"
@@ -128,6 +131,16 @@ export default function RotationControls({
         >
           <Maximize2 className="h-4 w-4" />
           Fit View
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={disabled}
+          className="flex w-full items-center justify-center gap-2"
+          onClick={onAutoOrient}
+        >
+          <Sparkles className="h-4 w-4" />
+          Auto Orient
         </Button>
         <Button
           type="button"

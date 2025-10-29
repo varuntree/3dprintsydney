@@ -74,7 +74,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -93,7 +92,7 @@ export default function LoginPage() {
             typeof payload === "object" &&
             payload !== null &&
             "error" in payload &&
-            payload.error) ||
+            (payload as any).error) ||
           "Login failed";
         setError(typeof message === "string" ? message : "Login failed");
         return;
@@ -112,6 +111,7 @@ export default function LoginPage() {
       setError(message);
     } finally {
       setLoading(false);
+    }
     }
   }
 

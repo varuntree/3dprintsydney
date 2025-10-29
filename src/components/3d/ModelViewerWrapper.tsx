@@ -3,22 +3,23 @@
 import { useState, useEffect, forwardRef } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { STLViewerHandle } from "./STLViewer";
-import * as THREE from "three";
+import type { ModelViewerHandle } from "./ModelViewer";
+import type * as THREE from "three";
 
-const STLViewer = dynamic(() => import("./STLViewer"), {
+const ModelViewer = dynamic(() => import("./ModelViewer"), {
   ssr: false,
   loading: () => <Skeleton className="h-[480px] w-full rounded-lg" />,
 });
 
-interface STLViewerWrapperProps {
+interface ModelViewerWrapperProps {
   url: string;
+  filename?: string;
   onTransformChange?: (matrix: THREE.Matrix4) => void;
   onLoadComplete?: () => void;
   onError?: (error: Error) => void;
 }
 
-const STLViewerWrapper = forwardRef<STLViewerHandle, STLViewerWrapperProps>((props, ref) => {
+const ModelViewerWrapper = forwardRef<ModelViewerHandle, ModelViewerWrapperProps>((props, ref) => {
   const [isClient, setIsClient] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -30,21 +31,19 @@ const STLViewerWrapper = forwardRef<STLViewerHandle, STLViewerWrapperProps>((pro
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Don't render anything on server
   if (!isClient) {
     return <Skeleton className="h-[480px] w-full rounded-lg" />;
   }
 
   return (
     <div className={isMobile ? "mx-auto w-full max-w-[min(480px,100%)]" : "w-full"}>
-      <STLViewer ref={ref} {...props} />
+      <ModelViewer ref={ref as any} {...props} />
     </div>
   );
 });
 
-STLViewerWrapper.displayName = "STLViewerWrapper";
+ModelViewerWrapper.displayName = "ModelViewerWrapper";
 
-export default STLViewerWrapper;
+export default ModelViewerWrapper;
 
-// Re-export the ref type for parent components
-export type { STLViewerHandle as STLViewerRef };
+export type { ModelViewerHandle as ModelViewerRef };

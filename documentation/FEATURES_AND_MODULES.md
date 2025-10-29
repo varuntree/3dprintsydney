@@ -430,6 +430,7 @@ This document provides a comprehensive catalog of all user-facing features, back
 
 **Step 2: Orient (Optional)**
 - 3D model viewer (STLViewerWrapper with Three.js)
+ - Camera navigation controls (pan, zoom, top/bottom/front/back/left/right/iso presets, grid/axes toggle)
 - Interactive model rotation (X, Y, Z axes)
 - Rotation controls (15°, 30°, 45°, 90° increments)
 - Reset orientation
