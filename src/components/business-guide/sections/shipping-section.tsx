@@ -62,7 +62,7 @@ export function ShippingSection({ settings }: ShippingSectionProps) {
               <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                 <li>
                   <strong className="text-foreground">State Matching:</strong> The system
-                  identifies all shipping regions that service the customer's state/territory
+                  identifies all shipping regions that service the customer&apos;s state/territory
                 </li>
                 <li>
                   <strong className="text-foreground">Postcode Refinement:</strong> If a
@@ -187,7 +187,7 @@ export function ShippingSection({ settings }: ShippingSectionProps) {
                           Postcode Prefixes {region.remoteSurcharge && region.remoteSurcharge > 0 && "(Remote Areas)"}
                         </p>
                         <div className="flex flex-wrap gap-1">
-                          {region.postcodePrefixes.map((prefix, pIdx) => (
+                          {(region.postcodePrefixes ?? []).map((prefix, pIdx) => (
                             <Badge key={pIdx} variant="secondary">
                               {prefix}*
                             </Badge>
@@ -240,7 +240,7 @@ export function ShippingSection({ settings }: ShippingSectionProps) {
               <div className="space-y-1 text-muted-foreground">
                 <p>• Location: TAS, Postcode 7000</p>
                 <p>• Matches: Tasmania region</p>
-                <p>• Postcode 7000 matches remote prefix "7"</p>
+                <p>• Postcode 7000 matches remote prefix &quot;7&quot;</p>
                 <p className="font-semibold text-foreground">
                   Result: Base rate + Remote surcharge
                 </p>

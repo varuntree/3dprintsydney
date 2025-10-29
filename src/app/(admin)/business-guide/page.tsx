@@ -3,6 +3,7 @@ import { BusinessGuideView } from "@/components/business-guide/business-guide-vi
 import { getSettings } from "@/server/services/settings";
 import { listMaterials } from "@/server/services/materials";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import type { SettingsPayload } from "@/components/settings/settings-form";
 
 /**
  * Fetch recent example invoices for real-world calculation examples
@@ -52,6 +53,15 @@ async function getExampleInvoices() {
   return data || [];
 }
 
+function serializeSettings(settings: Awaited<ReturnType<typeof getSettings>>): SettingsPayload | null {
+  if (!settings) return null;
+  return {
+    ...settings,
+    createdAt: settings.createdAt?.toISOString(),
+    updatedAt: settings.updatedAt?.toISOString(),
+  };
+}
+
 export default async function BusinessGuidePage() {
   await requireAdmin();
 
@@ -62,9 +72,15 @@ export default async function BusinessGuidePage() {
     getExampleInvoices(),
   ]);
 
+  const serializedSettings = serializeSettings(settings);
+
+  if (!serializedSettings) {
+    return <div>Settings not found</div>;
+  }
+
   return (
     <BusinessGuideView
-      settings={settings}
+      settings={serializedSettings}
       materials={materials}
       exampleInvoices={exampleInvoices}
     />

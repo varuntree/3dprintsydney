@@ -2,9 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Info, FileText, Calendar } from "lucide-react";
+import { FileText, Calendar } from "lucide-react";
 
 export function ChangelogSection() {
   return (

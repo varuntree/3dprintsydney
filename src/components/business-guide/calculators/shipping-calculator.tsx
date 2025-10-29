@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import type { ShippingRegion } from "@/lib/schemas/settings";
+import type { SettingsInput } from "@/lib/schemas/settings";
+
+type ShippingRegion = SettingsInput["shippingRegions"][number];
 
 interface ShippingCalculatorProps {
   shippingRegions: ShippingRegion[];
@@ -44,7 +46,7 @@ export function ShippingCalculator({
 
     // Find regions matching the state
     let candidates = shippingRegions.filter((region) =>
-      region.states?.some((s) => s.trim().toUpperCase() === targetState)
+      region.states?.some((s: string) => s.trim().toUpperCase() === targetState)
     );
 
     // If no state match, use fallback
@@ -62,7 +64,7 @@ export function ShippingCalculator({
     // If postcode provided, try to match by postcode prefix
     if (targetPostcode) {
       const postcodeMatch = candidates.find((region) =>
-        (region.postcodePrefixes ?? []).some((prefix) =>
+        (region.postcodePrefixes ?? []).some((prefix: string) =>
           targetPostcode.startsWith(prefix)
         )
       );
@@ -77,7 +79,7 @@ export function ShippingCalculator({
     // Check if remote surcharge applies
     const remoteSurcharge =
       targetPostcode &&
-      (selected.postcodePrefixes ?? []).some((prefix) =>
+      (selected.postcodePrefixes ?? []).some((prefix: string) =>
         targetPostcode.startsWith(prefix)
       )
         ? Number(selected.remoteSurcharge ?? 0)

@@ -37,7 +37,6 @@ interface DiscountsSectionProps {
 
 export function DiscountsSection({
   settings,
-  exampleInvoices,
 }: DiscountsSectionProps) {
   const taxRate = settings.taxRate || 10;
 
@@ -283,14 +282,14 @@ export function DiscountsSection({
                 System checks the client's email address when creating quotes/invoices
               </li>
               <li>
-                If email domain contains ".edu" (case-insensitive), client is marked as eligible
+                If email domain contains &quot;.edu&quot; (case-insensitive), client is marked as eligible
               </li>
               <li>
                 A {STUDENT_DISCOUNT_RATE}% percentage discount is automatically applied at the
                 document level
               </li>
               <li>
-                The discount shows on the quote/invoice as "Student Discount"
+                The discount shows on the quote/invoice as &quot;Student Discount&quot;
               </li>
             </ol>
           </div>
@@ -299,8 +298,8 @@ export function DiscountsSection({
             <p className="text-xs font-semibold text-muted-foreground">ELIGIBILITY LOGIC</p>
             <div className="font-mono text-xs space-y-1">
               <p>email = client.email</p>
-              <p>domain = email.split('@')[1]</p>
-              <p>eligible = domain.includes('.edu')</p>
+              <p>domain = email.split(&apos;@&apos;)[1]</p>
+              <p>eligible = domain.includes(&apos;.edu&apos;)</p>
               <p>IF eligible:</p>
               <p className="ml-4">discount = {STUDENT_DISCOUNT_RATE}% (PERCENT)</p>
             </div>

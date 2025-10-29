@@ -6,11 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, GitBranch } from "lucide-react";
 
-interface WorkflowsSectionProps {
-  searchQuery: string;
-}
-
-export function WorkflowsSection({ searchQuery }: WorkflowsSectionProps) {
+export function WorkflowsSection() {
   return (
     <div className="space-y-6">
       {/* Overview */}
@@ -191,13 +187,13 @@ export function WorkflowsSection({ searchQuery }: WorkflowsSectionProps) {
                 <span className="text-sm font-semibold">Stripe Checkout</span>
               </div>
               <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                <li>Client clicks "Pay Online" on invoice</li>
+                <li>Client clicks &quot;Pay Online&quot; on invoice</li>
                 <li>System creates Stripe checkout session</li>
                 <li>Client redirected to Stripe payment page</li>
                 <li>Client completes payment</li>
                 <li>Stripe webhook notifies system of successful payment</li>
                 <li>Invoice marked as PAID automatically</li>
-                <li>Job created if policy is "on payment"</li>
+                <li>Job created if policy is &quot;on payment&quot;</li>
               </ol>
             </div>
 
@@ -211,7 +207,7 @@ export function WorkflowsSection({ searchQuery }: WorkflowsSectionProps) {
                 <li>Admin records payment in invoice with amount, method, reference</li>
                 <li>System recalculates balance due</li>
                 <li>If balance = $0, invoice marked as PAID</li>
-                <li>Job created if policy is "on payment"</li>
+                <li>Job created if policy is &quot;on payment&quot;</li>
               </ol>
             </div>
 
@@ -315,7 +311,7 @@ export function WorkflowsSection({ searchQuery }: WorkflowsSectionProps) {
               <li className="flex gap-2">
                 <Badge variant="outline" className="shrink-0">Auto</Badge>
                 <span className="text-muted-foreground">
-                  Job created automatically when invoice paid (if policy = "on payment")
+                  Job created automatically when invoice paid (if policy = &quot;on payment&quot;)
                 </span>
               </li>
               <li className="flex gap-2">
@@ -459,7 +455,7 @@ export function WorkflowsSection({ searchQuery }: WorkflowsSectionProps) {
             <div className="p-4 bg-white rounded-lg border">
               <p className="font-semibold text-sm mb-2">Auto-Detach on Complete</p>
               <p className="text-xs text-muted-foreground">
-                When a job is marked complete, it's automatically removed from the printer queue
+                When a job is marked complete, it&apos;s automatically removed from the printer queue
                 to free up capacity for the next job.
               </p>
             </div>

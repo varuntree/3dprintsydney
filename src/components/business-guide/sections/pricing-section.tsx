@@ -147,7 +147,7 @@ export function PricingSection({
                 </div>
                 <div className="bg-white p-3 rounded-lg border">
                   <p className="text-xs text-muted-foreground">Minimum Price</p>
-                  <p className="text-lg font-bold">{formatCurrency(calculatorConfig.minimumPrice)}</p>
+                  <p className="text-lg font-bold">{formatCurrency(calculatorConfig.minimumPrice ?? 0)}</p>
                 </div>
               </div>
               <Alert className="mt-4">
@@ -166,9 +166,9 @@ export function PricingSection({
       {/* Interactive Calculator */}
       <PricingCalculator
         materials={materials}
-        hourlyRate={calculatorConfig.hourlyRate}
-        setupFee={calculatorConfig.setupFee}
-        minimumPrice={calculatorConfig.minimumPrice}
+        hourlyRate={calculatorConfig.hourlyRate ?? 45}
+        setupFee={calculatorConfig.setupFee ?? 20}
+        minimumPrice={calculatorConfig.minimumPrice ?? 35}
       />
 
       {/* Line Item Calculations */}

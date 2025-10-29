@@ -47,7 +47,7 @@ export function SlicingSection() {
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
               When a client uploads a 3D model for a quick order, the file needs to be
-              "sliced" before we can price it accurately. Slicing converts the 3D model into
+              &quot;sliced&quot; before we can price it accurately. Slicing converts the 3D model into
               layers and calculates:
             </p>
 
@@ -220,7 +220,7 @@ export function SlicingSection() {
               <p className="ml-4">   Retry once (max 2 total attempts)</p>
               <p>3. IF all attempts fail:</p>
               <p className="ml-4">   Use fallback metrics</p>
-              <p className="ml-4">   Mark as "fallback" for client approval</p>
+              <p className="ml-4">   Mark as &quot;fallback&quot; for client approval</p>
             </div>
           </div>
         </CardContent>
@@ -278,7 +278,7 @@ export function SlicingSection() {
             <ol className="list-decimal list-inside space-y-1 ml-2">
               <li>System displays warning that slicing failed</li>
               <li>Shows fallback metrics being used for pricing</li>
-              <li>Client must click "Accept Estimate" to proceed</li>
+              <li>Client must click &quot;Accept Estimate&quot; to proceed</li>
               <li>Without approval, client cannot complete checkout</li>
             </ol>
           </div>
@@ -326,7 +326,7 @@ export function SlicingSection() {
             <p className="font-semibold mb-2">Extraction Process:</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-2">
               <li>Read generated G-code file line by line</li>
-              <li>Search for comment lines starting with ";"</li>
+              <li>Search for comment lines starting with &quot;;&quot;</li>
               <li>Match patterns for filament weight and print time</li>
               <li>Parse numeric values and convert units</li>
               <li>Return structured metrics object</li>
@@ -369,7 +369,7 @@ export function SlicingSection() {
             <div className="p-3 bg-slate-50 rounded-lg border">
               <code className="text-xs font-mono">SLICER_DISABLE</code>
               <p className="text-xs text-muted-foreground mt-1">
-                If set to "true", skips slicing and always uses fallback metrics (for testing).
+                If set to &quot;true&quot;, skips slicing and always uses fallback metrics (for testing).
               </p>
             </div>
           </div>
