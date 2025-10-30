@@ -19,7 +19,6 @@ import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 import { listProductTemplates } from "@/server/services/product-templates";
 import { listMaterials } from "@/server/services/materials";
 import { InvoiceActivity } from "@/components/invoices/invoice-activity";
-import { Conversation } from "@/components/messages/conversation";
 
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
@@ -166,18 +165,6 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         {/* Activity Log */}
         <InvoiceActivity invoiceId={detail.id} />
 
-        {/* Messages - Full Width */}
-        <div className="rounded-3xl border border-border bg-surface-overlay shadow-sm overflow-hidden">
-          <div className="p-4 sm:p-6 border-b border-border">
-            <h2 className="text-base font-medium">Messages</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Communicate with the client about this invoice
-            </p>
-          </div>
-          <div className="h-[600px]">
-            <Conversation invoiceId={detail.id} currentUserRole="ADMIN" />
-          </div>
-        </div>
       </div>
     );
   } catch {

@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Conversation } from "@/components/messages/conversation";
 import { formatDistanceToNow } from "date-fns";
 import type { JobStatus } from "@/lib/constants/enums";
 import { CheckCircle2, Circle, Loader2, PauseCircle } from "lucide-react";
@@ -300,20 +299,6 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
           </CardContent>
         </Card>
 
-        {/* Messages - same UI/logic/flow as Client Home */}
-        <Card className="border border-border bg-surface-overlay">
-          <CardHeader>
-            <CardTitle className="text-base">Messages</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Chat with our team about your orders
-            </p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="h-[500px] md:h-[600px]">
-              <Conversation currentUserRole="CLIENT" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   } catch {

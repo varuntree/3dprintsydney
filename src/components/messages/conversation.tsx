@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { groupMessages, type Message } from "@/lib/chat/group-messages";
@@ -33,6 +33,34 @@ function mergeMessageLists(
   );
 }
 
+type MessagesPayload = { data: ConversationMessage[] };
+type ErrorPayload = { error?: string | { message?: string } };
+
+function isMessagesPayload(payload: unknown): payload is MessagesPayload {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    Array.isArray((payload as { data?: unknown }).data)
+  );
+}
+
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (typeof payload === "object" && payload !== null) {
+    const possibleError = (payload as ErrorPayload).error;
+    if (typeof possibleError === "string") {
+      return possibleError;
+    }
+    if (
+      typeof possibleError === "object" &&
+      possibleError !== null &&
+      typeof (possibleError as { message?: unknown }).message === "string"
+    ) {
+      return (possibleError as { message: string }).message;
+    }
+  }
+  return fallback;
+}
+
 /**
  * Modern conversation component with message grouping
  *
@@ -52,21 +80,10 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
-  const [viewerId, setViewerId] = useState<number | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(true);
   const endRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  const scrollToBottom = useCallback(
-    (behavior: ScrollBehavior = "smooth") => {
-      if (!endRef.current) return;
-      window.requestAnimationFrame(() => {
-        endRef.current?.scrollIntoView({ behavior });
-      });
-    },
-    [],
-  );
 
   useEffect(() => {
     // Fetch current user role if not provided
@@ -118,22 +135,15 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         : `/api/messages?${q.toString()}`;
 
       const r = await fetch(endpoint);
+      const payload = (await r.json().catch(() => null)) as unknown;
       setLoading(false);
 
-      if (!r.ok) {
-        const errorData = await r.json().catch(() => ({ error: "Failed to load messages" }));
-        setError(
-          typeof (errorData as any)?.error === "string"
-            ? (errorData as any).error
-            : typeof (errorData as any)?.error?.message === "string"
-            ? (errorData as any).error.message
-            : "Failed to load messages",
-        );
+      if (!r.ok || !isMessagesPayload(payload)) {
+        setError(extractErrorMessage(payload, "Failed to load messages"));
         return;
       }
 
-      const { data } = await r.json();
-      const list: ConversationMessage[] = (data as ConversationMessage[]).slice().reverse();
+      const list = payload.data.slice().reverse();
       setHasMore(list.length === limit);
       if (replace) setMessages(list);
       else setMessages((prev) => [...list, ...prev]);
@@ -163,10 +173,10 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         : `/api/messages?${q.toString()}`;
 
       const r = await fetch(endpoint);
-      if (!r.ok) return; // Silently fail on background refresh
+      const payload = (await r.json().catch(() => null)) as unknown;
+      if (!r.ok || !isMessagesPayload(payload)) return; // Silently fail on background refresh
 
-      const { data } = await r.json();
-      const incoming: ConversationMessage[] = (data as ConversationMessage[]).slice().reverse();
+      const incoming = payload.data.slice().reverse();
 
       // Use merge function to prevent duplicates and maintain order
       setMessages((prev) => mergeMessageLists(prev, incoming));
@@ -195,15 +205,9 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         body: JSON.stringify(payload),
       });
 
+      const responsePayload = (await r.json().catch(() => null)) as unknown;
       if (!r.ok) {
-        const errorData = await r.json().catch(() => ({ error: "Failed to send message" }));
-        setError(
-          typeof (errorData as any)?.error === "string"
-            ? (errorData as any).error
-            : typeof (errorData as any)?.error?.message === "string"
-            ? (errorData as any).error.message
-            : "Failed to send message",
-        );
+        setError(extractErrorMessage(responsePayload, "Failed to send message"));
         return;
       }
 

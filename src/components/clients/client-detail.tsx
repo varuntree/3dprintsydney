@@ -57,7 +57,6 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Conversation } from "@/components/messages/conversation";
 import { AddCreditModal } from "@/components/clients/add-credit-modal";
 
 export type ClientDetailRecord = {
@@ -444,7 +443,6 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               <TabsTrigger value="quotes">Quotes</TabsTrigger>
               <TabsTrigger value="jobs">Jobs</TabsTrigger>
               <TabsTrigger value="activity">Activity</TabsTrigger>
-              <TabsTrigger value="messages">Messages</TabsTrigger>
             </TabsList>
             <TabsContent value="invoices">
               <DataTable
@@ -596,30 +594,6 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               </Card>
             </TabsContent>
 
-            <TabsContent value="messages">
-              {current.clientUser ? (
-                <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-sm font-medium">Messages with {current.clientUser.email}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="min-h-[420px]">
-                      <Conversation userId={current.clientUser.id} currentUserRole="ADMIN" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="rounded-3xl border border-border bg-surface-overlay shadow-sm">
-                  <CardContent className="py-6">
-                    <EmptyState
-                      title="No portal user for this client"
-                      description="Client messages appear once a client creates a portal account. You can still message clients on specific invoices."
-                      className="rounded-2xl border-border"
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
           </Tabs>
         </div>
       </div>
