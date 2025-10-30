@@ -9,6 +9,7 @@ type NotificationState = {
   loading: boolean;
   error: string | null;
   lastSeenAt: string | null;
+  newestMessageTimestamp: string | null;
 };
 
 const DEFAULT_STATE: NotificationState = {
@@ -16,6 +17,7 @@ const DEFAULT_STATE: NotificationState = {
   loading: true,
   error: null,
   lastSeenAt: null,
+  newestMessageTimestamp: null,
 };
 
 const MAX_NOTIFICATIONS = 10;
@@ -32,7 +34,7 @@ export function useShellNotifications(
   user: LegacyUser | null | undefined,
   options?: UseShellNotificationsOptions,
 ) {
-  const [{ items, loading, error, lastSeenAt }, setState] = useState<NotificationState>(DEFAULT_STATE);
+  const [{ items, loading, error, lastSeenAt, newestMessageTimestamp }, setState] = useState<NotificationState>(DEFAULT_STATE);
 
   const userId = user?.id ?? null;
 
@@ -97,11 +99,26 @@ export function useShellNotifications(
 
       const storedLastSeen = loadLastSeen();
 
+      // Extract newest message timestamp from full list (before filtering)
+      const newestTimestamp = mapped.length > 0 ? mapped[0].createdAt : null;
+
+      const filtered = (() => {
+        if (!storedLastSeen) return mapped;
+        const lastSeenTime = Date.parse(storedLastSeen);
+        if (Number.isNaN(lastSeenTime)) return mapped;
+        return mapped.filter((item) => {
+          const itemTime = Date.parse(item.createdAt);
+          if (Number.isNaN(itemTime)) return true;
+          return itemTime > lastSeenTime;
+        });
+      })();
+
       setState({
-        items: mapped,
+        items: filtered,
         loading: false,
         error: null,
         lastSeenAt: storedLastSeen,
+        newestMessageTimestamp: newestTimestamp,
       });
     } catch (err) {
       setState((prev) => ({
@@ -143,17 +160,47 @@ export function useShellNotifications(
   }, [items, lastSeenAt]);
 
   const markAllSeen = useCallback(() => {
-    if (!items.length) return;
-    const newest = items[0];
-    const newestTimestamp = newest?.createdAt;
-    if (!newestTimestamp) return;
+    if (!newestMessageTimestamp) return;
 
-    persistLastSeen(newestTimestamp);
+    persistLastSeen(newestMessageTimestamp);
     setState((prev) => ({
       ...prev,
-      lastSeenAt: newestTimestamp,
+      lastSeenAt: newestMessageTimestamp,
     }));
-  }, [items, persistLastSeen]);
+  }, [newestMessageTimestamp, persistLastSeen]);
+
+  const clearNotifications = useCallback(() => {
+    setState((prev) => {
+      if (!prev.items.length) {
+        return prev;
+      }
+
+      const lastSeen = prev.lastSeenAt;
+      if (!lastSeen) {
+        return {
+          ...prev,
+          items: [],
+        };
+      }
+
+      const lastSeenTime = Date.parse(lastSeen);
+      if (Number.isNaN(lastSeenTime)) {
+        return {
+          ...prev,
+          items: [],
+        };
+      }
+
+      return {
+        ...prev,
+        items: prev.items.filter((item) => {
+          const itemTime = Date.parse(item.createdAt);
+          if (Number.isNaN(itemTime)) return true;
+          return itemTime > lastSeenTime;
+        }),
+      };
+    });
+  }, []);
 
   return {
     notifications: items,
@@ -162,5 +209,6 @@ export function useShellNotifications(
     unseenCount,
     markAllSeen,
     refetch: fetchNotifications,
+    clearNotifications,
   };
 }
