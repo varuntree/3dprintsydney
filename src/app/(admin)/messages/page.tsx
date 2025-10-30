@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,9 +32,39 @@ export default function AdminMessagesPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    // Setup polling for user list to keep message counts fresh
+    pollingIntervalRef.current = setInterval(() => {
+      // Silently refresh user list in background
+      fetch(`/api/admin/users`)
+        .then((r) => r.json())
+        .then(({ data }) => {
+          const normalized: UserRow[] = (data as Array<Record<string, unknown>>).map((u) => ({
+            id: String(u.id ?? ''),
+            email: String(u.email ?? ''),
+            role: String(u.role ?? ''),
+            clientId: typeof u.clientId === 'number' ? (u.clientId as number) : null,
+            createdAt: String(u.createdAt ?? ''),
+            messageCount: typeof u.messageCount === 'number' ? (u.messageCount as number) : 0,
+          }));
+          setUsers(normalized);
+        })
+        .catch(() => {
+          // Silently fail on background refresh
+        });
+    }, 5000); // Poll every 5 seconds (slower than message polling)
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
   }, []);
 
   async function fetchUsers() {
@@ -192,7 +222,7 @@ export default function AdminMessagesPage() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6 sm:py-5">
+                  <div className="flex items-center gap-3 border-b border-border/70 px-4 py-4 sm:px-6 sm:py-5">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/70 bg-surface-muted text-sm font-semibold text-foreground shadow-sm shadow-black/5">
                         {selectedUser?.email[0]?.toUpperCase() ?? "?"}
@@ -210,14 +240,6 @@ export default function AdminMessagesPage() {
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 rounded-full border-border/70 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
-                      onClick={() => setRosterOpen(true)}
-                    >
-                      Switch
-                    </Button>
                   </div>
                   <Conversation key={selected} userId={selected} currentUserRole="ADMIN" />
                 </>

@@ -17,11 +17,16 @@ interface NotificationDropdownProps {
 
 export function NotificationDropdown({ user }: NotificationDropdownProps) {
   const [open, setOpen] = useState(false);
-  const messagesHref = user.role === "ADMIN" ? "/admin/messages" : "/client/messages";
-  const { notifications, unseenCount, loading, error, markAllSeen, refetch } = useShellNotifications(
-    user,
-    { messagesHref },
-  );
+  const messagesHref = user.role === "ADMIN" ? "/messages" : "/client/messages";
+  const {
+    notifications,
+    unseenCount,
+    loading,
+    error,
+    markAllSeen,
+    refetch,
+    clearNotifications,
+  } = useShellNotifications(user, { messagesHref });
 
   const bellBadge = useMemo(() => {
     if (unseenCount > 9) return "9+";
@@ -36,6 +41,8 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
         setOpen(next);
         if (next) {
           markAllSeen();
+        } else {
+          clearNotifications();
         }
       }}
     >
@@ -87,7 +94,7 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
           ) : notifications.length === 0 ? (
             <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center text-sm text-muted-foreground">
               <Bell className="h-5 w-5" />
-              No notifications yet
+              You are all caught up
             </div>
           ) : (
             <ScrollArea className="max-h-80">
@@ -140,4 +147,3 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
     </Popover>
   );
 }
-

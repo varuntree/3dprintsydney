@@ -53,8 +53,10 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [viewerId, setViewerId] = useState<number | null>(null);
+  const [pollingEnabled, setPollingEnabled] = useState(true);
   const endRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -83,6 +85,22 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     // reset when switching thread
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId, userId]);
+
+  useEffect(() => {
+    // Setup polling for seamless auto-refresh
+    if (!pollingEnabled) return;
+
+    pollingIntervalRef.current = setInterval(() => {
+      refreshMessages();
+    }, 3000); // Poll every 3 seconds
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceId, userId, pollingEnabled]);
 
   async function loadPage(p: number, replace = false, scrollToBottom = false) {
     if (loading) return;
@@ -131,6 +149,32 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     }
   }
 
+  async function refreshMessages() {
+    // Don't refresh if already loading to avoid race conditions
+    if (loading) return;
+
+    try {
+      const limit = 50;
+      const q = new URLSearchParams({ order: "desc", limit: String(limit), offset: "0" });
+      if (invoiceId) q.set("invoiceId", String(invoiceId));
+
+      const endpoint = userId
+        ? `/api/admin/users/${userId}/messages?${q.toString()}`
+        : `/api/messages?${q.toString()}`;
+
+      const r = await fetch(endpoint);
+      if (!r.ok) return; // Silently fail on background refresh
+
+      const { data } = await r.json();
+      const incoming: ConversationMessage[] = (data as ConversationMessage[]).slice().reverse();
+
+      // Use merge function to prevent duplicates and maintain order
+      setMessages((prev) => mergeMessageLists(prev, incoming));
+    } catch {
+      // Silently fail on background refresh - don't disrupt user experience
+    }
+  }
+
   async function send() {
     const trimmed = content.trim();
     if (!trimmed) return;
@@ -164,6 +208,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       }
 
       setContent("");
+      setPollingEnabled(true); // Resume polling after sending
       await loadPage(0, true, true); // Scroll to bottom after sending
     } catch {
       setError("Network error. Please try again.");
@@ -269,7 +314,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2 shadow-sm shadow-black/10 sm:p-2.5">
           <Textarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(e) => {
+              setContent(e.target.value);
+              // Pause polling while typing, resume when input is empty
+              setPollingEnabled(e.target.value.trim() === "");
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type a message... (Shift+Enter for new line)"
             className="min-h-[56px] max-h-[120px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0 sm:min-h-[60px] sm:max-h-[140px] sm:px-3 sm:py-3"
