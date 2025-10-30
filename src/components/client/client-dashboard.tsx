@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Conversation } from "@/components/messages/conversation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
@@ -43,7 +42,6 @@ type JobRow = {
  * Provides a comprehensive overview for clients:
  * - Statistics cards (orders, pending, paid, total spent)
  * - Recent orders table (last 5 invoices)
- * - Messages section
  * - Quick actions
  */
 export function ClientDashboard() {
@@ -425,22 +423,6 @@ export function ClientDashboard() {
         </CardContent>
       </Card>
 
-      {/* Messages */}
-      <Card className="rounded-3xl border border-border/70 bg-surface-overlay shadow-sm shadow-black/5">
-        <CardHeader className="border-b border-border/70">
-          <div>
-            <CardTitle className="text-base">Messages</CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Chat with our team about your orders
-            </p>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="h-[600px] overflow-hidden rounded-3xl bg-surface-overlay">
-            <Conversation currentUserRole="CLIENT" />
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
