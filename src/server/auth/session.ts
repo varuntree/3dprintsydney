@@ -1,14 +1,35 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type Session } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { LegacyUser } from "@/lib/types/user";
 import { resolveStudentDiscount } from "@/lib/student-discount";
 import { logger } from "@/lib/logger";
 import { UnauthorizedError, AppError } from "@/lib/errors";
+import { buildAuthCookieOptions, type CookieOptions } from "@/lib/utils/auth-cookies";
 
 const ACCESS_COOKIE = "sb:token";
+const REFRESH_COOKIE = "sb:refresh-token";
+
+type CookieStore = {
+  set(name: string, value: string, options?: CookieOptions): void;
+  get(name: string): { value: string } | undefined;
+};
+
+function applySessionCookies(target: CookieStore, session: Session) {
+  target.set(ACCESS_COOKIE, session.access_token, buildAuthCookieOptions(session.expires_at ?? undefined));
+  if (session.refresh_token) {
+    target.set(REFRESH_COOKIE, session.refresh_token, buildAuthCookieOptions());
+  }
+}
+
+function clearSessionCookies(target: CookieStore) {
+  const expired = buildAuthCookieOptions();
+  expired.expires = new Date(0);
+  target.set(ACCESS_COOKIE, "", expired);
+  target.set(REFRESH_COOKIE, "", expired);
+}
 
 function createAuthClient() {
   return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
@@ -46,18 +67,40 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
   };
 }
 
-async function getAuthUserFromToken(token: string | undefined) {
-  if (!token) return null;
-  const supabase = createAuthClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-  if (error) {
-    logger.warn({ scope: "auth.session", message: "Failed to fetch auth user", error });
-    return null;
+async function getAuthUserFromTokens(accessToken?: string, refreshToken?: string) {
+  if (!accessToken && !refreshToken) {
+    return { user: null, session: null as Session | null };
   }
-  return user;
+
+  const supabase = createAuthClient();
+
+  if (accessToken) {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(accessToken);
+    if (!error && user) {
+      return { user, session: null as Session | null };
+    }
+    if (error) {
+      logger.warn({ scope: "auth.session", message: "Failed to fetch auth user", error });
+    }
+  }
+
+  if (!refreshToken) {
+    return { user: null, session: null as Session | null };
+  }
+
+  const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({ refresh_token: refreshToken });
+  if (refreshError || !refreshData?.session) {
+    if (refreshError) {
+      logger.warn({ scope: "auth.session", message: "Failed to refresh session", error: refreshError });
+    }
+    return { user: null, session: null as Session | null };
+  }
+
+  const refreshedUser = refreshData.session.user ?? refreshData.user ?? null;
+  return { user: refreshedUser, session: refreshData.session };
 }
 
 /**
@@ -71,9 +114,22 @@ async function getAuthUserFromToken(token: string | undefined) {
  * @returns User if authenticated, null otherwise
  */
 export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser | null> {
-  const token = req.cookies.get(ACCESS_COOKIE)?.value;
-  const authUser = await getAuthUserFromToken(token);
-  if (!authUser) return null;
+  const cookieStore = req.cookies as CookieStore;
+  const accessToken = cookieStore.get(ACCESS_COOKIE)?.value;
+  const refreshToken = cookieStore.get(REFRESH_COOKIE)?.value;
+  const { user: authUser, session } = await getAuthUserFromTokens(accessToken, refreshToken);
+
+  if (!authUser) {
+    if (accessToken || refreshToken) {
+      clearSessionCookies(cookieStore);
+    }
+    return null;
+  }
+
+  if (session) {
+    applySessionCookies(cookieStore, session);
+  }
+
   return loadLegacyUser(authUser.id);
 }
 
@@ -104,9 +160,21 @@ export async function requireUser(req: NextRequest): Promise<LegacyUser> {
  * @returns User if authenticated, null otherwise
  */
 export async function getUserFromCookies(): Promise<LegacyUser | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(ACCESS_COOKIE)?.value;
-  const authUser = await getAuthUserFromToken(token);
-  if (!authUser) return null;
+  const cookieStore = (await cookies()) as CookieStore;
+  const accessToken = cookieStore.get(ACCESS_COOKIE)?.value;
+  const refreshToken = cookieStore.get(REFRESH_COOKIE)?.value;
+  const { user: authUser, session } = await getAuthUserFromTokens(accessToken, refreshToken);
+
+  if (!authUser) {
+    if (accessToken || refreshToken) {
+      clearSessionCookies(cookieStore);
+    }
+    return null;
+  }
+
+  if (session) {
+    applySessionCookies(cookieStore, session);
+  }
+
   return loadLegacyUser(authUser.id);
 }
