@@ -5,19 +5,36 @@ import { Button } from "@/components/ui/button";
 import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  generateInvoicePdf,
+  generateQuotePdf,
+} from "@/lib/pdf/client";
+import type {
+  InvoicePdfSnapshot,
+  QuotePdfSnapshot,
+} from "@/lib/pdf/snapshots";
 
-interface PdfGenerateButtonProps {
-  documentType: "invoice" | "quote";
-  documentId: number;
+type InvoiceButtonProps = {
+  documentType: "invoice";
   documentNumber: string;
+  pdfSnapshot: InvoicePdfSnapshot;
   className?: string;
-}
+};
+
+type QuoteButtonProps = {
+  documentType: "quote";
+  documentNumber: string;
+  pdfSnapshot: QuotePdfSnapshot;
+  className?: string;
+};
+
+type PdfGenerateButtonProps = InvoiceButtonProps | QuoteButtonProps;
 
 export function PdfGenerateButton({
   documentType,
-  documentId,
   documentNumber,
   className,
+  pdfSnapshot,
 }: PdfGenerateButtonProps) {
   const [loading, setLoading] = useState(false);
 
@@ -25,17 +42,15 @@ export function PdfGenerateButton({
     if (loading) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/${documentType}s/${documentId}/pdf`);
-      if (!response.ok) {
-        throw new Error(`Failed to generate ${documentType} PDF`);
+      if (documentType === "invoice") {
+        await generateInvoicePdf(pdfSnapshot, {
+          filename: `${documentType}-${documentNumber}.pdf`,
+        });
+      } else {
+        await generateQuotePdf(pdfSnapshot, {
+          filename: `${documentType}-${documentNumber}.pdf`,
+        });
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${documentType}-${documentNumber}.pdf`;
-      anchor.click();
-      window.URL.revokeObjectURL(url);
       toast.success(`${documentType.charAt(0).toUpperCase() + documentType.slice(1)} PDF generated`);
     } catch (error) {
       const message = error instanceof Error ? error.message : `Failed to download ${documentType} PDF`;

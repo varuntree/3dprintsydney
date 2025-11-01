@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { PdfGenerateButton } from "@/components/ui/pdf-generate-button";
+import type { InvoicePdfSnapshot } from "@/lib/pdf/snapshots";
 import {
   ActionButtonGroup,
   ActionGroupContainer,
@@ -70,9 +71,10 @@ export interface InvoiceViewModel {
 
 interface InvoiceViewProps {
   invoice: InvoiceViewModel;
+  pdfSnapshot: InvoicePdfSnapshot;
 }
 
-export function InvoiceView({ invoice }: InvoiceViewProps) {
+export function InvoiceView({ invoice, pdfSnapshot }: InvoiceViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { navigate, beginBusy, endBusy } = useNavigation();
@@ -282,8 +284,8 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                 </NavigationLink>
                 <PdfGenerateButton
                   documentType="invoice"
-                  documentId={invoice.id}
                   documentNumber={invoice.number}
+                  pdfSnapshot={pdfSnapshot}
                 />
               </ActionButtonGroup>
 

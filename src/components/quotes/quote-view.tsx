@@ -36,6 +36,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PdfGenerateButton } from "@/components/ui/pdf-generate-button";
+import type { QuotePdfSnapshot } from "@/lib/pdf/snapshots";
 import {
   ActionButtonGroup,
   ActionGroupContainer,
@@ -91,9 +92,10 @@ export interface QuoteViewModel {
 
 export interface QuoteViewProps {
   quote: QuoteViewModel;
+  pdfSnapshot: QuotePdfSnapshot;
 }
 
-export function QuoteView({ quote }: QuoteViewProps) {
+export function QuoteView({ quote, pdfSnapshot }: QuoteViewProps) {
   const { navigate } = useNavigation();
   const queryClient = useQueryClient();
   const [decision, setDecision] = useState<"decline" | null>(null);
@@ -234,8 +236,8 @@ export function QuoteView({ quote }: QuoteViewProps) {
               </ActionButton>
             <PdfGenerateButton
               documentType="quote"
-              documentId={quote.id}
               documentNumber={quote.number}
+              pdfSnapshot={pdfSnapshot}
             />
             </ActionButtonGroup>
 
