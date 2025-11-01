@@ -1,218 +1,102 @@
-import { existsSync, readFileSync } from "fs";
-import { join, extname } from "path";
-import type { Browser } from "puppeteer-core";
 import { calculateDocumentTotals } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/currency";
-import { logger } from "@/lib/logger";
-import { ensurePdfCache, cachePdf, resolvePdfPath } from "@/server/files/storage";
 import {
-  renderProductionQuoteHtml,
-  renderProductionInvoiceHtml,
-  type QuotePdfTemplate,
   type InvoicePdfTemplate,
   type PdfBusinessInfo,
   type PdfClientInfo,
   type PdfLineItem,
-  type PdfTotals,
-  type PdfPaymentSection,
   type PdfPaymentConfirmation,
-  type PdfDocumentInfo,
-} from "@/server/pdf/templates/production";
-import { getQuoteDetail } from "@/server/services/quotes";
-import { getInvoiceDetail } from "@/server/services/invoices";
-import { getSettings } from "@/server/services/settings";
-import { createStripeCheckoutSession } from "@/server/services/stripe";
-import { uploadPdf } from "@/server/storage/supabase";
-import type { QuoteDetailDTO, QuoteLineDTO } from "@/lib/types/quotes";
-import type { InvoiceDetailDTO, InvoiceLineDTO, PaymentDTO } from "@/lib/types/invoices";
+  type PdfPaymentSection,
+  type PdfTotals,
+  type QuotePdfTemplate,
+} from "@/lib/pdf/types";
 
-async function launchPdfBrowser(): Promise<Browser> {
-  try {
-    const [{ default: chromium }, { default: puppeteerCore }] = await Promise.all([
-      import("@sparticuz/chromium"),
-      import("puppeteer-core"),
-    ]);
-
-    const executablePath = await chromium.executablePath();
-    const browser = await puppeteerCore.launch({
-      args: [...chromium.args, "--font-render-hinting=none"],
-      defaultViewport: chromium.defaultViewport,
-      executablePath,
-      headless: chromium.headless,
-    });
-    return browser;
-  } catch (error) {
-    logger.warn({
-      scope: "pdf.browser",
-      message: "Falling back to bundled Puppeteer",
-      error,
-    });
-    const { default: puppeteer } = await import("puppeteer");
-    return puppeteer.launch({
-      headless: true,
-      args: ["--font-render-hinting=none"],
-    });
-  }
+export interface PdfSettingsData {
+  businessName?: string | null;
+  businessEmail?: string | null;
+  businessPhone?: string | null;
+  businessAddress?: string | null;
+  abn?: string | null;
+  bankDetails?: string | null;
+  defaultCurrency?: string | null;
 }
 
-async function renderPdf(html: string, filename: string) {
-  await ensurePdfCache();
-
-  let browser: Browser | null = null;
-
-  try {
-    browser = await launchPdfBrowser();
-  } catch (error) {
-    logger.error({ scope: "pdf.browser", message: "Failed to launch browser", error });
-    throw error;
-  }
-
-  let pdfBuffer: Buffer;
-
-  try {
-    const page = await browser.newPage();
-
-    // Enhanced viewport configuration for PDF generation
-    await page.setViewport({
-      width: 1200,
-      height: 1600,
-      deviceScaleFactor: 2, // Higher DPI for better quality
-      hasTouch: false,
-      isMobile: false,
-    });
-
-    // Set optimal page settings for PDF generation
-    await page.emulateMediaType("print");
-
-    // Additional performance optimizations
-    await page.setRequestInterception(true);
-    page.on("request", (req) => {
-      // Block unnecessary resources to speed up rendering
-      if (req.resourceType() === "image" && !req.url().includes("data:")) {
-        // Allow data URLs (base64 images) but block external images
-        req.abort();
-      } else if (["stylesheet", "font"].includes(req.resourceType()) || req.resourceType() === "document") {
-        req.continue();
-      } else if (req.resourceType() === "script") {
-        // Allow scripts (needed for our measurement script)
-        req.continue();
-      } else {
-        // Block other resources (media, xhr, fetch, etc.)
-        req.abort();
-      }
-    });
-
-    // Set content with enhanced loading strategy
-    await page.setContent(html, {
-      waitUntil: ["networkidle0", "domcontentloaded"],
-      timeout: 30000,
-    });
-
-    // Wait for fonts and dynamic content measurement to complete
-    await page.evaluateHandle("document.fonts.ready");
-
-    // Give the dynamic pagination script time to run
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Enhanced PDF generation with quality optimizations
-    const pdfData = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      displayHeaderFooter: false,
-      margin: {
-        top: "0mm",
-        bottom: "0mm",
-        left: "0mm",
-        right: "0mm",
-      },
-      tagged: true,
-      outline: false,
-      scale: 1.0,
-    });
-
-    pdfBuffer = Buffer.from(pdfData);
-  } finally {
-    if (browser) {
-      await browser.close().catch(() => undefined);
-    }
-  }
-
-  let storageKey: string | null = null;
-  try {
-    storageKey = await uploadPdf(filename, pdfBuffer);
-  } catch (error) {
-    logger.warn({
-      scope: "pdf.storage.upload",
-      message: "Failed to upload PDF to Supabase storage",
-      error,
-      data: { filename },
-    });
-  }
-
-  try {
-    await cachePdf(filename, pdfBuffer);
-  } catch (error) {
-    logger.warn({
-      scope: "pdf.storage.cache",
-      message: "Failed to cache PDF locally",
-      error,
-      data: { filename },
-    });
-  }
-
-  return { buffer: pdfBuffer, filename, storageKey, path: resolvePdfPath(filename) };
+export interface PdfPaymentTermData {
+  label: string;
+  days: number;
 }
 
-export async function generateQuotePdf(id: number) {
-  const quote = await getQuoteDetail(id);
-  const settings = await getSettings().catch(() => null);
-  const logoDataUrl = await resolveLogoDataUrl();
-
-  const template = buildQuoteTemplate(quote, settings, logoDataUrl);
-  const html = renderProductionQuoteHtml(template);
-  const filename = `quote-${quote.number}.pdf`;
-  const { buffer, path, storageKey } = await renderPdf(html, filename);
-  return { buffer, filename, path, storageKey };
+export interface PdfClientData {
+  name: string;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
 }
 
-export async function generateInvoicePdf(id: number) {
-  let invoice = await getInvoiceDetail(id);
-  const settings = await getSettings().catch(() => null);
-
-  if (invoice.balanceDue > 0) {
-    try {
-      const session = await createStripeCheckoutSession(id);
-      if (session.url) {
-        invoice = { ...invoice, stripeCheckoutUrl: session.url };
-      }
-    } catch (error) {
-      if (
-        !(
-          error instanceof Error &&
-          (error.message === "Stripe is not configured" ||
-            error.message === "Invoice is already paid")
-        )
-      ) {
-        logger.warn({
-          scope: "pdf.invoice.stripe",
-          error,
-          data: { invoiceId: id },
-        });
-      }
-    }
-  }
-
-  const logoDataUrl = await resolveLogoDataUrl();
-
-  const invoiceTemplate = buildInvoiceTemplate(invoice, settings, logoDataUrl);
-  const html = renderProductionInvoiceHtml(invoiceTemplate);
-  const filename = `invoice-${invoice.number}.pdf`;
-  const { buffer, path, storageKey } = await renderPdf(html, filename);
-  return { buffer, filename, path, storageKey };
+export interface QuoteLineForPdf {
+  name: string;
+  description: string | null;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  discountType: string;
+  discountValue: number | null | undefined;
+  total: number;
+  calculatorBreakdown: Record<string, unknown> | null;
 }
 
-type Settings = Awaited<ReturnType<typeof getSettings>>;
+export interface QuoteForPdf {
+  number: string;
+  client: PdfClientData;
+  issueDate: Date;
+  expiryDate: Date | null;
+  paymentTerms: PdfPaymentTermData | null;
+  subtotal: number;
+  total: number;
+  taxTotal: number;
+  taxRate: number | null | undefined;
+  discountType: string;
+  discountValue: number | null | undefined;
+  shippingCost: number | null | undefined;
+  shippingLabel: string | null | undefined;
+  notes: string | null;
+  terms: string | null;
+  lines: QuoteLineForPdf[];
+}
+
+export type InvoiceLineForPdf = QuoteLineForPdf;
+
+export interface InvoicePaymentForPdf {
+  amount: number;
+  method: string;
+  reference?: string | null;
+  paidAt?: Date | null;
+}
+
+export interface InvoiceForPdf {
+  number: string;
+  client: PdfClientData;
+  status: string;
+  issueDate: Date;
+  dueDate: Date | null;
+  paymentTerms: PdfPaymentTermData | null;
+  subtotal: number;
+  total: number;
+  balanceDue: number;
+  taxTotal: number;
+  taxRate: number | null | undefined;
+  discountType: string;
+  discountValue: number | null | undefined;
+  shippingCost: number | null | undefined;
+  shippingLabel: string | null | undefined;
+  notes: string | null;
+  terms: string | null;
+  stripeCheckoutUrl: string | null;
+  paidAt: Date | null;
+  lines: InvoiceLineForPdf[];
+  payments: InvoicePaymentForPdf[];
+}
 
 const REVIEW_HTML =
   'Loved our service? A <a href="https://g.page/r/CdO3kF8ywZAKEAE/review" color="#666666"><u>Google Review</u></a> would really help other customers discover us, and you\'ll receive <strong>30% off the first $100 of an order of your choice</strong> as our way of saying thanks!';
@@ -234,32 +118,9 @@ const DATE_FORMAT: Intl.DateTimeFormatOptions = {
   year: "numeric",
 };
 
-async function resolveLogoDataUrl(): Promise<string | undefined> {
-  const logoFile = join(process.cwd(), "public", "logo.png");
-  if (!existsSync(logoFile)) return undefined;
-  try {
-    const fileBuffer = readFileSync(logoFile);
-    const extension = extname(logoFile).toLowerCase();
-    const mimeType =
-      extension === ".svg"
-        ? "image/svg+xml"
-        : extension === ".jpg" || extension === ".jpeg"
-          ? "image/jpeg"
-          : "image/png";
-    return `data:${mimeType};base64,${fileBuffer.toString("base64")}`;
-  } catch (error) {
-    logger.warn({
-      scope: "pdf.logo",
-      message: "Unable to read logo asset",
-      error,
-    });
-    return undefined;
-  }
-}
-
-function buildQuoteTemplate(
-  quote: QuoteDetailDTO,
-  settings: Settings,
+export function buildQuoteTemplate(
+  quote: QuoteForPdf,
+  settings: PdfSettingsData | null | undefined,
   logoDataUrl?: string,
 ): QuotePdfTemplate {
   const currency = settings?.defaultCurrency ?? "AUD";
@@ -314,9 +175,9 @@ function buildQuoteTemplate(
   };
 }
 
-function buildInvoiceTemplate(
-  invoice: InvoiceDetailDTO,
-  settings: Settings,
+export function buildInvoiceTemplate(
+  invoice: InvoiceForPdf,
+  settings: PdfSettingsData | null | undefined,
   logoDataUrl?: string,
 ): InvoicePdfTemplate {
   const currency = settings?.defaultCurrency ?? "AUD";
@@ -335,7 +196,11 @@ function buildInvoiceTemplate(
     ? { label: "Paid on", value: paidDate ? formatDisplayDate(paidDate) : "PAID" }
     : { label: "Payment terms", value: invoice.paymentTerms?.label ?? "COD" };
 
-  const columns: PdfDocumentInfo["columns"] = [
+  const columns: [
+    { label: string; value: string },
+    { label: string; value: string },
+    { label: string; value: string },
+  ] = [
     { label: "Invoice number", value: invoice.number },
     { label: "Date issued", value: formatDisplayDate(invoice.issueDate) },
     thirdColumn,
@@ -388,9 +253,12 @@ function buildInvoiceTemplate(
   };
 }
 
-function buildBusinessInfo(settings: Settings, logoDataUrl?: string): PdfBusinessInfo {
+function buildBusinessInfo(
+  settings: PdfSettingsData | null | undefined,
+  logoDataUrl?: string,
+): PdfBusinessInfo {
   return {
-    name: settings?.businessName ?? "3D Print Sydney",
+    name: settings?.businessName && settings.businessName.trim().length > 0 ? settings.businessName : "3D Print Sydney",
     address: stringOrUndefined(settings?.businessAddress),
     email: stringOrUndefined(settings?.businessEmail),
     phone: stringOrUndefined(settings?.businessPhone),
@@ -400,7 +268,7 @@ function buildBusinessInfo(settings: Settings, logoDataUrl?: string): PdfBusines
   };
 }
 
-function buildClientInfo(client: QuoteDetailDTO["client"] | InvoiceDetailDTO["client"]): PdfClientInfo {
+function buildClientInfo(client: PdfClientData): PdfClientInfo {
   return {
     name: client.name,
     company: client.company ?? null,
@@ -411,8 +279,8 @@ function buildClientInfo(client: QuoteDetailDTO["client"] | InvoiceDetailDTO["cl
 }
 
 function buildPaymentSection(
-  invoice: InvoiceDetailDTO,
-  settings: Settings,
+  invoice: InvoiceForPdf,
+  settings: PdfSettingsData | null | undefined,
 ): PdfPaymentSection | undefined {
   const bankDetails = stringOrUndefined(settings?.bankDetails);
   const stripeUrl = invoice.stripeCheckoutUrl ?? undefined;
@@ -427,24 +295,24 @@ function buildPaymentSection(
   };
 }
 
-function buildPaymentConfirmation(invoice: InvoiceDetailDTO): PdfPaymentConfirmation | undefined {
+function buildPaymentConfirmation(invoice: InvoiceForPdf): PdfPaymentConfirmation | undefined {
   if (invoice.payments.length === 0 && !invoice.paidAt) {
     return undefined;
   }
 
-  const primaryPayment = invoice.payments[0] as PaymentDTO | undefined;
+  const primaryPayment = invoice.payments[0];
   const amount = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
 
   return {
     method: primaryPayment ? formatPaymentMethod(primaryPayment.method) : undefined,
     paidDate: primaryPayment?.paidAt ?? invoice.paidAt ?? null,
-    reference: stringOrUndefined(primaryPayment?.reference),
+    reference: stringOrUndefined(primaryPayment?.reference ?? undefined),
     amount: amount > 0 ? amount : invoice.total,
   };
 }
 
 function buildLineItems(
-  lines: (QuoteLineDTO | InvoiceLineDTO)[],
+  lines: QuoteLineForPdf[] | InvoiceLineForPdf[],
   currency: string,
 ): PdfLineItem[] {
   return lines.map((line) => {
@@ -454,7 +322,7 @@ function buildLineItems(
     return {
       title: line.name,
       description: stringOrUndefined(line.description),
-      detailLines: buildCalculatorDetailLines(line.calculatorBreakdown as Record<string, unknown> | null),
+      detailLines: buildCalculatorDetailLines(line.calculatorBreakdown),
       quantityDisplay: toQuantityDisplay(quantity),
       originalUnitPrice,
       discountedUnitPrice: discount.discountedUnitPrice,
@@ -466,11 +334,11 @@ function buildLineItems(
 }
 
 function buildTotals(params: {
-  lines: (QuoteLineDTO | InvoiceLineDTO)[];
+  lines: QuoteLineForPdf[] | InvoiceLineForPdf[];
   discountType: string;
   discountValue: number | null | undefined;
   shippingCost: number | null | undefined;
-  shippingLabel?: string | null;
+  shippingLabel?: string | null | undefined;
   taxRate: number | null | undefined;
   total: number;
   amountDueLabel: string;
@@ -480,7 +348,7 @@ function buildTotals(params: {
 }): PdfTotals {
   const docTotals = calculateDocumentTotals({
     lines: params.lines.map((line) => ({ total: line.total ?? 0 })),
-    discountType: params.discountType as "NONE" | "PERCENT" | "FIXED",
+    discountType: (params.discountType ?? "NONE") as "NONE" | "PERCENT" | "FIXED",
     discountValue: params.discountValue ?? 0,
     shippingCost: params.shippingCost ?? 0,
     taxRate: params.taxRate ?? 0,
@@ -527,32 +395,17 @@ function buildTotals(params: {
 }
 
 function computeLineDiscount(
-  line: QuoteLineDTO | InvoiceLineDTO,
+  line: QuoteLineForPdf | InvoiceLineForPdf,
   quantity: number,
   unitPrice: number,
   currency: string,
 ): { discountedUnitPrice: number; display?: string; note?: string } {
-  const discountNameCandidates: Array<unknown> = [
-    (line as { discountName?: string }).discountName,
-    (line as unknown as { discount_label?: string }).discount_label,
-  ];
-  const breakdown = line.calculatorBreakdown as Record<string, unknown> | null;
-  if (breakdown) {
-    discountNameCandidates.push(
-      breakdown.discountName,
-      breakdown.discount_name,
-      breakdown.discountLabel,
-    );
-  }
-  const discountName = discountNameCandidates
-    .map((value) => {
-      if (value === undefined || value === null) return "";
-      return String(value).trim();
-    })
-    .find((value) => value.length > 0) ?? "";
-
   const discountType = line.discountType ?? "NONE";
   const discountValue = line.discountValue ?? 0;
+  const breakdown = line.calculatorBreakdown ?? {};
+
+  const discountName = typeof breakdown?.discountName === "string" ? breakdown.discountName : undefined;
+
   if (discountType === "PERCENT" && discountValue > 0) {
     const discountedUnit = Math.max(0, unitPrice * (1 - discountValue / 100));
     const display = `${Number(discountValue.toFixed(2)).toString().replace(/\.00$/, "")}%`;
@@ -674,6 +527,6 @@ function humanizeKey(key: string): string {
     .join(" ");
 }
 
-function formatPaymentMethod(method: PaymentDTO["method"]): string {
+function formatPaymentMethod(method: string): string {
   return humanizeKey(method.toLowerCase());
 }

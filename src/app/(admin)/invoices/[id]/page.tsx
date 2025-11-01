@@ -19,6 +19,7 @@ import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 import { listProductTemplates } from "@/server/services/product-templates";
 import { listMaterials } from "@/server/services/materials";
 import { InvoiceActivity } from "@/components/invoices/invoice-activity";
+import type { InvoicePdfSnapshot } from "@/lib/pdf/snapshots";
 
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
@@ -156,9 +157,68 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       })),
     };
 
+    const pdfSnapshot: InvoicePdfSnapshot = {
+      currency: settings.defaultCurrency ?? "AUD",
+      business: {
+        name: settings.businessName ?? null,
+        address: settings.businessAddress ?? null,
+        email: settings.businessEmail ?? null,
+        phone: settings.businessPhone ?? null,
+        abn: settings.abn ?? null,
+        bankDetails: settings.bankDetails ?? null,
+        logoUrl: "/logo.png",
+      },
+      invoice: {
+        number: detail.number,
+        status: detail.status,
+        issueDate: detail.issueDate.toISOString(),
+        dueDate: detail.dueDate ? detail.dueDate.toISOString() : null,
+        paymentTerms: detail.paymentTerms
+          ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
+          : null,
+        subtotal: detail.subtotal,
+        total: detail.total,
+        balanceDue: detail.balanceDue,
+        taxTotal: detail.taxTotal,
+        taxRate: detail.taxRate ?? null,
+        discountType: detail.discountType,
+        discountValue: detail.discountValue,
+        shippingCost: detail.shippingCost,
+        shippingLabel: detail.shippingLabel ?? null,
+        notes: detail.notes,
+        terms: detail.terms,
+        stripeCheckoutUrl: detail.stripeCheckoutUrl ?? null,
+        paidAt: detail.paidAt ? detail.paidAt.toISOString() : null,
+        client: {
+          name: detail.client.name,
+          company: detail.client.company ?? null,
+          email: detail.client.email ?? null,
+          phone: detail.client.phone ?? null,
+          address: detail.client.address ?? null,
+        },
+        lines: detail.lines.map((line) => ({
+          name: line.name,
+          description: line.description ?? null,
+          quantity: line.quantity,
+          unit: line.unit ?? "",
+          unitPrice: line.unitPrice,
+          discountType: line.discountType,
+          discountValue: line.discountValue,
+          total: line.total,
+          calculatorBreakdown: line.calculatorBreakdown ?? null,
+        })),
+        payments: detail.payments.map((payment) => ({
+          amount: payment.amount,
+          method: payment.method,
+          reference: payment.reference ?? null,
+          paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
+        })),
+      },
+    };
+
     return (
       <div className="space-y-8">
-        <InvoiceView invoice={viewModel} />
+        <InvoiceView invoice={viewModel} pdfSnapshot={pdfSnapshot} />
         <InvoicePayments invoiceId={detail.id} payments={payments} />
         <InvoiceAttachments invoiceId={detail.id} attachments={attachments} />
 
