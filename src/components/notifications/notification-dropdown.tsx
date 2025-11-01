@@ -25,7 +25,6 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
     error,
     markAllSeen,
     refetch,
-    clearNotifications,
   } = useShellNotifications(user, { messagesHref });
 
   const bellBadge = useMemo(() => {
@@ -40,9 +39,9 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
       onOpenChange={(next) => {
         setOpen(next);
         if (next) {
-          markAllSeen();
+          void refetch();
         } else {
-          clearNotifications();
+          void markAllSeen();
         }
       }}
     >
@@ -103,20 +102,35 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
                   <li key={notification.id}>
                     <Link
                       href={notification.href ?? messagesHref}
-                      className="flex gap-3 px-4 py-3 hover:bg-surface-subtle/80"
+                      className={cn(
+                        "flex gap-3 px-4 py-3 transition",
+                        notification.unseen
+                          ? "bg-surface-muted/80"
+                          : "hover:bg-surface-subtle/80",
+                      )}
                     >
-                      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold uppercase text-muted-foreground">
-                        {notification.senderRole === "ADMIN" ? "AD" : "CL"}
+                      <span className="relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold uppercase text-muted-foreground">
+                        {notification.senderRole === "ADMIN"
+                          ? "AD"
+                          : (notification.userName ?? notification.userEmail ?? "CL").slice(0, 2).toUpperCase()}
+                        {notification.unseen ? (
+                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                        ) : null}
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-sm font-medium text-foreground">
+                          <p className="truncate text-sm font-semibold text-foreground">
                             {notification.title}
                           </p>
                           <span className="text-[11px] text-muted-foreground">
                             {new Date(notification.createdAt).toLocaleString()}
                           </span>
                         </div>
+                        {notification.userName || notification.userEmail ? (
+                          <p className="mt-0.5 truncate text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                            {notification.userName ?? notification.userEmail}
+                          </p>
+                        ) : null}
                         {notification.description ? (
                           <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                             {notification.description}

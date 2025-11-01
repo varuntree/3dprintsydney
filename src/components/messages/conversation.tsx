@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { groupMessages, type Message } from "@/lib/chat/group-messages";
@@ -9,6 +9,7 @@ import { DateHeader } from "./date-header";
 import { Send } from "lucide-react";
 
 export type ConversationMessage = Message;
+type ConversationMessageWithMeta = ConversationMessage & { optimistic?: boolean };
 
 interface ConversationProps {
   invoiceId?: number;
@@ -73,7 +74,7 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
  * - Load more pagination
  */
 export function Conversation({ invoiceId, userId, currentUserRole }: ConversationProps) {
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [messages, setMessages] = useState<ConversationMessageWithMeta[]>([]);
   const [content, setContent] = useState("");
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -81,9 +82,13 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(true);
+  const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingEnabledRef = useRef(true);
+  const isFetchingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     // Fetch current user role if not provided
@@ -98,124 +103,267 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   }, [currentUserRole]);
 
   useEffect(() => {
-    loadPage(0, true);
-    // reset when switching thread
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceId, userId]);
+    pollingEnabledRef.current = pollingEnabled;
+  }, [pollingEnabled]);
+
+  const buildEndpoint = useCallback(
+    (limit: number, offset: number) => {
+      const q = new URLSearchParams({
+        order: "desc",
+        limit: String(limit),
+        offset: String(offset),
+      });
+      if (invoiceId) q.set("invoiceId", String(invoiceId));
+
+      return userId
+        ? `/api/admin/users/${userId}/messages?${q.toString()}`
+        : `/api/messages?${q.toString()}`;
+    },
+    [invoiceId, userId],
+  );
+
+  const fetchMessages = useCallback(
+    async ({
+      page: requestedPage = 0,
+      replace = false,
+      append = false,
+      merge = false,
+      scrollToBottom = false,
+      background = false,
+      force = false,
+    }: {
+      page?: number;
+      replace?: boolean;
+      append?: boolean;
+      merge?: boolean;
+      scrollToBottom?: boolean;
+      background?: boolean;
+      force?: boolean;
+    } = {}) => {
+      if (isFetchingRef.current && !force) return;
+
+      const controller = new AbortController();
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = controller;
+
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
+
+      isFetchingRef.current = true;
+
+      const limit = 50;
+      const offset = requestedPage * limit;
+
+      try {
+        const endpoint = buildEndpoint(limit, offset);
+        const response = await fetch(endpoint, { signal: controller.signal });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok || !isMessagesPayload(payload)) {
+          if (!background) {
+            setError(extractErrorMessage(payload, "Failed to load messages"));
+          }
+          return;
+        }
+
+        const list = payload.data.slice().reverse();
+
+        if (!background) {
+          setHasMore(list.length === limit);
+          setPage(requestedPage);
+        }
+
+        setMessages((prev) => {
+          const optimistic = prev.filter((item) => item.optimistic);
+          const confirmed = prev.filter((item) => !item.optimistic);
+
+          if (replace) {
+            return list.concat(optimistic);
+          }
+
+          if (append) {
+            return [...list, ...confirmed, ...optimistic];
+          }
+
+          if (merge) {
+            const merged = mergeMessageLists(confirmed, list);
+            return merged.concat(optimistic);
+          }
+
+          if (requestedPage > 0) {
+            return [...list, ...confirmed, ...optimistic];
+          }
+
+          return mergeMessageLists(confirmed, list).concat(optimistic);
+        });
+
+        if (scrollToBottom) {
+          setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+        }
+      } catch (err) {
+        if ((err as { name?: string })?.name === "AbortError") {
+          return;
+        }
+        if (!background) {
+          setError("Network error. Please check your connection.");
+        }
+      } finally {
+        if (!background) {
+          setLoading(false);
+        }
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
+        isFetchingRef.current = false;
+      }
+    },
+    [buildEndpoint],
+  );
+
+  const loadPage = useCallback(
+    (p: number, replace = false, scrollToBottom = false) =>
+      fetchMessages({
+        page: p,
+        replace,
+        append: !replace && p > 0,
+        scrollToBottom,
+      }),
+    [fetchMessages],
+  );
+
+  const refreshMessages = useCallback(
+    () =>
+      fetchMessages({
+        page: 0,
+        merge: true,
+        background: true,
+      }),
+    [fetchMessages],
+  );
 
   useEffect(() => {
-    // Setup polling for seamless auto-refresh
-    if (!pollingEnabled) return;
+    setMessages([]);
+    setPage(0);
+    setHasMore(true);
+    setError(null);
+    abortControllerRef.current?.abort();
+    void loadPage(0, true);
+  }, [invoiceId, userId, loadPage]);
 
-    pollingIntervalRef.current = setInterval(() => {
-      refreshMessages();
-    }, 3000); // Poll every 3 seconds
+  useEffect(() => {
+    if (!pollingEnabled) {
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    const tick = async () => {
+      await refreshMessages();
+      if (cancelled || !pollingEnabledRef.current) return;
+      pollingTimeoutRef.current = setTimeout(tick, 3000);
+    };
+
+    void tick();
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
+      cancelled = true;
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceId, userId, pollingEnabled]);
+  }, [refreshMessages, pollingEnabled]);
 
-  async function loadPage(p: number, replace = false, scrollToBottom = false) {
-    if (loading) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const limit = 50;
-      const offset = p * limit;
-      const q = new URLSearchParams({ order: "desc", limit: String(limit), offset: String(offset) });
-      if (invoiceId) q.set("invoiceId", String(invoiceId));
-
-      // Determine endpoint based on props
-      const endpoint = userId
-        ? `/api/admin/users/${userId}/messages?${q.toString()}`
-        : `/api/messages?${q.toString()}`;
-
-      const r = await fetch(endpoint);
-      const payload = (await r.json().catch(() => null)) as unknown;
-      setLoading(false);
-
-      if (!r.ok || !isMessagesPayload(payload)) {
-        setError(extractErrorMessage(payload, "Failed to load messages"));
-        return;
-      }
-
-      const list = payload.data.slice().reverse();
-      setHasMore(list.length === limit);
-      if (replace) setMessages(list);
-      else setMessages((prev) => [...list, ...prev]);
-
-      // Only scroll to bottom when explicitly requested (e.g., after sending a message)
-      // Not on initial page load
-      if (scrollToBottom) {
-        setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
-      }
-    } catch {
-      setLoading(false);
-      setError("Network error. Please check your connection.");
+  useEffect(() => () => {
+    abortControllerRef.current?.abort();
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
     }
+  }, []);
+
+  function removeOptimisticMessage(id: number) {
+    setMessages((prev) => prev.filter((message) => !message.optimistic || message.id !== id));
   }
 
-  async function refreshMessages() {
-    // Don't refresh if already loading to avoid race conditions
-    if (loading) return;
+  function addOptimisticMessage(message: ConversationMessageWithMeta) {
+    setMessages((prev) => [...prev, message]);
+    setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+  }
 
-    try {
-      const limit = 50;
-      const q = new URLSearchParams({ order: "desc", limit: String(limit), offset: "0" });
-      if (invoiceId) q.set("invoiceId", String(invoiceId));
+  function latestKnownSender(): "ADMIN" | "CLIENT" {
+    if (role) return role;
+    if (currentUserRole) return currentUserRole;
+    return "CLIENT";
+  }
 
-      const endpoint = userId
-        ? `/api/admin/users/${userId}/messages?${q.toString()}`
-        : `/api/messages?${q.toString()}`;
-
-      const r = await fetch(endpoint);
-      const payload = (await r.json().catch(() => null)) as unknown;
-      if (!r.ok || !isMessagesPayload(payload)) return; // Silently fail on background refresh
-
-      const incoming = payload.data.slice().reverse();
-
-      // Use merge function to prevent duplicates and maintain order
-      setMessages((prev) => mergeMessageLists(prev, incoming));
-    } catch {
-      // Silently fail on background refresh - don't disrupt user experience
-    }
+  function isMessagePayload(payload: unknown): payload is { data: ConversationMessage } {
+    return (
+      typeof payload === "object" &&
+      payload !== null &&
+      typeof (payload as { data?: unknown }).data === "object" &&
+      (payload as { data?: { id?: unknown } }).data !== null
+    );
   }
 
   async function send() {
     const trimmed = content.trim();
-    if (!trimmed) return;
+    if (!trimmed || sending) return;
+
+    const optimisticId = -Date.now();
+    const optimisticMessage: ConversationMessageWithMeta = {
+      id: optimisticId,
+      sender: latestKnownSender(),
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+      optimistic: true,
+    };
 
     setError(null);
+    setContent("");
+    setSending(true);
+    setPollingEnabled(false);
+    addOptimisticMessage(optimisticMessage);
+
     try {
       const payload: { content: string; invoiceId?: number } = { content: trimmed };
       if (invoiceId) payload.invoiceId = invoiceId;
 
-      // Determine endpoint for sending
-      const sendEndpoint = userId
-        ? `/api/admin/users/${userId}/messages`
-        : "/api/messages";
-
-      const r = await fetch(sendEndpoint, {
+      const sendEndpoint = userId ? `/api/admin/users/${userId}/messages` : "/api/messages";
+      const response = await fetch(sendEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const responsePayload = (await r.json().catch(() => null)) as unknown;
-      if (!r.ok) {
+      const responsePayload = (await response.json().catch(() => null)) as unknown;
+
+      if (!response.ok || !isMessagePayload(responsePayload)) {
+        removeOptimisticMessage(optimisticId);
         setError(extractErrorMessage(responsePayload, "Failed to send message"));
         return;
       }
 
-      setContent("");
-      setPollingEnabled(true); // Resume polling after sending
-      await loadPage(0, true, true); // Scroll to bottom after sending
+      const saved = responsePayload.data;
+
+      setMessages((prev) => {
+        const withoutOptimistic = prev.filter((message) => !message.optimistic || message.id !== optimisticId);
+        return mergeMessageLists(withoutOptimistic, [saved]);
+      });
+
+      await fetchMessages({ page: 0, replace: true, scrollToBottom: true, force: true });
     } catch {
+      removeOptimisticMessage(optimisticId);
       setError("Network error. Please try again.");
+    } finally {
+      setSending(false);
+      setPollingEnabled(true);
     }
   }
 
@@ -327,10 +475,11 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
             placeholder="Type a message... (Shift+Enter for new line)"
             className="min-h-[56px] max-h-[120px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0 sm:min-h-[60px] sm:max-h-[140px] sm:px-3 sm:py-3"
             rows={2}
+            disabled={sending}
           />
           <Button
             onClick={send}
-            disabled={!content.trim()}
+            disabled={!content.trim() || sending}
             size="icon"
             className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-sm shadow-black/15 transition hover:bg-foreground/90 disabled:bg-foreground/60 sm:h-12 sm:w-12"
             aria-label="Send message"

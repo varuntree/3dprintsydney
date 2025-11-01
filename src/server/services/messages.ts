@@ -7,6 +7,7 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import type { MessageDTO, MessageFilters } from '@/lib/types/messages';
+import type { LegacyUser } from '@/lib/types/user';
 
 // Database row type
 type MessageRow = {
@@ -16,6 +17,32 @@ type MessageRow = {
   sender: 'ADMIN' | 'CLIENT';
   content: string;
   created_at: string;
+};
+
+type NotificationRow = MessageRow & {
+  users?: {
+    email?: string | null;
+    clients?: {
+      name?: string | null;
+      company?: string | null;
+    } | null;
+  } | null;
+};
+
+export type MessageNotificationDTO = {
+  id: number;
+  userId: number;
+  invoiceId: number | null;
+  sender: 'ADMIN' | 'CLIENT';
+  content: string;
+  createdAt: string;
+  userEmail: string | null;
+  userName: string | null;
+};
+
+export type NotificationListResult = {
+  notifications: MessageNotificationDTO[];
+  lastSeenAt: string | null;
 };
 
 /**
@@ -196,6 +223,99 @@ export async function getInvoiceMessages(
   }
 
   return (rows ?? []).map(mapMessageToDTO);
+}
+
+function mapNotificationRow(row: NotificationRow): MessageNotificationDTO {
+  let clientName: string | null = null;
+  const clientRecord = row.users?.clients ?? null;
+
+  if (clientRecord && typeof clientRecord === 'object') {
+    const possibleName = (clientRecord as { name?: unknown }).name;
+    const possibleCompany = (clientRecord as { company?: unknown }).company;
+
+    if (typeof possibleName === 'string' && possibleName.trim().length > 0) {
+      clientName = possibleName;
+    } else if (typeof possibleCompany === 'string' && possibleCompany.trim().length > 0) {
+      clientName = possibleCompany;
+    }
+  }
+
+  const userEmail = typeof row.users?.email === 'string' ? row.users?.email : null;
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    invoiceId: row.invoice_id,
+    sender: row.sender,
+    content: row.content,
+    createdAt: row.created_at,
+    userEmail,
+    userName: clientName,
+  };
+}
+
+export async function listNotificationsForUser(
+  user: LegacyUser,
+  options?: { limit?: number }
+): Promise<NotificationListResult> {
+  const supabase = getServiceSupabase();
+
+  const limit = options?.limit && Number.isFinite(options.limit) && options.limit > 0
+    ? Math.min(options.limit, 50)
+    : 15;
+
+  const { data: seenRow, error: seenError } = await supabase
+    .from('users')
+    .select('message_last_seen_at')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (seenError) {
+    throw new AppError(`Failed to load notification state: ${seenError.message}`, 'MESSAGE_ERROR', 500);
+  }
+
+  const baseSelect = user.role === 'ADMIN'
+    ? 'id, user_id, invoice_id, sender, content, created_at, users:users(email, clients:clients(name, company))'
+    : 'id, user_id, invoice_id, sender, content, created_at';
+
+  let query = supabase
+    .from('user_messages')
+    .select(baseSelect)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (user.role === 'ADMIN') {
+    query = query.eq('sender', 'CLIENT');
+  } else {
+    query = query
+      .eq('user_id', user.id)
+      .eq('sender', 'ADMIN');
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new AppError(`Failed to load notifications: ${error.message}`, 'MESSAGE_ERROR', 500);
+  }
+
+  const rows = (data ?? []) as NotificationRow[];
+
+  return {
+    notifications: rows.map(mapNotificationRow),
+    lastSeenAt: seenRow?.message_last_seen_at ?? null,
+  };
+}
+
+export async function updateMessageLastSeenAt(userId: number, timestampIso: string): Promise<void> {
+  const supabase = getServiceSupabase();
+  const { error } = await supabase
+    .from('users')
+    .update({ message_last_seen_at: timestampIso })
+    .eq('id', userId);
+
+  if (error) {
+    throw new AppError(`Failed to update notification state: ${error.message}`, 'MESSAGE_ERROR', 500);
+  }
 }
 
 /**
