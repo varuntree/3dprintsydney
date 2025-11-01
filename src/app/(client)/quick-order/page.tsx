@@ -28,23 +28,29 @@ import {
   FileText,
   Box,
   AlertTriangle,
-  Eye,
-  EyeOff,
   Info,
   Truck,
-  Axis3D,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
 import RotationControls from "@/components/3d/RotationControls";
 import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { exportSTL } from "@/lib/3d/export";
 
 type Upload = { id: string; filename: string; size: number };
 type Material = { id: number; name: string; costPerGram: number };
 
 type Step = "upload" | "orient" | "configure" | "price" | "checkout";
+
+const STEP_META = [
+  { id: "upload" as const, label: "Upload", icon: UploadCloud },
+  { id: "orient" as const, label: "Orient", icon: Box },
+  { id: "configure" as const, label: "Configure", icon: Settings2 },
+  { id: "price" as const, label: "Price", icon: Package },
+  { id: "checkout" as const, label: "Checkout", icon: CreditCard },
+];
+
+const STEP_SEQUENCE = STEP_META.map((step) => step.id) as readonly Step[];
 
 type ShippingQuote = {
   code: string;
@@ -106,6 +112,7 @@ type DraftState = {
 export default function QuickOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>("upload");
+  const [furthestStepIndex, setFurthestStepIndex] = useState(0);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [studentDiscountEligible, setStudentDiscountEligible] = useState(false);
   const [studentDiscountRate, setStudentDiscountRate] = useState(0);
@@ -143,14 +150,19 @@ export default function QuickOrderPage() {
   const viewerRef = useRef<ModelViewerRef>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
   const [viewHelpersVisible, setViewHelpersVisible] = useState(false);
-  const [viewControlsOpen, setViewControlsOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   // Draft auto-save state
   const [draftSaved, setDraftSaved] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
-  const [hasDraft, setHasDraft] = useState(false);
   const draftLoadedRef = useRef(false);
+
+  const goToStep = useCallback((step: Step) => {
+    setCurrentStep(step);
+    const index = STEP_SEQUENCE.indexOf(step);
+    if (index >= 0) {
+      setFurthestStepIndex((prev) => Math.max(prev, index));
+    }
+  }, []);
 
   useEffect(() => {
     if (!currentlyOrienting) return;
@@ -159,15 +171,13 @@ export default function QuickOrderPage() {
 
   useEffect(() => {
     setViewHelpersVisible(false);
-    setViewControlsOpen(false);
   }, [currentlyOrienting]);
 
   useEffect(() => {
-    const update = () => setIsMobile(typeof window !== "undefined" && window.innerWidth < 768);
-    update();
-    window.addEventListener("resize", update, { passive: true });
-    return () => window.removeEventListener("resize", update);
-  }, []);
+    if (currentStep !== "configure") {
+      setExpandedFiles(new Set());
+    }
+  }, [currentStep]);
 
   // Draft localStorage management
   const DRAFT_KEY = "quick-order-draft";
@@ -205,7 +215,6 @@ export default function QuickOrderPage() {
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(DRAFT_KEY);
-      setHasDraft(false);
     } catch (error) {
       console.error("Failed to clear draft:", error);
     }
@@ -213,7 +222,7 @@ export default function QuickOrderPage() {
 
   const restoreDraft = useCallback((draft: DraftState) => {
     try {
-      if (draft.step) setCurrentStep(draft.step);
+      if (draft.step) goToStep(draft.step);
       if (draft.uploads && Array.isArray(draft.uploads)) {
         // Restore uploaded file metadata (IDs map to server-side tmp files)
         setUploads(draft.uploads);
@@ -237,13 +246,12 @@ export default function QuickOrderPage() {
     } catch (error) {
       console.error("Failed to restore draft:", error);
     }
-  }, []);
+  }, [goToStep]);
 
   // Check for existing draft on mount
   useEffect(() => {
     const draft = loadDraft();
     if (draft && !draftLoadedRef.current) {
-      setHasDraft(true);
       setShowResumeDialog(true);
     }
   }, [loadDraft]);
@@ -336,7 +344,7 @@ export default function QuickOrderPage() {
       return next;
     });
     if (uploads.length === 0) {
-      setCurrentStep("orient");
+      goToStep("orient");
       // Automatically select the first uploaded file for orientation
       if (uploaded.length > 0) {
         setCurrentlyOrienting(uploaded[0].id);
@@ -404,7 +412,7 @@ export default function QuickOrderPage() {
     });
     setPriceData(null);
     setShippingQuote(null);
-    setCurrentStep(nextUploads.length === 0 ? "upload" : "configure");
+    goToStep(nextUploads.length === 0 ? "upload" : "configure");
   }
 
   async function handleLockOrientation() {
@@ -457,7 +465,7 @@ export default function QuickOrderPage() {
         setCurrentlyOrienting(nextFile.id);
       } else {
         setCurrentlyOrienting(null);
-        setCurrentStep("configure");
+        goToStep("configure");
       }
     } catch (err) {
       console.error("Orientation lock error:", err);
@@ -647,7 +655,7 @@ export default function QuickOrderPage() {
         taxRate,
         total: Math.round(totalRaw * 100) / 100,
       });
-      setCurrentStep("price");
+      goToStep("price");
     } catch (err) {
       console.error(err);
       setError("Pricing failed");
@@ -714,6 +722,9 @@ export default function QuickOrderPage() {
   }
 
   function toggleFileExpanded(id: string) {
+    if (currentStep !== "configure") {
+      return;
+    }
     // Accordion behavior: only one file open at a time
     if (expandedFiles.has(id)) {
       // Close if already open
@@ -767,17 +778,11 @@ export default function QuickOrderPage() {
       ? ` (${priceData.taxRate % 1 === 0 ? priceData.taxRate.toFixed(0) : priceData.taxRate.toFixed(2)}%)`
       : "";
 
-  const steps = [
-    { id: "upload", label: "Upload", icon: UploadCloud },
-    { id: "configure", label: "Configure", icon: Settings2 },
-    { id: "orient", label: "Orient", icon: Box },
-    { id: "price", label: "Price", icon: Package },
-    { id: "checkout", label: "Checkout", icon: CreditCard },
-  ] as const;
-
-  const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
+  const currentStepIndexRaw = STEP_META.findIndex((s) => s.id === currentStep);
+  const currentStepIndex = currentStepIndexRaw === -1 ? 0 : currentStepIndexRaw;
   const hasUploads = uploads.length > 0;
-  const [showRotationControls, setShowRotationControls] = useState(false);
+  const isUploadStep = currentStep === "upload";
+  const isConfigureStep = currentStep === "configure";
 
   return (
     <div className="space-y-4 pb-24 sm:space-y-6">
@@ -826,41 +831,54 @@ export default function QuickOrderPage() {
       {/* Workflow Steps - Sticky compact progress */}
       <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-3 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-4">
         <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
-          {steps.map((step, index) => {
+          {STEP_META.map((step, index) => {
             const Icon = step.icon;
             const isActive = index === currentStepIndex;
             const isComplete = index < currentStepIndex;
+            const canNavigate = index <= furthestStepIndex;
 
             return (
               <div key={step.id} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center gap-1 sm:flex-row sm:gap-2">
-                  <div
+                <button
+                  type="button"
+                  onClick={() => (canNavigate ? goToStep(step.id) : null)}
+                  disabled={!canNavigate}
+                  aria-current={isActive ? "step" : undefined}
+                  className={cn(
+                    "flex flex-1 flex-col items-center gap-1 rounded-lg p-1 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex-row sm:gap-2",
+                    canNavigate ? "cursor-pointer" : "cursor-not-allowed",
+                  )}
+                >
+                  <span
                     className={cn(
                       "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors sm:h-10 sm:w-10",
                       isComplete
                         ? "border-success bg-success text-white"
                         : isActive
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-muted-foreground"
+                        : "border-border bg-card text-muted-foreground",
                     )}
                   >
                     {isComplete ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className="h-4 w-4 sm:h-5 sm:w-5" />}
-                  </div>
+                  </span>
                   <span
                     className={cn(
                       "text-[10px] font-medium sm:text-sm",
-                      isActive ? "text-foreground" : "text-muted-foreground"
+                      isActive ? "text-foreground" : "text-muted-foreground",
                     )}
                   >
                     {step.label}
                   </span>
-                </div>
-                {index < steps.length - 1 && (
+                </button>
+                {index < STEP_META.length - 1 && (
                   <div className="mx-1 h-0.5 flex-1 bg-gray-200 sm:mx-2" />
                 )}
               </div>
             );
           })}
+        </div>
+        <div className="mt-2 text-center text-[11px] font-medium text-muted-foreground sm:text-xs">
+          Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
         </div>
       </div>
 
@@ -897,12 +915,18 @@ export default function QuickOrderPage() {
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
         <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+          {(isUploadStep || isConfigureStep) && (
+            <>
           {/* Upload & File List - Mobile optimized: Stack on mobile */}
           <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-semibold sm:text-lg">Files</h2>
-                <span className="text-xs text-muted-foreground">Upload STL or 3MF</span>
+                <h2 className="text-base font-semibold sm:text-lg">
+                  {isUploadStep ? "Upload Files" : "Configure Files"}
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  {isUploadStep ? "Upload STL or 3MF" : "Adjust per-file settings"}
+                </span>
               </div>
               {hasUploads ? (
                 <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{uploads.length} file{uploads.length === 1 ? "" : "s"}</span>
@@ -955,15 +979,17 @@ export default function QuickOrderPage() {
               <div className="flex flex-col overflow-hidden rounded-2xl border border-border/70 bg-background/70 p-4">
                 <div className="mb-3 flex flex-shrink-0 items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">Uploaded files</h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!canPrepare || preparing || !hasUploads}
-                    onClick={prepareFiles}
-                  >
-                    {preparing ? "Preparing..." : hasPreparedAll ? "Re-prepare" : "Prepare files"}
-                  </Button>
+                  {isConfigureStep && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!canPrepare || preparing || !hasUploads}
+                      onClick={prepareFiles}
+                    >
+                      {preparing ? "Preparing..." : hasPreparedAll ? "Re-prepare" : "Prepare files"}
+                    </Button>
+                  )}
                 </div>
                 {hasUploads ? (
                   <ul className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden pr-2 [scrollbar-width:thin]">
@@ -980,8 +1006,12 @@ export default function QuickOrderPage() {
                           >
                             <button
                               type="button"
-                              className="flex flex-1 items-center gap-3 text-left"
+                              className={cn(
+                                "flex flex-1 items-center gap-3 text-left",
+                                !isConfigureStep && "cursor-default opacity-80",
+                              )}
                               onClick={() => toggleFileExpanded(file.id)}
+                              disabled={!isConfigureStep}
                             >
                               <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                 <FileText className="h-4 w-4" />
@@ -1024,7 +1054,7 @@ export default function QuickOrderPage() {
           </section>
 
           {/* Files Configuration - Mobile optimized: Reduced padding on mobile */}
-          {uploads.length > 0 && (
+          {isConfigureStep && uploads.length > 0 && (
             <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-muted-foreground" />
@@ -1108,15 +1138,17 @@ export default function QuickOrderPage() {
                             </div>
                           ) : null}
                         </div>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        )}
+                        {isConfigureStep ? (
+                          isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )
+                        ) : null}
                       </div>
 
                       {/* File Settings - Collapsible - Mobile optimized: Full width fields on mobile */}
-                      {isExpanded && (
+                      {isConfigureStep && isExpanded && (
                         <div className="border-t border-border p-3">
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
@@ -1314,26 +1346,30 @@ export default function QuickOrderPage() {
                 })}
               </div>
               {/* Mobile optimized: Full-width button on mobile */}
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={computePrice}
-                  disabled={uploads.length === 0 || loading || pricing}
-                  className={cn(
-                    "flex w-full items-center justify-center gap-2 sm:w-auto",
-                    pricing && "animate-pulse"
-                  )}
-                >
-                  {pricing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Calculating...
-                    </>
-                  ) : (
-                    "Calculate Price"
-                  )}
-                </Button>
-              </div>
+              {isConfigureStep && (
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={computePrice}
+                    disabled={uploads.length === 0 || loading || pricing}
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 sm:w-auto",
+                      pricing && "animate-pulse"
+                    )}
+                  >
+                    {pricing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Calculating...
+                      </>
+                    ) : (
+                      "Calculate Price"
+                    )}
+                  </Button>
+                </div>
+              )}
             </section>
+          )}
+            </>
           )}
 
           {/* Orientation Step - Mobile optimized */}
@@ -1357,19 +1393,7 @@ export default function QuickOrderPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRotationControls(!showRotationControls)}
-                    title={showRotationControls ? "Hide rotation controls" : "Show rotation controls"}
-                  >
-                    {showRotationControls ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentStep("configure")}
+                    onClick={() => goToStep("configure")}
                     disabled={isLocking}
                     className="whitespace-nowrap"
                   >
@@ -1409,7 +1433,7 @@ export default function QuickOrderPage() {
 
               {currentlyOrienting ? (
                 <div className="space-y-4">
-                  {/* 3D Viewer with top-left trigger and controls panel below (non-overlapping) */}
+                  {/* 3D Viewer with always-visible controls */}
                   <div className="relative">
                     <ModelViewerWrapper
                       ref={viewerRef}
@@ -1417,67 +1441,22 @@ export default function QuickOrderPage() {
                       filename={uploads.find((u) => u.id === currentlyOrienting)?.filename}
                       onError={(err) => setError(err.message)}
                     />
-                    {/* Trigger */}
-                    <button
-                      type="button"
-                      className="pointer-events-auto absolute left-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface-overlay/80 shadow-sm backdrop-blur hover:bg-surface-overlay/90"
-                      aria-expanded={viewControlsOpen}
-                      aria-controls="view-controls-panel"
-                      onClick={() => setViewControlsOpen((v) => (isMobile ? true : !v))}
-                      title="View controls"
-                    >
-                      <Axis3D className="h-4 w-4" />
-                    </button>
                   </div>
 
-                  {!isMobile && viewControlsOpen ? (
-                    <div id="view-controls-panel" className="mt-2">
-                      <ViewNavigationControls
-                        helpersVisible={viewHelpersVisible}
-                        disabled={isLocking}
-                        onPan={(direction) => viewerRef.current?.pan(direction)}
-                        onZoom={(direction) => viewerRef.current?.zoom(direction)}
-                        onPreset={(preset) => viewerRef.current?.setView(preset)}
-                        onFit={() => viewerRef.current?.fit()}
-                        onReset={() => {
-                          setViewHelpersVisible(false);
-                          viewerRef.current?.resetView();
-                          setViewControlsOpen(false);
-                        }}
-                        onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
-                      />
-                    </div>
-                  ) : null}
-
-                  {isMobile ? (
-                    <Sheet open={viewControlsOpen} onOpenChange={setViewControlsOpen}>
-                      <SheetContent side="bottom" className="p-0 max-h-[70vh]">
-                        <SheetHeader className="border-b border-border px-4 py-3">
-                          <SheetTitle>View Controls</SheetTitle>
-                        </SheetHeader>
-                        <div className="p-3">
-                          <ViewNavigationControls
-                            mode="presets-only"
-                            helpersVisible={viewHelpersVisible}
-                            disabled={isLocking}
-                            onPan={(direction) => viewerRef.current?.pan(direction)}
-                            onZoom={(direction) => viewerRef.current?.zoom(direction)}
-                            onPreset={(preset) => viewerRef.current?.setView(preset)}
-                            onFit={() => viewerRef.current?.fit()}
-                            onReset={() => {
-                              setViewHelpersVisible(false);
-                              viewerRef.current?.resetView();
-                              setViewControlsOpen(false);
-                            }}
-                            onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
-                          />
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                  ) : null}
-
-                  {/* Rotation Controls */}
-                  {showRotationControls ? (
+                  <div className="space-y-3">
+                    <ViewNavigationControls
+                      helpersVisible={viewHelpersVisible}
+                      disabled={isLocking}
+                      onPan={(direction) => viewerRef.current?.pan(direction)}
+                      onZoom={(direction) => viewerRef.current?.zoom(direction)}
+                      onPreset={(preset) => viewerRef.current?.setView(preset)}
+                      onFit={() => viewerRef.current?.fit()}
+                      onReset={() => {
+                        setViewHelpersVisible(false);
+                        viewerRef.current?.resetView();
+                      }}
+                      onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
+                    />
                     <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
                       <RotationControls
                         onReset={() => viewerRef.current?.resetView()}
@@ -1487,10 +1466,11 @@ export default function QuickOrderPage() {
                         onLock={handleLockOrientation}
                         onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
                         isLocking={isLocking}
-                        disabled={false}
+                        disabled={isLocking}
                       />
                     </div>
-                  ) : null}
+                  </div>
+
                 </div>
               ) : Object.keys(orientedFileIds).length === uploads.length ? (
                 <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center">
@@ -1505,7 +1485,7 @@ export default function QuickOrderPage() {
                       {uploads.length} file{uploads.length === 1 ? "" : "s"} ready for configuration
                     </p>
                     <Button
-                      onClick={() => setCurrentStep("configure")}
+                      onClick={() => goToStep("configure")}
                       className="mt-4 bg-success text-white hover:bg-success-light"
                     >
                       Continue to Configure
@@ -1529,7 +1509,7 @@ export default function QuickOrderPage() {
         {/* Right Column - Price Summary & Checkout - Mobile optimized */}
         <div className="space-y-4 sm:space-y-6">
           {/* Price Summary - Mobile optimized: Reduced padding on mobile */}
-          {priceData && (
+          {priceData && (currentStep === "price" || currentStep === "checkout") && (
             <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Package className="h-5 w-5 text-muted-foreground" />
@@ -1595,11 +1575,16 @@ export default function QuickOrderPage() {
                   </div>
                 </div>
               </div>
+              {currentStep === "price" && (
+                <Button className="mt-4 w-full" onClick={() => goToStep("checkout")} disabled={loading}>
+                  Continue to Checkout
+                </Button>
+              )}
             </section>
           )}
 
           {/* Delivery Details - Mobile optimized: Reduced padding on mobile */}
-          {priceData && (
+          {priceData && currentStep === "checkout" && (
             <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <div className="mb-4 flex items-center gap-2">
                 <Truck className="h-5 w-5 text-muted-foreground" />
@@ -1727,7 +1712,7 @@ export default function QuickOrderPage() {
           )}
 
           {/* Help Card - Mobile optimized: Reduced padding on mobile */}
-          {uploads.length === 0 && (
+          {uploads.length === 0 && isUploadStep && (
             <section className="rounded-lg border border-border bg-surface-overlay p-4 sm:p-6">
               <h3 className="mb-2 text-base font-semibold">How it works</h3>
               <ol className="space-y-2 text-sm text-muted-foreground">
