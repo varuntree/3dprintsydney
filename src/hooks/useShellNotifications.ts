@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LegacyUser } from "@/lib/types/user";
 import type { NotificationItem } from "@/lib/notifications/types";
 
-type NotificationState = {
+const MAX_NOTIFICATIONS = 15;
+const POLL_INTERVAL_MS = 15_000;
+
+interface NotificationState {
   items: NotificationItem[];
   loading: boolean;
   error: string | null;
   lastSeenAt: string | null;
   newestMessageTimestamp: string | null;
-};
+}
 
 const DEFAULT_STATE: NotificationState = {
   items: [],
@@ -20,114 +23,161 @@ const DEFAULT_STATE: NotificationState = {
   newestMessageTimestamp: null,
 };
 
-const MAX_NOTIFICATIONS = 10;
-
 interface UseShellNotificationsOptions {
   messagesHref?: string;
 }
 
-function getStorageKey(userId: number) {
-  return `notifications:lastSeen:${userId}`;
+type ApiNotification = {
+  id: number;
+  userId: number;
+  invoiceId: number | null;
+  sender: "ADMIN" | "CLIENT";
+  content: string;
+  createdAt: string;
+  userEmail?: string | null;
+  userName?: string | null;
+};
+
+type NotificationsResponse = {
+  items: ApiNotification[];
+  lastSeenAt: string | null;
+};
+
+type NotificationsPayload = { data: NotificationsResponse };
+
+type SeenUpdatePayload = { data: { lastSeenAt: string | null } };
+
+function isNotificationsPayload(payload: unknown): payload is NotificationsPayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  const data = (payload as { data?: unknown }).data;
+  if (typeof data !== "object" || data === null) return false;
+  const items = (data as { items?: unknown }).items;
+  if (!Array.isArray(items)) return false;
+  return true;
+}
+
+function isSeenUpdatePayload(payload: unknown): payload is SeenUpdatePayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  const data = (payload as { data?: unknown }).data;
+  if (typeof data !== "object" || data === null) return false;
+  return "lastSeenAt" in data;
+}
+
+function formatHref(baseHref: string | undefined, userId: number | null): string {
+  const fallback = baseHref ?? "/messages";
+  if (!userId) return fallback;
+  const separator = fallback.includes("?") ? "&" : "?";
+  return `${fallback}${separator}user=${userId}`;
 }
 
 export function useShellNotifications(
   user: LegacyUser | null | undefined,
   options?: UseShellNotificationsOptions,
 ) {
-  const [{ items, loading, error, lastSeenAt, newestMessageTimestamp }, setState] = useState<NotificationState>(DEFAULT_STATE);
+  const [{ items, loading, error, newestMessageTimestamp }, setState] =
+    useState<NotificationState>(DEFAULT_STATE);
 
   const userId = user?.id ?? null;
+  const userRole = user?.role ?? null;
+  const fetchInFlightRef = useRef(false);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const loadLastSeen = useCallback(() => {
-    if (!userId || typeof window === "undefined") return null;
-    return window.localStorage.getItem(getStorageKey(userId));
-  }, [userId]);
+  const mapNotifications = useCallback(
+    (payload: NotificationsResponse): NotificationItem[] => {
+      const seenTime = payload.lastSeenAt ? Date.parse(payload.lastSeenAt) : null;
+      const baseHref = options?.messagesHref ?? (userRole === "ADMIN" ? "/messages" : "/client/messages");
 
-  const persistLastSeen = useCallback(
-    (isoTimestamp: string) => {
-      if (!userId || typeof window === "undefined") return;
-      window.localStorage.setItem(getStorageKey(userId), isoTimestamp);
-    },
-    [userId],
-  );
+      return payload.items.map((entry) => {
+        const createdAt = entry.createdAt ?? new Date().toISOString();
+        const createdTime = Date.parse(createdAt);
+        const unseen = seenTime ? Number.isNaN(createdTime) || createdTime > seenTime : true;
 
-  const fetchNotifications = useCallback(async () => {
-    if (!userId) return;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-    try {
-      const params = new URLSearchParams({
-        limit: String(MAX_NOTIFICATIONS),
-        order: "desc",
-      });
-      const response = await fetch(`/api/messages?${params.toString()}`, {
-        credentials: "include",
-      });
+        const senderRole = entry.sender;
+        const isClientMessage = senderRole === "CLIENT";
+        const displayName = entry.userName?.trim()
+          ? entry.userName
+          : entry.userEmail?.trim()
+            ? entry.userEmail
+            : isClientMessage
+              ? `Client #${entry.userId}`
+              : "3D Print Sydney";
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(
-          typeof data?.error === "string" ? data.error : "Failed to load notifications",
-        );
-      }
+        const title = isClientMessage
+          ? `New message from ${displayName}`
+          : `New message from ${displayName}`;
 
-      const { data } = (await response.json()) as { data: Array<Record<string, unknown>> };
-
-      const mapped: NotificationItem[] = (Array.isArray(data) ? data : []).map((entry) => {
-        const id = Number(entry.id ?? 0);
-        const sender = (entry.sender === "ADMIN" ? "ADMIN" : "CLIENT") as "ADMIN" | "CLIENT";
-        const createdAt = String(entry.createdAt ?? entry.created_at ?? new Date().toISOString());
-        const content = String(entry.content ?? "");
-        const invoiceIdRaw = entry.invoiceId ?? entry.invoice_id ?? null;
-        const invoiceId =
-          typeof invoiceIdRaw === "number"
-            ? invoiceIdRaw
-            : invoiceIdRaw === null
-              ? null
-              : Number(invoiceIdRaw) || null;
+        const href = userRole === "ADMIN"
+          ? formatHref(baseHref, entry.userId)
+          : baseHref;
 
         return {
-          id: id ? String(id) : `${createdAt}-${sender}`,
-          kind: "message",
-          senderRole: sender,
-          title: sender === "ADMIN" ? "Incoming message from Admin" : "Incoming client message",
-          description: content,
+          id: String(entry.id ?? createdAt),
+          kind: "message" as const,
+          senderRole,
+          title,
+          description: entry.content ?? "",
           createdAt,
-          href: options?.messagesHref ?? "/messages",
-          invoiceId,
+          href,
+          invoiceId: entry.invoiceId ?? null,
+          userId: entry.userId,
+          userEmail: entry.userEmail ?? null,
+          userName: entry.userName ?? null,
+          unseen,
         };
       });
+    },
+    [options?.messagesHref, userRole],
+  );
 
-      const storedLastSeen = loadLastSeen();
+  const fetchNotifications = useCallback(
+    async ({ background = false, force = false }: { background?: boolean; force?: boolean } = {}) => {
+      if (!userId) return;
+      if (fetchInFlightRef.current && !force) {
+        return;
+      }
 
-      // Extract newest message timestamp from full list (before filtering)
-      const newestTimestamp = mapped.length > 0 ? mapped[0].createdAt : null;
+      fetchInFlightRef.current = true;
+      if (!background) {
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+      }
 
-      const filtered = (() => {
-        if (!storedLastSeen) return mapped;
-        const lastSeenTime = Date.parse(storedLastSeen);
-        if (Number.isNaN(lastSeenTime)) return mapped;
-        return mapped.filter((item) => {
-          const itemTime = Date.parse(item.createdAt);
-          if (Number.isNaN(itemTime)) return true;
-          return itemTime > lastSeenTime;
+      try {
+        const params = new URLSearchParams({
+          limit: String(MAX_NOTIFICATIONS),
         });
-      })();
+        const response = await fetch(`/api/notifications?${params.toString()}`, {
+          credentials: "include",
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
 
-      setState({
-        items: filtered,
-        loading: false,
-        error: null,
-        lastSeenAt: storedLastSeen,
-        newestMessageTimestamp: newestTimestamp,
-      });
-    } catch (err) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: err instanceof Error ? err.message : "Unexpected error loading notifications",
-      }));
-    }
-  }, [loadLastSeen, options?.messagesHref, userId]);
+        if (!response.ok || !isNotificationsPayload(payload)) {
+          throw new Error(
+            extractErrorMessage(payload, "Failed to load notifications"),
+          );
+        }
+
+        const mapped = mapNotifications(payload.data);
+        const newestTimestamp = mapped.length > 0 ? mapped[0].createdAt : payload.data.lastSeenAt;
+
+        setState({
+          items: mapped,
+          loading: false,
+          error: null,
+          lastSeenAt: payload.data.lastSeenAt,
+          newestMessageTimestamp: newestTimestamp ?? null,
+        });
+      } catch (err) {
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: err instanceof Error ? err.message : "Unexpected error loading notifications",
+        }));
+      } finally {
+        fetchInFlightRef.current = false;
+      }
+    },
+    [mapNotifications, userId],
+  );
 
   useEffect(() => {
     if (!userId) {
@@ -135,72 +185,73 @@ export function useShellNotifications(
       return;
     }
 
-    const storedLastSeen = loadLastSeen();
-    setState((prev) => ({
-      ...prev,
-      lastSeenAt: storedLastSeen,
-    }));
-
     void fetchNotifications();
-  }, [fetchNotifications, loadLastSeen, userId]);
+  }, [fetchNotifications, userId]);
 
-  const unseenCount = useMemo(() => {
-    if (!items.length) return 0;
-    if (!lastSeenAt) return items.length;
-    const lastSeenTime = Date.parse(lastSeenAt);
-    if (Number.isNaN(lastSeenTime)) return items.length;
+  useEffect(() => {
+    if (!userId) return;
 
-    return items.reduce((count, item) => {
-      const itemTime = Date.parse(item.createdAt);
-      if (!Number.isNaN(itemTime) && itemTime > lastSeenTime) {
-        return count + 1;
+    let cancelled = false;
+
+    const schedule = () => {
+      if (cancelled) return;
+      pollingTimeoutRef.current = setTimeout(async () => {
+        await fetchNotifications({ background: true });
+        schedule();
+      }, POLL_INTERVAL_MS);
+    };
+
+    schedule();
+
+    return () => {
+      cancelled = true;
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
       }
-      return count;
-    }, 0);
-  }, [items, lastSeenAt]);
+    };
+  }, [fetchNotifications, userId]);
 
-  const markAllSeen = useCallback(() => {
-    if (!newestMessageTimestamp) return;
+  const unseenCount = useMemo(() => items.filter((item) => item.unseen).length, [items]);
 
-    persistLastSeen(newestMessageTimestamp);
-    setState((prev) => ({
-      ...prev,
-      lastSeenAt: newestMessageTimestamp,
-    }));
-  }, [newestMessageTimestamp, persistLastSeen]);
+  const markAllSeen = useCallback(async () => {
+    if (!userId) return;
 
-  const clearNotifications = useCallback(() => {
-    setState((prev) => {
-      if (!prev.items.length) {
-        return prev;
-      }
+    const targetTimestamp = newestMessageTimestamp ?? new Date().toISOString();
 
-      const lastSeen = prev.lastSeenAt;
-      if (!lastSeen) {
-        return {
-          ...prev,
-          items: [],
-        };
-      }
+    try {
+      const response = await fetch(`/api/notifications`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastSeenAt: targetTimestamp }),
+        credentials: "include",
+      });
+      const payload = (await response.json().catch(() => null)) as unknown;
 
-      const lastSeenTime = Date.parse(lastSeen);
-      if (Number.isNaN(lastSeenTime)) {
-        return {
-          ...prev,
-          items: [],
-        };
+      if (!response.ok || !isSeenUpdatePayload(payload)) {
+        throw new Error(extractErrorMessage(payload, "Failed to mark notifications"));
       }
 
-      return {
+      const nextSeen = payload.data.lastSeenAt;
+
+      setState((prev) => ({
         ...prev,
-        items: prev.items.filter((item) => {
-          const itemTime = Date.parse(item.createdAt);
-          if (Number.isNaN(itemTime)) return true;
-          return itemTime > lastSeenTime;
-        }),
-      };
-    });
-  }, []);
+        lastSeenAt: nextSeen,
+        newestMessageTimestamp: nextSeen,
+        items: prev.items.map((item) => ({ ...item, unseen: false })),
+      }));
+    } catch (err) {
+      setState((prev) => ({
+        ...prev,
+        error: err instanceof Error ? err.message : "Unexpected error updating notifications",
+      }));
+    }
+  }, [newestMessageTimestamp, userId]);
+
+  const refetch = useCallback(
+    () => fetchNotifications({ force: true }),
+    [fetchNotifications],
+  );
 
   return {
     notifications: items,
@@ -208,7 +259,19 @@ export function useShellNotifications(
     error,
     unseenCount,
     markAllSeen,
-    refetch: fetchNotifications,
-    clearNotifications,
+    refetch,
   };
+}
+
+function extractErrorMessage(payload: unknown, fallback: string): string {
+  if (typeof payload === "object" && payload !== null) {
+    const possibleError = (payload as { error?: { message?: unknown } }).error;
+    if (possibleError && typeof possibleError === "object" && possibleError !== null) {
+      const { message } = possibleError as { message?: unknown };
+      if (typeof message === "string" && message.trim().length > 0) {
+        return message;
+      }
+    }
+  }
+  return fallback;
 }
