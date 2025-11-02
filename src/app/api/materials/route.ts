@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listMaterials, createMaterial } from "@/server/services/materials";
 import { materialInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(materials);
+    return okAuth(req, materials);
   } catch (error) {
-    return handleError(error, "materials.list");
+    return handleErrorAuth(req, error, "materials.list");
   }
 }
 
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = materialInputSchema.parse(body);
     const material = await createMaterial(validated);
-    return ok(material, { status: 201 });
+    return okAuth(req, material, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid material payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid material payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "materials.create");
+    return handleErrorAuth(req, error, "materials.create");
   }
 }

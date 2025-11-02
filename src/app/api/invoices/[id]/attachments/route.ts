@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { uploadInvoiceAttachment } from "@/server/services/invoices";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -25,17 +25,17 @@ export async function POST(
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return fail("INVALID_FILE", "File upload missing", 400);
+      return failAuth(req, "INVALID_FILE", "File upload missing", 400);
     }
 
     // Delegate validation and upload to service layer
     const attachment = await uploadInvoiceAttachment(id, file);
 
-    return ok(attachment, { status: 201 });
+    return okAuth(req, attachment, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.attachments.add");
+    return handleErrorAuth(req, error, "invoices.attachments.add");
   }
 }

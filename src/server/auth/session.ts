@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
@@ -12,23 +12,49 @@ import { buildAuthCookieOptions, type CookieOptions } from "@/lib/utils/auth-coo
 const ACCESS_COOKIE = "sb:token";
 const REFRESH_COOKIE = "sb:refresh-token";
 
+const pendingSessions = new WeakMap<NextRequest, Session>();
+
+function storePendingSession(req: NextRequest, session: Session | null) {
+  if (!session) return;
+  pendingSessions.set(req, session);
+}
+
 type CookieStore = {
   set(name: string, value: string, options?: CookieOptions): void;
   get(name: string): { value: string } | undefined;
 };
 
 function applySessionCookies(target: CookieStore, session: Session) {
-  target.set(ACCESS_COOKIE, session.access_token, buildAuthCookieOptions(session.expires_at ?? undefined));
-  if (session.refresh_token) {
-    target.set(REFRESH_COOKIE, session.refresh_token, buildAuthCookieOptions());
+  try {
+    target.set(ACCESS_COOKIE, session.access_token, buildAuthCookieOptions(session.expires_at ?? undefined));
+    if (session.refresh_token) {
+      target.set(REFRESH_COOKIE, session.refresh_token, buildAuthCookieOptions());
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Cookies can only be modified")) {
+      return;
+    }
+    logger.warn({
+      scope: "auth.session",
+      message: "Unable to apply session cookies in current context",
+      error,
+    });
   }
 }
 
 function clearSessionCookies(target: CookieStore) {
   const expired = buildAuthCookieOptions();
   expired.expires = new Date(0);
-  target.set(ACCESS_COOKIE, "", expired);
-  target.set(REFRESH_COOKIE, "", expired);
+  try {
+    target.set(ACCESS_COOKIE, "", expired);
+    target.set(REFRESH_COOKIE, "", expired);
+  } catch (error) {
+    logger.warn({
+      scope: "auth.session",
+      message: "Unable to clear session cookies in current context",
+      error,
+    });
+  }
 }
 
 function createAuthClient() {
@@ -123,11 +149,13 @@ export async function getUserFromRequest(req: NextRequest): Promise<LegacyUser |
     if (accessToken || refreshToken) {
       clearSessionCookies(cookieStore);
     }
+    pendingSessions.delete(req);
     return null;
   }
 
   if (session) {
     applySessionCookies(cookieStore, session);
+    storePendingSession(req, session);
   }
 
   return loadLegacyUser(authUser.id);
@@ -177,4 +205,28 @@ export async function getUserFromCookies(): Promise<LegacyUser | null> {
   }
 
   return loadLegacyUser(authUser.id);
+}
+
+export function attachSessionCookies(
+  req: NextRequest,
+  response: NextResponse,
+): NextResponse {
+  const session = pendingSessions.get(req);
+  if (!session) {
+    return response;
+  }
+  pendingSessions.delete(req);
+  response.cookies.set(
+    ACCESS_COOKIE,
+    session.access_token,
+    buildAuthCookieOptions(session.expires_at ?? undefined),
+  );
+  if (session.refresh_token) {
+    response.cookies.set(
+      REFRESH_COOKIE,
+      session.refresh_token,
+      buildAuthCookieOptions(),
+    );
+  }
+  return response;
 }

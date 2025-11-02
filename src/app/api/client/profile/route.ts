@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireClientWithId } from '@/server/auth/api-helpers';
 import { getServiceSupabase } from '@/server/supabase/service-client';
-import { ok, handleError, fail } from '@/server/api/respond';
+import { okAuth, handleErrorAuth, failAuth } from '@/server/api/respond';
 import { AppError } from '@/lib/errors';
 
 /**
@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
       throw new AppError(`Failed to load profile: ${error?.message ?? 'Not found'}`, 'DATABASE_ERROR', 500);
     }
 
-    return ok(data);
+    return okAuth(req, data);
   } catch (error) {
-    return handleError(error, 'client.profile.get');
+    return handleErrorAuth(req, error, 'client.profile.get');
   }
 }
 
@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest) {
 
     // Basic validation
     if (!firstName || !lastName || !phone) {
-      return fail('VALIDATION_ERROR', 'First name, last name, and phone are required', 400);
+      return failAuth(req, 'VALIDATION_ERROR', 'First name, last name, and phone are required', 400);
     }
 
     const supabase = getServiceSupabase();
@@ -73,8 +73,8 @@ export async function PATCH(req: NextRequest) {
       metadata: { fields: ['first_name', 'last_name', 'phone', 'company', 'position'] },
     });
 
-    return ok(data);
+    return okAuth(req, data);
   } catch (error) {
-    return handleError(error, 'client.profile.patch');
+    return handleErrorAuth(req, error, 'client.profile.patch');
   }
 }

@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { voidInvoice } from "@/server/services/invoices";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -17,11 +17,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = await request.json().catch(() => ({}));
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const invoice = await voidInvoice(id, reason);
-    return ok(invoice);
+    return okAuth(req, invoice);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid invoice id")) {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.void");
+    return handleErrorAuth(req, error, "invoices.void");
   }
 }

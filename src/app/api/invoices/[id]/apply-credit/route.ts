@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { requireClientWithId } from "@/server/auth/api-helpers";
 import { applyWalletCreditToInvoice } from "@/server/services/credits";
 import { getInvoiceDetail } from "@/server/services/invoices";
@@ -30,7 +30,7 @@ export async function POST(
     // Verify invoice belongs to this client
     const invoice = await getInvoiceDetail(invoiceId);
     if (invoice.client.id !== user.clientId) {
-      return fail("FORBIDDEN", "You don't have access to this invoice", 403);
+      return failAuth(req, "FORBIDDEN", "You don't have access to this invoice", 403);
     }
 
     // Check if invoice is eligible for credit application
@@ -41,15 +41,15 @@ export async function POST(
     // Apply credit
     const result = await applyWalletCreditToInvoice(invoiceId);
 
-    return ok({
+    return okAuth(req, {
       creditApplied: result.creditApplied,
       newBalanceDue: result.newBalanceDue,
       fullyPaid: result.newBalanceDue <= 0
     });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.applyCredit");
+    return handleErrorAuth(req, error, "invoices.applyCredit");
   }
 }

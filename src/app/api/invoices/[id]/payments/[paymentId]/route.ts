@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { deletePayment } from "@/server/services/invoices";
 import { requirePaymentAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
@@ -22,11 +22,11 @@ export async function DELETE(
     const id = await parsePaymentParams(context.params);
     await requirePaymentAccess(request, id);
     const payment = await deletePayment(id);
-    return ok(payment);
+    return okAuth(req, payment);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid payment id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.payment.delete");
+    return handleErrorAuth(req, error, "invoices.payment.delete");
   }
 }

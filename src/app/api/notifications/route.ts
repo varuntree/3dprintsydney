@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listNotificationsForUser, updateMessageLastSeenAt } from "@/server/services/messages";
 
 function parseLimit(searchParams: URLSearchParams): number {
@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
 
     const { notifications, lastSeenAt } = await listNotificationsForUser(user, { limit });
 
-    return ok({ items: notifications, lastSeenAt });
+    return okAuth(req, { items: notifications, lastSeenAt });
   } catch (error) {
-    return handleError(error, "notifications.get");
+    return handleErrorAuth(req, error, "notifications.get");
   }
 }
 
@@ -33,14 +33,14 @@ export async function PATCH(req: NextRequest) {
 
     const date = candidate ? new Date(candidate) : new Date();
     if (Number.isNaN(date.getTime())) {
-      return fail("VALIDATION_ERROR", "Invalid lastSeenAt timestamp", 422);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid lastSeenAt timestamp", 422);
     }
 
     const iso = date.toISOString();
     await updateMessageLastSeenAt(user.id, iso);
 
-    return ok({ lastSeenAt: iso });
+    return okAuth(req, { lastSeenAt: iso });
   } catch (error) {
-    return handleError(error, "notifications.patch");
+    return handleErrorAuth(req, error, "notifications.patch");
   }
 }

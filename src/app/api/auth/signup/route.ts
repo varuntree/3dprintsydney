@@ -49,6 +49,6 @@ export async function POST(req: NextRequest) {
         issues: error.issues,
       });
     }
-    return handleError(error, 'auth.signup');
+    return handleError(error, "auth.signup");
   }
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { reorderJobs } from "@/server/services/jobs";
 import { jobReorderSchema } from "@/lib/schemas/jobs";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -17,13 +17,13 @@ export async function POST(request: NextRequest) {
         printerId: entry.printerId ?? null,
       })),
     );
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid input", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "jobs.reorder");
+    return handleErrorAuth(req, error, "jobs.reorder");
   }
 }

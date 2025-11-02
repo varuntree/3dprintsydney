@@ -1,4 +1,4 @@
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { getRecentActivity } from "@/server/services/dashboard";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { parsePaginationParams } from "@/lib/utils/api-params";
@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     const { limit, offset } = parsePaginationParams(searchParams);
 
     const result = await getRecentActivity({ limit, offset });
-    return ok(result);
+    return okAuth(req, result);
   } catch (error) {
-    return handleError(error, "dashboard.activity");
+    return handleErrorAuth(req, error, "dashboard.activity");
   }
 }

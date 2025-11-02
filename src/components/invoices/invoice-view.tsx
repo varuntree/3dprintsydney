@@ -40,6 +40,11 @@ export interface InvoiceViewModel {
   dueDate: string | null;
   paidAt: string | null;
   clientName: string;
+  businessName: string;
+  businessEmail: string;
+  businessPhone: string;
+  businessAddress: string;
+  abn: string | null;
   paymentTerms: { label: string; days: number } | null;
   subtotal: number;
   discountType: string;

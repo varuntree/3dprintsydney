@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { requireTmpFile, downloadTmpFileToBuffer } from "@/server/services/tmp-files";
 import path from "path";
-import { fail } from "@/server/api/respond";
+import { failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -49,9 +49,9 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'tmp-file.get', message: 'Temp file retrieval failed', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

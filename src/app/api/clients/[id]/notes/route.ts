@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { addClientNote } from "@/server/services/clients";
 import { clientNoteSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -24,16 +24,16 @@ export async function POST(
     const body = await request.json();
     const validated = clientNoteSchema.parse(body);
     const note = await addClientNote(id, validated);
-    return ok(note, { status: 201 });
+    return okAuth(req, note, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid note payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid note payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid client id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "clients.addNote");
+    return handleErrorAuth(req, error, "clients.addNote");
   }
 }

@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { addClientCredit } from "@/server/services/credits";
 import { creditAdjustmentSchema } from "@/lib/schemas/clients";
@@ -38,16 +38,16 @@ export async function POST(
       validated.notes
     );
 
-    return ok(result, { status: 201 });
+    return okAuth(req, result, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid credit payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid credit payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid client id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "clients.credit.add");
+    return handleErrorAuth(req, error, "clients.credit.add");
   }
 }

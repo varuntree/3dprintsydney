@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { archiveJob } from "@/server/services/jobs";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -19,12 +19,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = await request.json().catch(() => ({}));
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const job = await archiveJob(id, reason);
-    return ok(job);
+    return okAuth(req, job);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid job id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "jobs.archive");
+    return handleErrorAuth(req, error, "jobs.archive");
   }
 }
 

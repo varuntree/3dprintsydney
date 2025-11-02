@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { listUserMessages, createMessage } from "@/server/services/messages";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -20,9 +20,9 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       order,
     });
 
-    return ok(messages);
+    return okAuth(req, messages);
   } catch (error) {
-    return handleError(error, 'admin.users.messages');
+    return handleErrorAuth(req, error, 'admin.users.messages');
   }
 }
 
@@ -35,13 +35,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const { content } = await req.json();
 
     if (!content || typeof content !== "string") {
-      return fail("VALIDATION_ERROR", "Invalid content", 422);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid content", 422);
     }
 
     const message = await createMessage(userId, content, "ADMIN", null);
 
-    return ok(message);
+    return okAuth(req, message);
   } catch (error) {
-    return handleError(error, 'admin.users.messages');
+    return handleErrorAuth(req, error, 'admin.users.messages');
   }
 }

@@ -3,7 +3,6 @@ import { Buffer } from 'node:buffer';
 import { getServiceSupabase } from '@/server/supabase/service-client';
 
 const ATTACHMENTS_BUCKET = 'attachments';
-const PDF_BUCKET = 'pdfs';
 const TMP_BUCKET = 'tmp';
 const ORDER_FILES_BUCKET = 'order-files';
 
@@ -124,36 +123,6 @@ export async function getAttachmentSignedUrl(path: string, expiresIn = 60) {
 
 export async function listInvoiceAttachments(invoiceId: number): Promise<StoredObject[]> {
   return listBucketObjects(ATTACHMENTS_BUCKET, String(invoiceId));
-}
-
-export async function uploadPdf(filename: string, contents: BinaryPayload, contentType = 'application/pdf') {
-  const supabase = getServiceSupabase();
-  const path = filename;
-  const { error } = await supabase.storage.from(PDF_BUCKET).upload(path, toBytes(contents), {
-    contentType,
-    upsert: true,
-  });
-  if (error) {
-    throw new Error(`Failed to upload PDF: ${error.message}`);
-  }
-  return path;
-}
-
-export async function getPdfSignedUrl(path: string, expiresIn = 120) {
-  const supabase = getServiceSupabase();
-  const { data, error } = await supabase.storage.from(PDF_BUCKET).createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) {
-    throw new Error(`Failed to create PDF signed URL: ${error?.message ?? 'Missing URL'}`);
-  }
-  return data.signedUrl;
-}
-
-export async function deletePdf(path: string) {
-  await removeObjects(PDF_BUCKET, [path]);
-}
-
-export async function listPdfs(prefix?: string): Promise<StoredObject[]> {
-  return listBucketObjects(PDF_BUCKET, prefix ? normalizeFolder(prefix) : undefined);
 }
 
 export async function createTmpFile(userKey: string, filename: string, contents: BinaryPayload, contentType: string | null) {

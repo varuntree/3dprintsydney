@@ -1,4 +1,4 @@
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { bulkArchiveJobs } from "@/server/services/jobs";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
       : [];
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const count = await bulkArchiveJobs(ids, reason);
-    return ok({ count });
+    return okAuth(req, { count });
   } catch (error) {
-    return handleError(error, "jobs.archive.bulk");
+    return handleErrorAuth(req, error, "jobs.archive.bulk");
   }
 }
 

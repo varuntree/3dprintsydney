@@ -8,8 +8,13 @@ import { MessageBubble } from "./message-bubble";
 import { DateHeader } from "./date-header";
 import { Send } from "lucide-react";
 
+const FAST_POLL_INTERVAL_MS = 3500;
+const SLOW_POLL_INTERVAL_MS = 8000;
+
 export type ConversationMessage = Message;
-type ConversationMessageWithMeta = ConversationMessage & { optimistic?: boolean };
+type ConversationMessageWithMeta = ConversationMessage & {
+  optimistic?: boolean;
+};
 
 interface ConversationProps {
   invoiceId?: number;
@@ -73,7 +78,11 @@ function extractErrorMessage(payload: unknown, fallback: string): string {
  * - Smooth scrolling
  * - Load more pagination
  */
-export function Conversation({ invoiceId, userId, currentUserRole }: ConversationProps) {
+export function Conversation({
+  invoiceId,
+  userId,
+  currentUserRole,
+}: ConversationProps) {
   const [messages, setMessages] = useState<ConversationMessageWithMeta[]>([]);
   const [content, setContent] = useState("");
   const [page, setPage] = useState(0);
@@ -89,6 +98,20 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const pollingEnabledRef = useRef(true);
   const isFetchingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const latestSeenRef = useRef<string | null>(null);
+
+  const isDocumentVisible = () =>
+    typeof document !== "undefined" && document.visibilityState === "visible";
+
+  const isNewerThanLatest = useCallback((timestamp: string) => {
+    const parsed = Date.parse(timestamp);
+    if (Number.isNaN(parsed)) return false;
+    const previous = latestSeenRef.current
+      ? Date.parse(latestSeenRef.current)
+      : null;
+    return previous === null || Number.isNaN(previous) || parsed > previous;
+  }, []);
 
   useEffect(() => {
     // Fetch current user role if not provided
@@ -121,6 +144,29 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     },
     [invoiceId, userId],
   );
+
+  const markMessagesSeen = useCallback(async (timestamp: string) => {
+    if (!timestamp) return;
+    if (!isDocumentVisible()) return;
+    if (!isNewerThanLatest(timestamp)) return;
+
+    try {
+      const response = await fetch(`/api/notifications`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lastSeenAt: timestamp }),
+      });
+      if (!response.ok) {
+        return;
+      }
+      latestSeenRef.current = timestamp;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("notifications:invalidate"));
+      }
+    } catch {
+      // ignore failures; best effort only
+    }
+  }, [isNewerThanLatest]);
 
   const fetchMessages = useCallback(
     async ({
@@ -169,6 +215,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         }
 
         const list = payload.data.slice().reverse();
+        let newestTimestamp: string | null = null;
 
         if (!background) {
           setHasMore(list.length === limit);
@@ -180,27 +227,54 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
           const confirmed = prev.filter((item) => !item.optimistic);
 
           if (replace) {
-            return list.concat(optimistic);
+            const next = list.concat(optimistic);
+            newestTimestamp =
+              next.length > 0 ? next[next.length - 1].createdAt : null;
+            return next;
           }
 
           if (append) {
-            return [...list, ...confirmed, ...optimistic];
+            const next = [...list, ...confirmed, ...optimistic];
+            newestTimestamp =
+              next.length > 0 ? next[next.length - 1].createdAt : null;
+            return next;
           }
 
           if (merge) {
             const merged = mergeMessageLists(confirmed, list);
-            return merged.concat(optimistic);
+            const next = merged.concat(optimistic);
+            newestTimestamp =
+              next.length > 0 ? next[next.length - 1].createdAt : null;
+            return next;
           }
 
           if (requestedPage > 0) {
-            return [...list, ...confirmed, ...optimistic];
+            const next = [...list, ...confirmed, ...optimistic];
+            newestTimestamp =
+              next.length > 0 ? next[next.length - 1].createdAt : null;
+            return next;
           }
 
-          return mergeMessageLists(confirmed, list).concat(optimistic);
+          const merged = mergeMessageLists(confirmed, list).concat(optimistic);
+          newestTimestamp =
+            merged.length > 0 ? merged[merged.length - 1].createdAt : null;
+          return merged;
         });
 
         if (scrollToBottom) {
-          setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 0);
+          setTimeout(
+            () => endRef.current?.scrollIntoView({ behavior: "smooth" }),
+            0,
+          );
+        }
+
+        if (
+          !background &&
+          newestTimestamp &&
+          isDocumentVisible() &&
+          isNewerThanLatest(newestTimestamp)
+        ) {
+          void markMessagesSeen(newestTimestamp);
         }
       } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") {
@@ -239,6 +313,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         page: 0,
         merge: true,
         background: true,
+        force: true,
       }),
     [fetchMessages],
   );
@@ -250,6 +325,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     setError(null);
     abortControllerRef.current?.abort();
     void loadPage(0, true);
+    latestSeenRef.current = null;
   }, [invoiceId, userId, loadPage]);
 
   useEffect(() => {
@@ -266,7 +342,10 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     const tick = async () => {
       await refreshMessages();
       if (cancelled || !pollingEnabledRef.current) return;
-      pollingTimeoutRef.current = setTimeout(tick, 3000);
+      const interval = isDocumentVisible()
+        ? FAST_POLL_INTERVAL_MS
+        : SLOW_POLL_INTERVAL_MS;
+      pollingTimeoutRef.current = setTimeout(tick, interval);
     };
 
     void tick();
@@ -280,16 +359,39 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     };
   }, [refreshMessages, pollingEnabled]);
 
-  useEffect(() => () => {
-    abortControllerRef.current?.abort();
-    if (pollingTimeoutRef.current) {
-      clearTimeout(pollingTimeoutRef.current);
-      pollingTimeoutRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort();
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void fetchMessages({
+          page: 0,
+          merge: true,
+          background: true,
+          force: true,
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [fetchMessages]);
 
   function removeOptimisticMessage(id: number) {
-    setMessages((prev) => prev.filter((message) => !message.optimistic || message.id !== id));
+    setMessages((prev) =>
+      prev.filter((message) => !message.optimistic || message.id !== id),
+    );
   }
 
   function addOptimisticMessage(message: ConversationMessageWithMeta) {
@@ -303,7 +405,9 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     return "CLIENT";
   }
 
-  function isMessagePayload(payload: unknown): payload is { data: ConversationMessage } {
+  function isMessagePayload(
+    payload: unknown,
+  ): payload is { data: ConversationMessage } {
     return (
       typeof payload === "object" &&
       payload !== null &&
@@ -332,38 +436,59 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
     addOptimisticMessage(optimisticMessage);
 
     try {
-      const payload: { content: string; invoiceId?: number } = { content: trimmed };
+      const payload: { content: string; invoiceId?: number } = {
+        content: trimmed,
+      };
       if (invoiceId) payload.invoiceId = invoiceId;
 
-      const sendEndpoint = userId ? `/api/admin/users/${userId}/messages` : "/api/messages";
+      const sendEndpoint = userId
+        ? `/api/admin/users/${userId}/messages`
+        : "/api/messages";
       const response = await fetch(sendEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      const responsePayload = (await response.json().catch(() => null)) as unknown;
+      const responsePayload = (await response
+        .json()
+        .catch(() => null)) as unknown;
 
       if (!response.ok || !isMessagePayload(responsePayload)) {
         removeOptimisticMessage(optimisticId);
-        setError(extractErrorMessage(responsePayload, "Failed to send message"));
+        setError(
+          extractErrorMessage(responsePayload, "Failed to send message"),
+        );
         return;
       }
 
       const saved = responsePayload.data;
 
       setMessages((prev) => {
-        const withoutOptimistic = prev.filter((message) => !message.optimistic || message.id !== optimisticId);
+        const withoutOptimistic = prev.filter(
+          (message) => !message.optimistic || message.id !== optimisticId,
+        );
         return mergeMessageLists(withoutOptimistic, [saved]);
       });
 
-      await fetchMessages({ page: 0, replace: true, scrollToBottom: true, force: true });
+      await fetchMessages({
+        page: 0,
+        replace: true,
+        scrollToBottom: true,
+        force: true,
+      });
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
     } catch {
       removeOptimisticMessage(optimisticId);
       setError("Network error. Please try again.");
     } finally {
       setSending(false);
       setPollingEnabled(true);
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
     }
   }
 
@@ -378,7 +503,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
   const grouped = groupMessages(messages);
 
   return (
-    <div className="flex min-h-[320px] min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+    <div className="flex min-h-[360px] min-w-0 flex-1 flex-col overflow-hidden bg-transparent md:min-h-[calc(100vh-280px)] md:max-h-[calc(100vh-280px)]">
       {/* Messages area */}
       <div
         ref={containerRef}
@@ -437,7 +562,10 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
         {messages.length === 0 && loading && (
           <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className={`flex w-full ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+              <div
+                key={i}
+                className={`flex w-full ${i % 2 === 0 ? "justify-end" : "justify-start"}`}
+              >
                 <div className="h-16 w-3/4 animate-pulse rounded-lg bg-surface-muted" />
               </div>
             ))}
@@ -465,6 +593,7 @@ export function Conversation({ invoiceId, userId, currentUserRole }: Conversatio
       <div className="border-t border-border/70 bg-surface-overlay/90 px-4 py-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)] sm:px-5 sm:py-4">
         <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2 shadow-sm shadow-black/10 sm:p-2.5">
           <Textarea
+            ref={textareaRef}
             value={content}
             onChange={(e) => {
               setContent(e.target.value);

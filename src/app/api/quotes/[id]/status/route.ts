@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { updateQuoteStatus } from "@/server/services/quotes";
 import { quoteStatusSchema } from "@/lib/schemas/quotes";
 import { ZodError } from "zod";
@@ -24,16 +24,16 @@ export async function POST(
     const body = await request.json();
     const validated = quoteStatusSchema.parse(body);
     const quote = await updateQuoteStatus(id, validated);
-    return ok(quote);
+    return okAuth(req, quote);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid status payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid status payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid quote id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "quotes.status");
+    return handleErrorAuth(req, error, "quotes.status");
   }
 }

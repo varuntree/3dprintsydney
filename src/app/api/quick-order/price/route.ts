@@ -3,7 +3,7 @@ import type { DiscountType } from "@/lib/calculations";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { priceQuickOrder } from "@/server/services/quick-order";
 import { coerceStudentDiscount, getClientStudentDiscount } from "@/server/services/student-discount";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const items = body?.items ?? [];
     if (!Array.isArray(items) || items.length === 0) {
-      return fail("NO_ITEMS", "No items", 400);
+      return failAuth(req, "NO_ITEMS", "No items", 400);
     }
     const location = body?.location ?? {};
     let discountType: DiscountType = "NONE";
@@ -32,16 +32,16 @@ export async function POST(req: NextRequest) {
       state: typeof location?.state === "string" ? location.state : undefined,
       postcode: typeof location?.postcode === "string" ? location.postcode : undefined,
     }, { discountType, discountValue });
-    return ok({
+    return okAuth(req, {
       ...priced,
       studentDiscountEligible,
       studentDiscountRate,
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'quick-order.price', message: 'Price calculation failed', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

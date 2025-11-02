@@ -126,6 +126,11 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       dueDate: detail.dueDate ? detail.dueDate.toISOString() : null,
       paidAt: detail.paidAt ? detail.paidAt.toISOString() : null,
       clientName: detail.client.name,
+      businessName: settings.businessName,
+      businessEmail: settings.businessEmail,
+      businessPhone: settings.businessPhone,
+      businessAddress: settings.businessAddress,
+      abn: settings.abn || null,
       paymentTerms: detail.paymentTerms
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
         : null,

@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listClients, createClient } from "@/server/services/clients";
 import { clientInputSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(clients);
+    return okAuth(req, clients);
   } catch (error) {
-    return handleError(error, "clients.list");
+    return handleErrorAuth(req, error, "clients.list");
   }
 }
 
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = clientInputSchema.parse(body);
     const client = await createClient(validated);
-    return ok(client, { status: 201 });
+    return okAuth(req, client, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid client payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid client payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "clients.create");
+    return handleErrorAuth(req, error, "clients.create");
   }
 }

@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { createStripeCheckoutSession } from "@/server/services/stripe";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
@@ -22,17 +22,17 @@ export async function POST(
     const url = new URL(request.url);
     const refresh = url.searchParams.get("refresh") === "true";
     const session = await createStripeCheckoutSession(invoiceId, { refresh });
-    return ok(session);
+    return okAuth(req, session);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
     if (error instanceof Error && error.message === "Stripe is not configured") {
-      return fail("STRIPE_NOT_CONFIGURED", error.message, 400);
+      return failAuth(req, "STRIPE_NOT_CONFIGURED", error.message, 400);
     }
     if (error instanceof Error && error.message === "Invoice is already paid") {
-      return fail("INVOICE_PAID", error.message, 409);
+      return failAuth(req, "INVOICE_PAID", error.message, 409);
     }
-    return handleError(error, "invoices.stripe.session");
+    return handleErrorAuth(req, error, "invoices.stripe.session");
   }
 }

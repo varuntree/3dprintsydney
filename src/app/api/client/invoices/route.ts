@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { listClientInvoices } from "@/server/services/invoices";
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 
 export async function GET(req: NextRequest) {
@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
       offset,
     });
 
-    return ok(invoices);
+    return okAuth(req, invoices);
   } catch (error) {
-    return handleError(error, 'client.invoices');
+    return handleErrorAuth(req, error, 'client.invoices');
   }
 }

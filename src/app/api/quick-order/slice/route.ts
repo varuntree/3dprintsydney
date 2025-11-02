@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { sliceQuickOrderFile } from "@/server/services/quick-order";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -21,12 +21,12 @@ export async function POST(req: NextRequest) {
     const item = body?.file;
 
     if (!item || typeof item.id !== "string") {
-      return fail("NO_FILE", "No file provided", 400);
+      return failAuth(req, "NO_FILE", "No file provided", 400);
     }
 
     const fileUserKey = item.id.split("/")[0];
     if (fileUserKey !== String(user.id)) {
-      return fail("UNAUTHORIZED", "Unauthorized", 403);
+      return failAuth(req, "UNAUTHORIZED", "Unauthorized", 403);
     }
 
     const supports = item.supports ?? {
@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok(result);
+    return okAuth(req, result);
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(
+      return failAuth(req, 
         error.code,
         error.message,
         error.status,
@@ -57,6 +57,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.slice", message: 'Slicing failed', error });
-    return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

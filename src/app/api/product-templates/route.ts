@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listProductTemplates, createProductTemplate } from "@/server/services/product-templates";
 import { productTemplateInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(templates);
+    return okAuth(req, templates);
   } catch (error) {
-    return handleError(error, "templates.list");
+    return handleErrorAuth(req, error, "templates.list");
   }
 }
 
@@ -41,16 +41,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = productTemplateInputSchema.parse(body);
     const template = await createProductTemplate(validated);
-    return ok(template, { status: 201 });
+    return okAuth(req, template, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid template payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid template payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message.includes("required")) {
-      return fail("BUSINESS_RULE", error.message, 422);
+      return failAuth(req, "BUSINESS_RULE", error.message, 422);
     }
-    return handleError(error, "templates.create");
+    return handleErrorAuth(req, error, "templates.create");
   }
 }

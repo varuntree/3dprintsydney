@@ -1,4 +1,4 @@
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { getDashboardSnapshot } from "@/server/services/dashboard";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
     const activityOffset = Number.isFinite(actOffset) && actOffset >= 0 ? actOffset : 0;
 
     const snapshot = await getDashboardSnapshot({ range, from, to, activityLimit, activityOffset });
-    return ok(snapshot);
+    return okAuth(req, snapshot);
   } catch (error) {
-    return handleError(error, "dashboard.snapshot");
+    return handleErrorAuth(req, error, "dashboard.snapshot");
   }
 }

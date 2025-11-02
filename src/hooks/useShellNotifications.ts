@@ -25,6 +25,7 @@ const DEFAULT_STATE: NotificationState = {
 
 interface UseShellNotificationsOptions {
   messagesHref?: string;
+  isMessagesRoute?: boolean;
 }
 
 type ApiNotification = {
@@ -47,7 +48,9 @@ type NotificationsPayload = { data: NotificationsResponse };
 
 type SeenUpdatePayload = { data: { lastSeenAt: string | null } };
 
-function isNotificationsPayload(payload: unknown): payload is NotificationsPayload {
+function isNotificationsPayload(
+  payload: unknown,
+): payload is NotificationsPayload {
   if (typeof payload !== "object" || payload === null) return false;
   const data = (payload as { data?: unknown }).data;
   if (typeof data !== "object" || data === null) return false;
@@ -63,7 +66,10 @@ function isSeenUpdatePayload(payload: unknown): payload is SeenUpdatePayload {
   return "lastSeenAt" in data;
 }
 
-function formatHref(baseHref: string | undefined, userId: number | null): string {
+function formatHref(
+  baseHref: string | undefined,
+  userId: number | null,
+): string {
   const fallback = baseHref ?? "/messages";
   if (!userId) return fallback;
   const separator = fallback.includes("?") ? "&" : "?";
@@ -79,18 +85,25 @@ export function useShellNotifications(
 
   const userId = user?.id ?? null;
   const userRole = user?.role ?? null;
+  const isMessagesRoute = options?.isMessagesRoute ?? false;
   const fetchInFlightRef = useRef(false);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const mapNotifications = useCallback(
     (payload: NotificationsResponse): NotificationItem[] => {
-      const seenTime = payload.lastSeenAt ? Date.parse(payload.lastSeenAt) : null;
-      const baseHref = options?.messagesHref ?? (userRole === "ADMIN" ? "/messages" : "/client/messages");
+      const seenTime = payload.lastSeenAt
+        ? Date.parse(payload.lastSeenAt)
+        : null;
+      const baseHref =
+        options?.messagesHref ??
+        (userRole === "ADMIN" ? "/messages" : "/client/messages");
 
       return payload.items.map((entry) => {
         const createdAt = entry.createdAt ?? new Date().toISOString();
         const createdTime = Date.parse(createdAt);
-        const unseen = seenTime ? Number.isNaN(createdTime) || createdTime > seenTime : true;
+        const unseen = seenTime
+          ? Number.isNaN(createdTime) || createdTime > seenTime
+          : true;
 
         const senderRole = entry.sender;
         const isClientMessage = senderRole === "CLIENT";
@@ -106,9 +119,8 @@ export function useShellNotifications(
           ? `New message from ${displayName}`
           : `New message from ${displayName}`;
 
-        const href = userRole === "ADMIN"
-          ? formatHref(baseHref, entry.userId)
-          : baseHref;
+        const href =
+          userRole === "ADMIN" ? formatHref(baseHref, entry.userId) : baseHref;
 
         return {
           id: String(entry.id ?? createdAt),
@@ -130,7 +142,10 @@ export function useShellNotifications(
   );
 
   const fetchNotifications = useCallback(
-    async ({ background = false, force = false }: { background?: boolean; force?: boolean } = {}) => {
+    async ({
+      background = false,
+      force = false,
+    }: { background?: boolean; force?: boolean } = {}) => {
       if (!userId) return;
       if (fetchInFlightRef.current && !force) {
         return;
@@ -145,9 +160,12 @@ export function useShellNotifications(
         const params = new URLSearchParams({
           limit: String(MAX_NOTIFICATIONS),
         });
-        const response = await fetch(`/api/notifications?${params.toString()}`, {
-          credentials: "include",
-        });
+        const response = await fetch(
+          `/api/notifications?${params.toString()}`,
+          {
+            credentials: "include",
+          },
+        );
         const payload = (await response.json().catch(() => null)) as unknown;
 
         if (!response.ok || !isNotificationsPayload(payload)) {
@@ -157,7 +175,8 @@ export function useShellNotifications(
         }
 
         const mapped = mapNotifications(payload.data);
-        const newestTimestamp = mapped.length > 0 ? mapped[0].createdAt : payload.data.lastSeenAt;
+        const newestTimestamp =
+          mapped.length > 0 ? mapped[0].createdAt : payload.data.lastSeenAt;
 
         setState({
           items: mapped,
@@ -170,7 +189,10 @@ export function useShellNotifications(
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: err instanceof Error ? err.message : "Unexpected error loading notifications",
+          error:
+            err instanceof Error
+              ? err.message
+              : "Unexpected error loading notifications",
         }));
       } finally {
         fetchInFlightRef.current = false;
@@ -189,16 +211,31 @@ export function useShellNotifications(
   }, [fetchNotifications, userId]);
 
   useEffect(() => {
+    if (!userId || typeof window === "undefined") return;
+    const handler = () => {
+      void fetchNotifications({ force: true, background: true });
+    };
+
+    window.addEventListener("notifications:invalidate", handler);
+    return () => {
+      window.removeEventListener("notifications:invalidate", handler);
+    };
+  }, [fetchNotifications, userId]);
+
+  useEffect(() => {
     if (!userId) return;
 
     let cancelled = false;
 
     const schedule = () => {
       if (cancelled) return;
-      pollingTimeoutRef.current = setTimeout(async () => {
-        await fetchNotifications({ background: true });
-        schedule();
-      }, POLL_INTERVAL_MS);
+      pollingTimeoutRef.current = setTimeout(
+        async () => {
+          await fetchNotifications({ background: true });
+          schedule();
+        },
+        isMessagesRoute ? POLL_INTERVAL_MS * 2 : POLL_INTERVAL_MS,
+      );
     };
 
     schedule();
@@ -212,7 +249,10 @@ export function useShellNotifications(
     };
   }, [fetchNotifications, userId]);
 
-  const unseenCount = useMemo(() => items.filter((item) => item.unseen).length, [items]);
+  const unseenCount = useMemo(
+    () => items.filter((item) => item.unseen).length,
+    [items],
+  );
 
   const markAllSeen = useCallback(async () => {
     if (!userId) return;
@@ -229,7 +269,9 @@ export function useShellNotifications(
       const payload = (await response.json().catch(() => null)) as unknown;
 
       if (!response.ok || !isSeenUpdatePayload(payload)) {
-        throw new Error(extractErrorMessage(payload, "Failed to mark notifications"));
+        throw new Error(
+          extractErrorMessage(payload, "Failed to mark notifications"),
+        );
       }
 
       const nextSeen = payload.data.lastSeenAt;
@@ -243,10 +285,20 @@ export function useShellNotifications(
     } catch (err) {
       setState((prev) => ({
         ...prev,
-        error: err instanceof Error ? err.message : "Unexpected error updating notifications",
+        error:
+          err instanceof Error
+            ? err.message
+            : "Unexpected error updating notifications",
       }));
     }
   }, [newestMessageTimestamp, userId]);
+
+  useEffect(() => {
+    if (!isMessagesRoute || unseenCount === 0) {
+      return;
+    }
+    void markAllSeen();
+  }, [isMessagesRoute, unseenCount, markAllSeen]);
 
   const refetch = useCallback(
     () => fetchNotifications({ force: true }),
@@ -266,7 +318,11 @@ export function useShellNotifications(
 function extractErrorMessage(payload: unknown, fallback: string): string {
   if (typeof payload === "object" && payload !== null) {
     const possibleError = (payload as { error?: { message?: unknown } }).error;
-    if (possibleError && typeof possibleError === "object" && possibleError !== null) {
+    if (
+      possibleError &&
+      typeof possibleError === "object" &&
+      possibleError !== null
+    ) {
       const { message } = possibleError as { message?: unknown };
       if (typeof message === "string" && message.trim().length > 0) {
         return message;

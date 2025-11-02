@@ -43,6 +43,6 @@ export async function POST(req: NextRequest) {
         issues: error.issues,
       });
     }
-    return handleError(error, 'auth.login');
+    return handleError(error, "auth.login");
   }
 }

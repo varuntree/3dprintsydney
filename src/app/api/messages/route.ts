@@ -3,7 +3,7 @@ import { ZodError } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { listUserMessages, createMessage } from "@/server/services/messages";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { parsePaginationParams } from "@/lib/utils/api-params";
 import { getSenderType } from "@/lib/utils/auth-helpers";
 import { messageInputSchema } from "@/lib/schemas/messages";
@@ -25,9 +25,9 @@ export async function GET(req: NextRequest) {
       invoiceId,
     });
 
-    return ok(messages);
+    return okAuth(req, messages);
   } catch (error) {
-    return handleError(error, 'messages.get');
+    return handleErrorAuth(req, error, "messages.get");
   }
 }
 
@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validated = messageInputSchema.parse(body);
 
-    // Ensure the sender has access to this invoice if provided
     if (validated.invoiceId && Number.isFinite(validated.invoiceId)) {
       await requireInvoiceAccess(req, validated.invoiceId);
     }
@@ -47,16 +46,16 @@ export async function POST(req: NextRequest) {
       user.id,
       validated.content,
       sender,
-      validated.invoiceId ?? null
+      validated.invoiceId ?? null,
     );
 
-    return ok(message);
+    return okAuth(req, message);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid message payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid message payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, 'messages.post');
+    return handleErrorAuth(req, error, "messages.post");
   }
 }

@@ -5,7 +5,7 @@ import {
   createQuickOrderInvoice,
   type QuickOrderItemInput,
 } from "@/server/services/quick-order";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const address = body?.address ?? {};
 
     if (!Array.isArray(items) || items.length === 0) {
-      return fail("NO_ITEMS", "No items", 400);
+      return failAuth(req, "NO_ITEMS", "No items", 400);
     }
 
     // Delegate business logic to service
@@ -45,10 +45,10 @@ export async function POST(req: NextRequest) {
       // best-effort; ignore revalidation failures
     });
 
-    return ok(result);
+    return okAuth(req, result);
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(
+      return failAuth(req, 
         error.code,
         error.message,
         error.status,
@@ -56,6 +56,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.checkout", message: 'Checkout failed', error });
-    return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

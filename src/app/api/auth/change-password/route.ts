@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { handlePasswordChange } from "@/server/services/auth";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { changePasswordSchema } from "@/lib/schemas/auth";
 
 export async function POST(req: NextRequest) {
@@ -14,13 +14,13 @@ export async function POST(req: NextRequest) {
     // Handle complete password change workflow
     await handlePasswordChange(user.id, currentPassword, newPassword);
 
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid password change payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid password change payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, 'auth.change-password');
+    return handleErrorAuth(req, error, 'auth.change-password');
   }
 }

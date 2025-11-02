@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getInvoiceMessages, createInvoiceMessage } from "@/server/services/messages";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 import { parsePaginationParams, parseNumericId } from "@/lib/utils/api-params";
 import { getSenderType } from "@/lib/utils/auth-helpers";
@@ -32,14 +32,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     });
 
     // Return simplified format (without userId)
-    return ok(messages.map(msg => ({
+    return okAuth(req, messages.map(msg => ({
       id: msg.id,
       sender: msg.sender,
       content: msg.content,
       createdAt: msg.createdAt,
     })));
   } catch (error) {
-    return handleError(error, 'invoices.messages');
+    return handleErrorAuth(req, error, 'invoices.messages');
   }
 }
 
@@ -53,20 +53,20 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const content = (body?.content ?? "").trim();
 
     if (!content) {
-      return fail("VALIDATION_ERROR", "Invalid content", 422);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid content", 422);
     }
 
     const sender = getSenderType(user);
     const message = await createInvoiceMessage(invoiceId, content, sender);
 
     // Return simplified format (without userId)
-    return ok({
+    return okAuth(req, {
       id: message.id,
       sender: message.sender,
       content: message.content,
       createdAt: message.createdAt,
     });
   } catch (error) {
-    return handleError(error, 'invoices.messages');
+    return handleErrorAuth(req, error, 'invoices.messages');
   }
 }

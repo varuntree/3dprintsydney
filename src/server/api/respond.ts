@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { logger } from "@/lib/logger";
 import { AppError } from "@/lib/errors";
+import { attachSessionCookies } from "@/server/auth/session";
 
 export interface Success<T> {
   data: T;
@@ -20,6 +21,14 @@ export function ok<T>(data: T, init: ResponseInit = { status: 200 }) {
   return NextResponse.json<Success<T>>({ data }, init);
 }
 
+export function okAuth<T>(
+  req: NextRequest,
+  data: T,
+  init: ResponseInit = { status: 200 },
+) {
+  return attachSessionCookies(req, ok(data, init));
+}
+
 export function fail(
   code: string,
   message: string,
@@ -30,6 +39,16 @@ export function fail(
     { error: { code, message, details } },
     { status },
   );
+}
+
+export function failAuth(
+  req: NextRequest,
+  code: string,
+  message: string,
+  status = 400,
+  details?: Record<string, unknown>,
+) {
+  return attachSessionCookies(req, fail(code, message, status, details));
 }
 
 export function handleError(error: unknown, scope: string) {
@@ -50,4 +69,8 @@ export function handleError(error: unknown, scope: string) {
       ? (error as { status?: number }).status
       : 500;
   return fail("INTERNAL_ERROR", message, status);
+}
+
+export function handleErrorAuth(req: NextRequest, error: unknown, scope: string) {
+  return attachSessionCookies(req, handleError(error, scope));
 }

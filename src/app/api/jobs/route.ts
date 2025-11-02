@@ -1,4 +1,4 @@
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { getJobBoard } from "@/server/services/jobs";
 import { JobStatus } from "@/lib/constants/enums";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
       completedSince = startDate;
     }
     const board = await getJobBoard({ includeArchived, statuses, completedSince });
-    return ok(board);
+    return okAuth(req, board);
   } catch (error) {
-    return handleError(error, "jobs.list");
+    return handleErrorAuth(req, error, "jobs.list");
   }
 }

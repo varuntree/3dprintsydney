@@ -1,14 +1,14 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { listClients } from "@/server/services/clients";
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 
 export async function GET(req: NextRequest) {
   try {
     await requireAdmin(req);
     const clients = await listClients({ sort: 'name', order: 'asc' });
-    return ok(clients);
+    return okAuth(req, clients);
   } catch (error) {
-    return handleError(error, 'admin.clients.get');
+    return handleErrorAuth(req, error, 'admin.clients.get');
   }
 }

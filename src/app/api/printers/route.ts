@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listPrinters, createPrinter } from "@/server/services/printers";
 import { printerInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(printers);
+    return okAuth(req, printers);
   } catch (error) {
-    return handleError(error, "printers.list");
+    return handleErrorAuth(req, error, "printers.list");
   }
 }
 
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = printerInputSchema.parse(body);
     const printer = await createPrinter(validated);
-    return ok(printer, { status: 201 });
+    return okAuth(req, printer, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid printer payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid printer payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "printers.create");
+    return handleErrorAuth(req, error, "printers.create");
   }
 }

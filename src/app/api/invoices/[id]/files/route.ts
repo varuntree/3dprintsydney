@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import { getOrderFilesByInvoice } from "@/server/services/order-files";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -19,7 +19,7 @@ export async function GET(
     const invoiceId = parseInt(resolvedParams.id, 10);
 
     if (isNaN(invoiceId)) {
-      return fail("VALIDATION_ERROR", "Invalid invoice ID", 400);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid invoice ID", 400);
     }
 
     // Check access permissions (admin or invoice owner)
@@ -28,7 +28,7 @@ export async function GET(
     // Get all order files for this invoice
     const files = await getOrderFilesByInvoice(invoiceId);
 
-    return ok(files.map((file) => ({
+    return okAuth(req, files.map((file) => ({
       id: file.id,
       filename: file.filename,
       fileType: file.file_type,
@@ -39,9 +39,9 @@ export async function GET(
     })));
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'invoices.files', message: 'File operation failed', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

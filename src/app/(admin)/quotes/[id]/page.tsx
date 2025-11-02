@@ -29,19 +29,18 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
   const isEdit = mode === "edit";
 
   try {
-    const detail = await getQuoteDetail(id);
+    const [detail, settings] = await Promise.all([getQuoteDetail(id), getSettings()]);
+
+    if (!settings) {
+      notFound();
+    }
 
     if (isEdit) {
-      const [clients, templates, settings, materials] = await Promise.all([
+      const [clients, templates, materials] = await Promise.all([
         listClients(),
         listProductTemplates(),
-        getSettings(),
         listMaterials(),
       ]);
-
-      if (!settings) {
-        notFound();
-      }
 
       const initialValues: QuoteFormValues = {
         clientId: detail.client.id,
@@ -96,12 +95,21 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
       number: detail.number,
       status: detail.status,
       client: detail.client,
+      businessName: settings.businessName,
+      businessEmail: settings.businessEmail,
+      businessPhone: settings.businessPhone,
+      businessAddress: settings.businessAddress,
+      abn: settings.abn || null,
+      currency: settings.defaultCurrency ?? "AUD",
       paymentTerms: detail.paymentTerms
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
         : null,
       issueDate: detail.issueDate.toISOString(),
       expiryDate: detail.expiryDate ? detail.expiryDate.toISOString() : null,
       subtotal: detail.subtotal,
+      discountType: detail.discountType,
+      discountValue: detail.discountValue,
+      shippingCost: detail.shippingCost,
       taxTotal: detail.taxTotal,
       total: detail.total,
       notes: detail.notes,

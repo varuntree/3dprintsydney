@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { createQuote, listQuotes } from "@/server/services/quotes";
 import { quoteInputSchema } from "@/lib/schemas/quotes";
 import { ZodError } from "zod";
@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(quotes);
+    return okAuth(req, quotes);
   } catch (error) {
-    return handleError(error, "quotes.list");
+    return handleErrorAuth(req, error, "quotes.list");
   }
 }
 
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = quoteInputSchema.parse(body);
     const quote = await createQuote(validated);
-    return ok(quote, { status: 201 });
+    return okAuth(req, quote, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid quote payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid quote payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "quotes.create");
+    return handleErrorAuth(req, error, "quotes.create");
   }
 }

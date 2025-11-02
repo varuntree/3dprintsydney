@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { clearPrinterQueue } from "@/server/services/jobs";
 import type { NextRequest } from "next/server";
@@ -15,11 +15,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const id = await parseId(context.params);
     await clearPrinterQueue(id);
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid printer id")) {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "printers.clear_queue");
+    return handleErrorAuth(req, error, "printers.clear_queue");
   }
 }

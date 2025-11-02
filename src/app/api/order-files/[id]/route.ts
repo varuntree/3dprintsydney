@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { getOrderFile, getOrderFileDownloadUrl } from "@/server/services/order-files";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { parseNumericId } from "@/lib/utils/api-params";
@@ -18,7 +18,7 @@ export async function GET(
     try {
       fileId = parseNumericId(resolvedParams.id);
     } catch {
-      return fail("VALIDATION_ERROR", "Invalid file ID", 400);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid file ID", 400);
     }
 
     // Get file record
@@ -26,13 +26,13 @@ export async function GET(
 
     // Authorization check: Admin can access all files, clients can only access their own
     if (user.role !== "ADMIN" && user.clientId !== file.client_id) {
-      return fail("FORBIDDEN", "Forbidden", 403);
+      return failAuth(req, "FORBIDDEN", "Forbidden", 403);
     }
 
     // Get signed download URL (expires in 5 minutes)
     const downloadUrl = await getOrderFileDownloadUrl(fileId, 300);
 
-    return ok({
+    return okAuth(req, {
       id: file.id,
       filename: file.filename,
       fileType: file.file_type,
@@ -44,9 +44,9 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'order-files.get', message: 'Order file retrieval failed', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

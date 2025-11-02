@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { listInvoices, createInvoice } from "@/server/services/invoices";
 import { invoiceInputSchema } from "@/lib/schemas/invoices";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return ok(invoices);
+    return okAuth(req, invoices);
   } catch (error) {
-    return handleError(error, "invoices.list");
+    return handleErrorAuth(req, error, "invoices.list");
   }
 }
 
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = invoiceInputSchema.parse(body);
     const invoice = await createInvoice(validated);
-    return ok(invoice, { status: 201 });
+    return okAuth(req, invoice, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid invoice payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid invoice payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "invoices.create");
+    return handleErrorAuth(req, error, "invoices.create");
   }
 }

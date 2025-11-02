@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { sendQuote } from "@/server/services/quotes";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
@@ -15,12 +15,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const id = await parseId(context.params);
     const quote = await sendQuote(id);
-    return ok(quote);
+    return okAuth(req, quote);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid quote id")) {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "quotes.send");
+    return handleErrorAuth(req, error, "quotes.send");
   }
 }
 

@@ -5,7 +5,7 @@ import {
   getClientNotificationPreference,
   updateClientNotificationPreference,
 } from "@/server/services/clients";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { clientPreferenceSchema } from "@/lib/schemas/clients";
@@ -14,13 +14,13 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireClientWithId(req);
     const notifyOnJobStatus = await getClientNotificationPreference(user.clientId);
-    return ok({ notifyOnJobStatus });
+    return okAuth(req, { notifyOnJobStatus });
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'client.preferences', message: 'Failed to update client preferences', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }
 
@@ -33,15 +33,15 @@ export async function PATCH(req: NextRequest) {
       user.clientId,
       parsed.notifyOnJobStatus,
     );
-    return ok({ notifyOnJobStatus });
+    return okAuth(req, { notifyOnJobStatus });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid preferences payload", 422);
+      return failAuth(req, "VALIDATION_ERROR", "Invalid preferences payload", 422);
     }
     if (error instanceof AppError) {
-      return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'client.preferences', message: 'Failed to update client preferences', error });
-    return fail('INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

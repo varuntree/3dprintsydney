@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { updateJob } from "@/server/services/jobs";
 import { jobUpdateSchema } from "@/lib/schemas/jobs";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -24,16 +24,16 @@ export async function PATCH(
     const payload = await request.json();
     const parsed = jobUpdateSchema.parse(payload);
     const job = await updateJob(id, parsed);
-    return ok(job);
+    return okAuth(req, job);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid input", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid input", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid job id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "jobs.update");
+    return handleErrorAuth(req, error, "jobs.update");
   }
 }

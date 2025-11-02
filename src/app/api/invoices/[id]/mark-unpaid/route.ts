@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { markInvoiceUnpaid } from "@/server/services/invoices";
 import { requireInvoiceAccess } from "@/server/auth/permissions";
 import type { NextRequest } from "next/server";
@@ -20,11 +20,11 @@ export async function POST(
     const invoiceId = await parseId(context.params);
     await requireInvoiceAccess(request, invoiceId);
     await markInvoiceUnpaid(invoiceId);
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.markUnpaid");
+    return handleErrorAuth(req, error, "invoices.markUnpaid");
   }
 }

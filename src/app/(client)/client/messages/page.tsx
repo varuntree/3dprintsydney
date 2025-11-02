@@ -32,7 +32,9 @@ export default function ClientMessagesPage() {
             <MessageSquare className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Messages</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Messages
+            </h1>
             <p className="text-sm text-muted-foreground">
               Chat with our team about your orders
             </p>
@@ -40,16 +42,16 @@ export default function ClientMessagesPage() {
         </div>
       </header>
 
-      <section className="overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
+      <section className="flex min-h-[calc(100vh-220px)] overflow-hidden rounded-3xl border border-border/70 bg-surface-overlay/95 shadow-sm shadow-black/5 backdrop-blur-sm">
         {loading ? (
-          <div className="flex h-[600px] items-center justify-center">
+          <div className="flex min-h-[calc(100vh-280px)] flex-1 items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/60" />
               <p className="text-sm text-muted-foreground">Loading messages…</p>
             </div>
           </div>
         ) : (
-          <div className="flex min-h-[600px] flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <Conversation currentUserRole="CLIENT" />
           </div>
         )}

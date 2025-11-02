@@ -1,4 +1,4 @@
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { removeInvoiceAttachment } from "@/server/services/invoices";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { requireAttachmentAccess } from "@/server/auth/permissions";
@@ -25,11 +25,11 @@ export async function DELETE(
     await requireAttachmentAccess(request, attachmentId);
     await requireAdmin(request);
     const attachment = await removeInvoiceAttachment(attachmentId);
-    return ok(attachment);
+    return okAuth(req, attachment);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid attachment id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.attachments.delete");
+    return handleErrorAuth(req, error, "invoices.attachments.delete");
   }
 }

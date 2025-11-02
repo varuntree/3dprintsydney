@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { getSettings, updateSettings } from "@/server/services/settings";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { settingsInputSchema } from "@/lib/schemas/settings";
@@ -13,9 +13,9 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request);
     const settings = await getSettings();
-    return ok(settings);
+    return okAuth(req, settings);
   } catch (error) {
-    return handleError(error, "settings.fetch");
+    return handleErrorAuth(req, error, "settings.fetch");
   }
 }
 
@@ -29,13 +29,13 @@ export async function PUT(request: NextRequest) {
     const payload = await request.json();
     const validated = settingsInputSchema.parse(payload); // Validate at boundary
     const settings = await updateSettings(validated);
-    return ok(settings);
+    return okAuth(req, settings);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid settings payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid settings payload", 422, {
         issues: error.issues,
       });
     }
-    return handleError(error, "settings.update");
+    return handleErrorAuth(req, error, "settings.update");
   }
 }

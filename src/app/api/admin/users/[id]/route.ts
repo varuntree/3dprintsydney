@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { deleteUserAndData } from "@/server/services/users";
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
@@ -9,8 +9,8 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     const { id } = await context.params;
     const userId = Number(id);
     await deleteUserAndData(userId);
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
-    return handleError(error, 'admin.users.delete');
+    return handleErrorAuth(req, error, 'admin.users.delete');
   }
 }

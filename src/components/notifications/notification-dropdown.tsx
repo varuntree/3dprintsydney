@@ -2,8 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bell, Loader2, AlertCircle } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -18,14 +23,10 @@ interface NotificationDropdownProps {
 export function NotificationDropdown({ user }: NotificationDropdownProps) {
   const [open, setOpen] = useState(false);
   const messagesHref = user.role === "ADMIN" ? "/messages" : "/client/messages";
-  const {
-    notifications,
-    unseenCount,
-    loading,
-    error,
-    markAllSeen,
-    refetch,
-  } = useShellNotifications(user, { messagesHref });
+  const pathname = usePathname();
+  const isMessagesRoute = pathname ? pathname.startsWith(messagesHref) : false;
+  const { notifications, unseenCount, loading, error, markAllSeen, refetch } =
+    useShellNotifications(user, { messagesHref, isMessagesRoute });
 
   const bellBadge = useMemo(() => {
     if (unseenCount > 9) return "9+";
@@ -71,7 +72,9 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
             onClick={() => void refetch()}
             disabled={loading}
           >
-            {loading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+            {loading ? (
+              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            ) : null}
             Refresh
           </Button>
         </div>
@@ -84,7 +87,9 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
           ) : error ? (
             <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-6 py-10 text-center text-sm">
               <AlertCircle className="h-5 w-5 text-destructive" />
-              <p className="font-medium text-destructive">Failed to load notifications</p>
+              <p className="font-medium text-destructive">
+                Failed to load notifications
+              </p>
               <p className="text-muted-foreground">{error}</p>
               <Button size="sm" onClick={() => void refetch()}>
                 Try again
@@ -112,7 +117,13 @@ export function NotificationDropdown({ user }: NotificationDropdownProps) {
                       <span className="relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-muted text-xs font-semibold uppercase text-muted-foreground">
                         {notification.senderRole === "ADMIN"
                           ? "AD"
-                          : (notification.userName ?? notification.userEmail ?? "CL").slice(0, 2).toUpperCase()}
+                          : (
+                              notification.userName ??
+                              notification.userEmail ??
+                              "CL"
+                            )
+                              .slice(0, 2)
+                              .toUpperCase()}
                         {notification.unseen ? (
                           <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
                         ) : null}

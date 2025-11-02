@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { markInvoicePaid } from "@/server/services/invoices";
 import { paymentInputSchema } from "@/lib/schemas/invoices";
 import type { PaymentMethod } from "@/lib/constants/enums";
@@ -58,16 +58,16 @@ export async function POST(
       note,
     });
 
-    return ok({ success: true });
+    return okAuth(req, { success: true });
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid payment payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid payment payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "invoices.markPaid");
+    return handleErrorAuth(req, error, "invoices.markPaid");
   }
 }

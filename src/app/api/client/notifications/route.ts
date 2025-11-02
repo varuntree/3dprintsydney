@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireClientWithId } from '@/server/auth/api-helpers';
 import { getServiceSupabase } from '@/server/supabase/service-client';
-import { ok, handleError, fail } from '@/server/api/respond';
+import { okAuth, handleErrorAuth, failAuth } from '@/server/api/respond';
 import { AppError } from '@/lib/errors';
 
 /**
@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
       throw new AppError(`Failed to load preferences: ${error?.message ?? 'Not found'}`, 'DATABASE_ERROR', 500);
     }
 
-    return ok({
+    return okAuth(req, {
       notifyOnJobStatus: data.notify_on_job_status ?? false,
     });
   } catch (error) {
-    return handleError(error, 'client.notifications.get');
+    return handleErrorAuth(req, error, 'client.notifications.get');
   }
 }
 
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
     const { notifyOnJobStatus } = body;
 
     if (typeof notifyOnJobStatus !== 'boolean') {
-      return fail('VALIDATION_ERROR', 'notifyOnJobStatus must be a boolean', 400);
+      return failAuth(req, 'VALIDATION_ERROR', 'notifyOnJobStatus must be a boolean', 400);
     }
 
     const supabase = getServiceSupabase();
@@ -69,10 +69,10 @@ export async function PATCH(req: NextRequest) {
       metadata: { notifyOnJobStatus },
     });
 
-    return ok({
+    return okAuth(req, {
       notifyOnJobStatus: data.notify_on_job_status ?? false,
     });
   } catch (error) {
-    return handleError(error, 'client.notifications.patch');
+    return handleErrorAuth(req, error, 'client.notifications.patch');
   }
 }

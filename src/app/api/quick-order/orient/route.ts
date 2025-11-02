@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/server/auth/api-helpers";
 import { processOrientedFile } from "@/server/services/quick-order";
-import { ok, fail } from "@/server/api/respond";
+import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     // Validation
     if (!fileId || !orientedSTL) {
-      return fail(
+      return failAuth(req, 
         "VALIDATION_ERROR",
         "Missing required fields: fileId and orientedSTL",
         422,
@@ -43,10 +43,10 @@ export async function POST(req: NextRequest) {
       user.id,
     );
 
-    return ok(result);
+    return okAuth(req, result);
   } catch (error) {
     if (error instanceof AppError) {
-      return fail(
+      return failAuth(req, 
         error.code,
         error.message,
         error.status,
@@ -54,6 +54,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.orient", message: 'Orientation failed', error });
-    return fail("INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

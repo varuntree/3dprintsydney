@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { getInvoiceActivity } from "@/server/services/invoices";
-import { ok, handleError } from "@/server/api/respond";
+import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       offset,
     });
 
-    return ok(activity);
+    return okAuth(req, activity);
   } catch (error) {
-    return handleError(error, 'invoices.activity');
+    return handleErrorAuth(req, error, 'invoices.activity');
   }
 }

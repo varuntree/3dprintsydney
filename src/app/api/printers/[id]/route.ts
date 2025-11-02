@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { updatePrinter, deletePrinter } from "@/server/services/printers";
 import { printerInputSchema } from "@/lib/schemas/catalog";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -28,17 +28,17 @@ export async function PUT(
     const body = await request.json();
     const validated = printerInputSchema.parse(body);
     const printer = await updatePrinter(id, validated);
-    return ok(printer);
+    return okAuth(req, printer);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid printer payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid printer payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid printer id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "printers.update");
+    return handleErrorAuth(req, error, "printers.update");
   }
 }
 
@@ -54,11 +54,11 @@ export async function DELETE(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const printer = await deletePrinter(id);
-    return ok(printer);
+    return okAuth(req, printer);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid printer id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "printers.delete");
+    return handleErrorAuth(req, error, "printers.delete");
   }
 }

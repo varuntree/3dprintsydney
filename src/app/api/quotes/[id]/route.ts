@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { ok, fail, handleError } from "@/server/api/respond";
+import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { getQuote, updateQuote, deleteQuote } from "@/server/services/quotes";
 import { quoteInputSchema } from "@/lib/schemas/quotes";
 import { requireAdmin } from "@/server/auth/api-helpers";
@@ -26,12 +26,12 @@ export async function GET(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const quote = await getQuote(id);
-    return ok(quote);
+    return okAuth(req, quote);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid quote id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "quotes.detail");
+    return handleErrorAuth(req, error, "quotes.detail");
   }
 }
 
@@ -49,17 +49,17 @@ export async function PUT(
     const body = await request.json();
     const validated = quoteInputSchema.parse(body);
     const quote = await updateQuote(id, validated);
-    return ok(quote);
+    return okAuth(req, quote);
   } catch (error) {
     if (error instanceof ZodError) {
-      return fail("VALIDATION_ERROR", "Invalid quote payload", 422, {
+      return failAuth(req, "VALIDATION_ERROR", "Invalid quote payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid quote id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "quotes.update");
+    return handleErrorAuth(req, error, "quotes.update");
   }
 }
 
@@ -75,11 +75,11 @@ export async function DELETE(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const quote = await deleteQuote(id);
-    return ok(quote);
+    return okAuth(req, quote);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid quote id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return handleError(error, "quotes.delete");
+    return handleErrorAuth(req, error, "quotes.delete");
   }
 }

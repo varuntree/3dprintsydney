@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { fail } from "@/server/api/respond";
+import { failAuth } from "@/server/api/respond";
 import { readInvoiceAttachment } from "@/server/services/invoices";
 import { requireAttachmentAccess } from "@/server/auth/permissions";
 
@@ -24,9 +24,9 @@ export async function GET(
     return NextResponse.redirect(downloadUrl);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid attachment id") {
-      return fail("INVALID_ID", error.message, 400);
+      return failAuth(req, "INVALID_ID", error.message, 400);
     }
-    return fail(
+    return failAuth(req, 
       "ATTACHMENT_ERROR",
       error instanceof Error ? error.message : "Unable to read attachment",
       500,
