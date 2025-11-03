@@ -5,7 +5,7 @@ import type { LegacyUser } from "@/lib/types/user";
 import type { NotificationItem } from "@/lib/notifications/types";
 
 const MAX_NOTIFICATIONS = 15;
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 5_000;
 
 interface NotificationState {
   items: NotificationItem[];
@@ -26,6 +26,7 @@ const DEFAULT_STATE: NotificationState = {
 interface UseShellNotificationsOptions {
   messagesHref?: string;
   isMessagesRoute?: boolean;
+  openConversationUserId?: number | null; // Currently open conversation to exclude from notifications
 }
 
 type ApiNotification = {
@@ -37,6 +38,7 @@ type ApiNotification = {
   createdAt: string;
   userEmail?: string | null;
   userName?: string | null;
+  conversationLastSeenAt?: string | null;
 };
 
 type NotificationsResponse = {
@@ -46,7 +48,9 @@ type NotificationsResponse = {
 
 type NotificationsPayload = { data: NotificationsResponse };
 
-type SeenUpdatePayload = { data: { lastSeenAt: string | null } };
+type SeenUpdatePayload = {
+  data: { lastSeenAt: string | null; conversationUserId?: number | null };
+};
 
 function isNotificationsPayload(
   payload: unknown,
@@ -85,25 +89,46 @@ export function useShellNotifications(
 
   const userId = user?.id ?? null;
   const userRole = user?.role ?? null;
+  
+  // Extract options to stable primitives to prevent infinite re-renders
+  const messagesHref = options?.messagesHref;
   const isMessagesRoute = options?.isMessagesRoute ?? false;
+  const openConversationUserId = options?.openConversationUserId ?? null;
+  
   const fetchInFlightRef = useRef(false);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingActiveRef = useRef(false); // Guard against double polling
 
   const mapNotifications = useCallback(
     (payload: NotificationsResponse): NotificationItem[] => {
-      const seenTime = payload.lastSeenAt
+      const globalSeenTime = payload.lastSeenAt
         ? Date.parse(payload.lastSeenAt)
         : null;
       const baseHref =
-        options?.messagesHref ??
+        messagesHref ??
         (userRole === "ADMIN" ? "/messages" : "/client/messages");
 
       return payload.items.map((entry) => {
         const createdAt = entry.createdAt ?? new Date().toISOString();
         const createdTime = Date.parse(createdAt);
-        const unseen = seenTime
-          ? Number.isNaN(createdTime) || createdTime > seenTime
-          : true;
+        const conversationSeenRaw = entry.conversationLastSeenAt ?? null;
+        const conversationSeenTime = conversationSeenRaw
+          ? Date.parse(conversationSeenRaw)
+          : null;
+        let baseline = conversationSeenTime;
+        if (baseline === null || Number.isNaN(baseline)) {
+          baseline = globalSeenTime;
+        }
+
+        const comparison = Number.isNaN(createdTime)
+          ? null
+          : baseline !== null && !Number.isNaN(baseline)
+            ? baseline
+            : null;
+
+        let unseen = comparison
+          ? createdTime > comparison
+          : !Number.isNaN(createdTime);
 
         const senderRole = entry.sender;
         const isClientMessage = senderRole === "CLIENT";
@@ -122,6 +147,14 @@ export function useShellNotifications(
         const href =
           userRole === "ADMIN" ? formatHref(baseHref, entry.userId) : baseHref;
 
+        if (
+          openConversationUserId &&
+          Number.isFinite(openConversationUserId) &&
+          entry.userId === openConversationUserId
+        ) {
+          unseen = false;
+        }
+
         return {
           id: String(entry.id ?? createdAt),
           kind: "message" as const,
@@ -138,7 +171,7 @@ export function useShellNotifications(
         };
       });
     },
-    [options?.messagesHref, userRole],
+    [messagesHref, openConversationUserId, userRole],
   );
 
   const fetchNotifications = useCallback(
@@ -160,6 +193,12 @@ export function useShellNotifications(
         const params = new URLSearchParams({
           limit: String(MAX_NOTIFICATIONS),
         });
+        
+        // Exclude messages from currently open conversation
+        if (openConversationUserId && Number.isFinite(openConversationUserId)) {
+          params.set("excludeUserId", String(openConversationUserId));
+        }
+        
         const response = await fetch(
           `/api/notifications?${params.toString()}`,
           {
@@ -175,11 +214,14 @@ export function useShellNotifications(
         }
 
         const mapped = mapNotifications(payload.data);
+        const visible = mapped.filter((item) => item.unseen);
         const newestTimestamp =
-          mapped.length > 0 ? mapped[0].createdAt : payload.data.lastSeenAt;
+          visible.length > 0
+            ? visible[0].createdAt
+            : payload.data.lastSeenAt;
 
         setState({
-          items: mapped,
+          items: visible,
           loading: false,
           error: null,
           lastSeenAt: payload.data.lastSeenAt,
@@ -198,7 +240,7 @@ export function useShellNotifications(
         fetchInFlightRef.current = false;
       }
     },
-    [mapNotifications, userId],
+    [mapNotifications, openConversationUserId, userId],
   );
 
   useEffect(() => {
@@ -210,29 +252,64 @@ export function useShellNotifications(
     void fetchNotifications();
   }, [fetchNotifications, userId]);
 
+  // Combined event listeners with debouncing for better performance
   useEffect(() => {
     if (!userId || typeof window === "undefined") return;
-    const handler = () => {
-      void fetchNotifications({ force: true, background: true });
+
+    let debounceTimeout: NodeJS.Timeout;
+    
+    // Debounced handler prevents multiple rapid calls (e.g., 3 events in 100ms → 1 fetch)
+    const debouncedFetch = () => {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        void fetchNotifications({ force: true, background: true });
+      }, 150); // 150ms debounce
     };
 
-    window.addEventListener("notifications:invalidate", handler);
+    // Single handler for all notification-triggering events
+    const handleNotificationInvalidate = () => debouncedFetch();
+    const handleMessagesUpdate = () => debouncedFetch();
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        debouncedFetch();
+      }
+    };
+
+    window.addEventListener("notifications:invalidate", handleNotificationInvalidate);
+    window.addEventListener("messages:updated", handleMessagesUpdate);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
-      window.removeEventListener("notifications:invalidate", handler);
+      clearTimeout(debounceTimeout);
+      window.removeEventListener("notifications:invalidate", handleNotificationInvalidate);
+      window.removeEventListener("messages:updated", handleMessagesUpdate);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [fetchNotifications, userId]);
 
+  // Refresh when open conversation changes
   useEffect(() => {
-    if (!userId) return;
+    if (userId) {
+      void fetchNotifications({ force: true, background: true });
+    }
+  }, [openConversationUserId, fetchNotifications, userId]);
 
+  // Polling loop with guard to prevent double activation
+  useEffect(() => {
+    if (!userId || pollingActiveRef.current) return;
+
+    pollingActiveRef.current = true;
     let cancelled = false;
 
     const schedule = () => {
       if (cancelled) return;
       pollingTimeoutRef.current = setTimeout(
         async () => {
+          if (cancelled) return; // Check again before fetching
           await fetchNotifications({ background: true });
-          schedule();
+          if (!cancelled) { // Check again before rescheduling
+            schedule();
+          }
         },
         isMessagesRoute ? POLL_INTERVAL_MS * 2 : POLL_INTERVAL_MS,
       );
@@ -242,28 +319,30 @@ export function useShellNotifications(
 
     return () => {
       cancelled = true;
+      pollingActiveRef.current = false;
       if (pollingTimeoutRef.current) {
         clearTimeout(pollingTimeoutRef.current);
         pollingTimeoutRef.current = null;
       }
     };
-  }, [fetchNotifications, userId]);
+  }, [fetchNotifications, isMessagesRoute, userId]);
 
-  const unseenCount = useMemo(
-    () => items.filter((item) => item.unseen).length,
-    [items],
-  );
+  const unseenCount = useMemo(() => items.length, [items]);
 
   const markAllSeen = useCallback(async () => {
     if (!userId) return;
 
     const targetTimestamp = newestMessageTimestamp ?? new Date().toISOString();
+    const conversationUserId = openConversationUserId;
 
     try {
       const response = await fetch(`/api/notifications`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lastSeenAt: targetTimestamp }),
+        body: JSON.stringify({
+          lastSeenAt: targetTimestamp,
+          conversationUserId: conversationUserId ?? undefined,
+        }),
         credentials: "include",
       });
       const payload = (await response.json().catch(() => null)) as unknown;
@@ -275,12 +354,27 @@ export function useShellNotifications(
       }
 
       const nextSeen = payload.data.lastSeenAt;
+      const rawConversationId = (payload.data as {
+        conversationUserId?: unknown;
+      }).conversationUserId;
+      const parsedConversationId =
+        typeof rawConversationId === "number"
+          ? rawConversationId
+          : typeof rawConversationId === "string"
+            ? Number(rawConversationId)
+            : null;
+      const markedConversationId =
+        parsedConversationId !== null && Number.isFinite(parsedConversationId)
+          ? parsedConversationId
+          : null;
 
       setState((prev) => ({
         ...prev,
         lastSeenAt: nextSeen,
         newestMessageTimestamp: nextSeen,
-        items: prev.items.map((item) => ({ ...item, unseen: false })),
+        items: markedConversationId
+          ? prev.items.filter((item) => item.userId !== markedConversationId)
+          : [],
       }));
     } catch (err) {
       setState((prev) => ({
@@ -291,14 +385,20 @@ export function useShellNotifications(
             : "Unexpected error updating notifications",
       }));
     }
-  }, [newestMessageTimestamp, userId]);
+  }, [newestMessageTimestamp, openConversationUserId, userId]);
 
   useEffect(() => {
     if (!isMessagesRoute || unseenCount === 0) {
       return;
     }
+    if (
+      !openConversationUserId ||
+      !Number.isFinite(openConversationUserId)
+    ) {
+      return;
+    }
     void markAllSeen();
-  }, [isMessagesRoute, unseenCount, markAllSeen]);
+  }, [isMessagesRoute, unseenCount, openConversationUserId, markAllSeen]);
 
   const refetch = useCallback(
     () => fetchNotifications({ force: true }),

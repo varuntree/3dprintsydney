@@ -6,7 +6,10 @@
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-import type { MessageDTO, MessageFilters } from "@/lib/types/messages";
+import type {
+  MessageDTO,
+  MessageFilters,
+} from "@/lib/types/messages";
 import type { LegacyUser } from "@/lib/types/user";
 
 // Database row type
@@ -38,11 +41,26 @@ export type MessageNotificationDTO = {
   createdAt: string;
   userEmail: string | null;
   userName: string | null;
+  conversationLastSeenAt: string | null;
 };
 
 export type NotificationListResult = {
   notifications: MessageNotificationDTO[];
   lastSeenAt: string | null;
+};
+
+export type ConversationSummary = {
+  userId: number;
+  email: string;
+  role: string;
+  clientId: number | null;
+  createdAt: string;
+  lastMessageId: number | null;
+  lastMessageAt: string | null;
+  lastMessageSender: "ADMIN" | "CLIENT" | null;
+  lastMessagePreview: string | null;
+  totalMessages: number;
+  hasUnread: boolean;
 };
 
 /**
@@ -263,12 +281,13 @@ function mapNotificationRow(row: NotificationRow): MessageNotificationDTO {
     createdAt: row.created_at,
     userEmail,
     userName: clientName,
+    conversationLastSeenAt: null,
   };
 }
 
 export async function listNotificationsForUser(
   user: LegacyUser,
-  options?: { limit?: number },
+  options?: { limit?: number; excludeConversationUserId?: number | null },
 ): Promise<NotificationListResult> {
   const supabase = getServiceSupabase();
 
@@ -318,6 +337,10 @@ export async function listNotificationsForUser(
 
   if (user.role === "ADMIN") {
     query = query.eq("sender", "CLIENT");
+    // Exclude messages from currently open conversation
+    if (options?.excludeConversationUserId && Number.isFinite(options.excludeConversationUserId)) {
+      query = query.neq("user_id", options.excludeConversationUserId);
+    }
   } else {
     query = query.eq("user_id", user.id).eq("sender", "ADMIN");
   }
@@ -334,10 +357,251 @@ export async function listNotificationsForUser(
 
   const rows = (data ?? []) as NotificationRow[];
 
+  let conversationSeenMap = new Map<number, string | null>();
+  if (user.role === "ADMIN") {
+    const { data: conversationSeen, error: conversationSeenError } = await supabase
+      .from("conversation_last_seen")
+      .select("conversation_user_id, last_seen_at")
+      .eq("user_id", user.id);
+
+    if (conversationSeenError) {
+      const message = conversationSeenError.message ?? "";
+      if (message.toLowerCase().includes("conversation_last_seen")) {
+        logger.warn({
+          scope: "messages.notifications",
+          message: "conversation_last_seen table missing; falling back to global seen state",
+        });
+      } else {
+        throw new AppError(
+          `Failed to load conversation seen state: ${message}`,
+          "MESSAGE_ERROR",
+          500,
+        );
+      }
+    } else if (Array.isArray(conversationSeen)) {
+      conversationSeenMap = new Map(
+        conversationSeen
+          .filter((entry): entry is { conversation_user_id: number; last_seen_at: string | null } =>
+            entry !== null && typeof entry === "object" && typeof entry.conversation_user_id === "number",
+          )
+          .map((entry) => [entry.conversation_user_id, entry.last_seen_at ?? null]),
+      );
+    }
+  }
+
+  const globalLastSeenTime =
+    lastSeenAt && Number.isFinite(Date.parse(lastSeenAt))
+      ? Date.parse(lastSeenAt)
+      : null;
+
+  const notifications = rows
+    .map((row) => {
+      const dto = mapNotificationRow(row);
+      if (user.role === "ADMIN") {
+        dto.conversationLastSeenAt = conversationSeenMap.get(dto.userId) ?? null;
+      }
+
+      const createdTime = Date.parse(dto.createdAt);
+      if (Number.isNaN(createdTime)) {
+        return { dto, unseen: false };
+      }
+
+      let baseline: number | null = globalLastSeenTime;
+
+      if (user.role === "ADMIN") {
+        const conversationSeen = dto.conversationLastSeenAt
+          ? Date.parse(dto.conversationLastSeenAt)
+          : null;
+        if (conversationSeen !== null && !Number.isNaN(conversationSeen)) {
+          baseline = conversationSeen;
+        }
+      }
+
+      const unseen =
+        baseline === null || Number.isNaN(baseline) || createdTime > baseline;
+
+      return { dto, unseen };
+    })
+    .filter((entry) => entry.unseen)
+    .map((entry) => entry.dto);
+
   return {
-    notifications: rows.map(mapNotificationRow),
+    notifications,
     lastSeenAt,
   };
+}
+
+type LatestMessageRow = {
+  id: number;
+  created_at: string;
+  sender: "ADMIN" | "CLIENT";
+  content: string | null;
+};
+
+type ConversationRosterRow = {
+  id: number;
+  email: string;
+  role: string;
+  client_id: number | null;
+  created_at: string;
+  messages_count?: Array<{ count?: number | null }> | null;
+  latest_message?: LatestMessageRow[] | null;
+};
+
+type ConversationLastSeenRow = {
+  conversation_user_id: number;
+  last_seen_at: string | null;
+};
+
+export async function listAdminConversationSummaries(
+  admin: LegacyUser,
+  options?: { limit?: number; search?: string | null },
+): Promise<ConversationSummary[]> {
+  const supabase = getServiceSupabase();
+
+  const limit = options?.limit && Number.isFinite(options.limit)
+    ? Math.min(Math.trunc(options.limit), 200)
+    : 100;
+
+  let query = supabase
+    .from("users")
+    .select(
+      `id,
+       email,
+       role,
+       client_id,
+       created_at,
+       messages_count:user_messages(count),
+       latest_message:user_messages(
+         id,
+         created_at,
+         sender,
+         content
+       )`,
+    )
+    .eq("role", "CLIENT")
+    .limit(limit)
+    .order("created_at", { foreignTable: "latest_message", ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (options?.search) {
+    query = query.ilike("email", `%${options.search}%`);
+  }
+
+  query = query.limit(1, { foreignTable: "latest_message" });
+
+  const [{ data, error }, lastSeenResult] = await Promise.all([
+    query,
+    supabase
+      .from("conversation_last_seen")
+      .select("conversation_user_id, last_seen_at")
+      .eq("user_id", admin.id),
+  ]);
+
+  if (error) {
+    throw new AppError(
+      `Failed to load conversation roster: ${error.message}`,
+      "MESSAGE_ERROR",
+      500,
+    );
+  }
+
+  if (lastSeenResult.error) {
+    const message = lastSeenResult.error.message ?? "";
+    if (message.toLowerCase().includes("conversation_last_seen")) {
+      logger.warn({
+        scope: "messages.conversation",
+        message:
+          "conversation_last_seen table missing; continuing without granular seen state",
+      });
+    } else {
+      throw new AppError(
+        `Failed to load conversation seen state: ${message}`,
+        "MESSAGE_ERROR",
+        500,
+      );
+    }
+  }
+
+  const lastSeenRows = (lastSeenResult.data ?? []) as ConversationLastSeenRow[];
+  const lastSeenMap = new Map<number, string | null>();
+  for (const row of lastSeenRows) {
+    if (typeof row.conversation_user_id === "number") {
+      lastSeenMap.set(row.conversation_user_id, row.last_seen_at ?? null);
+    }
+  }
+
+  const normalized = (data ?? []) as ConversationRosterRow[];
+
+  const summaries = normalized.map<ConversationSummary>((row) => {
+    const latest = Array.isArray(row.latest_message)
+      ? row.latest_message[0] ?? null
+      : null;
+
+    const totalMessages = Array.isArray(row.messages_count)
+      ? row.messages_count.reduce((acc, item) => {
+          const value = Number((item ?? {}).count ?? 0);
+          return acc + (Number.isFinite(value) ? value : 0);
+        }, 0)
+      : 0;
+
+    const lastMessageAt = latest?.created_at ?? null;
+    const lastMessageSender = latest?.sender ?? null;
+    const preview = latest?.content ?? null;
+
+    const lastSeen = lastSeenMap.get(row.id ?? -1) ?? null;
+
+    let hasUnread = false;
+    if (lastMessageAt && lastMessageSender === "CLIENT") {
+      if (!lastSeen) {
+        hasUnread = true;
+      } else {
+        const lastSeenTime = Date.parse(lastSeen);
+        const lastMessageTime = Date.parse(lastMessageAt);
+        if (
+          Number.isFinite(lastMessageTime) &&
+          (!Number.isFinite(lastSeenTime) || lastMessageTime > lastSeenTime)
+        ) {
+          hasUnread = true;
+        }
+      }
+    }
+
+    return {
+      userId: row.id,
+      email: row.email,
+      role: row.role,
+      clientId: row.client_id ?? null,
+      createdAt: row.created_at,
+      lastMessageId: latest?.id ?? null,
+      lastMessageAt,
+      lastMessageSender,
+      lastMessagePreview: preview,
+      totalMessages,
+      hasUnread,
+    };
+  });
+
+  // Sort by most recent message, falling back to user creation date
+  const sorted = summaries.sort((a, b) => {
+    const aTime = a.lastMessageAt ? Date.parse(a.lastMessageAt) : NaN;
+    const bTime = b.lastMessageAt ? Date.parse(b.lastMessageAt) : NaN;
+
+    if (Number.isFinite(aTime) && Number.isFinite(bTime)) {
+      return bTime - aTime;
+    }
+    if (Number.isFinite(aTime)) return -1;
+    if (Number.isFinite(bTime)) return 1;
+
+    const aCreated = Date.parse(a.createdAt);
+    const bCreated = Date.parse(b.createdAt);
+    if (Number.isFinite(aCreated) && Number.isFinite(bCreated)) {
+      return bCreated - aCreated;
+    }
+    return 0;
+  });
+
+  return sorted;
 }
 
 export async function updateMessageLastSeenAt(
@@ -366,6 +630,58 @@ export async function updateMessageLastSeenAt(
       500,
     );
   }
+}
+
+/**
+ * Mark a specific conversation as seen up to a timestamp
+ * This provides granular per-conversation tracking
+ * @param userId - The user viewing the conversation
+ * @param conversationUserId - The other user in the conversation
+ * @param timestampIso - ISO timestamp of the last seen message
+ * @param messageId - Optional ID of the last seen message
+ */
+export async function markConversationSeen(
+  userId: number,
+  conversationUserId: number,
+  timestampIso: string,
+  messageId?: number | null,
+): Promise<void> {
+  const supabase = getServiceSupabase();
+  
+  const { error } = await supabase
+    .from("conversation_last_seen")
+    .upsert({
+      user_id: userId,
+      conversation_user_id: conversationUserId,
+      last_seen_at: timestampIso,
+      last_seen_message_id: messageId ?? null,
+    }, {
+      onConflict: "user_id,conversation_user_id",
+    });
+
+  if (error) {
+    const message = error.message ?? "";
+    // If table doesn't exist yet (migration not run), fail silently
+    if (message.toLowerCase().includes("conversation_last_seen") && 
+        message.toLowerCase().includes("does not exist")) {
+      logger.warn({
+        scope: "messages.conversation",
+        message: "conversation_last_seen table not found; skipping granular tracking",
+      });
+      return;
+    }
+    throw new AppError(
+      `Failed to mark conversation as seen: ${error.message}`,
+      "MESSAGE_ERROR",
+      500,
+    );
+  }
+
+  logger.info({
+    scope: "messages.conversation",
+    message: "Conversation marked as seen",
+    data: { userId, conversationUserId, timestamp: timestampIso },
+  });
 }
 
 /**

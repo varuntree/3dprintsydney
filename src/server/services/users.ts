@@ -108,13 +108,23 @@ import { randomBytes } from 'crypto';
 
 /**
  * List all users (admin view)
+ * Optimized with a single query instead of N+1 pattern
  */
 export async function listUsers(): Promise<UserDTO[]> {
   const supabase = getServiceSupabase();
 
+  // Single optimized query with message count aggregation
+  // This replaces the N+1 query pattern with a single JOIN
   const { data: users, error } = await supabase
     .from('users')
-    .select('id, email, role, client_id, created_at')
+    .select(`
+      id,
+      email,
+      role,
+      client_id,
+      created_at,
+      user_messages(count)
+    `)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -125,37 +135,21 @@ export async function listUsers(): Promise<UserDTO[]> {
     );
   }
 
-  // Get message counts for all users
-  const userIds = (users ?? []).map((user) => user.id);
-  const messageCounts = new Map<number, number>();
+  return (users ?? []).map((u) => {
+    // Extract message count from the aggregate
+    const messageCount = Array.isArray(u.user_messages) 
+      ? u.user_messages.length 
+      : 0;
 
-  await Promise.all(
-    userIds.map(async (id) => {
-      const { count, error: countError } = await supabase
-        .from('user_messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', id);
-
-      if (countError) {
-        throw new AppError(
-          `Failed to count messages for user ${id}: ${countError.message}`,
-          'USER_LOAD_ERROR',
-          500
-        );
-      }
-
-      messageCounts.set(id, count ?? 0);
-    })
-  );
-
-  return (users ?? []).map((u) => ({
-    id: u.id,
-    email: u.email,
-    role: u.role,
-    clientId: u.client_id,
-    createdAt: u.created_at,
-    messageCount: messageCounts.get(u.id) ?? 0,
-  }));
+    return {
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      clientId: u.client_id,
+      createdAt: u.created_at,
+      messageCount,
+    };
+  });
 }
 
 /**
