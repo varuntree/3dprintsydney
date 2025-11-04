@@ -85,6 +85,12 @@ Comprehensive database schema documentation for the 3D Print Sydney application,
 - Migration filenames follow: `YYYYMMDDHHMM_description.sql`
 - Rollback migrations not used (forward-only migrations)
 
+### Supabase Project Target
+
+- All schema changes, migrations, and Supabase CLI commands must point to the `interior` project (`dgroxwhoqdkqqqfcymrf`, region `ap-southeast-2`).
+- Previous temporary databases (e.g., `swingo`) are no longer valid targets—do **not** run migrations there.
+- When configuring `supabase/config.toml` or running `supabase db push/reset`, double-check the project ref to avoid modifying the wrong environment.
+
 ---
 
 ## Custom Types & Enums
