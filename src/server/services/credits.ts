@@ -66,6 +66,64 @@ export async function addClientCredit(
 }
 
 /**
+ * Remove credit from client wallet (admin operation)
+ * @throws AppError if database operation fails
+ * @throws BadRequestError if amount is invalid or insufficient balance
+ * @throws NotFoundError if client doesn't exist
+ */
+export async function removeClientCredit(
+  clientId: number,
+  amount: number,
+  adminUserId: number,
+  reason?: string,
+  notes?: string
+): Promise<{ newBalance: number; transactionId: number }> {
+  if (amount <= 0) {
+    throw new BadRequestError('Removal amount must be positive');
+  }
+
+  const supabase = getServiceSupabase();
+
+  // Get current balance to validate sufficient funds
+  const currentBalance = await getClientWalletBalance(clientId);
+  if (currentBalance < amount) {
+    throw new BadRequestError(
+      `Insufficient balance. Current: $${currentBalance.toFixed(2)}, Requested: $${amount.toFixed(2)}`
+    );
+  }
+
+  // Use database function with negative amount for removal
+  const { data, error } = await supabase.rpc('add_client_credit', {
+    p_client_id: clientId,
+    p_amount: String(-amount), // Negative amount for removal
+    p_reason: reason || 'CREDIT_REFUNDED',
+    p_notes: notes || null,
+    p_admin_user_id: adminUserId
+  });
+
+  if (error) {
+    if (error.message.includes('Client not found')) {
+      throw new NotFoundError('Client', clientId);
+    }
+    throw new AppError(
+      `Failed to remove credit: ${error.message}`,
+      'DATABASE_ERROR',
+      500
+    );
+  }
+
+  logger.info({
+    scope: 'credits.remove',
+    data: { clientId, amount, adminUserId, reason, newBalance: data.new_balance }
+  });
+
+  return {
+    newBalance: Number(data.new_balance),
+    transactionId: Number(data.transaction_id)
+  };
+}
+
+/**
  * Deduct credit from client wallet
  * @throws BadRequestError if insufficient balance or invalid amount
  * @throws NotFoundError if client doesn't exist
@@ -165,12 +223,14 @@ export async function getClientCreditHistory(
  * Apply wallet credit to an invoice
  * Automatically applies available credit to reduce the invoice balance
  * @param invoiceId - The invoice to apply credit to
+ * @param amountToApply - Optional specific amount to apply (defaults to all available)
  * @returns Amount of credit applied and new balance
  * @throws NotFoundError if invoice doesn't exist
  * @throws BadRequestError if invoice is already paid or voided
  */
 export async function applyWalletCreditToInvoice(
-  invoiceId: number
+  invoiceId: number,
+  amountToApply?: number
 ): Promise<{ creditApplied: number; newBalanceDue: number }> {
   const supabase = getServiceSupabase();
 
@@ -206,8 +266,25 @@ export async function applyWalletCreditToInvoice(
     return { creditApplied: 0, newBalanceDue: balanceDue };
   }
 
-  // Determine how much credit to apply (min of balance due and available credit)
-  const creditToApply = Math.min(balanceDue, walletBalance);
+  // Determine how much credit to apply
+  let creditToApply: number;
+  if (amountToApply !== undefined && amountToApply > 0) {
+    // Validate custom amount
+    if (amountToApply > walletBalance) {
+      throw new BadRequestError(
+        `Insufficient wallet balance. Available: $${walletBalance.toFixed(2)}, Requested: $${amountToApply.toFixed(2)}`
+      );
+    }
+    if (amountToApply > balanceDue) {
+      throw new BadRequestError(
+        `Amount exceeds balance due. Balance due: $${balanceDue.toFixed(2)}, Requested: $${amountToApply.toFixed(2)}`
+      );
+    }
+    creditToApply = amountToApply;
+  } else {
+    // Default: apply all available credit up to balance due
+    creditToApply = Math.min(balanceDue, walletBalance);
+  }
 
   // Deduct credit from wallet
   const { deducted, newBalance: newWalletBalance } = await deductClientCredit(
