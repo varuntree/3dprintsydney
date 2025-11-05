@@ -500,31 +500,6 @@ export async function createQuickOrderInvoice(
     lines,
   });
 
-  // Automatically apply wallet credit if available
-  let fullyPaidByCredit = false;
-  try {
-    const { applyWalletCreditToInvoice } = await import("@/server/services/credits");
-    const { creditApplied, newBalanceDue } = await applyWalletCreditToInvoice(invoice.id);
-    if (creditApplied > 0) {
-      logger.info({
-        scope: 'quick-order.credit',
-        data: { invoiceId: invoice.id, creditApplied, newBalanceDue }
-      });
-      // Update invoice object for downstream use
-      invoice.balanceDue = newBalanceDue;
-      invoice.creditApplied = creditApplied;
-      fullyPaidByCredit = newBalanceDue <= 0;
-    }
-  } catch (error) {
-    // Log but don't fail checkout if credit application fails
-    logger.error({
-      scope: 'quick-order.credit',
-      message: 'Failed to apply credit',
-      error,
-      data: { invoiceId: invoice.id }
-    });
-  }
-
   // Process and save files
   await processQuickOrderFiles(
     items,
@@ -534,19 +509,13 @@ export async function createQuickOrderInvoice(
     shippingQuote,
   );
 
-  // Stripe checkout - only if there's a remaining balance
-  let checkoutUrl: string | null = null;
-  if (!fullyPaidByCredit) {
-    try {
-      const stripe = await import("@/server/services/stripe");
-      const res = await stripe.createStripeCheckoutSession(invoice.id);
-      checkoutUrl = res.url ?? null;
-    } catch {
-      checkoutUrl = null;
-    }
-  }
-
-  return { invoiceId: invoice.id, checkoutUrl };
+  // Return invoice info without auto-applying credits or creating Stripe session
+  // The client-side will show payment choice modal if user has wallet balance
+  return {
+    invoiceId: invoice.id,
+    checkoutUrl: null, // Payment choice handled client-side
+    balanceDue: invoice.total,
+  };
 }
 
 /**

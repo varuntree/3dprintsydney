@@ -36,6 +36,8 @@ import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelVi
 import RotationControls from "@/components/3d/RotationControls";
 import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
 import { exportSTL } from "@/lib/3d/export";
+import { PaymentMethodModal } from "@/components/client/payment-method-modal";
+import { toast } from "sonner";
 
 type Upload = { id: string; filename: string; size: number };
 type Material = { id: number; name: string; costPerGram: number };
@@ -116,6 +118,7 @@ export default function QuickOrderPage() {
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [studentDiscountEligible, setStudentDiscountEligible] = useState(false);
   const [studentDiscountRate, setStudentDiscountRate] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [settings, setSettings] = useState<Record<string, FileSettings>>({});
@@ -155,6 +158,11 @@ export default function QuickOrderPage() {
   const [draftSaved, setDraftSaved] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const draftLoadedRef = useRef(false);
+
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [createdInvoiceId, setCreatedInvoiceId] = useState<number | null>(null);
+  const [invoiceBalanceDue, setInvoiceBalanceDue] = useState(0);
 
   const goToStep = useCallback((step: Step) => {
     setCurrentStep(step);
@@ -283,6 +291,9 @@ export default function QuickOrderPage() {
       }
       if (typeof data.studentDiscountRate === "number") {
         setStudentDiscountRate(data.studentDiscountRate);
+      }
+      if (typeof data.walletBalance === "number") {
+        setWalletBalance(data.walletBalance);
       }
     });
     fetch("/api/client/materials").then(async (r) => {
@@ -713,11 +724,37 @@ export default function QuickOrderPage() {
     // Clear draft on successful checkout
     clearDraft();
 
-    if (data.checkoutUrl) {
-      window.location.href = data.checkoutUrl;
+    // Store invoice details
+    setCreatedInvoiceId(data.invoiceId);
+    setInvoiceBalanceDue(data.balanceDue || priceData?.total || 0);
+
+    // Check if user has wallet balance to show payment choice modal
+    if (walletBalance > 0) {
+      // User has credits, show payment choice modal
+      setShowPaymentModal(true);
     } else {
-      const dest = role === "CLIENT" ? `/client/orders/${data.invoiceId}` : `/invoices/${data.invoiceId}`;
-      router.replace(dest);
+      // No credits, go directly to Stripe
+      await handleCardOnlyPayment(data.invoiceId);
+    }
+  }
+
+  async function handleCardOnlyPayment(invoiceId: number) {
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/stripe-session?refresh=true`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setError("Failed to create payment session");
+        return;
+      }
+      const sessionData = await res.json();
+      if (sessionData.data?.url) {
+        window.location.href = sessionData.data.url;
+      } else {
+        setError("No payment URL returned");
+      }
+    } catch (err) {
+      setError("Payment session creation failed");
     }
   }
 
@@ -1725,6 +1762,24 @@ export default function QuickOrderPage() {
           )}
         </div>
       </div>
+
+      {/* Payment Method Modal */}
+      {createdInvoiceId && (
+        <PaymentMethodModal
+          open={showPaymentModal}
+          onOpenChange={(open) => {
+            setShowPaymentModal(open);
+            if (!open && createdInvoiceId) {
+              // Modal closed, redirect to invoice/orders page
+              const dest = role === "CLIENT" ? `/client/orders/${createdInvoiceId}` : `/invoices/${createdInvoiceId}`;
+              router.replace(dest);
+            }
+          }}
+          invoiceId={createdInvoiceId}
+          balanceDue={invoiceBalanceDue}
+          walletBalance={walletBalance}
+        />
+      )}
     </div>
   );
 }
