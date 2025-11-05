@@ -54,10 +54,11 @@ import { usePaymentTerms, findPaymentTermLabel } from "@/hooks/use-payment-terms
 import { useNavigation } from "@/hooks/useNavigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap } from "lucide-react";
+import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap, MinusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AddCreditModal } from "@/components/clients/add-credit-modal";
+import { RemoveCreditModal } from "@/components/clients/remove-credit-modal";
 
 export type ClientDetailRecord = {
   client: {
@@ -180,6 +181,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
 
   const [editOpen, setEditOpen] = useState(false);
   const [showAddCreditModal, setShowAddCreditModal] = useState(false);
+  const [showRemoveCreditModal, setShowRemoveCreditModal] = useState(false);
 
   const initialFormValues = useMemo(
     () => toFormValues(current.client),
@@ -341,6 +343,16 @@ export function ClientDetail({ detail }: ClientDetailProps) {
               >
                 <Wallet className="h-4 w-4" />
                 <span>Add Credit</span>
+              </ActionButton>
+              <ActionButton
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setShowRemoveCreditModal(true)}
+                disabled={current.client.walletBalance <= 0}
+              >
+                <MinusCircle className="h-4 w-4" />
+                <span>Remove Credit</span>
               </ActionButton>
               <ActionButton
                 variant="outline"
@@ -832,6 +844,14 @@ export function ClientDetail({ detail }: ClientDetailProps) {
         currentBalance={current.client.walletBalance}
         open={showAddCreditModal}
         onOpenChange={setShowAddCreditModal}
+      />
+
+      <RemoveCreditModal
+        clientId={current.client.id}
+        clientName={current.client.name}
+        currentBalance={current.client.walletBalance}
+        open={showRemoveCreditModal}
+        onOpenChange={setShowRemoveCreditModal}
       />
     </>
   );
