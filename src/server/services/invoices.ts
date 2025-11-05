@@ -130,6 +130,9 @@ type InvoiceRow = {
   issue_date: string;
   due_date: string | null;
   stripe_checkout_url: string | null;
+  payment_preference: string | null;
+  wallet_credit_requested: string | null;
+  wallet_credit_applied_at: string | null;
   created_at?: string;
   updated_at?: string;
   clients?: InvoiceClientRecord | InvoiceClientRecord[] | null;
@@ -323,6 +326,9 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
     total: Number(row.total ?? 0),
     balanceDue: Number(row.balance_due ?? 0),
     creditApplied: Number(row.credit_applied ?? 0),
+    paymentPreference: ((row.payment_preference ?? 'CARD') as 'CARD' | 'CREDIT' | 'SPLIT'),
+    walletCreditRequested: row.wallet_credit_requested ? Number(row.wallet_credit_requested) : 0,
+    walletCreditAppliedAt: row.wallet_credit_applied_at ? new Date(row.wallet_credit_applied_at) : null,
     issueDate: new Date(row.issue_date),
     dueDate: row.due_date ? new Date(row.due_date) : null,
     notes: row.notes ?? '',
@@ -483,6 +489,8 @@ export async function createInvoice(input: InvoiceInput) {
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
+    payment_preference: payload.paymentPreference ?? 'CARD',
+    wallet_credit_requested: toDecimal(payload.walletCreditRequested) ?? '0',
   };
 
   const lineInserts = payload.lines.map((line, index) => ({
@@ -547,7 +555,7 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
   const paymentTerm = await resolveClientPaymentTerm(payload.clientId);
   const dueDate = deriveDueDate(issueDate, paymentTerm, payload.dueDate ? new Date(payload.dueDate) : null);
 
-  const invoiceRecord = {
+  const invoiceRecord: Record<string, unknown> = {
     client_id: payload.clientId,
     issue_date: issueDate.toISOString(),
     due_date: dueDate?.toISOString() ?? '',
@@ -564,6 +572,11 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
     tax_total: String(totals.taxTotal),
     balance_due: String(totals.total),
   };
+
+  invoiceRecord.payment_preference = payload.paymentPreference ?? 'CARD';
+  if (payload.walletCreditRequested !== undefined) {
+    invoiceRecord.wallet_credit_requested = toDecimal(payload.walletCreditRequested) ?? '0';
+  }
 
   const lineInserts = payload.lines.map((line, index) => ({
     product_template_id: line.productTemplateId ?? '',

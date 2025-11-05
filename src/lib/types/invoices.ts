@@ -91,6 +91,9 @@ export type InvoiceDetailDTO = {
   total: number;
   balanceDue: number;
   creditApplied: number;
+  paymentPreference: 'CARD' | 'CREDIT' | 'SPLIT';
+  walletCreditRequested: number;
+  walletCreditAppliedAt: Date | null;
   issueDate: Date;
   dueDate: Date | null;
   notes: string;

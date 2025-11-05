@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -42,6 +43,7 @@ interface AddCreditModalProps {
   currentBalance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode: 'add' | 'remove';
 }
 
 export function AddCreditModal({
@@ -50,33 +52,47 @@ export function AddCreditModal({
   currentBalance,
   open,
   onOpenChange,
+  mode,
 }: AddCreditModalProps) {
   const queryClient = useQueryClient();
+  const isRemoval = mode === 'remove';
 
   const form = useForm<CreditAdjustmentInput>({
     resolver: zodResolver(creditAdjustmentSchema),
     defaultValues: {
       amount: 0,
-      reason: 'initial_credit',
+      reason: isRemoval ? 'adjustment' : 'initial_credit',
       notes: '',
     },
   });
 
+  useEffect(() => {
+    if (!open) return;
+    form.reset({ amount: 0, reason: isRemoval ? 'adjustment' : 'initial_credit', notes: '' });
+  }, [open, isRemoval, form]);
+
   const mutation = useMutation({
     mutationFn: async (input: CreditAdjustmentInput) => {
+      if (isRemoval && input.amount > currentBalance) {
+        throw new Error('Amount exceeds current balance');
+      }
       const res = await fetch(`/api/clients/${clientId}/credit`, {
-        method: 'POST',
+        method: isRemoval ? 'DELETE' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       });
       if (!res.ok) {
         const error = await res.json();
-        throw new Error(error.message || 'Failed to add credit');
+        throw new Error(error.message || (isRemoval ? 'Failed to remove credit' : 'Failed to add credit'));
       }
       return res.json();
     },
     onSuccess: (data) => {
-      toast.success(`Credit added successfully! New balance: ${formatCurrency(data.data.newBalance)}`);
+      toast.success(
+        isRemoval
+          ? `Credit removed successfully. New balance: ${formatCurrency(data.data.newBalance)}`
+          : `Credit added successfully! New balance: ${formatCurrency(data.data.newBalance)}`
+      );
       queryClient.invalidateQueries({ queryKey: ['client', clientId] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       onOpenChange(false);
@@ -88,15 +104,22 @@ export function AddCreditModal({
   });
 
   const watchAmount = form.watch('amount');
-  const projectedBalance = currentBalance + (watchAmount || 0);
+  const projectedBalance = isRemoval
+    ? currentBalance - (watchAmount || 0)
+    : currentBalance + (watchAmount || 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Credit to {clientName}</DialogTitle>
+          <DialogTitle>
+            {isRemoval ? 'Remove Credit from ' : 'Add Credit to '}
+            {clientName}
+          </DialogTitle>
           <DialogDescription>
-            Add monetary credit to client&apos;s wallet for future orders
+            {isRemoval
+              ? 'Deduct available wallet credit from this client account.'
+              : 'Add monetary credit to client’s wallet for future orders.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,7 +135,12 @@ export function AddCreditModal({
                 <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
                   <span className="text-sm text-muted-foreground">After Credit</span>
                   <span className="text-lg font-semibold text-green-600">
-                    {formatCurrency(projectedBalance)}
+                    {formatCurrency(
+                      Math.max(
+                        isRemoval ? currentBalance - (watchAmount || 0) : projectedBalance,
+                        0,
+                      ),
+                    )}
                   </span>
                 </div>
               )}
@@ -139,36 +167,40 @@ export function AddCreditModal({
                       />
                     </div>
                   </FormControl>
-                  <FormDescription>Amount to add to wallet</FormDescription>
+                  <FormDescription>
+                    {isRemoval ? 'Amount to deduct from wallet' : 'Amount to add to wallet'}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
             {/* Reason Field */}
-            <FormField
-              control={form.control}
-              name="reason"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reason</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select reason" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="initial_credit">Initial Credit</SelectItem>
-                      <SelectItem value="adjustment">Account Adjustment</SelectItem>
-                      <SelectItem value="promotion">Promotional Credit</SelectItem>
-                      <SelectItem value="refund">Refund</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {!isRemoval ? (
+              <FormField
+                control={form.control}
+                name="reason"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reason</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select reason" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="initial_credit">Initial Credit</SelectItem>
+                        <SelectItem value="adjustment">Account Adjustment</SelectItem>
+                        <SelectItem value="promotion">Promotional Credit</SelectItem>
+                        <SelectItem value="refund">Refund</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : null}
 
             {/* Notes Field */}
             <FormField
@@ -196,7 +228,7 @@ export function AddCreditModal({
               </Button>
               <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Add Credit
+                {isRemoval ? 'Remove Credit' : 'Add Credit'}
               </Button>
             </DialogFooter>
           </form>

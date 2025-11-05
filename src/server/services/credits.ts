@@ -65,6 +65,29 @@ export async function addClientCredit(
   };
 }
 
+export async function removeClientCredit(
+  clientId: number,
+  amount: number,
+  adminUserId: number,
+  notes?: string
+): Promise<{ newBalance: number; transactionId?: number }> {
+  const result = await deductClientCredit(
+    clientId,
+    amount,
+    'manual_adjustment',
+    undefined,
+    notes,
+    adminUserId
+  );
+
+  logger.info({
+    scope: 'credits.remove',
+    data: { clientId, amount, adminUserId, newBalance: result.newBalance, transactionId: result.transactionId }
+  });
+
+  return { newBalance: result.newBalance, transactionId: result.transactionId };
+}
+
 /**
  * Deduct credit from client wallet
  * @throws BadRequestError if insufficient balance or invalid amount
@@ -73,9 +96,11 @@ export async function addClientCredit(
 export async function deductClientCredit(
   clientId: number,
   amount: number,
-  reason: 'invoice_payment' | 'order_creation',
-  invoiceId?: number
-): Promise<{ deducted: number; newBalance: number }> {
+  reason: 'invoice_payment' | 'order_creation' | 'manual_adjustment',
+  invoiceId?: number,
+  notes?: string,
+  adminUserId?: number
+): Promise<{ deducted: number; newBalance: number; transactionId?: number }> {
   if (amount <= 0) {
     throw new BadRequestError('Deduction amount must be positive');
   }
@@ -87,7 +112,9 @@ export async function deductClientCredit(
     p_client_id: clientId,
     p_amount: String(amount),
     p_reason: reason,
-    p_invoice_id: invoiceId || null
+    p_invoice_id: invoiceId || null,
+    p_notes: notes ?? null,
+    p_admin_user_id: adminUserId ?? null
   });
 
   if (error) {
@@ -111,7 +138,8 @@ export async function deductClientCredit(
 
   return {
     deducted: Number(data.deducted),
-    newBalance: Number(data.new_balance)
+    newBalance: Number(data.new_balance),
+    transactionId: data.transaction_id ? Number(data.transaction_id) : undefined,
   };
 }
 
@@ -170,8 +198,16 @@ export async function getClientCreditHistory(
  * @throws BadRequestError if invoice is already paid or voided
  */
 export async function applyWalletCreditToInvoice(
-  invoiceId: number
-): Promise<{ creditApplied: number; newBalanceDue: number }> {
+  invoiceId: number,
+  options: {
+    amount?: number;
+    paymentPreference?: 'CARD' | 'CREDIT' | 'SPLIT';
+  } = {}
+): Promise<{
+  creditApplied: number;
+  newBalanceDue: number;
+  walletBalance: number;
+}> {
   const supabase = getServiceSupabase();
 
   // Get invoice details
@@ -192,22 +228,29 @@ export async function applyWalletCreditToInvoice(
 
   const balanceDue = Number(invoice.balance_due);
   const alreadyApplied = Number(invoice.credit_applied ?? 0);
+  const requestedAmount =
+    typeof options.amount === 'number' ? Math.max(0, options.amount) : undefined;
+
+  const walletBalance = await getClientWalletBalance(invoice.client_id);
 
   // If no balance due, nothing to do
   if (balanceDue <= 0) {
-    return { creditApplied: 0, newBalanceDue: 0 };
+    return { creditApplied: 0, newBalanceDue: 0, walletBalance };
   }
-
-  // Get client's wallet balance
-  const walletBalance = await getClientWalletBalance(invoice.client_id);
 
   // If no wallet balance, nothing to apply
   if (walletBalance <= 0) {
-    return { creditApplied: 0, newBalanceDue: balanceDue };
+    return { creditApplied: 0, newBalanceDue: balanceDue, walletBalance };
   }
 
-  // Determine how much credit to apply (min of balance due and available credit)
-  const creditToApply = Math.min(balanceDue, walletBalance);
+  let creditToApply = Math.min(balanceDue, walletBalance);
+  if (requestedAmount !== undefined) {
+    creditToApply = Math.min(requestedAmount, creditToApply);
+  }
+
+  if (creditToApply <= 0) {
+    return { creditApplied: 0, newBalanceDue: balanceDue, walletBalance };
+  }
 
   // Deduct credit from wallet
   const { deducted, newBalance: newWalletBalance } = await deductClientCredit(
@@ -219,17 +262,29 @@ export async function applyWalletCreditToInvoice(
 
   // Update invoice with credit applied
   const newCreditApplied = alreadyApplied + deducted;
-  const newBalanceDue = Number(invoice.total) - newCreditApplied;
+  const newBalanceDue = Math.max(0, Number(invoice.total) - newCreditApplied);
   const newStatus = newBalanceDue <= 0 ? 'PAID' : invoice.status;
+  const appliedAt = new Date().toISOString();
+
+  const invoiceUpdate: Record<string, unknown> = {
+    credit_applied: String(newCreditApplied),
+    balance_due: String(newBalanceDue),
+    status: newStatus,
+    paid_at: newBalanceDue <= 0 ? appliedAt : null,
+    wallet_credit_applied_at: appliedAt,
+  };
+
+  if (requestedAmount !== undefined) {
+    invoiceUpdate.wallet_credit_requested = String(requestedAmount);
+  }
+
+  if (options.paymentPreference) {
+    invoiceUpdate.payment_preference = options.paymentPreference;
+  }
 
   const { error: updateError } = await supabase
     .from('invoices')
-    .update({
-      credit_applied: String(newCreditApplied),
-      balance_due: String(newBalanceDue),
-      status: newStatus,
-      paid_at: newBalanceDue <= 0 ? new Date().toISOString() : null
-    })
+    .update(invoiceUpdate)
     .eq('id', invoiceId);
 
   if (updateError) {
@@ -252,7 +307,7 @@ export async function applyWalletCreditToInvoice(
     }
   });
 
-  return { creditApplied: deducted, newBalanceDue };
+  return { creditApplied: deducted, newBalanceDue, walletBalance: newWalletBalance };
 }
 
 // Helper function to map database row to DTO

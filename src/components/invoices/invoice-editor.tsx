@@ -104,6 +104,8 @@ export type InvoiceFormValues = {
   notes?: string;
   terms?: string;
   lines: InvoiceLineFormValue[];
+  paymentPreference?: 'CARD' | 'CREDIT' | 'SPLIT';
+  walletCreditRequested?: number;
 };
 
 export function InvoiceEditor({
@@ -148,6 +150,8 @@ export function InvoiceEditor({
         productTemplateId: null,
       },
     ],
+    paymentPreference: 'CARD',
+    walletCreditRequested: 0,
   };
 
   const resolver = zodResolver(
@@ -163,6 +167,11 @@ export function InvoiceEditor({
   const [dueDateTouched, setDueDateTouched] = useState(
     Boolean(initialValues?.dueDate),
   );
+
+  useEffect(() => {
+    form.register("paymentPreference");
+    form.register("walletCreditRequested");
+  }, [form]);
 
   const paymentTermOptions = useMemo(
     () => settings.paymentTerms ?? [],

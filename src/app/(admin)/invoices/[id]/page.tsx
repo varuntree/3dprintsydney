@@ -73,6 +73,8 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
           discountValue: line.discountValue,
           calculatorBreakdown: line.calculatorBreakdown ?? undefined,
         })),
+        paymentPreference: detail.paymentPreference,
+        walletCreditRequested: detail.walletCreditRequested,
       };
 
       return (
@@ -141,6 +143,11 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       taxTotal: detail.taxTotal,
       total: detail.total,
       balanceDue: detail.balanceDue,
+      paymentPreference: detail.paymentPreference,
+      walletCreditRequested: detail.walletCreditRequested,
+      walletCreditAppliedAt: detail.walletCreditAppliedAt
+        ? detail.walletCreditAppliedAt.toISOString()
+        : null,
       poNumber: detail.poNumber ?? null,
       notes: detail.notes,
       terms: detail.terms,

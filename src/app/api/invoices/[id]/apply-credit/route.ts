@@ -30,7 +30,7 @@ export async function POST(
     // Verify invoice belongs to this client
     const invoice = await getInvoiceDetail(invoiceId);
     if (invoice.client.id !== user.clientId) {
-      return failAuth(req, "FORBIDDEN", "You don't have access to this invoice", 403);
+      return failAuth(request, "FORBIDDEN", "You don't have access to this invoice", 403);
     }
 
     // Check if invoice is eligible for credit application
@@ -38,18 +38,31 @@ export async function POST(
       throw new BadRequestError("Invoice is already paid");
     }
 
-    // Apply credit
-    const result = await applyWalletCreditToInvoice(invoiceId);
+    const payload = await request.json().catch(() => ({}));
+    const requestedAmount =
+      typeof payload?.amount === 'number' ? Number(payload.amount) : undefined;
+    const preference =
+      payload?.paymentPreference === 'CREDIT' || payload?.paymentPreference === 'SPLIT'
+        ? payload.paymentPreference
+        : undefined;
 
-    return okAuth(req, {
+    // Apply credit
+    const result = await applyWalletCreditToInvoice(invoiceId, {
+      amount: requestedAmount,
+      paymentPreference: preference,
+    });
+
+    return okAuth(request, {
       creditApplied: result.creditApplied,
       newBalanceDue: result.newBalanceDue,
-      fullyPaid: result.newBalanceDue <= 0
+      walletBalance: result.walletBalance,
+      fullyPaid: result.newBalanceDue <= 0,
+      paymentPreference: preference ?? (result.newBalanceDue <= 0 ? 'CREDIT' : 'SPLIT'),
     });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.applyCredit");
+    return handleErrorAuth(request, error, "invoices.applyCredit");
   }
 }

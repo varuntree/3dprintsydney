@@ -4,6 +4,7 @@ import { requireClientWithId } from "@/server/auth/api-helpers";
 import {
   createQuickOrderInvoice,
   type QuickOrderItemInput,
+  type QuickOrderPaymentChoice,
 } from "@/server/services/quick-order";
 import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
@@ -22,6 +23,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
     const address = body?.address ?? {};
+    const payment: QuickOrderPaymentChoice = {
+      method:
+        body?.payment?.method === 'CREDIT' || body?.payment?.method === 'SPLIT'
+          ? body.payment.method
+          : 'CARD',
+      creditAmount:
+        typeof body?.payment?.creditAmount === 'number'
+          ? body.payment.creditAmount
+          : undefined,
+    };
 
     if (!Array.isArray(items) || items.length === 0) {
       return failAuth(req, "NO_ITEMS", "No items", 400);
@@ -33,6 +44,7 @@ export async function POST(req: NextRequest) {
       user.id,
       user.clientId,
       address,
+      payment,
     );
 
     // Ensure admin/client dashboards reflect new invoice promptly

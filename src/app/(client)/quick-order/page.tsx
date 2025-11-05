@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +31,8 @@ import {
   AlertTriangle,
   Info,
   Truck,
+  Wallet,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
@@ -140,6 +143,11 @@ export default function QuickOrderPage() {
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<'CARD' | 'CREDIT' | 'SPLIT'>('CARD');
+  const [creditToApply, setCreditToApply] = useState(0);
+  const [shippingRefreshing, setShippingRefreshing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initializedRef = useRef(false);
 
@@ -178,6 +186,103 @@ export default function QuickOrderPage() {
       setExpandedFiles(new Set());
     }
   }, [currentStep]);
+
+  useEffect(() => {
+    if (!priceData) {
+      setCreditToApply(0);
+      if (paymentMethod !== 'CARD') {
+        setPaymentMethod('CARD');
+      }
+      return;
+    }
+    const orderTotalLocal = Math.round(priceData.total * 100) / 100;
+    const maxUsableRaw = Math.min(walletBalance, priceData.total);
+    const maxUsable = Math.round(maxUsableRaw * 100) / 100;
+    if (paymentMethod === 'CREDIT' && maxUsable + 0.01 < orderTotalLocal) {
+      setPaymentMethod('SPLIT');
+      setCreditToApply(maxUsable);
+      return;
+    }
+    if (paymentMethod === 'CARD') {
+      if (creditToApply !== 0) {
+        setCreditToApply(0);
+      }
+      return;
+    }
+    if (paymentMethod === 'CREDIT') {
+      if (creditToApply !== orderTotalLocal) {
+        setCreditToApply(Math.min(orderTotalLocal, maxUsable));
+      }
+      return;
+    }
+    if (paymentMethod === 'SPLIT') {
+      if (maxUsable <= 0) {
+        setPaymentMethod('CARD');
+        setCreditToApply(0);
+        return;
+      }
+      const clamped = Math.round(
+        Math.min(Math.max(creditToApply, 0), maxUsable) * 100,
+      ) / 100;
+      if (clamped !== creditToApply) {
+        setCreditToApply(clamped);
+      } else if (creditToApply === 0) {
+        setCreditToApply(maxUsable);
+      }
+    }
+  }, [priceData, walletBalance, paymentMethod, creditToApply]);
+
+  useEffect(() => {
+    if (!priceData) return;
+    const trimmedState = (address.state ?? '').trim();
+    const trimmedPostcode = (address.postcode ?? '').trim();
+    if (!trimmedPostcode || trimmedPostcode.length < 2 || !trimmedState) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      setShippingRefreshing(true);
+      try {
+        const res = await fetch('/api/quick-order/shipping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: { state: trimmedState, postcode: trimmedPostcode } }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          return;
+        }
+        const { data } = await res.json();
+        const amount = Number(data?.amount ?? data?.shippingCost ?? priceData.shipping);
+        const roundedAmount = Math.round(amount * 100) / 100;
+        setShippingQuote({
+          code: data?.code ?? shippingQuote?.code ?? 'custom',
+          label: data?.label ?? shippingQuote?.label ?? 'Shipping',
+          baseAmount: Number(data?.baseAmount ?? roundedAmount),
+          amount: roundedAmount,
+          remoteSurcharge: data?.remoteSurcharge ? Number(data.remoteSurcharge) : undefined,
+          remoteApplied: Boolean(data?.remoteApplied),
+        });
+        setPriceData((prev) => {
+          if (!prev) return prev;
+          const updatedTotal = Math.round((prev.subtotal + roundedAmount + prev.taxAmount) * 100) / 100;
+          return { ...prev, shipping: roundedAmount, total: updatedTotal };
+        });
+      } catch (err) {
+        if ((err as Error)?.name !== 'AbortError') {
+          console.error('Failed to refresh shipping quote', err);
+        }
+      } finally {
+        setShippingRefreshing(false);
+      }
+    }, 500);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [address.state, address.postcode, priceData, shippingQuote?.code]);
 
   // Draft localStorage management
   const DRAFT_KEY = "quick-order-draft";
@@ -302,6 +407,24 @@ export default function QuickOrderPage() {
         setMaterials([]);
       }
     });
+    fetch("/api/client/dashboard")
+      .then(async (res) => {
+        if (!res.ok) {
+          setWalletBalance(0);
+          return;
+        }
+        const payload = await res.json();
+        const balance = Number(payload?.data?.walletBalance ?? payload?.walletBalance ?? 0);
+        if (Number.isFinite(balance)) {
+          setWalletBalance(balance);
+        }
+      })
+      .catch(() => {
+        setWalletBalance(0);
+      })
+      .finally(() => {
+        setWalletLoading(false);
+      });
   }, [router]);
 
   async function processFiles(fileList: FileList | File[]) {
@@ -676,6 +799,11 @@ export default function QuickOrderPage() {
       setError("Accept fallback estimates or re-prepare the affected files before checkout.");
       return;
     }
+    if (!priceData) {
+      setLoading(false);
+      setError("Price information is unavailable. Recalculate pricing before checkout.");
+      return;
+    }
     const items = uploads.map((u) => ({
       fileId: u.id,
       filename: u.filename,
@@ -698,10 +826,57 @@ export default function QuickOrderPage() {
           fallback: true,
         },
     }));
+
+    const orderTotal = Math.round(priceData.total * 100) / 100;
+    const maxCreditUsable = Math.round(Math.min(walletBalance, orderTotal) * 100) / 100;
+    let method: 'CARD' | 'CREDIT' | 'SPLIT' = paymentMethod;
+    let creditAmountPayload: number | undefined;
+
+    if (walletBalance <= 0) {
+      method = 'CARD';
+      creditAmountPayload = undefined;
+    } else if (method === 'CREDIT') {
+      const roundedCredit = Math.round(creditToApply * 100) / 100;
+      if (roundedCredit <= 0) {
+        setLoading(false);
+        setError("Enter a credit amount to use.");
+        return;
+      }
+      if (roundedCredit > maxCreditUsable + 0.001) {
+        setLoading(false);
+        setError("Credit amount exceeds available balance.");
+        return;
+      }
+      if (Math.abs(roundedCredit - orderTotal) > 0.01) {
+        setLoading(false);
+        setError("Credit-only payment must cover the full total.");
+        return;
+      }
+      creditAmountPayload = roundedCredit;
+    } else if (method === 'SPLIT') {
+      if (maxCreditUsable <= 0) {
+        method = 'CARD';
+        creditAmountPayload = undefined;
+      } else {
+        const roundedCredit = Math.round(Math.min(creditToApply, maxCreditUsable) * 100) / 100;
+        if (roundedCredit <= 0) {
+          setLoading(false);
+          setError("Enter the amount of credit to apply.");
+          return;
+        }
+        creditAmountPayload = roundedCredit;
+      }
+    }
+
+    const paymentPayload = {
+      method,
+      creditAmount: creditAmountPayload,
+    };
+
     const res = await fetch("/api/quick-order/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, address }),
+      body: JSON.stringify({ items, address, payment: paymentPayload }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -758,6 +933,14 @@ export default function QuickOrderPage() {
   const canPrepare = uploads.length > 0;
   const hasPreparedAll = uploads.every((u) => metrics[u.id]);
   const hasFallbacks = uploads.some((u) => metrics[u.id]?.fallback);
+  const orderTotal = priceData ? Math.round(priceData.total * 100) / 100 : 0;
+  const maxCreditUsable = priceData
+    ? Math.round(Math.min(walletBalance, priceData.total) * 100) / 100
+    : 0;
+  const remainingAfterCredit = Math.max(
+    0,
+    Math.round((orderTotal - (paymentMethod === "CARD" ? 0 : creditToApply)) * 100) / 100,
+  );
   const fallbackNeedsAttention = uploads.some(
     (u) => metrics[u.id]?.fallback && !acceptedFallbacks.has(u.id),
   );
@@ -1549,7 +1732,10 @@ export default function QuickOrderPage() {
                       <Truck className="h-3.5 w-3.5" />
                       Delivery
                     </span>
-                    <span className="font-medium">
+                    <span className="flex items-center gap-2 font-medium">
+                      {shippingRefreshing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      ) : null}
                       {shippingQuote ? `$${priceData.shipping.toFixed(2)}` : "Awaiting address"}
                     </span>
                   </div>
@@ -1698,6 +1884,141 @@ export default function QuickOrderPage() {
                       className="h-9"
                     />
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/40 p-4 dark:border-emerald-800/50 dark:bg-emerald-900/10">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                      <Wallet className="h-4 w-4" />
+                      <span>Wallet balance</span>
+                    </div>
+                    <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                      {walletLoading ? (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Checking…
+                        </span>
+                      ) : (
+                        `$${walletBalance.toFixed(2)}`
+                      )}
+                    </span>
+                  </div>
+
+                  {walletBalance > 0 ? (
+                    <div className="mt-3 space-y-3">
+                      <RadioGroup
+                        value={paymentMethod}
+                        onValueChange={(val) => setPaymentMethod(val as 'CARD' | 'CREDIT' | 'SPLIT')}
+                        className="space-y-2"
+                      >
+                        <label
+                          htmlFor="payment-card"
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 text-sm transition",
+                            paymentMethod === 'CARD'
+                              ? 'border-emerald-500 bg-emerald-500/10'
+                              : 'border-border/60 hover:border-emerald-400/70',
+                          )}
+                        >
+                          <RadioGroupItem value="CARD" id="payment-card" className="mt-0.5" />
+                          <div>
+                            <p className="font-semibold text-foreground">Pay total by card</p>
+                            <p className="text-xs text-muted-foreground">
+                              Keep wallet credit for later and pay ${orderTotal.toFixed(2)} now.
+                            </p>
+                          </div>
+                        </label>
+
+                        <label
+                          htmlFor="payment-split"
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 text-sm transition",
+                            paymentMethod === 'SPLIT'
+                              ? 'border-emerald-500 bg-emerald-500/10'
+                              : 'border-border/60 hover:border-emerald-400/70',
+                            maxCreditUsable <= 0 && 'cursor-not-allowed opacity-50',
+                          )}
+                        >
+                          <RadioGroupItem
+                            value="SPLIT"
+                            id="payment-split"
+                            className="mt-0.5"
+                            disabled={maxCreditUsable <= 0}
+                          />
+                          <div>
+                            <p className="font-semibold text-foreground">Use credit and card</p>
+                            <p className="text-xs text-muted-foreground">
+                              Apply part of your wallet balance first, then pay the remainder online.
+                            </p>
+                          </div>
+                        </label>
+
+                        <label
+                          htmlFor="payment-credit"
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 text-sm transition",
+                            paymentMethod === 'CREDIT'
+                              ? 'border-emerald-500 bg-emerald-500/10'
+                              : 'border-border/60 hover:border-emerald-400/70',
+                            maxCreditUsable + 0.01 < orderTotal && 'cursor-not-allowed opacity-50',
+                          )}
+                        >
+                          <RadioGroupItem
+                            value="CREDIT"
+                            id="payment-credit"
+                            className="mt-0.5"
+                            disabled={maxCreditUsable + 0.01 < orderTotal}
+                          />
+                          <div>
+                            <p className="font-semibold text-foreground">Pay entirely with credit</p>
+                            <p className="text-xs text-muted-foreground">
+                              Apply ${orderTotal.toFixed(2)} from your wallet. Card payment isn&apos;t required.
+                            </p>
+                          </div>
+                        </label>
+                      </RadioGroup>
+
+                      {paymentMethod !== 'CARD' ? (
+                        <div className="space-y-2 rounded-lg border border-emerald-200/70 bg-background/60 p-3 dark:border-emerald-700/40 dark:bg-emerald-950/20">
+                          <Label className="text-xs text-muted-foreground">Credit to apply</Label>
+                          <div className="relative">
+                            <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={paymentMethod === 'CARD' ? 0 : creditToApply}
+                              onChange={(e) => {
+                                const next = Number(e.target.value);
+                                if (Number.isNaN(next)) {
+                                  setCreditToApply(0);
+                                } else {
+                                  setCreditToApply(Math.round(Math.min(Math.max(next, 0), maxCreditUsable) * 100) / 100);
+                                }
+                              }}
+                              disabled={paymentMethod === 'CREDIT'}
+                              className="pl-9"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Available credit</span>
+                            <span>${maxCreditUsable.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Due on card</span>
+                            <span>${remainingAfterCredit.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Credit isn&apos;t used for this order. We&apos;ll redirect you to Stripe to finish payment.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Add credit from your account page to enable wallet payments. We&apos;ll take you straight to card payment now.
+                    </p>
+                  )}
                 </div>
 
                 <Button

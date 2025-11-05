@@ -54,7 +54,7 @@ import { usePaymentTerms, findPaymentTermLabel } from "@/hooks/use-payment-terms
 import { useNavigation } from "@/hooks/useNavigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap } from "lucide-react";
+import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap, MinusCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AddCreditModal } from "@/components/clients/add-credit-modal";
@@ -179,7 +179,8 @@ export function ClientDetail({ detail }: ClientDetailProps) {
   }, [paymentTerms, current.client.paymentTerms, defaultTermCode]);
 
   const [editOpen, setEditOpen] = useState(false);
-  const [showAddCreditModal, setShowAddCreditModal] = useState(false);
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [creditModalMode, setCreditModalMode] = useState<'add' | 'remove'>('add');
 
   const initialFormValues = useMemo(
     () => toFormValues(current.client),
@@ -337,10 +338,25 @@ export function ClientDetail({ detail }: ClientDetailProps) {
                 variant="outline"
                 size="sm"
                 className="rounded-full"
-                onClick={() => setShowAddCreditModal(true)}
+                onClick={() => {
+                  setCreditModalMode('add');
+                  setShowCreditModal(true);
+                }}
               >
                 <Wallet className="h-4 w-4" />
                 <span>Add Credit</span>
+              </ActionButton>
+              <ActionButton
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => {
+                  setCreditModalMode('remove');
+                  setShowCreditModal(true);
+                }}
+              >
+                <MinusCircle className="h-4 w-4" />
+                <span>Remove Credit</span>
               </ActionButton>
               <ActionButton
                 variant="outline"
@@ -830,8 +846,9 @@ export function ClientDetail({ detail }: ClientDetailProps) {
         clientId={current.client.id}
         clientName={current.client.name}
         currentBalance={current.client.walletBalance}
-        open={showAddCreditModal}
-        onOpenChange={setShowAddCreditModal}
+        open={showCreditModal}
+        onOpenChange={setShowCreditModal}
+        mode={creditModalMode}
       />
     </>
   );

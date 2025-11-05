@@ -608,6 +608,7 @@ The Quick Order flow is a complete self-service workflow for clients to upload 3
   unitPrice = max(minimumPrice, materialCost + timeCost + setupFee)
   total = unitPrice * quantity
   ```
+- **Live Shipping Updates**: The checkout UI re-requests the shipping quote whenever the postcode or state changes so totals stay accurate before payment.
 - **Settings** (from calculator config):
   - `hourlyRate`: Default 45 AUD/hour
   - `setupFee`: Default 20 AUD per item
@@ -757,7 +758,7 @@ The wallet credit system allows clients to maintain a credit balance that can be
 
 **Transaction Types**:
 - `CREDIT_ADDED` - Admin manually added credit
-- `CREDIT_DEDUCTED` - Credit used for payment
+- `CREDIT_DEDUCTED` - Credit consumed for invoice payments or manual adjustments
 - `CREDIT_REFUNDED` - Credit refunded to wallet (future)
 
 **Transaction Fields**:
@@ -769,18 +770,17 @@ The wallet credit system allows clients to maintain a credit balance that can be
 - `notes`: Human-readable notes
 - `balance_before`: Balance before transaction
 - `balance_after`: Balance after transaction
-- `admin_user_id`: Admin who performed action (for CREDIT_ADDED)
+- `admin_user_id`: Admin who performed action (recorded for manual add/remove operations)
 - `created_at`: Transaction timestamp
 
 ### Credit Application to Quick Orders
 
 **Integration Point**: `createQuickOrderInvoice()`
 
-**Automatic Application**:
-- Quick orders can optionally apply credits during checkout
-- Credits are deducted before Stripe checkout
-- If credits cover full amount, no Stripe redirect
-- If partial coverage, Stripe checkout for remaining balance
+**Payment Selection**:
+- Checkout now captures an explicit payment preference from the user before redirecting to Stripe.
+- Customers can choose to pay entirely by card, fully with wallet credit (when sufficient), or split the total with a custom credit amount.
+- Credits are deducted ahead of Stripe authorisation; remaining balances are paid online only when needed.
 
 ### Credit Atomicity & Concurrency
 

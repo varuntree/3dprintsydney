@@ -53,6 +53,9 @@ export interface InvoiceViewModel {
   taxTotal: number;
   total: number;
   balanceDue: number;
+  paymentPreference: 'CARD' | 'CREDIT' | 'SPLIT';
+  walletCreditRequested: number;
+  walletCreditAppliedAt: string | null;
   poNumber: string | null;
   notes: string;
   terms: string;
@@ -193,6 +196,31 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
     }
     return "COD • Due immediately";
   }, [invoice.paymentTerms]);
+
+  const paymentPreferenceLabel = useMemo(() => {
+    switch (invoice.paymentPreference) {
+      case 'CREDIT':
+        return 'Wallet credit only';
+      case 'SPLIT':
+        return 'Credit then card';
+      default:
+        return 'Pay by card';
+    }
+  }, [invoice.paymentPreference]);
+
+  const creditRequestedDisplay = useMemo(() => {
+    if (!invoice.walletCreditRequested || invoice.walletCreditRequested <= 0) {
+      return '—';
+    }
+    return formatCurrency(invoice.walletCreditRequested, invoice.currency);
+  }, [invoice.walletCreditRequested, invoice.currency]);
+
+  const creditAppliedDisplay = useMemo(() => {
+    if (!invoice.walletCreditAppliedAt) {
+      return '—';
+    }
+    return format(new Date(invoice.walletCreditAppliedAt), 'dd MMM yyyy');
+  }, [invoice.walletCreditAppliedAt]);
 
   const issueDate = useMemo(
     () => new Date(invoice.issueDate),
@@ -425,11 +453,16 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
           <SummaryCard label="Payment terms" value={paymentTermsLabel} />
+          <SummaryCard label="Payment preference" value={paymentPreferenceLabel} />
           <SummaryCard
             label="Balance due"
             value={formatCurrency(invoice.balanceDue, invoice.currency)}
             emphasize
             tone={invoice.balanceDue > 0 ? "warning" : "success"}
+          />
+          <SummaryCard
+            label="Credit requested"
+            value={creditRequestedDisplay}
           />
           <SummaryCard
             label="Issued"
@@ -440,6 +473,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
             value={dueDate ? format(dueDate, "dd MMM yyyy") : "—"}
             tone={isOverdue ? "danger" : undefined}
           />
+          <SummaryCard label="Credit applied" value={creditAppliedDisplay} />
         </CardContent>
       </Card>
 

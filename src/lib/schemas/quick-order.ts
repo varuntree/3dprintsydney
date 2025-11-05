@@ -27,6 +27,11 @@ const addressSchema = z.object({
   country: z.string().optional(),
 });
 
+const paymentChoiceSchema = z.object({
+  method: z.enum(['CARD', 'CREDIT', 'SPLIT']).default('CARD'),
+  creditAmount: z.number().min(0).optional(),
+});
+
 // Supports configuration for slicing
 const supportsSchema = z.object({
   enabled: z.boolean().default(true),
@@ -52,6 +57,7 @@ export const quickOrderPriceSchema = z.object({
 export const quickOrderCheckoutSchema = z.object({
   items: z.array(quickOrderItemSchema).min(1, "At least one item required"),
   address: addressSchema.optional(),
+  payment: paymentChoiceSchema.optional(),
 });
 
 // Slice endpoint schema

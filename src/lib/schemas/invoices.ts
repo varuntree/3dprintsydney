@@ -33,6 +33,8 @@ export const invoiceInputSchema = z.object({
     .max(120, "PO number is too long")
     .optional()
     .or(z.literal("")),
+  paymentPreference: z.enum(["CARD", "CREDIT", "SPLIT"]).optional(),
+  walletCreditRequested: z.number().min(0).optional(),
   lines: z.array(invoiceLineSchema).min(1),
 });
 

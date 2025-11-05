@@ -65,6 +65,11 @@ export type QuickOrderPrice = {
   total: number;
 };
 
+export type QuickOrderPaymentChoice = {
+  method: 'CARD' | 'CREDIT' | 'SPLIT';
+  creditAmount?: number;
+};
+
 type ShippingLocation = {
   state?: string | null;
   postcode?: string | null;
@@ -267,6 +272,22 @@ export async function priceQuickOrder(
     taxAmount,
     total,
   };
+}
+
+export async function quoteQuickOrderShipping(
+  location: ShippingLocation = {},
+): Promise<QuickOrderShippingQuote> {
+  const now = Date.now();
+  if (!cachedSettings || now - cachedSettingsAt > SETTINGS_TTL_MS) {
+    cachedSettings = await getSettings();
+    cachedSettingsAt = now;
+  }
+  const settings = cachedSettings;
+  if (!settings) {
+    throw new BadRequestError("Settings not configured");
+  }
+
+  return resolveShippingRegion(settings, location);
 }
 
 /**
@@ -476,7 +497,14 @@ export async function createQuickOrderInvoice(
   userId: number,
   clientId: number,
   address: Record<string, unknown> = {},
-): Promise<{ invoiceId: number; checkoutUrl: string | null }> {
+  payment: QuickOrderPaymentChoice = { method: 'CARD' },
+): Promise<{
+  invoiceId: number;
+  checkoutUrl: string | null;
+  balanceDue: number;
+  creditApplied: number;
+  paymentPreference: 'CARD' | 'CREDIT' | 'SPLIT';
+}> {
   const studentDiscount = await getClientStudentDiscount(clientId);
   const { discountType, discountValue } = coerceStudentDiscount(studentDiscount);
   // Recompute price server-side
@@ -490,6 +518,14 @@ export async function createQuickOrderInvoice(
   // Build invoice lines
   const lines = buildQuickOrderLines(items, priced);
 
+  const normalizedPayment: QuickOrderPaymentChoice = {
+    method: payment?.method ?? 'CARD',
+    creditAmount:
+      typeof payment?.creditAmount === 'number'
+        ? Math.max(0, payment.creditAmount)
+        : undefined,
+  };
+
   // Create invoice
   const invoice = await createInvoice({
     clientId,
@@ -498,32 +534,54 @@ export async function createQuickOrderInvoice(
     shippingCost,
     shippingLabel: shippingQuote.label,
     lines,
+    paymentPreference: normalizedPayment.method,
+    walletCreditRequested: normalizedPayment.creditAmount,
   });
 
-  // Automatically apply wallet credit if available
-  let fullyPaidByCredit = false;
-  try {
-    const { applyWalletCreditToInvoice } = await import("@/server/services/credits");
-    const { creditApplied, newBalanceDue } = await applyWalletCreditToInvoice(invoice.id);
-    if (creditApplied > 0) {
+  let balanceDue = Number(invoice.balanceDue ?? invoice.total ?? priced.total);
+  let creditApplied = Number(invoice.creditApplied ?? 0);
+  let effectivePreference: 'CARD' | 'CREDIT' | 'SPLIT' = normalizedPayment.method;
+
+  if (normalizedPayment.method !== 'CARD') {
+    const targetAmount =
+      normalizedPayment.method === 'CREDIT'
+        ? Number(invoice.total ?? priced.total)
+        : normalizedPayment.creditAmount ?? balanceDue;
+
+    try {
+      const { applyWalletCreditToInvoice } = await import("@/server/services/credits");
+      const application = await applyWalletCreditToInvoice(invoice.id, {
+        amount: targetAmount,
+        paymentPreference: normalizedPayment.method,
+      });
+      creditApplied = application.creditApplied;
+      balanceDue = application.newBalanceDue;
+      if (normalizedPayment.method === 'CREDIT' && application.newBalanceDue > 0) {
+        effectivePreference = 'SPLIT';
+      }
       logger.info({
         scope: 'quick-order.credit',
-        data: { invoiceId: invoice.id, creditApplied, newBalanceDue }
+        data: {
+          invoiceId: invoice.id,
+          creditApplied: application.creditApplied,
+          newBalanceDue: application.newBalanceDue,
+          preference: effectivePreference,
+        },
       });
-      // Update invoice object for downstream use
-      invoice.balanceDue = newBalanceDue;
-      invoice.creditApplied = creditApplied;
-      fullyPaidByCredit = newBalanceDue <= 0;
+    } catch (error) {
+      logger.error({
+        scope: 'quick-order.credit',
+        message: 'Failed to apply requested credit',
+        error,
+        data: { invoiceId: invoice.id, requested: targetAmount },
+      });
+      effectivePreference = 'CARD';
+      balanceDue = Number(invoice.balanceDue ?? invoice.total ?? priced.total);
+      creditApplied = Number(invoice.creditApplied ?? 0);
     }
-  } catch (error) {
-    // Log but don't fail checkout if credit application fails
-    logger.error({
-      scope: 'quick-order.credit',
-      message: 'Failed to apply credit',
-      error,
-      data: { invoiceId: invoice.id }
-    });
   }
+
+  const fullyPaidByCredit = balanceDue <= 0;
 
   // Process and save files
   await processQuickOrderFiles(
@@ -534,9 +592,12 @@ export async function createQuickOrderInvoice(
     shippingQuote,
   );
 
-  // Stripe checkout - only if there's a remaining balance
+  // Stripe checkout - only if there's a remaining balance and card is needed
   let checkoutUrl: string | null = null;
-  if (!fullyPaidByCredit) {
+  const requiresCardPayment =
+    !fullyPaidByCredit && (effectivePreference === 'CARD' || effectivePreference === 'SPLIT');
+
+  if (requiresCardPayment) {
     try {
       const stripe = await import("@/server/services/stripe");
       const res = await stripe.createStripeCheckoutSession(invoice.id);
@@ -546,7 +607,13 @@ export async function createQuickOrderInvoice(
     }
   }
 
-  return { invoiceId: invoice.id, checkoutUrl };
+  return {
+    invoiceId: invoice.id,
+    checkoutUrl,
+    balanceDue,
+    creditApplied,
+    paymentPreference: effectivePreference,
+  };
 }
 
 /**
