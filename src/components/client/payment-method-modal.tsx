@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Wallet, CreditCard, DollarSign, CheckCircle2, Loader2 } from "lucide-react";
+import { Wallet, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
@@ -26,8 +26,6 @@ interface PaymentMethodModalProps {
   walletBalance: number;
 }
 
-type PaymentOption = "credit-only" | "credit-and-card" | "card-only";
-
 export function PaymentMethodModal({
   open,
   onOpenChange,
@@ -35,64 +33,83 @@ export function PaymentMethodModal({
   balanceDue,
   walletBalance,
 }: PaymentMethodModalProps) {
-  const [selectedOption, setSelectedOption] = useState<PaymentOption>(
-    walletBalance >= balanceDue ? "credit-only" : "credit-and-card"
-  );
+  const [useCredit, setUseCredit] = useState(walletBalance > 0);
   const [processing, setProcessing] = useState(false);
+  const maxCredit = useMemo(() => Math.min(walletBalance, balanceDue), [walletBalance, balanceDue]);
+  const [creditInput, setCreditInput] = useState(maxCredit.toFixed(2));
+  const effectiveCreditAmount = useMemo(() => {
+    if (!useCredit) return 0;
+    const parsed = Number.parseFloat(creditInput);
+    const normalized = Number.isFinite(parsed) ? parsed : 0;
+    if (normalized <= 0) return 0;
+    return Math.min(maxCredit, normalized);
+  }, [creditInput, maxCredit, useCredit]);
+  const remainingAfterCredit = Math.max(0, balanceDue - effectiveCreditAmount);
 
-  const canPayWithCreditOnly = walletBalance >= balanceDue;
-  const creditToApply = Math.min(walletBalance, balanceDue);
-  const remainingAfterCredit = Math.max(0, balanceDue - walletBalance);
+  useEffect(() => {
+    if (maxCredit === 0) {
+      setUseCredit(false);
+      setCreditInput("0");
+      return;
+    }
+    setCreditInput((prev) => {
+      const parsed = Number.parseFloat(prev);
+      if (!Number.isFinite(parsed)) return maxCredit.toFixed(2);
+      if (parsed < 0) return "0";
+      if (parsed > maxCredit) return maxCredit.toFixed(2);
+      return prev;
+    });
+  }, [maxCredit]);
 
   async function handleProceed() {
     setProcessing(true);
     try {
-      if (selectedOption === "card-only") {
-        // Skip credit, go directly to Stripe
+      if (effectiveCreditAmount > 0) {
+        const result = await mutateJson<{
+          creditApplied: number;
+          newBalanceDue: number;
+          fullyPaid: boolean;
+        }>(`/api/invoices/${invoiceId}/apply-credit`, {
+          method: "POST",
+          body: JSON.stringify({ amount: effectiveCreditAmount }),
+        });
+
+        if (result.fullyPaid) {
+          toast.success(
+            `Payment successful! ${formatCurrency(result.creditApplied)} applied from your wallet.`
+          );
+          onOpenChange(false);
+          setTimeout(() => window.location.reload(), 1500);
+          return;
+        }
+
         const session = await mutateJson<{ url: string | null }>(
           `/api/invoices/${invoiceId}/stripe-session?refresh=true`,
           { method: "POST" }
         );
         if (session?.url) {
-          window.location.href = session.url;
-        } else {
-          toast.error("No checkout URL returned");
-          setProcessing(false);
-        }
-      } else {
-        // Apply credit first
-        const result = await mutateJson<{
-          creditApplied: number;
-          newBalanceDue: number;
-          fullyPaid: boolean;
-        }>(`/api/invoices/${invoiceId}/apply-credit`, { method: "POST" });
-
-        if (result.fullyPaid) {
-          // Fully paid with credit
           toast.success(
-            `Payment successful! ${formatCurrency(result.creditApplied)} applied from your wallet.`
+            `${formatCurrency(result.creditApplied)} applied from your wallet. Redirecting to payment...`
           );
-          onOpenChange(false);
-          // Reload page to show updated status
-          setTimeout(() => window.location.reload(), 1500);
-        } else {
-          // Partial payment, proceed to Stripe for remaining
-          const session = await mutateJson<{ url: string | null }>(
-            `/api/invoices/${invoiceId}/stripe-session?refresh=true`,
-            { method: "POST" }
-          );
-          if (session?.url) {
-            toast.success(
-              `${formatCurrency(result.creditApplied)} applied from your wallet. Redirecting to payment...`
-            );
-            setTimeout(() => {
-              window.location.href = session.url!;
-            }, 1000);
-          } else {
-            toast.error("No checkout URL returned");
-            setProcessing(false);
-          }
+          setTimeout(() => {
+            window.location.href = session.url!;
+          }, 1000);
+          return;
         }
+        toast.error("No checkout URL returned");
+        setProcessing(false);
+        return;
+      }
+
+      const session = await mutateJson<{ url: string | null }>(
+        `/api/invoices/${invoiceId}/stripe-session?refresh=true`,
+        { method: "POST" }
+      );
+      if (session?.url) {
+        window.location.href = session.url;
+      } else {
+        toast.error("No checkout URL returned");
+        setProcessing(false);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Payment failed");
@@ -128,89 +145,85 @@ export function PaymentMethodModal({
         </div>
 
         {/* Payment Options */}
-        <RadioGroup value={selectedOption} onValueChange={(val) => setSelectedOption(val as PaymentOption)}>
-          <div className="space-y-3">
-            {/* Option 1: Credit Only */}
-            {canPayWithCreditOnly ? (
-              <label
-                htmlFor="credit-only"
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors",
-                  selectedOption === "credit-only"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <RadioGroupItem value="credit-only" id="credit-only" className="mt-0.5" />
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <Label htmlFor="credit-only" className="cursor-pointer font-semibold">
-                      Use Credits Only
-                    </Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Pay {formatCurrency(balanceDue)} from your wallet balance
-                  </p>
-                  <p className="text-xs text-green-700 dark:text-green-400">
-                    Remaining: {formatCurrency(walletBalance - balanceDue)}
-                  </p>
-                </div>
-              </label>
-            ) : null}
-
-            {/* Option 2: Credit + Card */}
-            {walletBalance > 0 ? (
-              <label
-                htmlFor="credit-and-card"
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors",
-                  selectedOption === "credit-and-card"
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <RadioGroupItem value="credit-and-card" id="credit-and-card" className="mt-0.5" />
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
-                    <DollarSign className="h-4 w-4" />
-                    <Label htmlFor="credit-and-card" className="cursor-pointer font-semibold">
-                      Use Credits + Card
-                    </Label>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Apply {formatCurrency(creditToApply)} credit, pay {formatCurrency(remainingAfterCredit)} via card
-                  </p>
-                </div>
-              </label>
-            ) : null}
-
-            {/* Option 3: Card Only */}
-            <label
-              htmlFor="card-only"
-              className={cn(
-                "flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors",
-                selectedOption === "card-only"
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/50"
-              )}
-            >
-              <RadioGroupItem value="card-only" id="card-only" className="mt-0.5" />
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  <Label htmlFor="card-only" className="cursor-pointer font-semibold">
-                    Pay Full Amount via Card
-                  </Label>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Save credits for later, pay {formatCurrency(balanceDue)} now
-                </p>
-              </div>
-            </label>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-surface-overlay p-4">
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Invoice total</span>
+              <span className="font-semibold">{formatCurrency(balanceDue)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Wallet balance</span>
+              <span className="font-semibold text-green-600">{formatCurrency(walletBalance)}</span>
+            </div>
           </div>
-        </RadioGroup>
+
+          <RadioGroup value={useCredit ? "credit" : "card"} onValueChange={(value) => setUseCredit(value === "credit")}> 
+            <div className="space-y-3">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3",
+                  !useCredit ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                )}
+              >
+                <RadioGroupItem value="card" className="mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold">Charge card only</p>
+                  <p className="text-xs text-muted-foreground">Save credits for another order</p>
+                </div>
+              </label>
+              <label
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3",
+                  useCredit ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                )}
+              >
+                <RadioGroupItem value="credit" className="mt-0.5" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-semibold">Apply wallet credit</p>
+                  <p className="text-xs text-muted-foreground">
+                    Up to {formatCurrency(maxCredit)} available
+                  </p>
+                </div>
+              </label>
+            </div>
+          </RadioGroup>
+
+          {useCredit ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Credit amount</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreditInput(maxCredit.toFixed(2))}
+                >
+                  Max
+                </Button>
+              </div>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max={maxCredit}
+                className="h-9"
+                value={creditInput}
+                onChange={(event) => setCreditInput(event.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Remaining after credit: {formatCurrency(remainingAfterCredit)}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="rounded-2xl border border-border bg-muted/20 p-3 text-sm">
+            <p className="text-muted-foreground">Credit applied</p>
+            <div className="text-lg font-semibold text-foreground">{formatCurrency(effectiveCreditAmount)}</div>
+            <p className="text-muted-foreground">
+              Card will cover {formatCurrency(remainingAfterCredit)}
+            </p>
+          </div>
+        </div>
 
         <DialogFooter className="gap-2">
           <Button

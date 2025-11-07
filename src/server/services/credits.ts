@@ -170,7 +170,8 @@ export async function getClientCreditHistory(
  * @throws BadRequestError if invoice is already paid or voided
  */
 export async function applyWalletCreditToInvoice(
-  invoiceId: number
+  invoiceId: number,
+  requestedAmount?: number,
 ): Promise<{ creditApplied: number; newBalanceDue: number }> {
   const supabase = getServiceSupabase();
 
@@ -207,7 +208,14 @@ export async function applyWalletCreditToInvoice(
   }
 
   // Determine how much credit to apply (min of balance due and available credit)
-  const creditToApply = Math.min(balanceDue, walletBalance);
+  const maxAvailable = Math.min(balanceDue, walletBalance);
+  if (maxAvailable <= 0) {
+    return { creditApplied: 0, newBalanceDue: balanceDue };
+  }
+  let creditToApply = maxAvailable;
+  if (typeof requestedAmount === 'number' && requestedAmount > 0) {
+    creditToApply = Math.min(maxAvailable, requestedAmount);
+  }
 
   // Deduct credit from wallet
   const { deducted, newBalance: newWalletBalance } = await deductClientCredit(

@@ -4,6 +4,7 @@ import { requireClientWithId } from "@/server/auth/api-helpers";
 import { applyWalletCreditToInvoice } from "@/server/services/credits";
 import { getInvoiceDetail } from "@/server/services/invoices";
 import { BadRequestError } from "@/lib/errors";
+import { z } from "zod";
 
 async function parseId(paramsPromise: Promise<{ id: string }>) {
   const { id: raw } = await paramsPromise;
@@ -33,13 +34,17 @@ export async function POST(
       return failAuth(req, "FORBIDDEN", "You don't have access to this invoice", 403);
     }
 
-    // Check if invoice is eligible for credit application
-    if (invoice.status === 'PAID' || invoice.balanceDue <= 0) {
-      throw new BadRequestError("Invoice is already paid");
-    }
+  if (invoice.status === 'PAID' || invoice.balanceDue <= 0) {
+    throw new BadRequestError("Invoice is already paid");
+  }
 
-    // Apply credit
-    const result = await applyWalletCreditToInvoice(invoiceId);
+  const body = await request.json();
+  const applyCreditSchema = z.object({
+    amount: z.number().min(0.01),
+  });
+  const { amount } = applyCreditSchema.parse(body);
+
+  const result = await applyWalletCreditToInvoice(invoiceId, amount);
 
     return okAuth(req, {
       creditApplied: result.creditApplied,

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter } from "nextjs-toploader/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -32,6 +33,7 @@ import {
   Truck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/currency";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
 import RotationControls from "@/components/3d/RotationControls";
 import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
@@ -140,8 +142,18 @@ export default function QuickOrderPage() {
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [paymentReviewOpen, setPaymentReviewOpen] = useState(false);
+  const [creditManualEntry, setCreditManualEntry] = useState("0");
+  const [applyCredit, setApplyCredit] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initializedRef = useRef(false);
+  const addressDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const maxCreditAvailable = useMemo(() => {
+    if (!priceData) return 0;
+    return Math.min(walletBalance, priceData.total);
+  }, [walletBalance, priceData]);
 
   // Orientation state
   const [orientedFileIds, setOrientedFileIds] = useState<Record<string, string>>({});
@@ -178,6 +190,45 @@ export default function QuickOrderPage() {
       setExpandedFiles(new Set());
     }
   }, [currentStep]);
+
+  useEffect(() => {
+    if (!priceData || uploads.length === 0) return;
+    if (!address.postcode && !address.state) return;
+    if (addressDebounceRef.current) {
+      clearTimeout(addressDebounceRef.current);
+    }
+    addressDebounceRef.current = setTimeout(() => {
+      void computePrice();
+    }, 600);
+    return () => {
+      if (addressDebounceRef.current) {
+        clearTimeout(addressDebounceRef.current);
+        addressDebounceRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address.postcode, address.state, uploads.length, metrics, priceData]);
+
+  useEffect(() => {
+    async function loadWalletBalance() {
+      try {
+        const res = await fetch("/api/client/dashboard");
+        if (res.ok) {
+          const { data } = await res.json();
+          setWalletBalance(data.walletBalance ?? 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch wallet balance:", err);
+      }
+    }
+    loadWalletBalance();
+  }, []);
+
+  useEffect(() => {
+    if (!paymentReviewOpen) return;
+    setApplyCredit(maxCreditAvailable > 0);
+    setCreditManualEntry(maxCreditAvailable.toFixed(2));
+  }, [paymentReviewOpen, maxCreditAvailable]);
 
   // Draft localStorage management
   const DRAFT_KEY = "quick-order-draft";
@@ -665,7 +716,7 @@ export default function QuickOrderPage() {
     }
   }
 
-  async function checkout() {
+  async function checkout(options?: { creditRequestedAmount?: number; paymentPreference?: string }) {
     setLoading(true);
     setError(null);
     const fallbackPending = uploads.some(
@@ -701,7 +752,12 @@ export default function QuickOrderPage() {
     const res = await fetch("/api/quick-order/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items, address }),
+      body: JSON.stringify({
+        items,
+        address,
+        creditRequestedAmount: options?.creditRequestedAmount ?? 0,
+        paymentPreference: options?.paymentPreference,
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -719,6 +775,24 @@ export default function QuickOrderPage() {
       const dest = role === "CLIENT" ? `/client/orders/${data.invoiceId}` : `/invoices/${data.invoiceId}`;
       router.replace(dest);
     }
+  }
+
+  const parsedCreditInput = Number.parseFloat(creditManualEntry);
+  const normalizedCredit = Number.isFinite(parsedCreditInput) ? parsedCreditInput : 0;
+  const effectiveCreditAmount = applyCredit
+    ? Math.min(maxCreditAvailable, Math.max(0, normalizedCredit))
+    : 0;
+  const remainingBalance = Math.max((priceData?.total ?? 0) - effectiveCreditAmount, 0);
+
+  async function handlePaymentReviewConfirm() {
+    if (!priceData) return;
+    const preference = effectiveCreditAmount >= priceData.total
+      ? "CREDIT_ONLY"
+      : effectiveCreditAmount > 0
+        ? "SPLIT"
+        : "CARD_ONLY";
+    setPaymentReviewOpen(false);
+    await checkout({ creditRequestedAmount: effectiveCreditAmount, paymentPreference: preference });
   }
 
   function toggleFileExpanded(id: string) {
@@ -1702,7 +1776,7 @@ export default function QuickOrderPage() {
 
                 <Button
                   className="w-full"
-                  onClick={checkout}
+                  onClick={() => setPaymentReviewOpen(true)}
                   disabled={!priceData || !shippingQuote || loading}
                 >
                   {loading ? "Processing..." : "Place Order"}
@@ -1721,9 +1795,90 @@ export default function QuickOrderPage() {
                 <li>3. Get instant pricing</li>
                 <li>4. Complete checkout</li>
               </ol>
-            </section>
-          )}
+              </section>
+            )}
         </div>
+        <Dialog open={paymentReviewOpen} onOpenChange={setPaymentReviewOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Review payment</DialogTitle>
+              <DialogDescription>
+                Choose how much of your wallet credit to apply before charging your card.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-border bg-surface-overlay p-4">
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Order total</span>
+                  <span className="font-semibold">{formatCurrency(priceData?.total ?? 0)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Shipping</span>
+                  <span className="font-semibold text-blue-600">{formatCurrency(priceData?.shipping ?? 0)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Wallet balance</span>
+                  <span className="font-semibold text-green-600">{formatCurrency(walletBalance)}</span>
+                </div>
+              </div>
+
+              <RadioGroup value={applyCredit ? "credit" : "card"} onValueChange={(value) => setApplyCredit(value === "credit")}> 
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 rounded-lg border border-border p-3">
+                    <RadioGroupItem value="card" />
+                    <div>
+                      <p className="text-sm font-semibold">Pay with card only</p>
+                      <p className="text-xs text-muted-foreground">Save your credits for later</p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 rounded-lg border border-border p-3">
+                    <RadioGroupItem value="credit" className="mt-0.5" />
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-semibold">Apply wallet credit</p>
+                      <p className="text-xs text-muted-foreground">{formatCurrency(maxCreditAvailable)} available to use</p>
+                    </div>
+                  </label>
+                </div>
+              </RadioGroup>
+
+              {applyCredit ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs">Credit amount</Label>
+                    <Button size="sm" variant="outline" onClick={() => setCreditManualEntry(maxCreditAvailable.toFixed(2))}>
+                      Max
+                    </Button>
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={maxCreditAvailable}
+                    value={creditManualEntry}
+                    onChange={(event) => setCreditManualEntry(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You'll pay {formatCurrency(remainingBalance)} after the credit is applied.
+                  </p>
+                </div>
+              ) : null}
+
+              <div className="rounded-2xl border border-border bg-muted/20 p-3 text-sm">
+                <p className="text-muted-foreground">Credit applied</p>
+                <div className="text-lg font-semibold text-foreground">{formatCurrency(effectiveCreditAmount)}</div>
+                <p className="text-muted-foreground">Remaining balance: {formatCurrency(remainingBalance)}</p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setPaymentReviewOpen(false)} disabled={loading}>
+                Cancel
+              </Button>
+              <Button onClick={handlePaymentReviewConfirm} disabled={loading}>
+                {loading ? "Processing..." : "Continue to payment"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

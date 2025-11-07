@@ -22,6 +22,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const items: QuickOrderItemInput[] = body?.items ?? [];
     const address = body?.address ?? {};
+    const creditRequestedAmount = typeof body?.creditRequestedAmount === 'number' ? body.creditRequestedAmount : 0;
+    const paymentPreference = typeof body?.paymentPreference === 'string' ? body.paymentPreference : undefined;
 
     if (!Array.isArray(items) || items.length === 0) {
       return failAuth(req, "NO_ITEMS", "No items", 400);
@@ -33,6 +35,10 @@ export async function POST(req: NextRequest) {
       user.id,
       user.clientId,
       address,
+      {
+        creditRequestedAmount,
+        paymentPreference,
+      },
     );
 
     // Ensure admin/client dashboards reflect new invoice promptly

@@ -471,11 +471,18 @@ export async function executeSlicingWithRetry(
  * @param address - Shipping address
  * @returns Invoice with checkout URL
  */
+export type QuickOrderInvoiceOptions = {
+  creditRequestedAmount?: number;
+  paymentPreference?: string;
+  deliveryQuote?: QuickOrderShippingQuote | null;
+};
+
 export async function createQuickOrderInvoice(
   items: QuickOrderItemInput[],
   userId: number,
   clientId: number,
   address: Record<string, unknown> = {},
+  options: QuickOrderInvoiceOptions = {},
 ): Promise<{ invoiceId: number; checkoutUrl: string | null }> {
   const studentDiscount = await getClientStudentDiscount(clientId);
   const { discountType, discountValue } = coerceStudentDiscount(studentDiscount);
@@ -497,32 +504,38 @@ export async function createQuickOrderInvoice(
     discountValue,
     shippingCost,
     shippingLabel: shippingQuote.label,
+    paymentPreference: options.paymentPreference,
+    creditRequestedAmount: options.creditRequestedAmount ?? 0,
+    deliveryQuoteSnapshot: shippingQuote,
     lines,
   });
 
-  // Automatically apply wallet credit if available
+  // Apply credit only if explicitly requested
   let fullyPaidByCredit = false;
-  try {
-    const { applyWalletCreditToInvoice } = await import("@/server/services/credits");
-    const { creditApplied, newBalanceDue } = await applyWalletCreditToInvoice(invoice.id);
-    if (creditApplied > 0) {
-      logger.info({
-        scope: 'quick-order.credit',
-        data: { invoiceId: invoice.id, creditApplied, newBalanceDue }
-      });
-      // Update invoice object for downstream use
+  if (options.creditRequestedAmount && options.creditRequestedAmount > 0) {
+    try {
+      const { applyWalletCreditToInvoice } = await import("@/server/services/credits");
+      const { creditApplied, newBalanceDue } = await applyWalletCreditToInvoice(
+        invoice.id,
+        options.creditRequestedAmount,
+      );
+      if (creditApplied > 0) {
+        logger.info({
+          scope: 'quick-order.credit',
+          data: { invoiceId: invoice.id, creditApplied, newBalanceDue }
+        });
+      }
       invoice.balanceDue = newBalanceDue;
-      invoice.creditApplied = creditApplied;
+      invoice.creditApplied += creditApplied;
       fullyPaidByCredit = newBalanceDue <= 0;
+    } catch (error) {
+      logger.error({
+        scope: 'quick-order.credit',
+        message: 'Failed to apply credit',
+        error,
+        data: { invoiceId: invoice.id, requested: options.creditRequestedAmount }
+      });
     }
-  } catch (error) {
-    // Log but don't fail checkout if credit application fails
-    logger.error({
-      scope: 'quick-order.credit',
-      message: 'Failed to apply credit',
-      error,
-      data: { invoiceId: invoice.id }
-    });
   }
 
   // Process and save files

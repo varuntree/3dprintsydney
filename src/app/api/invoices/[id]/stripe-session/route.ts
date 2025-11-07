@@ -22,17 +22,17 @@ export async function POST(
     const url = new URL(request.url);
     const refresh = url.searchParams.get("refresh") === "true";
     const session = await createStripeCheckoutSession(invoiceId, { refresh });
-    return okAuth(req, session);
+    return okAuth(request, session);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
     if (error instanceof Error && error.message === "Stripe is not configured") {
-      return failAuth(req, "STRIPE_NOT_CONFIGURED", error.message, 400);
+      return failAuth(request, "STRIPE_NOT_CONFIGURED", error.message, 400);
     }
     if (error instanceof Error && error.message === "Invoice is already paid") {
-      return failAuth(req, "INVOICE_PAID", error.message, 409);
+      return failAuth(request, "INVOICE_PAID", error.message, 409);
     }
-    return handleErrorAuth(req, error, "invoices.stripe.session");
+    return handleErrorAuth(request, error, "invoices.stripe.session");
   }
 }

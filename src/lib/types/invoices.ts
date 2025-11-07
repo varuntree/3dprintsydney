@@ -107,6 +107,9 @@ export type InvoiceDetailDTO = {
   calculatorSnapshot: unknown | null;
   paidAt: Date | null;
   stripeCheckoutUrl: string | null;
+  paymentPreference: string | null;
+  creditRequestedAmount: number;
+  deliveryQuoteSnapshot: unknown | null;
   client: {
     id: number;
     name: string;

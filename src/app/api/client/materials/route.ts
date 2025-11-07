@@ -14,10 +14,9 @@ export async function GET(request: NextRequest) {
     const materials = await listMaterials({ sort: "name", order: "asc" });
     // Expose only safe fields to clients
     const safe = materials.map((m) => ({ id: m.id, name: m.name, color: m.color }));
-    return okAuth(req, safe);
+    return okAuth(request, safe);
   } catch (error) {
-    return handleErrorAuth(req, error, "client.materials.list");
+    return handleErrorAuth(request, error, "client.materials.list");
   }
 }
-
 

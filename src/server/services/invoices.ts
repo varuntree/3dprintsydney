@@ -150,6 +150,9 @@ type InvoiceDetailRow = InvoiceRow & {
   calculator_snapshot: unknown;
   paid_at: string | null;
   credit_applied: string | null;
+  payment_preference: string | null;
+  credit_requested_amount: string | null;
+  delivery_quote_snapshot: unknown;
   attachments: Array<{ id: number; filename: string; filetype: string | null; size_bytes: number; storage_key: string; uploaded_at: string | null }>;
   items: Array<{
     id: number;
@@ -339,6 +342,9 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
     calculatorSnapshot: row.calculator_snapshot ?? null,
     paidAt: row.paid_at ? new Date(row.paid_at) : null,
     stripeCheckoutUrl: row.stripe_checkout_url ?? null,
+    paymentPreference: row.payment_preference ?? null,
+    creditRequestedAmount: Number(row.credit_requested_amount ?? 0),
+    deliveryQuoteSnapshot: row.delivery_quote_snapshot ?? null,
     client: {
       id: row.client_id,
       name: client?.name ?? '',
@@ -479,6 +485,9 @@ export async function createInvoice(input: InvoiceInput) {
     notes: payload.notes ?? '',
     terms: payload.terms ?? '',
     po_number: payload.poNumber ?? '',
+    payment_preference: payload.paymentPreference ?? '',
+    credit_requested_amount: toDecimal(payload.creditRequestedAmount) ?? '0',
+    delivery_quote_snapshot: payload.deliveryQuoteSnapshot ?? null,
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
@@ -559,6 +568,9 @@ export async function updateInvoice(id: number, input: InvoiceInput) {
     notes: payload.notes ?? '',
     terms: payload.terms ?? '',
     po_number: payload.poNumber ?? '',
+    payment_preference: payload.paymentPreference ?? '',
+    credit_requested_amount: toDecimal(payload.creditRequestedAmount) ?? '0',
+    delivery_quote_snapshot: payload.deliveryQuoteSnapshot ?? null,
     subtotal: String(totals.subtotal),
     total: String(totals.total),
     tax_total: String(totals.taxTotal),
