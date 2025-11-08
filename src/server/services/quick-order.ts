@@ -13,6 +13,7 @@ import {
   saveTmpFile,
   updateTmpFile,
   type TmpFileMetadata,
+  type OrientationData,
 } from "@/server/services/tmp-files";
 import { saveOrderFile } from "@/server/services/order-files";
 import { sliceFileWithCli } from "@/server/slicer/runner";
@@ -820,5 +821,62 @@ export async function processOrientedFile(
     newFileId: tmpId,
     filename: record.filename,
     size: record.size_bytes,
+  };
+}
+
+type OrientationSnapshotInput = {
+  quaternion: [number, number, number, number];
+  position: [number, number, number];
+  autoOriented?: boolean;
+  supportVolume?: number;
+  supportWeight?: number;
+};
+
+/**
+ * Persist the orientation snapshot for an uploaded tmp file
+ * @param fileId - Tmp file identifier
+ * @param orientation - Orientation snapshot captured from the client
+ * @param userId - Authenticated user identifier
+ * @returns Persisted orientation payload
+ */
+export async function saveOrientationSnapshot(
+  fileId: string,
+  orientation: OrientationSnapshotInput,
+  userId: number,
+): Promise<{
+  success: true;
+  fileId: string;
+  filename: string;
+  size: number;
+  orientation: OrientationData;
+}> {
+  const normalized: OrientationData = {
+    quaternion: orientation.quaternion,
+    position: orientation.position,
+    autoOriented: orientation.autoOriented ?? false,
+    supportVolume:
+      typeof orientation.supportVolume === "number" && Number.isFinite(orientation.supportVolume)
+        ? orientation.supportVolume
+        : undefined,
+    supportWeight:
+      typeof orientation.supportWeight === "number" && Number.isFinite(orientation.supportWeight)
+        ? orientation.supportWeight
+        : undefined,
+  };
+
+  const record = await updateTmpFile(userId, fileId, { orientationData: normalized });
+
+  logger.info({
+    scope: "quick-order.orient",
+    message: "Orientation snapshot saved",
+    data: { fileId, userId },
+  });
+
+  return {
+    success: true,
+    fileId,
+    filename: record.filename,
+    size: record.size_bytes,
+    orientation: normalized,
   };
 }
