@@ -9,6 +9,7 @@ import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { applyOrientationToModel } from "@/server/geometry/orient";
 import type { OrientationData } from "@/server/services/tmp-files";
+import { supportsOrientationDataColumn } from "@/server/services/orientation-schema";
 
 export type OrderFileType = "model" | "settings";
 
@@ -68,25 +69,29 @@ export async function saveOrderFile(params: {
 
   // Create database record
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("order_files");
+  const insertPayload: Record<string, unknown> = {
+    invoice_id: invoiceId ?? null,
+    quote_id: quoteId ?? null,
+    client_id: clientId,
+    filename,
+    storage_key: storageKey,
+    file_type: fileType,
+    mime_type: mimeType,
+    size_bytes: Buffer.isBuffer(contents)
+      ? contents.length
+      : contents instanceof ArrayBuffer
+      ? contents.byteLength
+      : contents.byteLength,
+    metadata: metadata ?? null,
+    uploaded_by: userId,
+  };
+  if (includeOrientation) {
+    insertPayload.orientation_data = orientationData ?? null;
+  }
   const { data, error } = await supabase
     .from("order_files")
-    .insert({
-      invoice_id: invoiceId ?? null,
-      quote_id: quoteId ?? null,
-      client_id: clientId,
-      filename,
-      storage_key: storageKey,
-      file_type: fileType,
-      mime_type: mimeType,
-      size_bytes: Buffer.isBuffer(contents)
-        ? contents.length
-        : contents instanceof ArrayBuffer
-        ? contents.byteLength
-        : contents.byteLength,
-      metadata: metadata ?? null,
-      orientation_data: orientationData ?? null,
-      uploaded_by: userId,
-    })
+    .insert(insertPayload)
     .select()
     .single();
 
@@ -97,7 +102,11 @@ export async function saveOrderFile(params: {
   }
 
   logger.info({ scope: 'order-files.save', data: { id: data.id, filename, invoiceId, quoteId } });
-  return data as OrderFileRecord;
+  const record = data as OrderFileRecord;
+  if (!includeOrientation) {
+    record.orientation_data = null;
+  }
+  return record;
 }
 
 /**

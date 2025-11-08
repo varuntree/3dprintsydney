@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 interface PdfGenerateButtonProps {
   documentType: "invoice" | "quote";
@@ -38,8 +39,7 @@ export function PdfGenerateButton({
       window.URL.revokeObjectURL(url);
       toast.success(`${documentType.charAt(0).toUpperCase() + documentType.slice(1)} PDF generated`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : `Failed to download ${documentType} PDF`;
-      toast.error(message);
+      toast.error(getUserMessage(error));
     } finally {
       setLoading(false);
     }

@@ -58,6 +58,7 @@ import { Mail, Phone, Edit, FileText, Receipt, Wallet, DollarSign, GraduationCap
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AddCreditModal } from "@/components/clients/add-credit-modal";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export type ClientDetailRecord = {
   client: {
@@ -226,9 +227,7 @@ export function ClientDetail({ detail }: ClientDetailProps) {
       setEditOpen(false);
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update client",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

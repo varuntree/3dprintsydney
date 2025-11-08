@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 export type OrientationQuaternion = [number, number, number, number];
 export type OrientationPosition = [number, number, number];
@@ -94,26 +95,30 @@ export const useOrientationStore = create<OrientationStore>((set) => ({
 }));
 
 export const useOrientation = () =>
-  useOrientationStore((state) => ({
-    quaternion: state.quaternion,
-    position: state.position,
-    isAutoOriented: state.isAutoOriented,
-  }));
+  useOrientationStore(
+    useShallow((state) => ({
+      quaternion: state.quaternion,
+      position: state.position,
+      isAutoOriented: state.isAutoOriented,
+    })),
+  );
 
 export const useSupports = () =>
-  useOrientationStore((state) => ({
-    supportEnabled: state.supportEnabled,
-    supportVolume: state.supportVolume,
-    supportWeight: state.supportWeight,
-    overhangFaces: state.overhangFaces,
-    overhangStatus: state.overhangStatus,
-    overhangMessage: state.overhangMessage,
-    autoOrientStatus: state.autoOrientStatus,
-    autoOrientMessage: state.autoOrientMessage,
-    interactionDisabled: state.interactionDisabled,
-    interactionMessage: state.interactionMessage,
-    warnings: state.warnings,
-  }));
+  useOrientationStore(
+    useShallow((state) => ({
+      supportEnabled: state.supportEnabled,
+      supportVolume: state.supportVolume,
+      supportWeight: state.supportWeight,
+      overhangFaces: state.overhangFaces,
+      overhangStatus: state.overhangStatus,
+      overhangMessage: state.overhangMessage,
+      autoOrientStatus: state.autoOrientStatus,
+      autoOrientMessage: state.autoOrientMessage,
+      interactionDisabled: state.interactionDisabled,
+      interactionMessage: state.interactionMessage,
+      warnings: state.warnings,
+    })),
+  );
 
 function normalizeQuaternion(tuple: OrientationQuaternion): OrientationQuaternion {
   const [x, y, z, w] = tuple;

@@ -2,6 +2,7 @@ import { AppError, NotFoundError } from '@/lib/errors';
 import { resolveStudentDiscount, STUDENT_DISCOUNT_RATE } from '@/lib/student-discount';
 import type { DiscountType } from '@/lib/calculations';
 import { getServiceSupabase } from '@/server/supabase/service-client';
+import { logger } from '@/lib/logger';
 
 type ClientDiscount = {
   eligible: boolean;
@@ -9,6 +10,11 @@ type ClientDiscount = {
 };
 
 export async function getClientStudentDiscount(clientId: number): Promise<ClientDiscount> {
+  logger.info({
+    scope: "student-discount.lookup",
+    message: "Checking student discount eligibility",
+    data: { clientId },
+  });
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from('clients')

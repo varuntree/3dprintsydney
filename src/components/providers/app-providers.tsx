@@ -6,6 +6,8 @@ import { Analytics } from "./analytics";
 import { Toaster } from "sonner";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { NavigationProvider } from "@/providers/navigation-provider";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -38,11 +40,15 @@ export function AppProviders({ children }: AppProvidersProps) {
         if (!cancelled && typeof window !== "undefined") {
           axe(React, window, 1000);
         }
-      } catch (error) {
-        if (process.env.NODE_ENV === "development") {
-          console.warn("Accessibility tooling (axe-core) unavailable", error);
+        } catch (error) {
+          if (process.env.NODE_ENV === "development") {
+            browserLogger.warn({
+              scope: "browser.app.axe",
+              message: "Accessibility tooling (axe-core) unavailable",
+              error,
+            });
+          }
         }
-      }
     }
 
     loadAxe();
@@ -55,7 +61,7 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <NavigationProvider>
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
         <Toaster
           position="top-right"
           toastOptions={{

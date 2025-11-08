@@ -57,6 +57,7 @@ import {
   DataListValue,
 } from "@/components/ui/data-list";
 import { mutateJson, getJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { formatCurrency } from "@/lib/currency";
 import { UserPlus } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -126,9 +127,7 @@ export function ClientsView({ initialClients, startOpen = false }: ClientsViewPr
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to add client",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

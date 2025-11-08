@@ -178,26 +178,33 @@ export async function listClients(options?: ClientFilters): Promise<ClientSummar
  * @throws AppError if database operation fails
  */
 export async function createClient(input: ClientInput) {
-  const supabase = getServiceSupabase();
+  const scope = 'clients.create';
+  const startTime = Date.now();
+  logger.info({
+    scope,
+    message: 'Creating client record',
+    data: { name: input.name, email: input.email ?? null },
+  });
+  try {
+    const supabase = getServiceSupabase();
+    const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
 
-  const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
-
-  const { data, error } = await supabase
-    .from('clients')
-    .insert({
-      name: input.name,
-      company: parseNullableText(input.company),
-      abn: parseNullableText(input.abn),
-      email: parseNullableText(input.email),
-      phone: parseNullableText(input.phone),
-      address: input.address ? { raw: input.address } : null,
-      payment_terms: paymentTermsCode,
-      notify_on_job_status: input.notifyOnJobStatus ?? false,
-      notes: parseNullableText(input.notes),
-      tags: input.tags ?? [],
-    })
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from('clients')
+      .insert({
+        name: input.name,
+        company: parseNullableText(input.company),
+        abn: parseNullableText(input.abn),
+        email: parseNullableText(input.email),
+        phone: parseNullableText(input.phone),
+        address: input.address ? { raw: input.address } : null,
+        payment_terms: paymentTermsCode,
+        notify_on_job_status: input.notifyOnJobStatus ?? false,
+        notes: parseNullableText(input.notes),
+        tags: input.tags ?? [],
+      })
+      .select()
+      .single();
 
   if (error || !data) {
     throw new AppError(`Failed to create client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
@@ -209,12 +216,24 @@ export async function createClient(input: ClientInput) {
     message: `Client ${data.name} created`,
   });
 
-  logger.info({ scope: 'clients.create', data: { id: data.id } });
+    logger.timing(scope, startTime, {
+      message: 'Client created',
+      data: { id: data.id },
+    });
 
   return {
     ...data,
     address: input.address ? { raw: input.address } : null,
   };
+  } catch (error) {
+    logger.error({
+      scope,
+      message: 'Failed to create client record',
+      error,
+      data: { name: input.name, email: input.email ?? null },
+    });
+    throw error;
+  }
 }
 
 /**
@@ -226,44 +245,63 @@ export async function createClient(input: ClientInput) {
  * @throws AppError if database operation fails
  */
 export async function updateClient(id: number, input: ClientInput) {
-  const supabase = getServiceSupabase();
-
-  const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
-
-  const { data, error } = await supabase
-    .from('clients')
-    .update({
-      name: input.name,
-      company: parseNullableText(input.company),
-      abn: parseNullableText(input.abn),
-      email: parseNullableText(input.email),
-      phone: parseNullableText(input.phone),
-      address: input.address ? { raw: input.address } : null,
-      payment_terms: paymentTermsCode,
-      notify_on_job_status: input.notifyOnJobStatus ?? false,
-      notes: parseNullableText(input.notes),
-      tags: input.tags ?? [],
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error || !data) {
-    throw new AppError(`Failed to update client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
-  }
-
-  await insertActivity({
-    clientId: id,
-    action: 'CLIENT_UPDATED',
-    message: `Client ${data.name} updated`,
+  const scope = 'clients.update';
+  const startTime = Date.now();
+  logger.info({
+    scope,
+    message: 'Updating client record',
+    data: { id, changes: input },
   });
+  try {
+    const supabase = getServiceSupabase();
+    const paymentTermsCode = await normalizePaymentTermsCode(input.paymentTerms ?? null);
 
-  logger.info({ scope: 'clients.update', data: { id } });
+    const { data, error } = await supabase
+      .from('clients')
+      .update({
+        name: input.name,
+        company: parseNullableText(input.company),
+        abn: parseNullableText(input.abn),
+        email: parseNullableText(input.email),
+        phone: parseNullableText(input.phone),
+        address: input.address ? { raw: input.address } : null,
+        payment_terms: paymentTermsCode,
+        notify_on_job_status: input.notifyOnJobStatus ?? false,
+        notes: parseNullableText(input.notes),
+        tags: input.tags ?? [],
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
-  return {
-    ...data,
-    address: input.address ? { raw: input.address } : null,
-  };
+    if (error || !data) {
+      throw new AppError(`Failed to update client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
+    }
+
+    await insertActivity({
+      clientId: id,
+      action: 'CLIENT_UPDATED',
+      message: `Client ${data.name} updated`,
+    });
+
+    logger.timing(scope, startTime, {
+      message: 'Client updated',
+      data: { id },
+    });
+
+    return {
+      ...data,
+      address: input.address ? { raw: input.address } : null,
+    };
+  } catch (error) {
+    logger.error({
+      scope,
+      message: 'Failed to update client record',
+      error,
+      data: { id },
+    });
+    throw error;
+  }
 }
 
 /**
@@ -273,27 +311,47 @@ export async function updateClient(id: number, input: ClientInput) {
  * @throws AppError if database operation fails
  */
 export async function deleteClient(id: number) {
-  const supabase = getServiceSupabase();
-  const { data, error } = await supabase
-    .from('clients')
-    .delete()
-    .eq('id', id)
-    .select('id, name')
-    .single();
-
-  if (error || !data) {
-    throw new AppError(`Failed to delete client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
-  }
-
-  await insertActivity({
-    clientId: id,
-    action: 'CLIENT_DELETED',
-    message: `Client ${data.name} deleted`,
+  const scope = 'clients.delete';
+  const startTime = Date.now();
+  logger.info({
+    scope,
+    message: 'Deleting client record',
+    data: { id },
   });
+  try {
+    const supabase = getServiceSupabase();
+    const { data, error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', id)
+      .select('id, name')
+      .single();
 
-  logger.info({ scope: 'clients.delete', data: { id } });
+    if (error || !data) {
+      throw new AppError(`Failed to delete client: ${error?.message ?? 'Unknown error'}`, 'DATABASE_ERROR', 500);
+    }
 
-  return data;
+    await insertActivity({
+      clientId: id,
+      action: 'CLIENT_DELETED',
+      message: `Client ${data.name} deleted`,
+    });
+
+    logger.timing(scope, startTime, {
+      message: 'Client deleted',
+      data: { id },
+    });
+
+    return data;
+  } catch (error) {
+    logger.error({
+      scope,
+      message: 'Failed to delete client record',
+      error,
+      data: { id },
+    });
+    throw error;
+  }
 }
 
 /**

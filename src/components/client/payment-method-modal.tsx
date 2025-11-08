@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 interface PaymentMethodModalProps {
   open: boolean;
@@ -112,7 +113,7 @@ export function PaymentMethodModal({
         setProcessing(false);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Payment failed");
+      toast.error(getUserMessage(error));
       setProcessing(false);
     }
   }

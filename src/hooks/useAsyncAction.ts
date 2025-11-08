@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 interface UseAsyncActionOptions {
   onSuccess?: () => void;
@@ -67,8 +68,8 @@ export function useAsyncAction(options: UseAsyncActionOptions = {}): UseAsyncAct
         const err = e as Error;
         setError(err);
 
-        const errorMsg = options.errorMessage || err.message || "An error occurred";
-        toast.error(errorMsg);
+        const toastMessage = options.errorMessage || getUserMessage(err);
+        toast.error(toastMessage);
 
         if (options.onError) {
           options.onError(err);

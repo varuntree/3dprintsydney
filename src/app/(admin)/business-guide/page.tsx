@@ -4,6 +4,7 @@ import { getSettings } from "@/server/services/settings";
 import { listMaterials } from "@/server/services/materials";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import type { SettingsPayload } from "@/components/settings/settings-form";
+import { logger } from "@/lib/logger";
 
 /**
  * Fetch recent example invoices for real-world calculation examples
@@ -41,11 +42,16 @@ async function getExampleInvoices() {
     .limit(3);
 
   if (error) {
-    console.error("Failed to fetch example invoices:", {
-      message: (error as { message?: string })?.message,
-      details: (error as { details?: unknown })?.details,
-      hint: (error as { hint?: unknown })?.hint,
-      code: (error as { code?: unknown })?.code,
+    logger.error({
+      scope: "business-guide.example-invoices",
+      message: "Failed to fetch example invoices",
+      error,
+      data: {
+        message: (error as { message?: string })?.message,
+        details: (error as { details?: unknown })?.details,
+        hint: (error as { hint?: unknown })?.hint,
+        code: (error as { code?: unknown })?.code,
+      },
     });
     return [];
   }

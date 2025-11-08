@@ -65,6 +65,7 @@ import type { ClientSummaryRecord } from "@/components/clients/clients-view";
 import { mutateJson } from "@/lib/http";
 import { useNavigation } from "@/hooks/useNavigation";
 import { ClientPickerDialog } from "@/components/ui/client-picker-dialog";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 const NO_SHIPPING_OPTION_VALUE = "__no_shipping__";
 const MANUAL_TEMPLATE_OPTION_VALUE = "__manual_entry__";
@@ -337,9 +338,7 @@ export function InvoiceEditor({
       await navigate(`/invoices/${targetId}`, { replace: true });
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save invoice",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

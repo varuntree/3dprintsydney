@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { mutateJson } from "@/lib/http";
 import { PaymentMethodModal } from "@/components/client/payment-method-modal";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 interface PayOnlineButtonProps {
   invoiceId: number;
@@ -46,7 +47,7 @@ export function PayOnlineButton({
         toast.error("No checkout URL returned");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to start payment");
+      toast.error(getUserMessage(error));
     } finally {
       setLoading(false);
     }

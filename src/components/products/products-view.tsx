@@ -46,6 +46,7 @@ import {
   productCalculatorSchema,
   pricingTypeValues,
 } from "@/lib/schemas/catalog";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { formatCurrency } from "@/lib/currency";
 import { Pencil, Trash2 } from "lucide-react";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -150,9 +151,7 @@ export function ProductsView({
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to create template",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -168,9 +167,7 @@ export function ProductsView({
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update template",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -184,9 +181,7 @@ export function ProductsView({
       toast.success("Template deleted");
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete template",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

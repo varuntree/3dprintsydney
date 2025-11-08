@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { addDays, format, subDays } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,7 +52,7 @@ export default function ReportsPage() {
       URL.revokeObjectURL(url);
       toast.success(`Exported ${kind} CSV`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Export failed");
+      toast.error(getUserMessage(error));
     } finally {
       setBusy(null);
     }

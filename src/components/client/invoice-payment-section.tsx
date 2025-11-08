@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PayOnlineButton } from "@/components/client/pay-online-button";
 import { Wallet } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 interface InvoicePaymentSectionProps {
   invoiceId: number;
@@ -31,7 +32,11 @@ export function InvoicePaymentSection({ invoiceId, balanceDue }: InvoicePaymentS
           setWalletBalance(data.walletBalance ?? 0);
         }
       } catch (error) {
-        console.error("Failed to fetch wallet balance:", error);
+        browserLogger.error({
+          scope: "browser.client.invoice-payment",
+          message: "Failed to fetch wallet balance",
+          error,
+        });
         setWalletBalance(0);
       } finally {
         setLoading(false);

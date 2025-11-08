@@ -26,6 +26,8 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   X,
   Loader2,
   FileText,
@@ -44,6 +46,7 @@ import {
   type OrientationQuaternion,
   type OrientationPosition,
 } from "@/stores/orientation-store";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 type Upload = { id: string; filename: string; size: number };
 type Material = { id: number; name: string; costPerGram: number };
@@ -146,6 +149,14 @@ type DraftState = {
     phone: string;
   };
   metrics: Record<string, { grams: number; timeSec: number; fallback?: boolean; error?: string }>;
+};
+
+const logQuickOrderError = (scopeSuffix: string, message: string, error?: unknown) => {
+  browserLogger.error({
+    scope: `browser.quick-order.${scopeSuffix}`,
+    message,
+    error,
+  });
 };
 
 export default function QuickOrderPage() {
@@ -412,7 +423,7 @@ export default function QuickOrderPage() {
           setWalletBalance(data.walletBalance ?? 0);
         }
       } catch (err) {
-        console.error("Failed to fetch wallet balance:", err);
+        logQuickOrderError("wallet-balance", "Failed to fetch wallet balance", err);
       }
     }
     loadWalletBalance();
@@ -443,7 +454,7 @@ export default function QuickOrderPage() {
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2000);
     } catch (error) {
-      console.error("Failed to save draft:", error);
+      logQuickOrderError("draft.save", "Failed to save draft", error);
     }
   }, [currentStep, uploads, settings, orientationState, orientationLocked, address, metrics]);
 
@@ -453,7 +464,7 @@ export default function QuickOrderPage() {
       if (!stored) return null;
       return JSON.parse(stored) as DraftState;
     } catch (error) {
-      console.error("Failed to load draft:", error);
+      logQuickOrderError("draft.load", "Failed to load draft", error);
       return null;
     }
   }, []);
@@ -462,7 +473,7 @@ export default function QuickOrderPage() {
     try {
       localStorage.removeItem(DRAFT_KEY);
     } catch (error) {
-      console.error("Failed to clear draft:", error);
+      logQuickOrderError("draft.clear", "Failed to clear draft", error);
     }
   }, []);
 
@@ -501,7 +512,7 @@ export default function QuickOrderPage() {
       setShowResumeDialog(false);
       draftLoadedRef.current = true;
     } catch (error) {
-      console.error("Failed to restore draft:", error);
+      logQuickOrderError("draft.restore", "Failed to restore draft", error);
     }
   }, [goToStep]);
 
@@ -771,7 +782,7 @@ export default function QuickOrderPage() {
         goToStep("configure");
       }
     } catch (err) {
-      console.error("Orientation lock error:", err);
+      logQuickOrderError("orientation-lock", "Orientation lock error", err);
       setError("Failed to lock orientation");
     } finally {
       setIsLocking(false);
@@ -997,7 +1008,7 @@ export default function QuickOrderPage() {
       });
       goToStep("price");
     } catch (err) {
-      console.error(err);
+      logQuickOrderError("pricing", "Pricing failed", err);
       setError("Pricing failed");
     } finally {
       setLoading(false);
@@ -1154,6 +1165,8 @@ export default function QuickOrderPage() {
 
   const currentStepIndexRaw = STEP_META.findIndex((s) => s.id === currentStep);
   const currentStepIndex = currentStepIndexRaw === -1 ? 0 : currentStepIndexRaw;
+  const previousStepId = currentStepIndex > 0 ? STEP_SEQUENCE[currentStepIndex - 1] : null;
+  const nextStepId = currentStepIndex < STEP_SEQUENCE.length - 1 ? STEP_SEQUENCE[currentStepIndex + 1] : null;
   const hasUploads = uploads.length > 0;
   const isUploadStep = currentStep === "upload";
   const isConfigureStep = currentStep === "configure";
@@ -1209,6 +1222,33 @@ export default function QuickOrderPage() {
 
       {/* Workflow Steps - Sticky compact progress */}
       <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-3 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-4">
+        <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground sm:text-xs">
+          <span>
+            Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => previousStepId && goToStep(previousStepId)}
+              disabled={!previousStepId}
+              className="h-8 px-2 text-[11px] sm:h-8 sm:text-xs"
+            >
+              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Previous</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => nextStepId && goToStep(nextStepId)}
+              disabled={!nextStepId || !isStepUnlocked(nextStepId)}
+              className="h-8 px-2 text-[11px] sm:h-8 sm:text-xs"
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+        </div>
         <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
           {STEP_META.map((step, index) => {
             const Icon = step.icon;
@@ -1272,9 +1312,6 @@ export default function QuickOrderPage() {
               </div>
             );
           })}
-        </div>
-        <div className="mt-2 text-center text-[11px] font-medium text-muted-foreground sm:text-xs">
-          Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
         </div>
       </div>
 

@@ -53,6 +53,11 @@ function buildCsvPayload(type: string, rows: Record<string, unknown>[]): CsvPayl
 export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.invoices";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("invoices")
@@ -64,6 +69,12 @@ export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> 
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export invoices CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export invoices: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
@@ -95,6 +106,11 @@ export async function exportInvoicesCsv(range?: DateRange): Promise<CsvPayload> 
 export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.payments";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("payments")
@@ -106,6 +122,12 @@ export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> 
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export payments CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export payments: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
@@ -137,6 +159,11 @@ export async function exportPaymentsCsv(range?: DateRange): Promise<CsvPayload> 
 export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.jobs";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("jobs")
@@ -148,6 +175,12 @@ export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export jobs CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export jobs: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
@@ -183,6 +216,11 @@ export async function exportJobsCsv(range?: DateRange): Promise<CsvPayload> {
 export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.ar-aging";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("invoices")
@@ -194,6 +232,12 @@ export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export A/R aging CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export A/R aging: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
@@ -231,6 +275,11 @@ export async function exportArAgingCsv(range?: DateRange): Promise<CsvPayload> {
 export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.material-usage";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("invoice_items")
@@ -243,6 +292,12 @@ export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayl
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export material usage CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export material usage: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
@@ -275,6 +330,11 @@ export async function exportMaterialUsageCsv(range?: DateRange): Promise<CsvPayl
 export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<CsvPayload> {
   const supabase = getServiceSupabase();
   const { from, to } = normalizeRange(range);
+  const scope = "exports.printer-utilization";
+  const logRange = {
+    from: from ? from.toISOString() : null,
+    to: to ? to.toISOString() : null,
+  };
 
   let query = supabase
     .from("jobs")
@@ -286,6 +346,12 @@ export async function exportPrinterUtilizationCsv(range?: DateRange): Promise<Cs
 
   const { data, error } = await query;
   if (error) {
+    logger.error({
+      scope,
+      message: "Failed to export printer utilization CSV",
+      error,
+      data: { range: logRange },
+    });
     throw new AppError(`Failed to export printer utilization: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 

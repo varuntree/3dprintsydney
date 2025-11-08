@@ -2,6 +2,7 @@ import { format, startOfMonth, subDays, subMonths } from "date-fns";
 import { InvoiceStatus, JobStatus, QuoteStatus } from "@/lib/constants/enums";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 type ActivityRow = {
   id: number;
@@ -84,6 +85,11 @@ export async function getRecentActivity(options?: {
   limit?: number;
   offset?: number;
 }): Promise<RecentActivityResult> {
+  logger.info({
+    scope: "dashboard.activity",
+    message: "Fetching recent activity entries",
+    data: { limit: options?.limit, offset: options?.offset },
+  });
   const supabase = getServiceSupabase();
   const limit = Math.min(Math.max(options?.limit ?? 12, 1), 50);
   const offset = Math.max(options?.offset ?? 0, 0);
@@ -140,6 +146,11 @@ export async function getDashboardSnapshot(options?: {
   activityLimit?: number;
   activityOffset?: number;
 }): Promise<DashboardSnapshot> {
+  logger.info({
+    scope: "dashboard.snapshot",
+    message: "Generating dashboard snapshot",
+    data: { range: options?.range, activityLimit: options?.activityLimit },
+  });
   const now = new Date();
   let rangeStart30 = subDays(now, 30);
   let rangeStart60 = subDays(now, 60);

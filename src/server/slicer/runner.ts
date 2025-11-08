@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import { promises as fsp } from "fs";
 import path from "path";
+import { logger } from "@/lib/logger";
 
 export type SliceOptions = {
   layerHeight: number; // mm
@@ -96,6 +97,21 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
   args.push("--output", outDir);
   args.push(inputPath);
 
+  const scope = "slicer.run";
+  const startTime = Date.now();
+  logger.info({
+    scope,
+    message: "Starting slicer job",
+    data: {
+      inputPath,
+      options: {
+        layerHeight: opts.layerHeight,
+        infill: opts.infill,
+        supports: opts.supports,
+      },
+      outputPath: outPath,
+    },
+  });
   const concurrency = Math.max(1, Math.min(4, Number(process.env.SLICER_CONCURRENCY || 1)));
   await acquire(concurrency);
   let child: ChildProcess | null = null;
@@ -105,6 +121,12 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
     release();
     const err = new Error(`Failed to start slicer: ${(error as Error).message}`);
     (err as Error & { stderr?: string }).stderr = (error as Error).message;
+    logger.error({
+      scope,
+      message: "Failed to launch slicer binary",
+      error: err,
+      data: { inputPath, args },
+    });
     throw err;
   }
   const res = await new Promise<{ code: number; stderr: string }>((resolve) => {
@@ -124,14 +146,38 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
   if (res.code !== 0) {
     const err = new Error(`Slicer exited with code ${res.code}`);
     (err as Error & { stderr?: string }).stderr = res.stderr;
+    logger.error({
+      scope,
+      message: "Slicer process failed",
+      error: err,
+      data: { code: res.code, stderr: res.stderr },
+    });
     throw err;
   }
 
   const metrics = await parseGcodeMetrics(outPath).catch(() => ({ timeSec: 0, grams: 0, supportGrams: 0 }));
   if (!metrics.timeSec || !metrics.grams) {
     const err = new Error("Unable to parse slicer output");
+    logger.error({
+      scope,
+      message: "Failed to parse slicer output",
+      error: err,
+      data: { inputPath, outputPath: outPath },
+    });
     throw err;
   }
+
+  const stats = await fsp.stat(outPath).catch(() => null);
+  logger.timing(scope, startTime, {
+    message: "Slicer run completed",
+    data: {
+      outputPath: outPath,
+      grams: metrics.grams,
+      timeSec: metrics.timeSec,
+      supportGrams: metrics.supportGrams,
+      fileSize: stats?.size ?? null,
+    },
+  });
   return { ...metrics, gcodePath: outPath };
 }
 

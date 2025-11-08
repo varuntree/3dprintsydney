@@ -26,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 import { usePaymentTerms } from "@/hooks/use-payment-terms";
 import { mutateJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import type { ClientSummaryRecord } from "./clients-view";
 import {
   clientFormResolver,
@@ -74,7 +75,7 @@ export function ClientCreateForm() {
       router.replace(`/clients/${client.id}`);
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Failed to create client");
+      toast.error(getUserMessage(error));
     },
   });
 

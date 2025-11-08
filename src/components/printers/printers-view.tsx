@@ -59,6 +59,7 @@ import {
   DataListItem,
   DataListValue,
 } from "@/components/ui/data-list";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export type PrinterRecord = {
   id: number;
@@ -133,9 +134,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to add printer",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -157,16 +156,14 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
             toast.success("Queue cleared for printer");
             queryClient.invalidateQueries({ queryKey: ["jobs-board"] });
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed to clear queue");
+            toast.error(getUserMessage(e));
           }
         }
       }
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update printer",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -178,9 +175,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
       toast.success("Printer deleted");
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete printer",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -446,7 +441,7 @@ export function PrintersView({ initialPrinters }: PrintersViewProps) {
                               toast.success("Queue cleared for printer");
                               queryClient.invalidateQueries({ queryKey: ["jobs-board"] });
                             } catch (error) {
-                              toast.error(error instanceof Error ? error.message : "Failed to clear queue");
+                              toast.error(getUserMessage(error));
                             }
                           }}
                         >

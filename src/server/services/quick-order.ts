@@ -471,9 +471,9 @@ export async function executeSlicingWithRetry(
       break;
     } catch (error) {
       lastError = error as Error & { stderr?: string };
-      logger.error({
-        scope: "quick-order.slice",
-        message: "Slicer run failed",
+      logger.warn({
+        scope: "quick-order.slice.retry",
+        message: "Slicer attempt failed",
         data: {
           attempt,
           layerHeight: settings.layerHeight,
@@ -620,11 +620,25 @@ export async function sliceQuickOrderFile(
   fallback: boolean;
   error?: string;
 }> {
+  const scope = "quick-order.slice";
+  const startTime = Date.now();
+  let attempts = 1;
   let tmpDir: string | null = null;
   try {
     const record = await requireTmpFile(userId, fileId);
     const baseMeta = (record.metadata ?? {}) as TmpFileMetadata;
-    const attempts = typeof baseMeta.attempts === "number" ? (baseMeta.attempts as number) + 1 : 1;
+    attempts = typeof baseMeta.attempts === "number" ? (baseMeta.attempts as number) + 1 : 1;
+
+    logger.info({
+      scope,
+      message: "Quick order slicing started",
+      data: {
+        fileId,
+        userId,
+        attempts,
+        settings,
+      },
+    });
 
     // Update status to running
     await updateTmpFile(userId, fileId, {
@@ -657,6 +671,11 @@ export async function sliceQuickOrderFile(
     // Handle failure with fallback
     if (!metrics) {
       const fallbackMetrics = generateFallbackMetrics(fileId, null);
+      logger.warn({
+        scope: "quick-order.slice.fallback",
+        message: "Fallback slicing metrics applied",
+        data: { fileId, attempts, error: fallbackMetrics.error },
+      });
       await updateTmpFile(userId, fileId, {
         status: "failed",
         metadata: {
@@ -723,6 +742,19 @@ export async function sliceQuickOrderFile(
       await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
     }
 
+    logger.timing(scope, startTime, {
+      message: "Quick order slicing completed",
+      data: {
+        fileId,
+        userId,
+        attempts,
+        timeSec: metrics.timeSec,
+        grams: metrics.grams,
+        supportGrams: metrics.supportGrams,
+        gcodeId: gcodeId ?? null,
+      },
+    });
+
     return {
       id: fileId,
       timeSec: metrics.timeSec,
@@ -732,6 +764,12 @@ export async function sliceQuickOrderFile(
       fallback: false,
     };
   } catch (error) {
+    logger.error({
+      scope,
+      message: "Quick order slicing failed",
+      error,
+      data: { fileId, userId, attempts },
+    });
     if (tmpDir) {
       await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
     }

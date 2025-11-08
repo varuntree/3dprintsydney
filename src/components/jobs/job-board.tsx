@@ -29,6 +29,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import type {
   JobPriority as JobPriorityType,
   JobStatus as JobStatusType,
@@ -521,9 +522,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
         setBoard(context.previous);
         boardRef.current = context.previous;
       }
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update queue order",
-      );
+      toast.error(getUserMessage(error));
     },
     onSuccess: () => {
       toast.success("Queue updated");
@@ -551,9 +550,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       toast.success("Job status updated");
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update job status",
-      );
+      toast.error(getUserMessage(error));
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -589,9 +586,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       toast.success("Job updated");
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update job",
-      );
+      toast.error(getUserMessage(error));
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -608,9 +603,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       toast.success("Job archived");
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to archive job",
-      );
+      toast.error(getUserMessage(error));
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey });
@@ -628,9 +621,7 @@ export function JobsBoard({ initial }: JobsBoardProps) {
       setSelected(new Set());
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to archive jobs",
-      );
+      toast.error(getUserMessage(error));
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey }),
   });

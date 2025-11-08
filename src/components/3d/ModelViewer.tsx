@@ -28,6 +28,7 @@ import {
 import BuildPlate from "./BuildPlate";
 import OverhangHighlight from "./OverhangHighlight";
 import OrientationGizmo from "./OrientationGizmo";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 type SupportedExt = "stl" | "3mf";
 
@@ -97,6 +98,12 @@ const IDENTITY_TUPLE: OrientationQuaternion = [0, 0, 0, 1];
 const LARGE_MODEL_BYTES = 50 * 1024 * 1024;
 const AUTO_ORIENT_TIMEOUT_MS = 5000;
 const FLAT_MODEL_THRESHOLD_MM = 0.2;
+
+type OverhangWorkerResponse = {
+  faces: number[];
+  supportVolume: number;
+  supportWeight: number;
+};
 
 function tupleToQuaternion(tuple: OrientationQuaternion): THREE.Quaternion {
   return new THREE.Quaternion(tuple[0], tuple[1], tuple[2], tuple[3]).normalize();
@@ -273,7 +280,11 @@ function applyAutoOrientToGroup(
     }
     return group.quaternion.clone();
   } catch (err) {
-    console.error("[ModelViewer] auto-orient failed", err);
+    browserLogger.error({
+      scope: "browser.auto-orient",
+      message: "[ModelViewer] auto-orient failed",
+      error: err,
+    });
     options.setStatus("error", "Auto-orient failed—resetting orientation.");
     group.quaternion.identity();
     group.rotation.set(0, 0, 0);
@@ -435,11 +446,15 @@ function Scene({
           supportVolume: data.supportVolume,
           supportWeight: data.supportWeight,
         });
-      } catch (err) {
-        console.error("[ModelViewer] overhang analysis failed", err);
-        setAnalysisStatus("error", "Overhang preview failed. Using last known estimate.");
-        addWarning("Overhang preview failed. Estimates may be outdated.");
-      }
+  } catch (err) {
+    browserLogger.error({
+      scope: "browser.overhang.analysis",
+      message: "[ModelViewer] overhang analysis failed",
+      error: err,
+    });
+    setAnalysisStatus("error", "Overhang preview failed. Using last known estimate.");
+    addWarning("Overhang preview failed. Estimates may be outdated.");
+  }
     },
     [addWarning, setAnalysisStatus, setOverhangData]
   );
@@ -524,17 +539,38 @@ function Scene({
       type: "module",
     });
     workerRef.current = worker;
+    type WorkerLogMessage = {
+      type: "log";
+      level: "debug" | "info" | "warn" | "error";
+      scope: string;
+      message?: string;
+      data?: Record<string, unknown>;
+      error?: unknown;
+    };
     worker.onmessage = (event) => {
-      const { faces, supportVolume, supportWeight } = event.data as {
-        faces: number[];
-        supportVolume: number;
-        supportWeight: number;
-      };
+      const data = event.data as OverhangWorkerResponse | WorkerLogMessage;
+      if ((data as WorkerLogMessage).type === "log") {
+        const logPayload = data as WorkerLogMessage;
+        const logLevel = logPayload.level ?? "info";
+        const logFn = browserLogger[logLevel] ?? browserLogger.info;
+        logFn({
+          scope: logPayload.scope,
+          message: logPayload.message,
+          data: logPayload.data,
+          error: logPayload.error,
+        });
+        return;
+      }
+      const { faces, supportVolume, supportWeight } = data as OverhangWorkerResponse;
       setOverhangData({ faces, supportVolume, supportWeight });
       setAnalysisStatus("idle");
     };
     worker.onerror = (error) => {
-      console.error("[ModelViewer] overhang worker error", error);
+      browserLogger.error({
+        scope: "browser.worker.overhang",
+        message: "[ModelViewer] overhang worker error",
+        error,
+      });
       setAnalysisStatus("error", "Overhang worker failed. Falling back to slower estimation.");
       addWarning("Overhang worker failed. Falling back to slower estimation.");
       workerFailedRef.current = true;
@@ -642,7 +678,11 @@ function Scene({
         runOverhangAnalysis(appliedQuaternion ?? group.quaternion.clone());
         onReady(group);
       } catch (err) {
-        console.error("[ModelViewer] Failed to prepare model", err);
+        browserLogger.error({
+          scope: "browser.model.prepare",
+          message: "[ModelViewer] Failed to prepare model",
+          error: err,
+        });
         setAutoOrientStatus("error", "Model preparation failed.");
         setAnalysisStatus("error", "Failed to analyze model. Delete and re-upload.");
         setInteractionLock(true, "Model failed to load. Delete and re-upload.");
@@ -973,7 +1013,11 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     };
 
     const handleError = (err: Error) => {
-      console.error("[ModelViewer] Error", err);
+      browserLogger.error({
+        scope: "browser.modelviewer.error",
+        message: "[ModelViewer] Error",
+        error: err,
+      });
       setError(err);
       onError?.(err);
     };

@@ -6,6 +6,7 @@ import { useNavigation } from "@/hooks/useNavigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { formatCurrency } from "@/lib/currency";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,9 +123,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
       ]);
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update status",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -144,7 +143,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
       ]);
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Decision failed");
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -159,9 +158,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
       await navigate(`/invoices/${invoice.id}`);
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to convert quote",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -176,9 +173,7 @@ export function QuoteView({ quote }: QuoteViewProps) {
       await navigate(`/quotes/${duplicate.id}`);
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to duplicate quote",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

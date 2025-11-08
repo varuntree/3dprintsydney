@@ -1,0 +1,130 @@
+import { shouldLogInBrowser } from "@/lib/logging/config";
+
+const PII_FIELDS = new Set(["password", "token", "apiKey", "secret", "creditCard"]);
+const MAX_STRING_LENGTH = 1024;
+
+type Primitive = string | number | boolean | null | undefined;
+
+interface LogPayload {
+  scope: string;
+  message?: string;
+  error?: unknown;
+  data?: Record<string, unknown>;
+}
+
+function maskCardNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 4) {
+    return "****";
+  }
+  return `****${digits.slice(-4)}`;
+}
+
+function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (typeof value === "string") {
+    if (value.length > MAX_STRING_LENGTH) {
+      return `${value.slice(0, MAX_STRING_LENGTH)}...`;
+    }
+    return value;
+  }
+
+  if (
+    value === null ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "undefined"
+  ) {
+    return value;
+  }
+
+  if (typeof value === "object") {
+    if (seen.has(value as object)) {
+      return "[Circular]";
+    }
+    seen.add(value as object);
+
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeValue(item, seen));
+    }
+
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (PII_FIELDS.has(key)) {
+        continue;
+      }
+      if (key === "cardNumber" && typeof entry === "string") {
+        sanitized[key] = maskCardNumber(entry);
+        continue;
+      }
+      if (key.toLowerCase().includes("card") && typeof entry === "string") {
+        sanitized[key] = maskCardNumber(entry);
+        continue;
+      }
+      sanitized[key] = sanitizeValue(entry, seen);
+    }
+    return sanitized;
+  }
+
+  return String(value as Primitive);
+}
+
+function sanitizeData(data?: Record<string, unknown>) {
+  if (!data) return undefined;
+  const sanitized = sanitizeValue(data);
+  if (typeof sanitized === "object" && sanitized !== null) {
+    return sanitized as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function serializeError(error: unknown) {
+  if (!error) return undefined;
+  if (error instanceof Error) {
+    const { name, message, stack } = error;
+    return {
+      name,
+      message,
+      stack: undefined,
+    };
+  }
+  return { message: String(error) };
+}
+
+function emit(level: "debug" | "info" | "warn" | "error", payload: LogPayload) {
+  if (!shouldLogInBrowser(level)) {
+    return;
+  }
+
+  const line = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    scope: payload.scope,
+    message: payload.message,
+    data: sanitizeData(payload.data),
+    error: serializeError(payload.error),
+  });
+
+  const method = level === "debug" ? "debug" : level === "info" ? "log" : level;
+  console[method as "log" | "warn" | "error" | "debug"](line);
+}
+
+function timing(
+  scope: string,
+  start: number | Date,
+  payload: Omit<LogPayload, "scope"> = {},
+) {
+  const startTime = typeof start === "number" ? start : start.getTime();
+  emit("info", {
+    scope,
+    ...payload,
+    data: { ...(payload.data ?? {}), durationMs: Math.max(Date.now() - startTime, 0) },
+  });
+}
+
+export const browserLogger = {
+  debug: (payload: LogPayload) => emit("debug", payload),
+  info: (payload: LogPayload) => emit("info", payload),
+  warn: (payload: LogPayload) => emit("warn", payload),
+  error: (payload: LogPayload) => emit("error", payload),
+  timing,
+};

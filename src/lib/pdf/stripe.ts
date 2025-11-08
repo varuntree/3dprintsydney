@@ -1,4 +1,5 @@
 import { mutateJson } from "@/lib/http";
+import { logger } from "@/lib/logger";
 
 export async function ensureInvoiceStripeCheckoutUrl(
   invoiceId: number,
@@ -15,9 +16,12 @@ export async function ensureInvoiceStripeCheckoutUrl(
     );
     return result.url ?? null;
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Failed to create Stripe checkout session for invoice", invoiceId, error);
-    }
+    logger.warn({
+      scope: "stripe.checkout",
+      message: "Failed to create Stripe checkout session for invoice",
+      error,
+      data: { invoiceId },
+    });
     return null;
   }
 }

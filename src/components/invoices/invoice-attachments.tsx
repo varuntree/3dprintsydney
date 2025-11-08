@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export type InvoiceAttachmentRecord = {
   id: number;
@@ -53,7 +54,7 @@ export function InvoiceAttachments({
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -75,7 +76,7 @@ export function InvoiceAttachments({
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
     },
     onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Delete failed");
+      toast.error(getUserMessage(error));
     },
   });
 

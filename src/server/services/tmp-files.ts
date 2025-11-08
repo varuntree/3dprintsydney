@@ -1,4 +1,5 @@
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { supportsOrientationDataColumn } from "@/server/services/orientation-schema";
 import {
   createTmpFile as uploadToStorage,
   deleteTmpFile as deleteFromStorage,
@@ -38,6 +39,26 @@ export type OrientationData = {
   autoOriented?: boolean;
 };
 
+const TMP_FILE_BASE_COLUMNS = [
+  "id",
+  "user_id",
+  "storage_key",
+  "filename",
+  "size_bytes",
+  "mime_type",
+  "status",
+  "metadata",
+];
+
+function getTmpFileSelectColumns(includeOrientation: boolean) {
+  const columns = [...TMP_FILE_BASE_COLUMNS];
+  if (includeOrientation) {
+    columns.push("orientation_data");
+  }
+  columns.push("created_at", "updated_at");
+  return columns.join(", ");
+}
+
 /**
  * Save a temporary file to storage and database
  * @param params - Temporary file save parameters (user ID, buffer, filename, mime type, metadata)
@@ -53,22 +74,27 @@ export async function saveTmpFile(
 ) {
   const key = await uploadToStorage(String(userId), filename, contents, contentType);
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("tmp_files");
+  const insertPayload: Record<string, unknown> = {
+    user_id: userId,
+    storage_key: key,
+    filename,
+    size_bytes: Buffer.isBuffer(contents)
+      ? contents.length
+      : contents instanceof ArrayBuffer
+      ? contents.byteLength
+      : contents.byteLength,
+    mime_type: contentType ?? null,
+    status: "idle",
+    metadata: metadata ?? null,
+  };
+  if (includeOrientation) {
+    insertPayload.orientation_data = null;
+  }
   const { data, error } = await supabase
     .from("tmp_files")
-    .insert({
-      user_id: userId,
-      storage_key: key,
-      filename,
-      size_bytes: Buffer.isBuffer(contents)
-        ? contents.length
-        : contents instanceof ArrayBuffer
-        ? contents.byteLength
-        : contents.byteLength,
-      mime_type: contentType ?? null,
-      status: "idle",
-      metadata: metadata ?? null,
-    })
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
+    .insert(insertPayload)
+    .select(getTmpFileSelectColumns(includeOrientation))
     .single();
 
   if (error || !data) {
@@ -84,8 +110,12 @@ export async function saveTmpFile(
   }
 
   logger.info({ scope: 'tmp-files.save', data: { tmpId: data.storage_key, filename } });
+  const record = data as TmpFileRecord;
+  if (!includeOrientation) {
+    record.orientation_data = null;
+  }
   return {
-    record: data as TmpFileRecord,
+    record,
     tmpId: data.storage_key,
   };
 }
@@ -100,9 +130,11 @@ export async function saveTmpFile(
  */
 export async function requireTmpFile(userId: number, tmpId: string): Promise<TmpFileRecord> {
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("tmp_files");
+  const selectColumns = getTmpFileSelectColumns(includeOrientation);
   const { data, error } = await supabase
     .from("tmp_files")
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
+    .select(selectColumns)
     .eq("storage_key", tmpId)
     .maybeSingle();
 
@@ -115,7 +147,11 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
   if (data.user_id !== userId) {
     throw new ForbiddenError("Unauthorized");
   }
-  return data as TmpFileRecord;
+  const record = data as TmpFileRecord;
+  if (!includeOrientation) {
+    record.orientation_data = null;
+  }
+  return record;
 }
 
 /**
@@ -139,25 +175,33 @@ export async function updateTmpFile(
 ) {
   await requireTmpFile(userId, tmpId);
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("tmp_files");
+  const updatePayload: Record<string, unknown> = {
+    status: updates.status ?? undefined,
+    metadata: updates.metadata ?? undefined,
+    size_bytes: updates.sizeBytes ?? undefined,
+    filename: updates.filename ?? undefined,
+    mime_type: updates.mimeType ?? undefined,
+  };
+  if (includeOrientation && updates.orientationData !== undefined) {
+    updatePayload.orientation_data = updates.orientationData;
+  }
   const { error, data } = await supabase
     .from("tmp_files")
-    .update({
-      status: updates.status ?? undefined,
-      metadata: updates.metadata ?? undefined,
-      size_bytes: updates.sizeBytes ?? undefined,
-      filename: updates.filename ?? undefined,
-      mime_type: updates.mimeType ?? undefined,
-      orientation_data: updates.orientationData ?? undefined,
-    })
+    .update(updatePayload)
     .eq("storage_key", tmpId)
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
+    .select(getTmpFileSelectColumns(includeOrientation))
     .single();
 
   if (error || !data) {
     throw new AppError(error?.message ?? "Failed to update tmp file", 'DATABASE_ERROR', 500);
   }
 
-  return data as TmpFileRecord;
+  const record = data as TmpFileRecord;
+  if (!includeOrientation) {
+    record.orientation_data = null;
+  }
+  return record;
 }
 
 /**

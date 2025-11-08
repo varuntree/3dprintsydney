@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
     const activityOffset = Number.isFinite(actOffset) && actOffset >= 0 ? actOffset : 0;
 
     const snapshot = await getDashboardSnapshot({ range, from, to, activityLimit, activityOffset });
-    return okAuth(req, snapshot);
+    return okAuth(request, snapshot);
   } catch (error) {
-    return handleErrorAuth(req, error, "dashboard.snapshot");
+    return handleErrorAuth(request, error, "dashboard.snapshot");
   }
 }

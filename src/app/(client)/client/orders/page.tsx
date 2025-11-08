@@ -8,6 +8,7 @@ import { PayOnlineButton } from "@/components/client/pay-online-button";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 type InvoiceRow = {
   id: number;
@@ -40,7 +41,11 @@ export default function ClientOrdersPage() {
         setWalletBalance(data.walletBalance ?? 0);
       }
     } catch (error) {
-      console.error("Failed to fetch wallet balance:", error);
+      browserLogger.error({
+        scope: "browser.client.orders",
+        message: "Failed to fetch wallet balance",
+        error,
+      });
     }
   }
 

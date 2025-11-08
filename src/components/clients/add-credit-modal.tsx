@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { creditAdjustmentSchema, type CreditAdjustmentInput } from '@/lib/schemas/clients';
 import { formatCurrency } from '@/lib/currency';
+import { getUserMessage } from '@/lib/errors/user-messages';
 
 interface AddCreditModalProps {
   clientId: number;
@@ -83,7 +84,7 @@ export function AddCreditModal({
       form.reset();
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to add credit');
+      toast.error(getUserMessage(error));
     },
   });
 

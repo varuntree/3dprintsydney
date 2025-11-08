@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "nextjs-toploader/app";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 interface NavigationContextValue {
   readonly isNavigating: boolean;
@@ -75,7 +76,11 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
           await router.push(href);
         }
       } catch (error) {
-        console.error("Navigation error", error);
+        browserLogger.error({
+          scope: "browser.navigation",
+          message: "Navigation error",
+          error,
+        });
       } finally {
         window.setTimeout(() => {
           endBusy();

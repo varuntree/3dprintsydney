@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { logger } from "@/lib/logger";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { AppError } from "@/lib/errors";
 import { attachSessionCookies } from "@/server/auth/session";
 
@@ -13,6 +14,7 @@ export interface Failure {
   error: {
     code: string;
     message: string;
+    userMessage?: string;
     details?: Record<string, unknown>;
   };
 }
@@ -34,9 +36,10 @@ export function fail(
   message: string,
   status = 400,
   details?: Record<string, unknown>,
+  userMessage?: string,
 ) {
   return NextResponse.json<Failure>(
-    { error: { code, message, details } },
+    { error: { code, message, details, userMessage } },
     { status },
   );
 }
@@ -52,11 +55,18 @@ export function failAuth(
 }
 
 export function handleError(error: unknown, scope: string) {
-  logger.error({ scope, message: 'Request handler error', error });
+  const userMessage = getUserMessage(error);
+  logger.error({ scope, message: "Request handler error", error });
 
   // Handle AppError instances with proper code, message, status, and details
   if (error instanceof AppError) {
-    return fail(error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+    return fail(
+      error.code,
+      error.message,
+      error.status,
+      error.details as Record<string, unknown> | undefined,
+      userMessage,
+    );
   }
 
   // Handle generic errors with status property (legacy pattern)
@@ -68,7 +78,7 @@ export function handleError(error: unknown, scope: string) {
     typeof (error as { status?: number }).status === "number"
       ? (error as { status?: number }).status
       : 500;
-  return fail("INTERNAL_ERROR", message, status);
+  return fail("INTERNAL_ERROR", message, status, undefined, userMessage);
 }
 
 export function handleErrorAuth(req: NextRequest, error: unknown, scope: string) {

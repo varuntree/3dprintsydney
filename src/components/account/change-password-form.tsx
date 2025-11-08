@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export function ChangePasswordForm({ email }: { email: string }) {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -39,7 +40,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
       toast.success("Password updated");
       reset();
     } catch (error) {
-      toast.error((error as Error).message ?? "Failed to change password");
+      toast.error(getUserMessage(error));
     } finally {
       setSubmitting(false);
     }

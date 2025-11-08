@@ -40,7 +40,9 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash } from "lucide-react";
 import { mutateJson, getJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { ChangePasswordForm } from "@/components/account/change-password-form";
+import { browserLogger } from "@/lib/logging/browser-logger";
 import type { LegacyUser } from "@/lib/types/user";
 import {
   calculatorConfigSchema,
@@ -124,9 +126,15 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
       if (parsed.success) {
         return parsed.data;
       }
-      console.warn("Invalid shipping region recovered in settings payload", {
-        index,
-        issues: parsed.error.issues,
+      browserLogger.warn({
+        scope: "browser.settings.invalid-region",
+        message: "Invalid shipping region recovered in settings payload",
+        data: {
+          index,
+          code: region.code,
+          label: region.label,
+          issues: parsed.error.issues,
+        },
       });
       return {
         code: base.code,
@@ -158,9 +166,13 @@ function normalizeSettings(payload: SettingsPayload): SettingsInput {
       if (parsed.success) {
         return parsed.data;
       }
-      console.warn("Invalid payment term recovered in settings payload", {
-        index,
-        issues: parsed.error.issues,
+      browserLogger.warn({
+        scope: "browser.settings.invalid-payment-term",
+        message: "Invalid payment term recovered in settings payload",
+        data: {
+          index,
+          issues: parsed.error.issues,
+        },
       });
       return base as SettingsInput["paymentTerms"][number];
     },
@@ -293,9 +305,7 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
       form.reset(normalizeSettings(payload));
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save settings",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -1210,7 +1220,7 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
                         toast.error(j?.error?.message ?? "Maintenance failed");
                       }
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Maintenance failed");
+                      toast.error(getUserMessage(e));
                     }
                   }}
                   className="rounded-full"

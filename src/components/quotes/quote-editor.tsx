@@ -5,6 +5,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -296,9 +297,7 @@ export function QuoteEditor({
       await navigate(`/quotes/${targetId}`, { replace: true });
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save quote",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

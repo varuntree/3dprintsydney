@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/currency";
 import { paymentInputSchema, type PaymentInput } from "@/lib/schemas/invoices";
 import { mutateJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export type InvoicePaymentRecord = {
   id: number;
@@ -113,9 +114,7 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
       setIsAdding(false);
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to add payment",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -130,9 +129,7 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to remove payment",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

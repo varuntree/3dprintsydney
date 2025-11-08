@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { materialInputSchema, type MaterialInput } from "@/lib/schemas/catalog";
 import { mutateJson, getJson } from "@/lib/http";
+import { getUserMessage } from "@/lib/errors/user-messages";
 import { formatCurrency } from "@/lib/currency";
 import {
   Form,
@@ -98,9 +99,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to add material",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -116,9 +115,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
       closeDialog();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update material",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -132,9 +129,7 @@ export function MaterialsView({ initial }: MaterialsViewProps) {
       toast.success("Material deleted");
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete material",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import { detectOverhangs } from "./overhang-detector";
+import { browserLogger } from "@/lib/logging/browser-logger";
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 const SUPPORT_WEIGHT = 0.6;
@@ -292,12 +293,17 @@ export function computeAutoOrientQuaternion(
   }
 
   const elapsed = nowMs() - start;
-  if (typeof console !== "undefined" && process.env.NODE_ENV !== "production") {
-    const timingLabel = timedOut ? "(timed out)" : "";
-    console.debug(
-      `[AutoOrient] evaluated ${candidateDirections.length} candidates in ${elapsed.toFixed(1)}ms ${timingLabel}`.trim(),
-      best?.metrics
-    );
+  if (process.env.NODE_ENV !== "production") {
+    browserLogger.debug({
+      scope: "browser.auto-orient",
+      message: `[AutoOrient] evaluated ${candidateDirections.length} candidates in ${elapsed.toFixed(1)}ms${timedOut ? " (timed out)" : ""}`.trim(),
+      data: {
+        candidateCount: candidateDirections.length,
+        durationMs: elapsed,
+        timedOut,
+        metrics: best?.metrics,
+      },
+    });
   }
 
   const fallbackResult: AutoOrientResult = {

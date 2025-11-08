@@ -29,6 +29,7 @@ import { useNavigation } from "@/hooks/useNavigation";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { InlineLoader } from "@/components/ui/loader";
 import { useStripeStatus } from "@/hooks/use-stripe-status";
+import { getUserMessage } from "@/lib/errors/user-messages";
 
 export type InvoiceStatusValue = "PENDING" | "PAID" | "OVERDUE";
 
@@ -94,9 +95,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       await refreshInvoice();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to mark as paid",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -108,9 +107,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       await refreshInvoice();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to mark as unpaid",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -136,11 +133,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       await refreshInvoice();
     },
     onError: (error: unknown) => {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Unable to create Stripe session",
-      );
+      toast.error(getUserMessage(error));
     },
   });
 
@@ -152,8 +145,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       await queryClient.invalidateQueries({ queryKey: ["quotes"] });
       await navigate("/quotes");
     },
-    onError: (error: unknown) =>
-      toast.error(error instanceof Error ? error.message : "Revert failed"),
+    onError: (error: unknown) => toast.error(getUserMessage(error)),
   });
 
   const voidMutation = useMutation({
@@ -166,8 +158,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       toast.success("Invoice voided");
       await refreshInvoice();
     },
-    onError: (error: unknown) =>
-      toast.error(error instanceof Error ? error.message : "Void failed"),
+    onError: (error: unknown) => toast.error(getUserMessage(error)),
   });
 
   const writeOffMutation = useMutation({
@@ -180,8 +171,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
       toast.success("Invoice written off");
       await refreshInvoice();
     },
-    onError: (error: unknown) =>
-      toast.error(error instanceof Error ? error.message : "Write off failed"),
+    onError: (error: unknown) => toast.error(getUserMessage(error)),
   });
 
   const paymentTermsLabel = useMemo(() => {

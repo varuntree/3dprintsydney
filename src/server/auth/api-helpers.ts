@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { requireUser } from "@/server/auth/session";
 import type { LegacyUser } from "@/lib/types/user";
 import { ForbiddenError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 
 /**
  * Require authenticated user for API route (any role)
@@ -21,7 +22,16 @@ import { ForbiddenError } from "@/lib/errors";
  * }
  */
 export async function requireAuth(req: NextRequest): Promise<LegacyUser> {
-  return await requireUser(req);
+  try {
+    return await requireUser(req);
+  } catch (error) {
+    logger.warn({
+      scope: "auth.guard.requireAuth",
+      message: "Authentication guard failed",
+      error,
+    });
+    throw error;
+  }
 }
 
 /**
@@ -44,9 +54,16 @@ export async function requireAuth(req: NextRequest): Promise<LegacyUser> {
  * }
  */
 export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
-  const user = await requireUser(req);
+  const user = await requireAuth(req);
   if (user.role !== "ADMIN") {
-    throw new ForbiddenError("Admin access required");
+    const error = new ForbiddenError("Admin access required");
+    logger.warn({
+      scope: "auth.guard.requireAdmin",
+      message: "Admin guard rejected user",
+      error,
+      data: { userId: user.id },
+    });
+    throw error;
   }
   return user;
 }
@@ -71,9 +88,16 @@ export async function requireAdmin(req: NextRequest): Promise<LegacyUser> {
  * }
  */
 export async function requireClient(req: NextRequest): Promise<LegacyUser> {
-  const user = await requireUser(req);
+  const user = await requireAuth(req);
   if (user.role !== "CLIENT") {
-    throw new ForbiddenError("Client access required");
+    const error = new ForbiddenError("Client access required");
+    logger.warn({
+      scope: "auth.guard.requireClient",
+      message: "Client guard rejected user",
+      error,
+      data: { userId: user.id },
+    });
+    throw error;
   }
   return user;
 }
@@ -100,7 +124,14 @@ export async function requireClient(req: NextRequest): Promise<LegacyUser> {
 export async function requireClientWithId(req: NextRequest): Promise<LegacyUser & { clientId: number }> {
   const user = await requireClient(req);
   if (!user.clientId) {
-    throw new ForbiddenError("Client ID not found");
+    const error = new ForbiddenError("Client ID not found");
+    logger.warn({
+      scope: "auth.guard.requireClientWithId",
+      message: "Client ID missing during guard",
+      error,
+      data: { userId: user.id },
+    });
+    throw error;
   }
   return user as LegacyUser & { clientId: number };
 }
@@ -132,4 +163,3 @@ export async function getAuthUser(req: NextRequest): Promise<LegacyUser | null> 
     return null;
   }
 }
-
