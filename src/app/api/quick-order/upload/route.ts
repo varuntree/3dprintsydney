@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
     if (error instanceof AppError) {
       return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
+    const fallbackMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
     logger.error({ scope: 'quick-order.upload', message: 'File upload failed', error });
-    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(req, 'INTERNAL_ERROR', fallbackMessage, 500);
   }
 }

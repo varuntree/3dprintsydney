@@ -14,9 +14,13 @@ const ModelViewer = dynamic(() => import("./ModelViewer"), {
 interface ModelViewerWrapperProps {
   url: string;
   filename?: string;
+  fileSizeBytes?: number;
   onTransformChange?: (matrix: THREE.Matrix4) => void;
   onLoadComplete?: () => void;
   onError?: (error: Error) => void;
+  facePickMode?: boolean;
+  onFacePickComplete?: () => void;
+  overhangThreshold?: number;
 }
 
 const ModelViewerWrapper = forwardRef<ModelViewerHandle, ModelViewerWrapperProps>((props, ref) => {

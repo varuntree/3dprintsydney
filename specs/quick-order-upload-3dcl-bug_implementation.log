@@ -1,0 +1,7 @@
+[2025-11-08T07:39:26Z] Step 1: Reproduced the failure from existing logs (POST /api/quick-order/upload 500 while uploading the 3D CL sample) and confirmed the error surfaces before any application-level validation response reaches the client.
+[2025-11-08T07:40:10Z] Step 2: Expanded validateOrderFile to allow 3D CL MIME types/extensions and added targeted vitest coverage to lock in the new allowance.
+[2025-11-08T07:40:33Z] Step 3: Hardened saveTmpFile by logging database/storage failure context before throwing so we can see why a new upload ever fails.
+[2025-11-08T07:40:59Z] Step 4: Surfaced the actual error message inside quick-order/upload's catch path so internal errors propagate to the client instead of a generic 500.
+[2025-11-08T07:41:13Z] Step 5: Tried "npm test -- --testPathPattern=quick-order-upload" but Vitest does not accept that flag; instead ran "npx vitest run src/lib/utils/__tests__/validators.test.ts" to validate the new validator behavior (passes).
+[2025-11-08T07:41:28Z] Step 5: Attempted the prescribed curl command but the route is protected (requires an authenticated session), so the request returns Internal Server Error with no session context; manual reproduction still needs an authenticated storefront session.
+[2025-11-08T07:41:41Z] Step 5: "npm test -- --testPathPattern=tmp-files" also fails because Vitest does not support that flag; no dedicated tmp-files tests exist, so rely on existing validator coverage instead.

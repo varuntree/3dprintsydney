@@ -7,6 +7,8 @@ import {
 } from "@/server/storage/supabase";
 import { AppError, NotFoundError, BadRequestError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import { applyOrientationToModel } from "@/server/geometry/orient";
+import type { OrientationData } from "@/server/services/tmp-files";
 
 export type OrderFileType = "model" | "settings";
 
@@ -21,6 +23,7 @@ export type OrderFileRecord = {
   mime_type: string | null;
   size_bytes: number;
   metadata: Record<string, unknown> | null;
+  orientation_data: OrientationData | null;
   uploaded_by: number | null;
   uploaded_at: string;
 };
@@ -41,6 +44,7 @@ export async function saveOrderFile(params: {
   contents: Buffer | ArrayBuffer | Uint8Array;
   mimeType: string | null;
   metadata?: Record<string, unknown>;
+  orientationData?: OrientationData | null;
 }): Promise<OrderFileRecord> {
   const {
     invoiceId,
@@ -52,6 +56,7 @@ export async function saveOrderFile(params: {
     contents,
     mimeType,
     metadata,
+    orientationData,
   } = params;
 
   if (!invoiceId && !quoteId) {
@@ -79,6 +84,7 @@ export async function saveOrderFile(params: {
         ? contents.byteLength
         : contents.byteLength,
       metadata: metadata ?? null,
+      orientation_data: orientationData ?? null,
       uploaded_by: userId,
     })
     .select()
@@ -158,6 +164,11 @@ export async function getOrderFile(id: number): Promise<OrderFileRecord> {
   return data as OrderFileRecord;
 }
 
+export async function getOrderFileOrientationData(fileId: number): Promise<OrientationData | null> {
+  const file = await getOrderFile(fileId);
+  return file.orientation_data ?? null;
+}
+
 /**
  * Get a signed download URL for an order file
  * @param id - Order file ID
@@ -179,6 +190,32 @@ export async function getOrderFileDownloadUrl(id: number, expiresIn = 300): Prom
 export async function downloadOrderFileToBuffer(id: number): Promise<Buffer> {
   const file = await getOrderFile(id);
   return downloadOrderFile(file.storage_key);
+}
+
+export async function downloadOrderFileWithOrientation(
+  id: number,
+  { applyOrientation = false }: { applyOrientation?: boolean } = {}
+): Promise<{ buffer: Buffer; filename: string; mimeType: string | null; orientationApplied: boolean }>
+{
+  const file = await getOrderFile(id);
+  const buffer = await downloadOrderFile(file.storage_key);
+  if (!applyOrientation || !file.orientation_data) {
+    return { buffer, filename: file.filename, mimeType: file.mime_type, orientationApplied: false };
+  }
+
+  try {
+    const oriented = applyOrientationToModel(buffer, file.filename, file.orientation_data);
+    const orientedName = file.filename.replace(/\.stl$/i, "_oriented.stl");
+    return {
+      buffer: oriented,
+      filename: orientedName === file.filename ? `${file.filename}_oriented.stl` : orientedName,
+      mimeType: "application/octet-stream",
+      orientationApplied: true,
+    };
+  } catch (error) {
+    logger.error({ scope: "order-files.orient", message: "Failed to apply orientation", error, fileId: id });
+    throw new AppError("Failed to generate oriented file", "ORIENTATION_ERROR", 500);
+  }
 }
 
 /**

@@ -9,12 +9,15 @@ export type SliceOptions = {
     enabled: boolean;
     angle?: number;
     pattern?: "normal" | "tree";
+    style?: "grid" | "organic";
+    interfaceLayers?: number;
   };
 };
 
 export type SliceResult = {
   timeSec: number;
   grams: number;
+  supportGrams: number;
   gcodePath?: string;
   fallback?: boolean;
 };
@@ -35,11 +38,12 @@ function parseTimeToSeconds(text: string): number {
   return 0;
 }
 
-async function parseGcodeMetrics(gcodePath: string): Promise<{ timeSec: number; grams: number }> {
+async function parseGcodeMetrics(gcodePath: string): Promise<{ timeSec: number; grams: number; supportGrams: number }> {
   const buf = await fsp.readFile(gcodePath, "utf8");
   const lines = buf.split(/\r?\n/).slice(0, 200);
   let grams = 0;
   let timeSec = 0;
+  let supportGrams = 0;
   for (const line of lines) {
     const lg = line.toLowerCase();
     const g1 = lg.match(/filament\s+used\s*=\s*([\d.]+)\s*g/);
@@ -51,13 +55,19 @@ async function parseGcodeMetrics(gcodePath: string): Promise<{ timeSec: number; 
     if (!timeSec && t1?.[1]) {
       timeSec = parseTimeToSeconds(t1[1].trim());
     }
+    if (!supportGrams) {
+      const supportMatch = lg.match(/support\s+material\s+used\s*=\s*([\d.]+)\s*g/);
+      if (supportMatch?.[1]) {
+        supportGrams = Number(supportMatch[1]);
+      }
+    }
   }
-  return { timeSec, grams };
+  return { timeSec, grams, supportGrams };
 }
 
 export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): Promise<SliceResult> {
   if (process.env.SLICER_DISABLE === "1") {
-    return { timeSec: 3600, grams: 80, fallback: true };
+    return { timeSec: 3600, grams: 80, supportGrams: 0, fallback: true };
   }
   const bin = process.env.SLICER_BIN || "prusaslicer"; // or "slic3r"
   const outDir = path.dirname(inputPath);
@@ -74,10 +84,14 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
       ? Math.max(1, Math.min(89, Math.round(Number(opts.supports.angle))))
       : 45;
     args.push("--support-material-angle", String(angle));
-    if (opts.supports.pattern === "tree") {
-      // Organic (tree) supports in PrusaSlicer 2.5+
+    const style = opts.supports.style ?? (opts.supports.pattern === "tree" ? "organic" : "grid");
+    if (style === "organic") {
       args.push("--support-material-style", "organic");
+    } else {
+      args.push("--support-material-style", "grid");
     }
+    const interfaceLayers = Math.max(1, Math.min(6, Math.round(opts.supports.interfaceLayers ?? 3)));
+    args.push("--support-material-interface-layers", String(interfaceLayers));
   }
   args.push("--output", outDir);
   args.push(inputPath);
@@ -113,7 +127,7 @@ export async function sliceFileWithCli(inputPath: string, opts: SliceOptions): P
     throw err;
   }
 
-  const metrics = await parseGcodeMetrics(outPath).catch(() => ({ timeSec: 0, grams: 0 }));
+  const metrics = await parseGcodeMetrics(outPath).catch(() => ({ timeSec: 0, grams: 0, supportGrams: 0 }));
   if (!metrics.timeSec || !metrics.grams) {
     const err = new Error("Unable to parse slicer output");
     throw err;

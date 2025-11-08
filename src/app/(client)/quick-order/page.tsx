@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import * as THREE from "three";
 import { useRouter } from "nextjs-toploader/app";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +39,11 @@ import { formatCurrency } from "@/lib/currency";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
 import RotationControls from "@/components/3d/RotationControls";
 import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
-import { exportSTL } from "@/lib/3d/export";
+import {
+  useOrientationStore,
+  type OrientationQuaternion,
+  type OrientationPosition,
+} from "@/stores/orientation-store";
 
 type Upload = { id: string; filename: string; size: number };
 type Material = { id: number; name: string; costPerGram: number };
@@ -71,6 +77,8 @@ type FileSettings = {
   supportsEnabled: boolean;
   supportPattern: "normal" | "tree";
   supportAngle: number;
+  supportStyle: "grid" | "organic";
+  supportInterfaceLayers: number;
 };
 
 type FileStatus = "idle" | "running" | "success" | "fallback" | "error";
@@ -91,14 +99,43 @@ type PriceDataState = {
   taxAmount: number;
   taxRate?: number;
   total: number;
+  items: Array<{
+    filename: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    breakdown?: Record<string, number> | null;
+  }>;
 };
+
+type OrientationSnapshot = {
+  quaternion: OrientationQuaternion;
+  position: OrientationPosition;
+  autoOriented?: boolean;
+  supportVolume?: number;
+  supportWeight?: number;
+};
+
+type SliceResult = { grams: number; timeSec: number; fallback?: boolean; error?: string };
+
+function eulerFromQuaternion(tuple?: OrientationQuaternion) {
+  if (!tuple) return null;
+  const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...tuple), "XYZ");
+  const format = (value: number) => {
+    const deg = THREE.MathUtils.radToDeg(value);
+    const normalized = ((deg % 360) + 360) % 360;
+    return normalized.toFixed(1);
+  };
+  return { x: format(euler.x), y: format(euler.y), z: format(euler.z) };
+}
 
 type DraftState = {
   timestamp: number;
   step: Step;
   uploads: Array<{ id: string; filename: string; size: number }>;
   settings: Record<string, FileSettings>;
-  orientedFileIds: Record<string, string>;
+  orientationState: Record<string, OrientationSnapshot>;
+  orientationLocked: Record<string, boolean>;
   address: {
     name: string;
     line1: string;
@@ -114,7 +151,6 @@ type DraftState = {
 export default function QuickOrderPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<Step>("upload");
-  const [furthestStepIndex, setFurthestStepIndex] = useState(0);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [studentDiscountEligible, setStudentDiscountEligible] = useState(false);
   const [studentDiscountRate, setStudentDiscountRate] = useState(0);
@@ -125,6 +161,7 @@ export default function QuickOrderPage() {
     Record<string, { grams: number; timeSec: number; fallback?: boolean; error?: string }>
   >({});
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatusState>>({});
+  const [viewerErrors, setViewerErrors] = useState<Record<string, string>>({});
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [shippingQuote, setShippingQuote] = useState<ShippingQuote | null>(null);
   const [address, setAddress] = useState({
@@ -149,32 +186,74 @@ export default function QuickOrderPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initializedRef = useRef(false);
   const addressDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [orientationState, setOrientationState] = useState<Record<string, OrientationSnapshot>>({});
+  const [orientationLocked, setOrientationLocked] = useState<Record<string, boolean>>({});
+  const [currentlyOrienting, setCurrentlyOrienting] = useState<string | null>(null);
+  const [facePickMode, setFacePickMode] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
+  const viewerRef = useRef<ModelViewerRef>(null);
+  const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
+  const [viewHelpersVisible, setViewHelpersVisible] = useState(false);
+  const [gizmoEnabled, setGizmoEnabled] = useState(false);
+  const orientationHydratingRef = useRef(false);
 
   const maxCreditAvailable = useMemo(() => {
     if (!priceData) return 0;
     return Math.min(walletBalance, priceData.total);
   }, [walletBalance, priceData]);
 
-  // Orientation state
-  const [orientedFileIds, setOrientedFileIds] = useState<Record<string, string>>({});
-  const [currentlyOrienting, setCurrentlyOrienting] = useState<string | null>(null);
-  const [isLocking, setIsLocking] = useState(false);
-  const viewerRef = useRef<ModelViewerRef>(null);
-  const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
-  const [viewHelpersVisible, setViewHelpersVisible] = useState(false);
+  const orientedCount = useMemo(
+    () => uploads.reduce((count, upload) => (orientationLocked[upload.id] ? count + 1 : count), 0),
+    [uploads, orientationLocked]
+  );
+  const allOrientationsLocked = uploads.length > 0 && orientedCount === uploads.length;
+  const preparedCount = useMemo(
+    () => uploads.reduce((count, upload) => (metrics[upload.id]?.grams ? count + 1 : count), 0),
+    [uploads, metrics]
+  );
+  const configurationComplete = uploads.length > 0 && preparedCount === uploads.length;
+  const priceStageComplete = configurationComplete && !!priceData;
+  const uploadComplete = uploads.length > 0;
+  const stepCompletion = useMemo<Record<Step, boolean>>(
+    () => ({
+      upload: uploadComplete,
+      orient: allOrientationsLocked,
+      configure: configurationComplete,
+      price: priceStageComplete,
+      checkout: false,
+    }),
+    [uploadComplete, allOrientationsLocked, configurationComplete, priceStageComplete]
+  );
+  const currentOrientationMaterialCost = useMemo(() => {
+    if (!currentlyOrienting) return 0.25;
+    const materialId = settings[currentlyOrienting]?.materialId;
+    const material = materials.find((m) => m.id === materialId);
+    return Number(material?.costPerGram ?? 0.25);
+  }, [currentlyOrienting, settings, materials]);
 
   // Draft auto-save state
   const [draftSaved, setDraftSaved] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const draftLoadedRef = useRef(false);
 
-  const goToStep = useCallback((step: Step) => {
-    setCurrentStep(step);
-    const index = STEP_SEQUENCE.indexOf(step);
-    if (index >= 0) {
-      setFurthestStepIndex((prev) => Math.max(prev, index));
-    }
-  }, []);
+  const isStepUnlocked = useCallback(
+    (step: Step) => {
+      if (step === "upload") return true;
+      const index = STEP_SEQUENCE.indexOf(step);
+      if (index <= 0) return true;
+      const previous = STEP_SEQUENCE[index - 1];
+      return Boolean(stepCompletion[previous as keyof typeof stepCompletion]);
+    },
+    [stepCompletion]
+  );
+
+  const goToStep = useCallback(
+    (step: Step) => {
+      if (!isStepUnlocked(step)) return;
+      setCurrentStep(step);
+    },
+    [isStepUnlocked]
+  );
 
   useEffect(() => {
     if (!currentlyOrienting) return;
@@ -183,6 +262,115 @@ export default function QuickOrderPage() {
 
   useEffect(() => {
     setViewHelpersVisible(false);
+  }, [currentlyOrienting]);
+
+  useEffect(() => {
+    setGizmoEnabled(false);
+    setFacePickMode(false);
+    viewerRef.current?.setGizmoEnabled(false);
+  }, [currentlyOrienting]);
+
+  useEffect(() => {
+    setSettings((prev) => {
+      let changed = false;
+      const next = { ...prev } as Record<string, FileSettings>;
+      Object.entries(next).forEach(([key, config]) => {
+        const style = config.supportStyle ?? (config.supportPattern === "tree" ? "organic" : "grid");
+        const interfaceLayers = config.supportInterfaceLayers ?? 3;
+        if (style !== config.supportStyle || interfaceLayers !== config.supportInterfaceLayers) {
+          next[key] = {
+            ...config,
+            supportStyle: style,
+            supportInterfaceLayers: interfaceLayers,
+          };
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (currentStep !== "orient") {
+      setFacePickMode(false);
+    }
+  }, [currentStep]);
+
+  useEffect(() => {
+    orientationHydratingRef.current = true;
+    const store = useOrientationStore.getState();
+    if (currentlyOrienting) {
+      const snapshot = orientationState[currentlyOrienting];
+      if (snapshot) {
+        store.setOrientation(snapshot.quaternion, snapshot.position, {
+          auto: snapshot.autoOriented,
+        });
+        useOrientationStore.setState((state) => ({
+          ...state,
+          supportVolume: snapshot.supportVolume ?? 0,
+          supportWeight: snapshot.supportWeight ?? snapshot.supportVolume ?? 0,
+          overhangFaces: [],
+        }));
+      } else {
+        store.reset();
+      }
+    } else {
+      store.reset();
+    }
+    orientationHydratingRef.current = false;
+  }, [currentlyOrienting, orientationState]);
+
+  useEffect(() => {
+    if (!currentlyOrienting) return;
+    const enabled = settings[currentlyOrienting]?.supportsEnabled ?? true;
+    useOrientationStore.getState().setSupportsEnabled(enabled);
+  }, [currentlyOrienting, settings]);
+
+  useEffect(() => {
+    if (!currentlyOrienting) return;
+    const unsubscribe = useOrientationStore.subscribe(
+      (state) => ({
+        quaternion: state.quaternion,
+        position: state.position,
+        isAutoOriented: state.isAutoOriented,
+        supportVolume: state.supportVolume,
+        supportWeight: state.supportWeight,
+      }),
+      (next) => {
+        if (!currentlyOrienting || orientationHydratingRef.current) return;
+        setOrientationState((prev) => ({
+          ...prev,
+          [currentlyOrienting]: {
+            quaternion: next.quaternion,
+            position: next.position,
+            autoOriented: next.isAutoOriented,
+            supportVolume: next.supportVolume,
+            supportWeight: next.supportWeight,
+          },
+        }));
+        let unlocked = false;
+        setOrientationLocked((prev) => {
+          if (!prev[currentlyOrienting]) return prev;
+          unlocked = true;
+          return {
+            ...prev,
+            [currentlyOrienting]: false,
+          };
+        });
+        if (unlocked) {
+          setMetrics((prev) => {
+            if (!prev[currentlyOrienting]) return prev;
+            const nextMetrics = { ...prev };
+            delete nextMetrics[currentlyOrienting];
+            return nextMetrics;
+          });
+          setPriceData(null);
+        }
+      }
+    );
+    return () => {
+      unsubscribe();
+    };
   }, [currentlyOrienting]);
 
   useEffect(() => {
@@ -210,6 +398,12 @@ export default function QuickOrderPage() {
   }, [address.postcode, address.state, uploads.length, metrics, priceData]);
 
   useEffect(() => {
+    if (priceData) {
+      setPriceData(null);
+    }
+  }, [settings, metrics, uploads]);
+
+  useEffect(() => {
     async function loadWalletBalance() {
       try {
         const res = await fetch("/api/client/dashboard");
@@ -235,12 +429,13 @@ export default function QuickOrderPage() {
 
   const saveDraft = useCallback(() => {
     try {
-      const draft = {
+      const draft: DraftState = {
         timestamp: Date.now(),
         step: currentStep,
         uploads: uploads.map((u) => ({ id: u.id, filename: u.filename, size: u.size })),
         settings,
-        orientedFileIds,
+        orientationState,
+        orientationLocked,
         address,
         metrics,
       };
@@ -250,7 +445,7 @@ export default function QuickOrderPage() {
     } catch (error) {
       console.error("Failed to save draft:", error);
     }
-  }, [currentStep, uploads, settings, orientedFileIds, address, metrics]);
+  }, [currentStep, uploads, settings, orientationState, orientationLocked, address, metrics]);
 
   const loadDraft = useCallback((): DraftState | null => {
     try {
@@ -279,13 +474,24 @@ export default function QuickOrderPage() {
         setUploads(draft.uploads);
       }
       if (draft.settings) setSettings(draft.settings);
-      if (draft.orientedFileIds) setOrientedFileIds(draft.orientedFileIds);
+      if (draft.orientationState) setOrientationState(draft.orientationState);
+      if (draft.orientationLocked) {
+        setOrientationLocked(draft.orientationLocked);
+      } else if ((draft as unknown as { orientedFileIds?: Record<string, string> }).orientedFileIds) {
+        const legacyLocks = Object.keys(
+          (draft as unknown as { orientedFileIds: Record<string, string> }).orientedFileIds
+        ).reduce<Record<string, boolean>>((acc, key) => {
+          acc[key] = true;
+          return acc;
+        }, {});
+        setOrientationLocked(legacyLocks);
+      }
       if (draft.address) setAddress(draft.address);
       if (draft.metrics) setMetrics(draft.metrics);
       // If returning to the Orient step, select a file to preview
       if (draft.step === "orient") {
         const pendingId = draft.uploads?.find(
-          (u) => !draft.orientedFileIds || !draft.orientedFileIds[u.id]
+          (u) => !draft.orientationLocked || !draft.orientationLocked[u.id]
         )?.id;
         const firstId = draft.uploads?.[0]?.id;
         setCurrentlyOrienting(pendingId || firstId || null);
@@ -317,7 +523,7 @@ export default function QuickOrderPage() {
     }, 1000); // Debounce saves by 1 second
 
     return () => clearTimeout(timeoutId);
-  }, [uploads, settings, orientedFileIds, address, saveDraft]);
+  }, [uploads, settings, orientationState, orientationLocked, address, saveDraft]);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -355,6 +561,22 @@ export default function QuickOrderPage() {
     });
   }, [router]);
 
+  useEffect(() => {
+    let target = currentStep;
+    if (currentStep === "orient" && !stepCompletion.upload) {
+      target = "upload";
+    } else if (currentStep === "configure" && !stepCompletion.orient) {
+      target = "orient";
+    } else if (currentStep === "price" && !stepCompletion.configure) {
+      target = "configure";
+    } else if (currentStep === "checkout" && !stepCompletion.price) {
+      target = stepCompletion.configure ? "price" : "configure";
+    }
+    if (target !== currentStep) {
+      setCurrentStep(target);
+    }
+  }, [currentStep, stepCompletion]);
+
   async function processFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList);
     if (files.length === 0) return;
@@ -383,6 +605,8 @@ export default function QuickOrderPage() {
           supportsEnabled: true,
           supportPattern: "normal",
           supportAngle: 45,
+          supportStyle: "grid",
+          supportInterfaceLayers: 3,
         };
       });
       return next;
@@ -431,6 +655,26 @@ export default function QuickOrderPage() {
     }
   }
 
+  const handleViewerError = useCallback(
+    (fileId: string | null, err: Error) => {
+      if (!fileId) return;
+      const message = err?.message?.length
+        ? err.message
+        : "We couldn't display this model. Delete it and upload a fresh copy.";
+      setViewerErrors((prev) => ({
+        ...prev,
+        [fileId]: message,
+      }));
+      setFileStatuses((prev) => ({
+        ...prev,
+        [fileId]: { state: "error", message },
+      }));
+      useOrientationStore.getState().setInteractionLock(true, "Model failed to load. Delete and re-upload.");
+      setError("One of your files failed to load. Remove it and upload a new copy.");
+    },
+    []
+  );
+
   function removeUpload(id: string) {
     const nextUploads = uploads.filter((u) => u.id !== id);
     if (nextUploads.length === uploads.length) return;
@@ -441,6 +685,16 @@ export default function QuickOrderPage() {
       return copy;
     });
     setMetrics((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setOrientationState((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setOrientationLocked((prev) => {
       const copy = { ...prev };
       delete copy[id];
       return copy;
@@ -456,6 +710,12 @@ export default function QuickOrderPage() {
       next.delete(id);
       return next;
     });
+    setViewerErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev } as Record<string, string>;
+      delete next[id];
+      return next;
+    });
     setExpandedFiles((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -467,51 +727,43 @@ export default function QuickOrderPage() {
   }
 
   async function handleLockOrientation() {
-    if (!currentlyOrienting || !viewerRef.current) {
-      return;
-    }
+    if (!currentlyOrienting) return;
 
     try {
       setIsLocking(true);
       setError(null);
+      setFacePickMode(false);
 
-      const mesh = viewerRef.current.getObject();
-      if (!mesh) {
-        setError("No model loaded in viewer");
-        return;
-      }
-
-      // Export oriented STL
-      const stlBlob = await exportSTL(mesh, true);
-      const file = new File([stlBlob], "oriented.stl", { type: "application/octet-stream" });
-
-      // Upload oriented STL
-      const fd = new FormData();
-      fd.append("fileId", currentlyOrienting);
-      fd.append("orientedSTL", file);
+      const store = useOrientationStore.getState();
+      const snapshot = orientationState[currentlyOrienting] ?? {
+        quaternion: [...store.quaternion] as OrientationQuaternion,
+        position: [...store.position] as OrientationPosition,
+        autoOriented: store.isAutoOriented,
+      };
 
       const res = await fetch("/api/quick-order/orient", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          originalFileId: currentlyOrienting,
+          quaternion: snapshot.quaternion,
+          position: snapshot.position,
+          autoOriented: snapshot.autoOriented ?? false,
+        }),
       });
 
       if (!res.ok) {
-        setError("Failed to save oriented file");
-        return;
+        throw new Error("Failed to save orientation");
       }
 
-      const { data } = await res.json();
-
-      // Map original file ID to oriented file ID
-      setOrientedFileIds((prev) => ({
+      setOrientationState((prev) => ({
         ...prev,
-        [currentlyOrienting]: data.newFileId,
+        [currentlyOrienting]: snapshot,
       }));
+      const updatedLockState = { ...orientationLocked, [currentlyOrienting]: true };
+      setOrientationLocked(updatedLockState);
 
-      // Move to next file or configure step
-      const currentIndex = uploads.findIndex((u) => u.id === currentlyOrienting);
-      const nextFile = uploads[currentIndex + 1];
-
+      const nextFile = uploads.find((upload) => !updatedLockState[upload.id]);
       if (nextFile) {
         setCurrentlyOrienting(nextFile.id);
       } else {
@@ -535,7 +787,7 @@ export default function QuickOrderPage() {
     setShippingQuote(null);
 
     for (const upload of uploads) {
-      const fileId = orientedFileIds[upload.id] || upload.id;
+      const fileId = upload.id;
       const fileSettings = settings[upload.id];
       if (!fileSettings) continue;
 
@@ -544,7 +796,7 @@ export default function QuickOrderPage() {
         [upload.id]: { state: "running" },
       }));
 
-      try {
+      const runSliceRequest = async (supportsEnabledOverride?: boolean): Promise<SliceResult> => {
         const res = await fetch("/api/quick-order/slice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -554,34 +806,38 @@ export default function QuickOrderPage() {
               layerHeight: fileSettings.layerHeight,
               infill: fileSettings.infill,
               supports: {
-                enabled: fileSettings.supportsEnabled,
+                enabled:
+                  typeof supportsEnabledOverride === "boolean"
+                    ? supportsEnabledOverride
+                    : fileSettings.supportsEnabled,
                 pattern: fileSettings.supportPattern,
                 angle: fileSettings.supportAngle,
+                style: fileSettings.supportStyle,
+                interfaceLayers: fileSettings.supportInterfaceLayers,
               },
             },
           }),
         });
 
-        const payload = await res
-          .json()
-          .catch(() => ({ error: "Prepare failed" }));
+        const payload = await res.json().catch(() => ({ error: "Prepare failed" }));
 
         if (!res.ok || !payload) {
           const message = typeof payload?.error === "string" ? payload.error : "Prepare failed";
           throw new Error(message);
         }
 
-        const { data } = payload as {
-          data?: { grams: number; timeSec: number; fallback?: boolean; error?: string };
-        };
-
+        const { data } = payload as { data?: SliceResult };
         if (!data || typeof data.grams !== "number" || typeof data.timeSec !== "number") {
           throw new Error("Unexpected slicer response");
         }
-        const fallback = Boolean(data?.fallback);
-        const grams = Number(data?.grams) || 0;
-        const timeSec = Number(data?.timeSec) || 0;
-        const errorMessage = typeof data?.error === "string" ? data.error : undefined;
+        return data;
+      };
+
+      const applySuccess = (result: SliceResult, overrideMessage?: string) => {
+        const fallback = overrideMessage ? true : Boolean(result?.fallback);
+        const grams = Number(result?.grams) || 0;
+        const timeSec = Number(result?.timeSec) || 0;
+        const errorMessage = overrideMessage ?? (typeof result?.error === "string" ? result.error : undefined);
 
         setMetrics((prev) => ({
           ...prev,
@@ -597,21 +853,41 @@ export default function QuickOrderPage() {
           },
         }));
 
-        if (!fallback) {
-          setAcceptedFallbacks((prev) => {
-            if (!prev.size) return prev; // nothing to remove
-            const next = new Set(prev);
-            next.delete(upload.id);
-            return next;
-          });
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Prepare failed";
+        setAcceptedFallbacks((prev) => {
+          if (!prev.size && !fallback) return prev;
+          const next = new Set(prev);
+          next.delete(upload.id);
+          return next;
+        });
+      };
+
+      const applyFailure = (message: string) => {
         setFileStatuses((prev) => ({
           ...prev,
           [upload.id]: { state: "error", message },
         }));
         setError("Preparing files failed. Expand the file for details and try again.");
+      };
+
+      try {
+        const result = await runSliceRequest();
+        applySuccess(result);
+      } catch (err) {
+        const primaryMessage = err instanceof Error ? err.message : "Prepare failed";
+        if (fileSettings.supportsEnabled) {
+          try {
+            const fallbackResult = await runSliceRequest(false);
+            applySuccess(fallbackResult, `Supports disabled after slicer failure: ${primaryMessage}`);
+            setError("Supports failed for at least one file. Review the warnings before continuing.");
+            continue;
+          } catch (fallbackErr) {
+            const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : primaryMessage;
+            applyFailure(fallbackMessage);
+            continue;
+          }
+        }
+        applyFailure(primaryMessage);
+        continue;
       }
     }
 
@@ -624,6 +900,12 @@ export default function QuickOrderPage() {
     setError(null);
     setShippingQuote(null);
     setPriceData(null);
+    if (!allOrientationsLocked) {
+      setLoading(false);
+      setPricing(false);
+      setError("Lock orientations for all files before pricing.");
+      return;
+    }
     const fallbackPending = uploads.some(
       (u) => metrics[u.id]?.fallback && !acceptedFallbacks.has(u.id),
     );
@@ -633,28 +915,34 @@ export default function QuickOrderPage() {
       setError("Accept fallback estimates or re-prepare the affected files before pricing.");
       return;
     }
-    const items = uploads.map((u) => ({
-      fileId: u.id,
-      filename: u.filename,
-      materialId: settings[u.id].materialId,
-      materialName:
-        materials.find((m) => m.id === settings[u.id].materialId)?.name ?? undefined,
-      layerHeight: settings[u.id].layerHeight,
-      infill: settings[u.id].infill,
-      quantity: settings[u.id].quantity,
-      supports: {
-        enabled: settings[u.id].supportsEnabled,
-        pattern: settings[u.id].supportPattern,
-        angle: settings[u.id].supportAngle,
-        acceptedFallback: acceptedFallbacks.has(u.id),
-      },
-      metrics:
-        metrics[u.id] ?? {
-          grams: 80,
-          timeSec: 3600,
-          fallback: true,
+    const items = uploads.map((u) => {
+      const fileSettings = settings[u.id];
+      return {
+        fileId: u.id,
+        filename: u.filename,
+        materialId: fileSettings.materialId,
+        materialName:
+          materials.find((m) => m.id === fileSettings.materialId)?.name ?? undefined,
+        layerHeight: fileSettings.layerHeight,
+        infill: fileSettings.infill,
+        quantity: fileSettings.quantity,
+        orientation: orientationState[u.id],
+        supports: {
+          enabled: fileSettings.supportsEnabled,
+          pattern: fileSettings.supportPattern,
+          angle: fileSettings.supportAngle,
+          style: fileSettings.supportStyle,
+          interfaceLayers: fileSettings.supportInterfaceLayers,
+          acceptedFallback: acceptedFallbacks.has(u.id),
         },
-    }));
+        metrics:
+          metrics[u.id] ?? {
+            grams: 80,
+            timeSec: 3600,
+            fallback: true,
+          },
+      };
+    });
     try {
       const res = await fetch("/api/quick-order/price", {
         method: "POST",
@@ -705,6 +993,7 @@ export default function QuickOrderPage() {
         taxAmount: Math.round(taxAmountRaw * 100) / 100,
         taxRate,
         total: Math.round(totalRaw * 100) / 100,
+        items: Array.isArray(data.items) ? data.items : [],
       });
       goToStep("price");
     } catch (err) {
@@ -727,28 +1016,39 @@ export default function QuickOrderPage() {
       setError("Accept fallback estimates or re-prepare the affected files before checkout.");
       return;
     }
-    const items = uploads.map((u) => ({
-      fileId: u.id,
-      filename: u.filename,
-      materialId: settings[u.id].materialId,
-      materialName:
-        materials.find((m) => m.id === settings[u.id].materialId)?.name ?? undefined,
-      layerHeight: settings[u.id].layerHeight,
-      infill: settings[u.id].infill,
-      quantity: settings[u.id].quantity,
-      supports: {
-        enabled: settings[u.id].supportsEnabled,
-        pattern: settings[u.id].supportPattern,
-        angle: settings[u.id].supportAngle,
-        acceptedFallback: acceptedFallbacks.has(u.id),
-      },
-      metrics:
-        metrics[u.id] ?? {
-          grams: 80,
-          timeSec: 3600,
-          fallback: true,
+    if (!allOrientationsLocked) {
+      setLoading(false);
+      setError("Lock orientations for all files before checkout.");
+      return;
+    }
+    const items = uploads.map((u) => {
+      const fileSettings = settings[u.id];
+      return {
+        fileId: u.id,
+        filename: u.filename,
+        materialId: fileSettings.materialId,
+        materialName:
+          materials.find((m) => m.id === fileSettings.materialId)?.name ?? undefined,
+        layerHeight: fileSettings.layerHeight,
+        infill: fileSettings.infill,
+        quantity: fileSettings.quantity,
+        orientation: orientationState[u.id],
+        supports: {
+          enabled: fileSettings.supportsEnabled,
+          pattern: fileSettings.supportPattern,
+          angle: fileSettings.supportAngle,
+          style: fileSettings.supportStyle,
+          interfaceLayers: fileSettings.supportInterfaceLayers,
+          acceptedFallback: acceptedFallbacks.has(u.id),
         },
-    }));
+        metrics:
+          metrics[u.id] ?? {
+            grams: 80,
+            timeSec: 3600,
+            fallback: true,
+          },
+      };
+    });
     const res = await fetch("/api/quick-order/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -829,7 +1129,7 @@ export default function QuickOrderPage() {
     });
   }
 
-  const canPrepare = uploads.length > 0;
+  const canPrepare = uploads.length > 0 && allOrientationsLocked;
   const hasPreparedAll = uploads.every((u) => metrics[u.id]);
   const hasFallbacks = uploads.some((u) => metrics[u.id]?.fallback);
   const fallbackNeedsAttention = uploads.some(
@@ -857,6 +1157,11 @@ export default function QuickOrderPage() {
   const hasUploads = uploads.length > 0;
   const isUploadStep = currentStep === "upload";
   const isConfigureStep = currentStep === "configure";
+  const currentFileMeta = useMemo(
+    () => (currentlyOrienting ? uploads.find((u) => u.id === currentlyOrienting) ?? null : null),
+    [currentlyOrienting, uploads]
+  );
+  const viewerErrorActive = currentlyOrienting ? Boolean(viewerErrors[currentlyOrienting]) : false;
 
   return (
     <div className="space-y-4 pb-24 sm:space-y-6">
@@ -907,9 +1212,16 @@ export default function QuickOrderPage() {
         <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
           {STEP_META.map((step, index) => {
             const Icon = step.icon;
-            const isActive = index === currentStepIndex;
-            const isComplete = index < currentStepIndex;
-            const canNavigate = index <= furthestStepIndex;
+            const isActive = step.id === currentStep;
+            const isComplete = stepCompletion[step.id as keyof typeof stepCompletion];
+            const canNavigate = isStepUnlocked(step.id) || Boolean(isComplete);
+            const statusLabel = isComplete
+              ? "Done"
+              : isActive
+              ? "In Progress"
+              : canNavigate
+              ? "Pending"
+              : "Locked";
 
             return (
               <div key={step.id} className="flex flex-1 items-center">
@@ -930,7 +1242,9 @@ export default function QuickOrderPage() {
                         ? "border-success bg-success text-white"
                         : isActive
                         ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card text-muted-foreground",
+                        : canNavigate
+                        ? "border-border bg-card text-muted-foreground"
+                        : "border-border/60 bg-muted text-muted-foreground",
                     )}
                   >
                     {isComplete ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className="h-4 w-4 sm:h-5 sm:w-5" />}
@@ -942,10 +1256,18 @@ export default function QuickOrderPage() {
                     )}
                   >
                     {step.label}
+                    <span className="ml-1 hidden text-[10px] font-normal uppercase tracking-wide text-muted-foreground sm:inline">
+                      {statusLabel}
+                    </span>
                   </span>
                 </button>
                 {index < STEP_META.length - 1 && (
-                  <div className="mx-1 h-0.5 flex-1 bg-gray-200 sm:mx-2" />
+                  <div
+                    className={cn(
+                      "mx-1 h-0.5 flex-1 bg-border/60 sm:mx-2",
+                      isComplete && "bg-primary"
+                    )}
+                  />
                 )}
               </div>
             );
@@ -1142,6 +1464,10 @@ export default function QuickOrderPage() {
                   const statusMessage = fileStatuses[u.id]?.message;
                   const fallbackActive = metrics[u.id]?.fallback ?? false;
                   const fallbackAccepted = acceptedFallbacks.has(u.id);
+                  const orientationSnapshot = orientationState[u.id];
+                  const angles = eulerFromQuaternion(orientationSnapshot?.quaternion);
+                  const supportEstimate = orientationSnapshot?.supportWeight ?? orientationSnapshot?.supportVolume;
+                  const lockedOrientation = orientationLocked[u.id];
                   const statusBadge = (() => {
                     switch (status) {
                       case "running":
@@ -1211,6 +1537,21 @@ export default function QuickOrderPage() {
                               </span>
                             </div>
                           ) : null}
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <Badge variant={lockedOrientation ? "default" : "outline"} className="px-2 py-0.5">
+                              {lockedOrientation ? "Locked" : "Needs lock"}
+                            </Badge>
+                            {angles ? (
+                              <span>
+                                Orientation · X {angles.x}° · Y {angles.y}° · Z {angles.z}°
+                              </span>
+                            ) : (
+                              <span>Orient this file before pricing</span>
+                            )}
+                            {typeof supportEstimate === "number" ? (
+                              <span>Supports ~{supportEstimate.toFixed(1)}g</span>
+                            ) : null}
+                          </div>
                         </div>
                         {isConfigureStep ? (
                           isExpanded ? (
@@ -1312,15 +1653,18 @@ export default function QuickOrderPage() {
                                 </div>
                                 <Switch
                                   checked={settings[u.id]?.supportsEnabled ?? true}
-                                  onCheckedChange={(checked) =>
+                                  onCheckedChange={(checked) => {
                                     setSettings((s) => ({
                                       ...s,
                                       [u.id]: {
                                         ...s[u.id],
                                         supportsEnabled: checked,
                                       },
-                                    }))
-                                  }
+                                    }));
+                                    if (currentlyOrienting === u.id) {
+                                      useOrientationStore.getState().setSupportsEnabled(checked);
+                                    }
+                                  }}
                                 />
                               </div>
                             </div>
@@ -1349,6 +1693,30 @@ export default function QuickOrderPage() {
                               </Select>
                             </div>
                             <div>
+                              <Label className="text-xs">Support style</Label>
+                              <Select
+                                value={settings[u.id]?.supportStyle ?? "grid"}
+                                onValueChange={(value) =>
+                                  setSettings((s) => ({
+                                    ...s,
+                                    [u.id]: {
+                                      ...s[u.id],
+                                      supportStyle: value as "grid" | "organic",
+                                    },
+                                  }))
+                                }
+                                disabled={!settings[u.id]?.supportsEnabled}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="grid">Grid / Linear</SelectItem>
+                                  <SelectItem value="organic">Organic</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
                               <Label className="text-xs">Support threshold (°)</Label>
                               <Input
                                 type="number"
@@ -1362,6 +1730,27 @@ export default function QuickOrderPage() {
                                     [u.id]: {
                                       ...s[u.id],
                                       supportAngle: Number(e.target.value) || 45,
+                                    },
+                                  }))
+                                }
+                                disabled={!settings[u.id]?.supportsEnabled}
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Interface layers</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={6}
+                                step="1"
+                                value={settings[u.id]?.supportInterfaceLayers ?? 3}
+                                onChange={(e) =>
+                                  setSettings((s) => ({
+                                    ...s,
+                                    [u.id]: {
+                                      ...s[u.id],
+                                      supportInterfaceLayers: Number(e.target.value) || 3,
                                     },
                                   }))
                                 }
@@ -1424,7 +1813,7 @@ export default function QuickOrderPage() {
                 <div className="mt-4 flex justify-end">
                   <Button
                     onClick={computePrice}
-                    disabled={uploads.length === 0 || loading || pricing}
+                    disabled={uploads.length === 0 || loading || pricing || !allOrientationsLocked}
                     className={cn(
                       "flex w-full items-center justify-center gap-2 sm:w-auto",
                       pricing && "animate-pulse"
@@ -1458,7 +1847,7 @@ export default function QuickOrderPage() {
                       <p className="text-xs text-muted-foreground">
                         File {uploads.findIndex((u) => u.id === currentlyOrienting) + 1} of {uploads.length}
                         {" · "}
-                        {Object.keys(orientedFileIds).length} oriented
+                        {orientedCount} oriented
                       </p>
                     )}
                   </div>
@@ -1468,10 +1857,11 @@ export default function QuickOrderPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => goToStep("configure")}
-                    disabled={isLocking}
+                    disabled={isLocking || !allOrientationsLocked}
+                    title={allOrientationsLocked ? undefined : "Lock each file before moving on"}
                     className="whitespace-nowrap"
                   >
-                    Skip
+                    Continue
                   </Button>
                 </div>
               </div>
@@ -1480,7 +1870,7 @@ export default function QuickOrderPage() {
               <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
                 <div className="flex min-w-max gap-2 sm:flex-wrap">
                 {uploads.map((u) => {
-                  const isOriented = !!orientedFileIds[u.id];
+                  const isOriented = !!orientationLocked[u.id];
                   const isCurrent = currentlyOrienting === u.id;
 
                   return (
@@ -1512,15 +1902,49 @@ export default function QuickOrderPage() {
                     <ModelViewerWrapper
                       ref={viewerRef}
                       url={`/api/tmp-file/${currentlyOrienting}`}
-                      filename={uploads.find((u) => u.id === currentlyOrienting)?.filename}
-                      onError={(err) => setError(err.message)}
+                      filename={currentFileMeta?.filename}
+                      fileSizeBytes={currentFileMeta?.size}
+                      onError={(err) => handleViewerError(currentlyOrienting, err)}
+                      facePickMode={facePickMode}
+                      onFacePickComplete={() => setFacePickMode(false)}
+                      overhangThreshold={settings[currentlyOrienting]?.supportAngle ?? 45}
                     />
                   </div>
+                  {viewerErrorActive && currentlyOrienting ? (
+                    <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <AlertTriangle className="h-4 w-4" />
+                        <span>{viewerErrors[currentlyOrienting]}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-destructive/80">
+                        Remove the file or upload a clean copy to continue. Orientation controls stay disabled until a valid model loads.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Re-upload file
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => removeUpload(currentlyOrienting)}
+                        >
+                          Remove file
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-3">
                     <ViewNavigationControls
                       helpersVisible={viewHelpersVisible}
-                      disabled={isLocking}
+                      disabled={isLocking || viewerErrorActive}
                       onPan={(direction) => viewerRef.current?.pan(direction)}
                       onZoom={(direction) => viewerRef.current?.zoom(direction)}
                       onPreset={(preset) => viewerRef.current?.setView(preset)}
@@ -1530,23 +1954,40 @@ export default function QuickOrderPage() {
                         viewerRef.current?.resetView();
                       }}
                       onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
+                      onToggleGizmo={(enabled) => {
+                        setGizmoEnabled(enabled);
+                        viewerRef.current?.setGizmoEnabled(enabled);
+                      }}
+                      gizmoEnabled={gizmoEnabled}
                     />
                     <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
                       <RotationControls
                         onReset={() => viewerRef.current?.resetView()}
                         onRecenter={() => viewerRef.current?.recenter()}
                         onFitView={() => viewerRef.current?.fit()}
-                        onAutoOrient={() => viewerRef.current?.autoOrient()}
+                        onAutoOrient={() => {
+                          setFacePickMode(false);
+                          viewerRef.current?.autoOrient();
+                        }}
                         onLock={handleLockOrientation}
                         onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
+                        onOrientToFaceToggle={(enabled) => {
+                          setFacePickMode(enabled);
+                          if (enabled) {
+                            setGizmoEnabled(false);
+                            viewerRef.current?.setGizmoEnabled(false);
+                          }
+                        }}
+                        orientToFaceActive={facePickMode}
                         isLocking={isLocking}
-                        disabled={isLocking}
+                        disabled={isLocking || viewerErrorActive}
+                        supportCostPerGram={currentOrientationMaterialCost}
                       />
                     </div>
                   </div>
 
                 </div>
-              ) : Object.keys(orientedFileIds).length === uploads.length ? (
+              ) : allOrientationsLocked ? (
                 <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center">
                   <div>
                     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
@@ -1642,13 +2083,54 @@ export default function QuickOrderPage() {
                     <span className="font-medium">${priceData.taxAmount.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="border-t border-border pt-2">
-                  <div className="flex justify-between text-base font-semibold">
-                    <span>Total</span>
-                    <span>${priceData.total.toFixed(2)}</span>
-                  </div>
+              <div className="border-t border-border pt-2">
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Total</span>
+                  <span>${priceData.total.toFixed(2)}</span>
                 </div>
               </div>
+              {priceData.items?.length ? (
+                <div className="mt-4 space-y-3 text-xs">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Per-file breakdown
+                  </p>
+                  {priceData.items.map((item) => (
+                    <div key={item.filename} className="rounded-md border border-border/60 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="font-medium text-foreground">{item.filename}</span>
+                        <span className="text-muted-foreground">
+                          Qty {item.quantity} · ${item.unitPrice.toFixed(2)} ea
+                        </span>
+                      </div>
+                      {item.breakdown ? (
+                        <dl className="mt-2 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                          <div className="flex items-center justify-between">
+                            <dt>Model weight</dt>
+                            <dd>{(item.breakdown.modelWeight ?? item.breakdown.grams ?? 0).toFixed(1)} g</dd>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <dt>Support weight</dt>
+                            <dd>{(item.breakdown.supportWeight ?? item.breakdown.supportGrams ?? 0).toFixed(1)} g</dd>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <dt>Material cost</dt>
+                            <dd>${(item.breakdown.materialCost ?? 0).toFixed(2)}</dd>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <dt>Time cost</dt>
+                            <dd>${(item.breakdown.timeCost ?? 0).toFixed(2)}</dd>
+                          </div>
+                        </dl>
+                      ) : null}
+                      <div className="mt-2 flex items-center justify-between text-sm font-semibold">
+                        <span>Line total</span>
+                        <span>${item.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
               {currentStep === "price" && (
                 <Button className="mt-4 w-full" onClick={() => goToStep("checkout")} disabled={loading}>
                   Continue to Checkout

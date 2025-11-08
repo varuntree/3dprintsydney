@@ -29,6 +29,8 @@ interface ViewNavigationControlsProps {
   disabled?: boolean;
   className?: string;
   mode?: "full" | "presets-only";
+  onToggleGizmo?: (enabled: boolean) => void;
+  gizmoEnabled?: boolean;
 }
 
 const presetButtons: Array<{ label: string; preset: ViewPreset; title: string }> = [
@@ -52,6 +54,8 @@ export default function ViewNavigationControls({
   disabled = false,
   className,
   mode = "full",
+  onToggleGizmo,
+  gizmoEnabled = false,
 }: ViewNavigationControlsProps) {
   const presets = (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -91,23 +95,39 @@ export default function ViewNavigationControls({
         className
       )}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Axis3D className="h-4 w-4" />
           View Controls
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant={helpersVisible ? "default" : "outline"}
-          className="h-8 gap-1 text-xs"
-          disabled={disabled}
-          onClick={onToggleHelpers}
-          title={helpersVisible ? "Hide axes/grid" : "Show axes/grid"}
-        >
-          <Grid className="h-3.5 w-3.5" />
-          {helpersVisible ? "Hide" : "Show"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onToggleGizmo ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={gizmoEnabled ? "default" : "outline"}
+              className="h-8 gap-1 text-xs"
+              disabled={disabled}
+              onClick={() => onToggleGizmo(!gizmoEnabled)}
+              title={gizmoEnabled ? "Hide rotation gizmo" : "Show rotation gizmo"}
+            >
+              <Move className="h-3.5 w-3.5" />
+              Gizmo
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant={helpersVisible ? "default" : "outline"}
+            className="h-8 gap-1 text-xs"
+            disabled={disabled}
+            onClick={onToggleHelpers}
+            title={helpersVisible ? "Hide axes/grid" : "Show axes/grid"}
+          >
+            <Grid className="h-3.5 w-3.5" />
+            {helpersVisible ? "Hide" : "Show"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">

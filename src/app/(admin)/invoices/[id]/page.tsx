@@ -19,6 +19,8 @@ import type { InvoiceDetailDTO } from "@/lib/types/invoices";
 import { listProductTemplates } from "@/server/services/product-templates";
 import { listMaterials } from "@/server/services/materials";
 import { InvoiceActivity } from "@/components/invoices/invoice-activity";
+import { getOrderFilesByInvoice } from "@/server/services/order-files";
+import { OrderFilesPreview } from "@/components/order-files/order-files-preview";
 
 interface InvoicePageProps {
   params: Promise<{ id: string }>;
@@ -38,7 +40,11 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
   const isEdit = mode === "edit";
 
   try {
-    const [detail, settings] = await Promise.all([getInvoiceDetail(id), getSettings()]);
+    const [detail, settings, orderFiles] = await Promise.all([
+      getInvoiceDetail(id),
+      getSettings(),
+      getOrderFilesByInvoice(id),
+    ]);
     if (!settings) {
       notFound();
     }
@@ -164,6 +170,17 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
     return (
       <div className="space-y-8">
         <InvoiceView invoice={viewModel} />
+        <OrderFilesPreview
+          files={orderFiles
+            .filter((file) => file.file_type === "model")
+            .map((file) => ({
+              id: file.id,
+              filename: file.filename,
+              mimeType: file.mime_type,
+              uploadedAt: file.uploaded_at,
+              orientationData: file.orientation_data,
+            }))}
+        />
         <InvoicePayments invoiceId={detail.id} payments={payments} />
         <InvoiceAttachments invoiceId={detail.id} attachments={attachments} />
 

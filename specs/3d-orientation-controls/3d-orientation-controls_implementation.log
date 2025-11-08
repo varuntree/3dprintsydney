@@ -1,0 +1,36 @@
+[2025-11-07T21:48:26Z] Step 1: Added orientation_data columns + GIN index migration (supabase/migrations/202511071230_add_orientation_storage.sql). Attempted `npx supabase migration up` but local Postgres unavailable (connection refused on 127.0.0.1:54322).
+[2025-11-07T21:49:01Z] Step 2: Installed zustand dependency and created src/stores/orientation-store.ts with orientation state/actions + selector hooks.
+[2025-11-07T21:49:28Z] Step 3: Added BuildPlate component (grid, axes, dimension labels, transparent build volume box) at src/components/3d/BuildPlate.tsx.
+[2025-11-07T21:51:53Z] Step 4: Wired new BuildPlate into ModelViewer scene root (src/components/3d/ModelViewer.tsx) and removed model-relative helpers to keep grid fixed.
+[2025-11-07T21:55:28Z] Step 5: Implemented detectOverhangs (src/lib/3d/overhang-detector.ts) with downward-face scoring + unit tests for base tilt scenarios (src/lib/3d/__tests__/overhang-detector.test.ts).
+[2025-11-07T21:56:13Z] Step 6: Added OverhangHighlight component (src/components/3d/OverhangHighlight.tsx) to visualize flagged faces via merged geometries + translucent material.
+[2025-11-07T21:58:56Z] Step 7: Overhauled computeAutoOrientQuaternion (src/lib/3d/orientation.ts) with PCA seeding, support-volume scoring, contact-area metric + performance logging and updated ModelViewer usages.
+[2025-11-07T21:59:30Z] Step 8: Added face alignment utilities (src/lib/3d/face-alignment.ts) plus initial quaternion alignment tests (src/lib/3d/__tests__/face-alignment.test.ts).
+[2025-11-07T22:05:33Z] Step 9: Integrated orientation store + overhang detection into ModelViewer (quaternion sync, OverhangHighlight, new handle methods, face alignment + auto-orient metric storage).
+[2025-11-07T22:09:22Z] Step 10: Upgraded RotationControls with numeric Euler inputs, orient-to-face toggle hook, and support estimate display sourced from orientation store.
+[2025-11-07T22:12:36Z] Step 11: Added OrientationGizmo (TransformControls-based), hooked ModelViewer + ViewNavigationControls toggles, and disabled OrbitControls during gizmo drags.
+[2025-11-07T22:17:18Z] Step 12: Added STL geometry loader (src/server/geometry/load-geometry.ts) and new quick-order analyze-supports API that runs detectOverhangs server-side for auth'd tmp files.
+[2025-11-07T22:18:58Z] Step 13: Extended tmp file service with orientation_data updates and upgraded /api/quick-order/orient to support JSON quaternion/position storage while retaining legacy STL upload path.
+[2025-11-07T22:23:58Z] Step 14: Enhanced slicing pipeline—slice route now honors support style params, slicing service applies stored orientation via STLExporter + loads STL via server geometry helpers, CLI adds style/interface flags, and we capture support grams from G-code.
+[2025-11-07T22:27:02Z] Step 15: Updated pricing to track support grams/material costs, extending breakdowns for future calculator snapshot use.
+[2025-11-08T05:26:29Z] Added LOCAL_SETUP_INSTRUCTIONS.md detailing how to start Supabase + apply the new orientation migration (per user request).
+[2025-11-08T05:31:05Z] Step 16: Rebuilt /api/quick-order/price to store orientation quaternions, invoke sliceQuickOrderFile with support style/interface settings, and feed server-derived grams/supportGrams/time into priceQuickOrder (which now tracks support costs in breakdowns).
+[2025-11-08T05:54:56Z] Step 17 (in progress): Reworked quick-order orientation flow to use quaternion metadata—added orientation snapshots/locks, new support-style settings, ModelViewer face-pick mode hook-up, pricing/checkout gating on locked orientations, and wired client payloads to send orientation/support data.
+[2025-11-08T06:19:11Z] Step 17: Began new quick-order UX work—added orientation snapshot/lock state, gating logic for wizard steps, support-style settings, ModelViewer face-pick plumbing, and price recalculation invalidation hooks. More Step 17 polish still pending.
+[2025-11-08T06:42:22Z] Step 20: Persisted orientation data on order files (saveOrderFile + tmp pipeline), added oriented download helper/route, and exposed orientation metadata via invoice files API.
+[2025-11-08T06:42:22Z] Step 21: Added Production Files preview on admin invoice detail with ModelViewer + original/oriented download buttons reflecting saved quaternions.
+[2025-11-08T06:42:22Z] Step 22: Authored .claude/commands/e2e/test_3d_orientation.md covering full storefront + admin workflow.
+[2025-11-08T06:42:22Z] Step 23: Expanded overhang-detector tests (thresholds, sphere, volume expectations) and Step 24 face alignment tests now cover raycasting.
+[2025-11-08T06:42:22Z] Step 25: Added Vitest + server pricing test ensuring support grams priced separately and legacy behavior preserved.
+[2025-11-08T06:42:22Z] Step 26: Offloaded overhang detection to a dedicated Web Worker with graceful fallback + debounced main-thread dispatcher.
+[2025-11-08T07:05:25Z] Step 27: Hardened orientation workflow—quaternion normalization + warning states, zero-volume + >50MB detectors, worker status badges/timeouts, retry slicing without supports, and storefront UI messaging for corrupt uploads.
+[2025-11-08T07:06:01Z] Step 28: Authored specs/3d-orientation-controls/USER_GUIDE.md covering auto-orient flow, manual controls, support preview, pricing impact, warnings, and ASCII diagrams for good vs bad orientations.
+[2025-11-08T07:06:37Z] Step 29: Attempted 'npx supabase migration up' but local Postgres on 127.0.0.1:54322 is still offline (connection refused); unable to verify migration without the service.
+[2025-11-08T07:08:52Z] Step 29: Vitest lacks --testPathPattern, so ran 'npx vitest run src/lib/3d/__tests__/overhang-detector.test.ts src/lib/3d/__tests__/face-alignment.test.ts' (PASS).
+[2025-11-08T07:09:05Z] Step 29: Ran 'npx vitest run src/server/services/__tests__/quick-order-pricing.test.ts' (PASS).
+[2025-11-08T07:09:19Z] Step 29: 'npm run type-check' script missing; ran 'npm run typecheck' instead but TypeScript failed with existing errors (req not defined in admin/api routes, quick-order variable ordering, etc.).
+[2025-11-08T07:09:51Z] Step 29: 'npm run build' (PASS).
+[2025-11-08T07:11:01Z] Step 29: 'npm test' (PASS).
+[2025-11-08T07:11:10Z] Step 29: Unable to execute manual E2E scenario in .claude/commands/e2e/test_3d_orientation.md from CLI—requires interactive browser session; documented as pending.
+[2025-11-08T07:11:15Z] Step 29: Skipped curl smoke test for /api/quick-order/analyze-supports and auto-orient perf script because Next dev server & slicer binaries are not running in this environment.
+[2025-11-08T07:11:25Z] Step 30: Added test_fixtures/overhang_test.stl (45° wedge) for orientation QA as referenced by the e2e plan.

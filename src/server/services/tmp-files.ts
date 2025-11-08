@@ -27,8 +27,15 @@ export type TmpFileRecord = {
   mime_type: string | null;
   status: TmpFileStatus;
   metadata: TmpFileMetadata | null;
+  orientation_data: OrientationData | null;
   created_at: string;
   updated_at: string;
+};
+
+export type OrientationData = {
+  quaternion: [number, number, number, number];
+  position: [number, number, number];
+  autoOriented?: boolean;
 };
 
 /**
@@ -61,10 +68,17 @@ export async function saveTmpFile(
       status: "idle",
       metadata: metadata ?? null,
     })
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, created_at, updated_at")
+    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
     .single();
 
   if (error || !data) {
+    logger.error({
+      scope: 'tmp-files.save',
+      message: 'Failed to register tmp file in database',
+      userId,
+      filename,
+      error: error?.message ?? 'no data returned',
+    });
     await deleteFromStorage(key).catch(() => undefined);
     throw new AppError(error?.message ?? "Failed to register tmp file", 'DATABASE_ERROR', 500);
   }
@@ -88,7 +102,7 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from("tmp_files")
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, created_at, updated_at")
+    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
     .eq("storage_key", tmpId)
     .maybeSingle();
 
@@ -120,6 +134,7 @@ export async function updateTmpFile(
     sizeBytes?: number;
     filename?: string;
     mimeType?: string | null;
+    orientationData?: OrientationData | null;
   },
 ) {
   await requireTmpFile(userId, tmpId);
@@ -132,9 +147,10 @@ export async function updateTmpFile(
       size_bytes: updates.sizeBytes ?? undefined,
       filename: updates.filename ?? undefined,
       mime_type: updates.mimeType ?? undefined,
+      orientation_data: updates.orientationData ?? undefined,
     })
     .eq("storage_key", tmpId)
-    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, created_at, updated_at")
+    .select("id, user_id, storage_key, filename, size_bytes, mime_type, status, metadata, orientation_data, created_at, updated_at")
     .single();
 
   if (error || !data) {

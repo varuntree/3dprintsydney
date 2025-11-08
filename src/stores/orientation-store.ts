@@ -1,0 +1,126 @@
+import { create } from 'zustand';
+
+export type OrientationQuaternion = [number, number, number, number];
+export type OrientationPosition = [number, number, number];
+
+type LoadingState = "idle" | "running" | "error" | "timeout";
+
+interface OrientationState {
+  quaternion: OrientationQuaternion;
+  position: OrientationPosition;
+  overhangFaces: number[];
+  supportVolume: number;
+  supportWeight: number;
+  supportEnabled: boolean;
+  isAutoOriented: boolean;
+  overhangStatus: LoadingState;
+  overhangMessage?: string;
+  autoOrientStatus: LoadingState;
+  autoOrientMessage?: string;
+  interactionDisabled: boolean;
+  interactionMessage?: string;
+  warnings: string[];
+}
+
+interface OrientationActions {
+  setOrientation: (
+    quaternion: OrientationQuaternion,
+    position?: OrientationPosition,
+    options?: { auto?: boolean }
+  ) => void;
+  setOverhangData: (params: { faces: number[]; supportVolume: number; supportWeight: number }) => void;
+  toggleSupports: (nextState?: boolean) => void;
+  setSupportsEnabled: (enabled: boolean) => void;
+  setAnalysisStatus: (status: LoadingState, message?: string) => void;
+  setAutoOrientStatus: (status: LoadingState, message?: string) => void;
+  setInteractionLock: (disabled: boolean, message?: string) => void;
+  addWarning: (message: string) => void;
+  clearWarnings: () => void;
+  reset: () => void;
+}
+
+const initialQuaternion: OrientationQuaternion = [0, 0, 0, 1];
+const initialPosition: OrientationPosition = [0, 0, 0];
+
+const initialState: OrientationState = {
+  quaternion: initialQuaternion,
+  position: initialPosition,
+  overhangFaces: [],
+  supportVolume: 0,
+  supportWeight: 0,
+  supportEnabled: true,
+  isAutoOriented: false,
+  overhangStatus: "idle",
+  autoOrientStatus: "idle",
+  interactionDisabled: false,
+  warnings: [],
+};
+
+export type OrientationStore = OrientationState & OrientationActions;
+
+export const useOrientationStore = create<OrientationStore>((set) => ({
+  ...initialState,
+  setOrientation: (quaternion, position = initialPosition, options) =>
+    set((state) => ({
+      quaternion: normalizeQuaternion(quaternion),
+      position: [...position] as OrientationPosition,
+      isAutoOriented: options?.auto ?? state.isAutoOriented,
+    })),
+  setOverhangData: ({ faces, supportVolume, supportWeight }) =>
+    set(() => ({
+      overhangFaces: faces,
+      supportVolume,
+      supportWeight,
+      overhangStatus: "idle",
+      overhangMessage: undefined,
+    })),
+  toggleSupports: (nextState) =>
+    set((state) => ({ supportEnabled: nextState ?? !state.supportEnabled })),
+  setSupportsEnabled: (enabled) => set(() => ({ supportEnabled: enabled })),
+  setAnalysisStatus: (status, message) => set(() => ({ overhangStatus: status, overhangMessage: message })),
+  setAutoOrientStatus: (status, message) =>
+    set(() => ({ autoOrientStatus: status, autoOrientMessage: message })),
+  setInteractionLock: (disabled, message) =>
+    set(() => ({ interactionDisabled: disabled, interactionMessage: message })),
+  addWarning: (message) =>
+    set((state) => {
+      if (state.warnings.includes(message)) {
+        return state;
+      }
+      return { warnings: [...state.warnings, message] };
+    }),
+  clearWarnings: () => set(() => ({ warnings: [] })),
+  reset: () => set({ ...initialState }),
+}));
+
+export const useOrientation = () =>
+  useOrientationStore((state) => ({
+    quaternion: state.quaternion,
+    position: state.position,
+    isAutoOriented: state.isAutoOriented,
+  }));
+
+export const useSupports = () =>
+  useOrientationStore((state) => ({
+    supportEnabled: state.supportEnabled,
+    supportVolume: state.supportVolume,
+    supportWeight: state.supportWeight,
+    overhangFaces: state.overhangFaces,
+    overhangStatus: state.overhangStatus,
+    overhangMessage: state.overhangMessage,
+    autoOrientStatus: state.autoOrientStatus,
+    autoOrientMessage: state.autoOrientMessage,
+    interactionDisabled: state.interactionDisabled,
+    interactionMessage: state.interactionMessage,
+    warnings: state.warnings,
+  }));
+
+function normalizeQuaternion(tuple: OrientationQuaternion): OrientationQuaternion {
+  const [x, y, z, w] = tuple;
+  const magnitude = Math.hypot(x, y, z, w);
+  if (!Number.isFinite(magnitude) || magnitude < 1e-4) {
+    return [...initialQuaternion];
+  }
+  const inv = 1 / magnitude;
+  return [x * inv, y * inv, z * inv, w * inv] as OrientationQuaternion;
+}

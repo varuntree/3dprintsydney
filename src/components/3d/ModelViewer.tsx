@@ -18,6 +18,16 @@ import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
+import { detectOverhangs } from "@/lib/3d/overhang-detector";
+import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
+import {
+  useOrientationStore,
+  OrientationQuaternion,
+  OrientationPosition,
+} from "@/stores/orientation-store";
+import BuildPlate from "./BuildPlate";
+import OverhangHighlight from "./OverhangHighlight";
+import OrientationGizmo from "./OrientationGizmo";
 
 type SupportedExt = "stl" | "3mf";
 
@@ -44,14 +54,22 @@ export interface ModelViewerHandle {
   setView: (preset: ViewPreset) => void;
   setHelpersVisible: (visible: boolean) => void;
   toggleHelpers: () => void;
+  orientToFace: (faceNormal: THREE.Vector3) => void;
+  getOrientation: () => { quaternion: OrientationQuaternion; position: OrientationPosition };
+  setOrientation: (quaternion: OrientationQuaternion, position?: OrientationPosition) => void;
+  setGizmoEnabled: (enabled: boolean) => void;
 }
 
 interface ModelViewerProps {
   url: string;
   filename?: string; // helps choose loader
+  fileSizeBytes?: number;
   onLoadComplete?: () => void;
   onError?: (error: Error) => void;
   onTransformChange?: (matrix: THREE.Matrix4) => void;
+  facePickMode?: boolean;
+  onFacePickComplete?: () => void;
+  overhangThreshold?: number;
 }
 
 function mergeObjectGeometries(root: THREE.Object3D): THREE.BufferGeometry | null {
@@ -73,6 +91,33 @@ function mergeObjectGeometries(root: THREE.Object3D): THREE.BufferGeometry | nul
     // Fallback to first geometry
     return geoms[0];
   }
+}
+
+const IDENTITY_TUPLE: OrientationQuaternion = [0, 0, 0, 1];
+const LARGE_MODEL_BYTES = 50 * 1024 * 1024;
+const AUTO_ORIENT_TIMEOUT_MS = 5000;
+const FLAT_MODEL_THRESHOLD_MM = 0.2;
+
+function tupleToQuaternion(tuple: OrientationQuaternion): THREE.Quaternion {
+  return new THREE.Quaternion(tuple[0], tuple[1], tuple[2], tuple[3]).normalize();
+}
+
+function quaternionToTuple(quaternion: THREE.Quaternion): OrientationQuaternion {
+  const normalized = quaternion.clone().normalize();
+  return [normalized.x, normalized.y, normalized.z, normalized.w];
+}
+
+function vectorToTuple(vec: THREE.Vector3): OrientationPosition {
+  return [vec.x, vec.y, vec.z];
+}
+
+function isIdentityTuple(tuple: OrientationQuaternion) {
+  return (
+    tuple[0] === IDENTITY_TUPLE[0] &&
+    tuple[1] === IDENTITY_TUPLE[1] &&
+    tuple[2] === IDENTITY_TUPLE[2] &&
+    tuple[3] === IDENTITY_TUPLE[3]
+  );
 }
 
 const tempBox = new THREE.Box3();
@@ -125,12 +170,6 @@ function getGroupRadius(group: THREE.Group): number {
     return 50;
   }
   return sphere.radius;
-}
-
-function getGroupMinY(group: THREE.Group): number {
-  tempBox.setFromObject(group);
-  if (tempBox.isEmpty()) return 0;
-  return tempBox.min.y;
 }
 
 function positionCameraForPreset(
@@ -203,6 +242,57 @@ function rotateGroup(group: THREE.Group, axis: "x" | "y" | "z", degrees: number)
   group.updateMatrixWorld(true);
 }
 
+type AutoOrientStatusSetter = (status: "idle" | "running" | "error" | "timeout", message?: string) => void;
+
+function applyAutoOrientToGroup(
+  geometry: THREE.BufferGeometry | null,
+  group: THREE.Group,
+  options: {
+    largeModel: boolean;
+    setStatus: AutoOrientStatusSetter;
+    addWarning: (message: string) => void;
+  }
+): THREE.Quaternion | null {
+  if (!geometry) {
+    options.setStatus("error", "Auto-orient is unavailable for this file.");
+    return null;
+  }
+  try {
+    options.setStatus("running", "Calculating best orientation…");
+    const result = computeAutoOrientQuaternion(geometry, "upright", {
+      directionSamples: options.largeModel ? 32 : undefined,
+      maxDurationMs: AUTO_ORIENT_TIMEOUT_MS,
+    });
+    group.quaternion.copy(result.quaternion);
+    group.updateMatrixWorld(true);
+    if (result.timedOut) {
+      options.setStatus("timeout", "Auto-orient timed out—using simplified result.");
+      options.addWarning("Auto-orient timed out and used a simplified result.");
+    } else {
+      options.setStatus("idle");
+    }
+    return group.quaternion.clone();
+  } catch (err) {
+    console.error("[ModelViewer] auto-orient failed", err);
+    options.setStatus("error", "Auto-orient failed—resetting orientation.");
+    group.quaternion.identity();
+    group.rotation.set(0, 0, 0);
+    group.position.set(0, 0, 0);
+    group.updateMatrixWorld(true);
+    options.addWarning("Auto-orient failed—orientation was reset.");
+    return group.quaternion.clone();
+  }
+}
+
+function isGeometryEffectivelyFlat(geometry: THREE.BufferGeometry | null) {
+  if (!geometry) return false;
+  geometry.computeBoundingBox();
+  const bbox = geometry.boundingBox;
+  if (!bbox) return false;
+  const height = bbox.max.y - bbox.min.y;
+  return !Number.isFinite(height) || height <= FLAT_MODEL_THRESHOLD_MM;
+}
+
 // (Removed geometry baking; orientation is applied once to the group's quaternion)
 
 function STLObject({ url, onGroup }: { url: string; onGroup: (g: THREE.Group) => void }) {
@@ -269,32 +359,226 @@ function LoaderOverlay() {
 function Scene({
   url,
   filename,
+  fileSizeBytes,
   onReady,
   onError,
   onTransformChange,
   onCameraReady,
-  helpersVisible = false,
+  helpersVisible: _helpersVisible = false,
+  gizmoEnabled = false,
+  facePickMode = false,
+  onFacePickRequest,
+  overhangThreshold = 45,
 }: {
   url: string;
   filename?: string;
+  fileSizeBytes?: number;
   onReady: (object: THREE.Object3D | null) => void;
   onError?: (error: Error) => void;
   onTransformChange?: (matrix: THREE.Matrix4) => void;
   onCameraReady?: (camera: THREE.PerspectiveCamera, controls: any) => void;
   helpersVisible?: boolean;
+  gizmoEnabled?: boolean;
+  facePickMode?: boolean;
+  onFacePickRequest?: (normal: THREE.Vector3) => void;
+  overhangThreshold?: number;
 }) {
-  const { camera, gl, size } = useThree();
+  const { camera, gl } = useThree();
   const controlsRef = useRef<any>(null);
   const objectRef = useRef<THREE.Group | null>(null);
+  const storeQuaternion = useOrientationStore((state) => state.quaternion);
+  const overhangFaces = useOrientationStore((state) => state.overhangFaces);
+  const supportEnabled = useOrientationStore((state) => state.supportEnabled);
+  const setOrientationState = useOrientationStore((state) => state.setOrientation);
+  const setOverhangData = useOrientationStore((state) => state.setOverhangData);
+  const setAnalysisStatus = useOrientationStore((state) => state.setAnalysisStatus);
+  const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
+  const setInteractionLock = useOrientationStore((state) => state.setInteractionLock);
+  const addWarning = useOrientationStore((state) => state.addWarning);
+  const clearWarnings = useOrientationStore((state) => state.clearWarnings);
+  const analysisGeometryRef = useRef<THREE.BufferGeometry | null>(null);
+  const serializedGeometryRef = useRef<{ positions: Float32Array; index: Uint32Array | null } | null>(null);
+  const thresholdRef = useRef(overhangThreshold);
+  const [analysisGeometry, setAnalysisGeometry] = useState<THREE.BufferGeometry | null>(null);
+  const [gizmoDragging, setGizmoDragging] = useState(false);
+  const overhangTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const workerFailedRef = useRef(false);
+  const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
 
   const ext = extFromFilename(filename) ?? "stl";
   const urlKey = `${url}|${filename ?? ""}`;
   const preparedForKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    clearWarnings();
+    setInteractionLock(false, undefined);
+  }, [urlKey, clearWarnings, setInteractionLock]);
+
+  useEffect(() => {
+    if (largeModel) {
+      addWarning("Large file (>50 MB). Some interactions are simplified for performance.");
+    }
+  }, [addWarning, largeModel]);
+
+  const performOverhangAnalysis = useCallback(
+    (quaternion: THREE.Quaternion) => {
+      const geometry = analysisGeometryRef.current;
+      if (!geometry) {
+        setAnalysisStatus("error", "No geometry available for overhang analysis.");
+        return;
+      }
+      try {
+        const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45);
+        setOverhangData({
+          faces: data.overhangFaceIndices,
+          supportVolume: data.supportVolume,
+          supportWeight: data.supportWeight,
+        });
+      } catch (err) {
+        console.error("[ModelViewer] overhang analysis failed", err);
+        setAnalysisStatus("error", "Overhang preview failed. Using last known estimate.");
+        addWarning("Overhang preview failed. Estimates may be outdated.");
+      }
+    },
+    [addWarning, setAnalysisStatus, setOverhangData]
+  );
+
+  const dispatchOverhangAnalysis = useCallback(
+    (quaternion: THREE.Quaternion) => {
+      const worker = workerRef.current;
+      const serialized = serializedGeometryRef.current;
+      setAnalysisStatus("running", "Detecting overhangs…");
+      if (worker && serialized && !workerFailedRef.current) {
+        worker.postMessage({
+          positions: serialized.positions.slice(0),
+          index: serialized.index ? serialized.index.slice(0) : null,
+          quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
+          threshold: thresholdRef.current ?? 45,
+        });
+        return;
+      }
+      performOverhangAnalysis(quaternion);
+    },
+    [performOverhangAnalysis, setAnalysisStatus]
+  );
+
+  const cloneGeometryForWorker = useCallback((geometry: THREE.BufferGeometry | null) => {
+    if (!geometry) {
+      serializedGeometryRef.current = null;
+      return;
+    }
+    const positionAttr = geometry.getAttribute("position");
+    if (!positionAttr) {
+      serializedGeometryRef.current = null;
+      return;
+    }
+    const positionsSource = positionAttr.array as Float32Array;
+    const positionsCopy = new Float32Array(positionsSource.length);
+    positionsCopy.set(positionsSource);
+    let indexCopy: Uint32Array | null = null;
+    const indexAttr = geometry.getIndex();
+    if (indexAttr) {
+      const source = indexAttr.array as ArrayLike<number>;
+      indexCopy = new Uint32Array(source.length);
+      for (let i = 0; i < source.length; i += 1) {
+        indexCopy[i] = Number(source[i]);
+      }
+    }
+    serializedGeometryRef.current = { positions: positionsCopy, index: indexCopy };
+  }, []);
+
+  const runOverhangAnalysis = useCallback(
+    (quaternion?: THREE.Quaternion) => {
+      if (overhangTimeoutRef.current) {
+        clearTimeout(overhangTimeoutRef.current);
+      }
+      const targetQuat = quaternion ?? objectRef.current?.quaternion ?? null;
+      if (!targetQuat) return;
+      const cloned = targetQuat.clone();
+      overhangTimeoutRef.current = setTimeout(() => {
+        dispatchOverhangAnalysis(cloned);
+      }, 300);
+    },
+    [dispatchOverhangAnalysis]
+  );
+
+  useEffect(() => {
+    return () => {
+      analysisGeometryRef.current?.dispose();
+      serializedGeometryRef.current = null;
+      if (overhangTimeoutRef.current) {
+        clearTimeout(overhangTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     // Disable shadow mapping entirely for performance and stability
     gl.shadowMap.enabled = false;
   }, [gl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const worker = new Worker(new URL("../../workers/overhang-worker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerRef.current = worker;
+    worker.onmessage = (event) => {
+      const { faces, supportVolume, supportWeight } = event.data as {
+        faces: number[];
+        supportVolume: number;
+        supportWeight: number;
+      };
+      setOverhangData({ faces, supportVolume, supportWeight });
+      setAnalysisStatus("idle");
+    };
+    worker.onerror = (error) => {
+      console.error("[ModelViewer] overhang worker error", error);
+      setAnalysisStatus("error", "Overhang worker failed. Falling back to slower estimation.");
+      addWarning("Overhang worker failed. Falling back to slower estimation.");
+      workerFailedRef.current = true;
+      workerRef.current = null;
+      worker.terminate();
+    };
+    return () => {
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [addWarning, setAnalysisStatus, setOverhangData]);
+
+  useEffect(() => {
+    if (!facePickMode || !objectRef.current) return;
+    const domElement = gl.domElement;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      if (!facePickMode || !objectRef.current) return;
+      event.preventDefault();
+      const rect = domElement.getBoundingClientRect();
+      const ndcX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      const pointer = new THREE.Vector2(ndcX, ndcY);
+      const hit = raycastFace(objectRef.current, pointer, camera);
+      if (hit) {
+        onFacePickRequest?.(hit.normal.clone());
+      }
+    };
+    domElement.addEventListener("pointerdown", handlePointerDown);
+    return () => domElement.removeEventListener("pointerdown", handlePointerDown);
+  }, [facePickMode, gl, camera, onFacePickRequest]);
+
+  useEffect(() => {
+    if (!objectRef.current) return;
+    const quaternion = tupleToQuaternion(storeQuaternion);
+    objectRef.current.quaternion.copy(quaternion);
+    objectRef.current.updateMatrixWorld(true);
+    runOverhangAnalysis(quaternion);
+  }, [storeQuaternion, runOverhangAnalysis]);
+
+  useEffect(() => {
+    thresholdRef.current = overhangThreshold;
+    runOverhangAnalysis();
+  }, [overhangThreshold, runOverhangAnalysis]);
 
   useEffect(() => {
     const perspective = camera as THREE.PerspectiveCamera;
@@ -303,30 +587,84 @@ function Scene({
     }
   }, [camera, onCameraReady]);
 
-  const prepareGroup = useCallback((group: THREE.Group) => {
-    // Prevent repeated preparation for the same model key
-    if (preparedForKeyRef.current === urlKey) {
-      return;
-    }
-    try {
-      const merged = mergeObjectGeometries(group);
-      if (merged) {
-        const q = computeAutoOrientQuaternion(merged, "upright");
-        group.quaternion.copy(q);
-        group.updateMatrixWorld(true);
+  const prepareGroup = useCallback(
+    (group: THREE.Group) => {
+      if (preparedForKeyRef.current === urlKey) {
+        return;
       }
-      centerGroupToOrigin(group);
+      try {
+        const merged = mergeObjectGeometries(group);
+        if (analysisGeometryRef.current && analysisGeometryRef.current !== merged) {
+          analysisGeometryRef.current.dispose();
+        }
+        analysisGeometryRef.current = merged ?? null;
+        setAnalysisGeometry(merged ?? null);
+        cloneGeometryForWorker(merged ?? null);
 
-      const persp = camera as THREE.PerspectiveCamera;
-      fitCameraToGroup(group, persp, controlsRef.current);
+        const storeState = useOrientationStore.getState();
+        let appliedQuaternion: THREE.Quaternion | null = null;
 
-      preparedForKeyRef.current = urlKey;
-      onReady(group);
-    } catch (err) {
-      console.error("[ModelViewer] Failed to prepare model", err);
-      onError?.(err as Error);
-    }
-  }, [onError, onReady, urlKey, camera]);
+        if (isGeometryEffectivelyFlat(merged)) {
+          setInteractionLock(true, "Model appears nearly flat (<0.2 mm). Orientation is disabled.");
+          addWarning("Model appears nearly flat (<0.2 mm). Orientation controls disabled.");
+        } else {
+          setInteractionLock(false, undefined);
+        }
+
+        if (merged) {
+          if (isIdentityTuple(storeState.quaternion)) {
+            appliedQuaternion = applyAutoOrientToGroup(merged, group, {
+              largeModel,
+              setStatus: setAutoOrientStatus,
+              addWarning,
+            });
+          } else {
+            appliedQuaternion = tupleToQuaternion(storeState.quaternion);
+            group.quaternion.copy(appliedQuaternion);
+            setAutoOrientStatus("idle");
+          }
+          group.updateMatrixWorld(true);
+        } else {
+          setAutoOrientStatus("error", "Auto-orient unavailable—model geometry missing.");
+          setAnalysisStatus("error", "No geometry to analyze. Delete and re-upload.");
+        }
+
+        centerGroupToOrigin(group);
+
+        if (appliedQuaternion && isIdentityTuple(storeState.quaternion)) {
+          setOrientationState(quaternionToTuple(appliedQuaternion), vectorToTuple(group.position), { auto: true });
+        }
+
+        const persp = camera as THREE.PerspectiveCamera;
+        fitCameraToGroup(group, persp, controlsRef.current);
+
+        preparedForKeyRef.current = urlKey;
+        runOverhangAnalysis(appliedQuaternion ?? group.quaternion.clone());
+        onReady(group);
+      } catch (err) {
+        console.error("[ModelViewer] Failed to prepare model", err);
+        setAutoOrientStatus("error", "Model preparation failed.");
+        setAnalysisStatus("error", "Failed to analyze model. Delete and re-upload.");
+        setInteractionLock(true, "Model failed to load. Delete and re-upload.");
+        addWarning("Model failed to load. Please remove and re-upload the file.");
+        onError?.(err as Error);
+      }
+    },
+    [
+      addWarning,
+      camera,
+      cloneGeometryForWorker,
+      largeModel,
+      onError,
+      onReady,
+      runOverhangAnalysis,
+      setAnalysisStatus,
+      setAutoOrientStatus,
+      setInteractionLock,
+      setOrientationState,
+      urlKey,
+    ]
+  );
 
   // Emit transform changes only when user interaction actually changes the scene
   useEffect(() => {
@@ -350,17 +688,7 @@ function Scene({
       <hemisphereLight intensity={0.8} groundColor={"#bcbcbc"} color={"#ffffff"} />
       <directionalLight intensity={0.5} position={[40, 80, 40]} />
 
-      {helpersVisible && objectRef.current ? (
-        (() => {
-          const minY = getGroupMinY(objectRef.current! as THREE.Group);
-          return (
-            <>
-              <gridHelper args={[400, 40, "#94a3b8", "#64748b"]} position={[0, minY - 0.5, 0]} />
-              <axesHelper args={[120]} position={[0, minY, 0]} />
-            </>
-          );
-        })()
-      ) : null}
+      <BuildPlate />
 
       {/* Loaded object group */}
       <group ref={objectRef}>
@@ -381,7 +709,18 @@ function Scene({
             }}
           />
         )}
+        {analysisGeometry && supportEnabled && overhangFaces.length > 0 ? (
+          <OverhangHighlight geometry={analysisGeometry} overhangFaces={overhangFaces} />
+        ) : null}
       </group>
+
+      {gizmoEnabled && objectRef.current ? (
+        <OrientationGizmo
+          target={objectRef.current}
+          enabled={gizmoEnabled}
+          onDraggingChange={setGizmoDragging}
+        />
+      ) : null}
 
       <OrbitControls
         ref={controlsRef}
@@ -393,6 +732,7 @@ function Scene({
         maxPolarAngle={Math.PI - 0.001}
         maxDistance={800}
         minDistance={10}
+        enabled={!gizmoDragging && !facePickMode}
         makeDefault
       />
 
@@ -402,12 +742,63 @@ function Scene({
 }
 
 const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
-  ({ url, filename, onError, onLoadComplete, onTransformChange }, ref) => {
+  ({
+    url,
+    filename,
+    fileSizeBytes,
+    onError,
+    onLoadComplete,
+    onTransformChange,
+    facePickMode = false,
+    onFacePickComplete,
+    overhangThreshold = 45,
+  }, ref) => {
     const [sceneObject, setSceneObject] = useState<THREE.Object3D | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const [helpersVisible, setHelpersVisible] = useState(false);
+    const [gizmoEnabled, setGizmoEnabledState] = useState(false);
     const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
     const controlsRef = useRef<any | null>(null);
+    const setOrientationState = useOrientationStore((state) => state.setOrientation);
+    const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
+    const addWarning = useOrientationStore((state) => state.addWarning);
+    const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
+    const syncOrientationFromGroup = useCallback(
+      (options?: { auto?: boolean }) => {
+        if (!sceneObject) return;
+        const group = sceneObject as THREE.Group;
+        setOrientationState(quaternionToTuple(group.quaternion), vectorToTuple(group.position), {
+          auto: options?.auto,
+        });
+      },
+      [sceneObject, setOrientationState]
+    );
+
+    const applyFaceAlignment = useCallback(
+      (faceNormal: THREE.Vector3 | null) => {
+        if (!sceneObject || !faceNormal) return;
+        if (faceNormal.lengthSq() === 0) return;
+        const group = sceneObject as THREE.Group;
+        const nextQuaternion = calculateFaceToGroundQuaternion(faceNormal, group.quaternion.clone());
+        group.quaternion.copy(nextQuaternion);
+        group.updateMatrixWorld(true);
+        syncOrientationFromGroup();
+        if (onTransformChange) onTransformChange(group.matrixWorld.clone());
+      },
+      [sceneObject, syncOrientationFromGroup, onTransformChange]
+    );
+
+    const handleFacePickRequest = useCallback(
+      (normal: THREE.Vector3) => {
+        applyFaceAlignment(normal);
+        onFacePickComplete?.();
+      },
+      [applyFaceAlignment, onFacePickComplete]
+    );
+
+    useEffect(() => {
+      useOrientationStore.getState().reset();
+    }, [url]);
 
     useImperativeHandle(ref, () => ({
       getObject: () => sceneObject,
@@ -415,20 +806,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
         const merged = mergeObjectGeometries(group);
-        if (merged) {
-          const q = computeAutoOrientQuaternion(merged, "upright");
-          group.quaternion.copy(q);
-          group.updateMatrixWorld(true);
-        } else {
-          group.quaternion.identity();
-          group.rotation.set(0, 0, 0);
-          group.position.set(0, 0, 0);
-          group.updateMatrixWorld(true);
-        }
+        applyAutoOrientToGroup(merged, group, {
+          largeModel,
+          setStatus: setAutoOrientStatus,
+          addWarning,
+        });
         centerGroupToOrigin(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        syncOrientationFromGroup({ auto: true });
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
       recenter: () => {
@@ -438,6 +825,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
       rotate: (axis, degrees) => {
@@ -448,6 +836,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           controlsRef.current.target.set(0, 0, 0);
           controlsRef.current.update();
         }
+        syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
       fit: () => {
@@ -459,15 +848,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
         const merged = mergeObjectGeometries(group);
-        if (merged) {
-          const q = computeAutoOrientQuaternion(merged, "upright");
-          group.quaternion.copy(q);
-          group.updateMatrixWorld(true);
-        }
+        applyAutoOrientToGroup(merged, group, {
+          largeModel,
+          setStatus: setAutoOrientStatus,
+          addWarning,
+        });
         centerGroupToOrigin(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        syncOrientationFromGroup({ auto: true });
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
       pan: (direction, stepScale = 1) => {
@@ -540,7 +930,39 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       toggleHelpers: () => {
         setHelpersVisible((prev) => !prev);
       },
-    }), [sceneObject, onTransformChange]);
+      orientToFace: (faceNormal) => {
+        if (!faceNormal) return;
+        applyFaceAlignment(faceNormal);
+      },
+      getOrientation: () => {
+        const state = useOrientationStore.getState();
+        return { quaternion: state.quaternion, position: state.position };
+      },
+      setOrientation: (quaternionTuple, positionTuple) => {
+        if (!sceneObject) return;
+        const group = sceneObject as THREE.Group;
+        const nextQuat = tupleToQuaternion(quaternionTuple);
+        group.quaternion.copy(nextQuat);
+        if (positionTuple) {
+          group.position.set(positionTuple[0], positionTuple[1], positionTuple[2]);
+        }
+        group.updateMatrixWorld(true);
+        setOrientationState(quaternionTuple, positionTuple ?? vectorToTuple(group.position));
+        if (onTransformChange) onTransformChange(group.matrixWorld.clone());
+      },
+      setGizmoEnabled: (enabled) => {
+        setGizmoEnabledState(enabled);
+      },
+    }), [
+      addWarning,
+      applyFaceAlignment,
+      largeModel,
+      onTransformChange,
+      sceneObject,
+      setAutoOrientStatus,
+      setOrientationState,
+      syncOrientationFromGroup,
+    ]);
 
     const handleReady = (object: THREE.Object3D | null) => {
       setSceneObject(object);
@@ -585,6 +1007,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
             <Scene
               url={url}
               filename={filename}
+              fileSizeBytes={fileSizeBytes}
               onReady={handleReady}
               onError={handleError}
               onTransformChange={onTransformChange}
@@ -596,6 +1019,10 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
                 }
               }}
               helpersVisible={helpersVisible}
+              gizmoEnabled={gizmoEnabled}
+              facePickMode={facePickMode}
+              onFacePickRequest={handleFacePickRequest}
+              overhangThreshold={overhangThreshold}
             />
           </Suspense>
         </Canvas>

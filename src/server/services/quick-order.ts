@@ -19,20 +19,24 @@ import { sliceFileWithCli } from "@/server/slicer/runner";
 import path from "path";
 import { promises as fsp } from "fs";
 import os from "os";
+import { applyOrientationToModel } from "@/server/geometry/orient";
 
 export type QuickOrderItemInput = {
   fileId?: string;
   filename: string;
   materialId: number;
+  supportMaterialId?: number;
   materialName?: string;
   layerHeight: number;
   infill: number;
   quantity: number;
-  metrics: { grams: number; timeSec: number; fallback?: boolean };
+  metrics: { grams: number; supportGrams?: number; timeSec: number; fallback?: boolean };
   supports?: {
     enabled: boolean;
     pattern: "normal" | "tree";
     angle: number;
+    style?: "grid" | "organic";
+    interfaceLayers?: number;
     acceptedFallback?: boolean;
   };
 };
@@ -205,8 +209,15 @@ export async function priceQuickOrder(
   const priced = items.map((it) => {
     const costPerGram = materialMap.get(it.materialId) ?? 0.05;
     const grams = Math.max(0, it.metrics.grams);
+    const supportGrams = Math.max(0, it.metrics.supportGrams ?? 0);
+    const supportMaterialCostPerGram =
+      it.supportMaterialId && it.supportMaterialId !== it.materialId
+        ? materialMap.get(it.supportMaterialId) ?? costPerGram
+        : costPerGram;
     const hours = Math.max(0, it.metrics.timeSec) / 3600;
-    const materialCost = grams * costPerGram;
+    const modelMaterialCost = grams * costPerGram;
+    const supportMaterialCost = supportGrams * supportMaterialCostPerGram;
+    const materialCost = modelMaterialCost + supportMaterialCost;
     const timeCost = hours * hourlyRate;
     const base = materialCost + timeCost + setupFee;
     const unitPrice = Math.max(minimumPrice, Math.round(base * 100) / 100);
@@ -216,7 +227,18 @@ export async function priceQuickOrder(
       unitPrice,
       quantity: it.quantity,
       total,
-      breakdown: { grams, hours, materialCost, timeCost, setupFee },
+      breakdown: {
+        modelWeight: grams,
+        supportWeight: supportGrams,
+        grams,
+        supportGrams,
+        hours,
+        modelMaterialCost,
+        supportMaterialCost,
+        materialCost,
+        timeCost,
+        setupFee,
+      },
     };
   });
 
@@ -334,6 +356,7 @@ export async function processQuickOrderFiles(
           originalSize: tmpRecord.size_bytes,
           uploadedFrom: "quick-order",
         },
+        orientationData: (tmpRecord as any).orientation_data ?? null,
       });
 
       // Also keep a copy in attachments for backward compatibility
@@ -396,6 +419,7 @@ export function generateFallbackMetrics(
     id: fileId,
     timeSec: 3600,
     grams: 80,
+    supportGrams: 0,
     gcodeId: undefined as string | undefined,
     fallback: true,
     error: error?.stderr || error?.message || "Slicer failed",
@@ -418,6 +442,8 @@ export async function executeSlicingWithRetry(
       enabled: boolean;
       angle: number;
       pattern: "normal" | "tree";
+      style: "grid" | "organic";
+      interfaceLayers: number;
     };
   },
   maxAttempts = 2,
@@ -436,6 +462,8 @@ export async function executeSlicingWithRetry(
           enabled: Boolean(settings.supports.enabled),
           angle: settings.supports.angle,
           pattern: settings.supports.pattern === "tree" ? "tree" : "normal",
+          style: settings.supports.style,
+          interfaceLayers: settings.supports.interfaceLayers,
         },
       });
       metrics = result;
@@ -579,12 +607,15 @@ export async function sliceQuickOrderFile(
       enabled: boolean;
       pattern: "normal" | "tree";
       angle: number;
+      style?: "grid" | "organic";
+      interfaceLayers?: number;
     };
   },
 ): Promise<{
   id: string;
   timeSec: number;
   grams: number;
+  supportGrams: number;
   gcodeId?: string;
   fallback: boolean;
   error?: string;
@@ -615,7 +646,10 @@ export async function sliceQuickOrderFile(
     const buffer = await downloadTmpFileToBuffer(fileId);
     tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "slice-"));
     const src = path.join(tmpDir, path.basename(fileId) || `input-${Date.now()}.stl`);
-    await fsp.writeFile(src, buffer);
+    const sourceBuffer = record.orientation_data
+      ? applyOrientationToModel(buffer, record.filename, record.orientation_data)
+      : buffer;
+    await fsp.writeFile(src, sourceBuffer);
 
     // Execute slicing with retry
     const metrics = await executeSlicingWithRetry(src, settings);
@@ -633,7 +667,11 @@ export async function sliceQuickOrderFile(
             infill: settings.infill,
             supports: settings.supports,
           },
-          metrics: { timeSec: fallbackMetrics.timeSec, grams: fallbackMetrics.grams },
+          metrics: {
+            timeSec: fallbackMetrics.timeSec,
+            grams: fallbackMetrics.grams,
+            supportGrams: fallbackMetrics.supportGrams,
+          },
           fallback: true,
           error: fallbackMetrics.error,
         },
@@ -673,7 +711,7 @@ export async function sliceQuickOrderFile(
           infill: settings.infill,
           supports: settings.supports,
         },
-        metrics: { timeSec: metrics.timeSec, grams: metrics.grams },
+        metrics: { timeSec: metrics.timeSec, grams: metrics.grams, supportGrams: metrics.supportGrams },
         fallback: false,
         error: null,
         output: gcodeId ?? null,
@@ -689,6 +727,7 @@ export async function sliceQuickOrderFile(
       id: fileId,
       timeSec: metrics.timeSec,
       grams: metrics.grams,
+      supportGrams: metrics.supportGrams,
       gcodeId,
       fallback: false,
     };

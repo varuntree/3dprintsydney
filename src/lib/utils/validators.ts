@@ -122,13 +122,19 @@ export function validateOrderFile(
     'application/octet-stream', // Generic binary (for STL files)
     'model/3mf', // 3MF
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml', // 3MF
+    'application/vnd.3dcl',
+    'model/3dcl',
+    'application/x-3dcl',
+    'model/3cl',
+    'application/vnd.3cl',
   ];
 
   // Also allow by file extension if MIME type is generic
   if (file.type === 'application/octet-stream') {
     const ext = file.name.toLowerCase().split('.').pop();
-    if (ext !== 'stl' && ext !== '3mf') {
-      throw new Error('File must be a 3D model file (.stl or .3mf)');
+    const allowedExtensions = new Set(['stl', '3mf', '3dcl', '3cl', 'cl']);
+    if (!ext || !allowedExtensions.has(ext)) {
+      throw new Error('File must be a 3D model file (.stl, .3mf, .3dcl)');
     }
   } else {
     validateFileType(file.type, allowedTypes);
