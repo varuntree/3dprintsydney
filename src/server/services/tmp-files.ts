@@ -37,6 +37,8 @@ export type OrientationData = {
   quaternion: [number, number, number, number];
   position: [number, number, number];
   autoOriented?: boolean;
+  supportVolume?: number;
+  supportWeight?: number;
 };
 
 const TMP_FILE_BASE_COLUMNS = [
