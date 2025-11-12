@@ -30,12 +30,12 @@ export async function GET(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const client = await getClientDetail(id);
-    return okAuth(req, client);
+    return okAuth(request, client);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid client id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "clients.detail");
+    return handleErrorAuth(request, error, "clients.detail");
   }
 }
 
@@ -53,17 +53,17 @@ export async function PUT(
     const body = await request.json();
     const validated = clientInputSchema.parse(body);
     const client = await updateClient(id, validated);
-    return okAuth(req, client);
+    return okAuth(request, client);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid client payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid client payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid client id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "clients.update");
+    return handleErrorAuth(request, error, "clients.update");
   }
 }
 
@@ -79,11 +79,11 @@ export async function DELETE(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const client = await deleteClient(id);
-    return okAuth(req, client);
+    return okAuth(request, client);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid client id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "clients.delete");
+    return handleErrorAuth(request, error, "clients.delete");
   }
 }

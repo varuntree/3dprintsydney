@@ -27,12 +27,12 @@ export async function GET(
     // auth: admin or owning client only
     await requireInvoiceAccess(request, id);
     const invoice = await getInvoiceDetail(id);
-    return okAuth(req, invoice);
+    return okAuth(request, invoice);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.detail");
+    return handleErrorAuth(request, error, "invoices.detail");
   }
 }
 
@@ -46,17 +46,17 @@ export async function PUT(
     const body = await request.json();
     const validated = invoiceInputSchema.parse(body);
     const invoice = await updateInvoice(id, validated);
-    return okAuth(req, invoice);
+    return okAuth(request, invoice);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid invoice payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid invoice payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.update");
+    return handleErrorAuth(request, error, "invoices.update");
   }
 }
 
@@ -68,11 +68,11 @@ export async function DELETE(
     const id = await parseId(context.params);
     await requireInvoiceAccess(request, id);
     const invoice = await deleteInvoice(id);
-    return okAuth(req, invoice);
+    return okAuth(request, invoice);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.delete");
+    return handleErrorAuth(request, error, "invoices.delete");
   }
 }

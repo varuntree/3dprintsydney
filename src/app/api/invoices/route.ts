@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, invoices);
+    return okAuth(request, invoices);
   } catch (error) {
-    return handleErrorAuth(req, error, "invoices.list");
+    return handleErrorAuth(request, error, "invoices.list");
   }
 }
 
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = invoiceInputSchema.parse(body);
     const invoice = await createInvoice(validated);
-    return okAuth(req, invoice, { status: 201 });
+    return okAuth(request, invoice, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid invoice payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid invoice payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "invoices.create");
+    return handleErrorAuth(request, error, "invoices.create");
   }
 }

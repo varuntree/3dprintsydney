@@ -20,11 +20,11 @@ export async function POST(
     const invoiceId = await parseId(context.params);
     await requireInvoiceAccess(request, invoiceId);
     await markInvoiceUnpaid(invoiceId);
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.markUnpaid");
+    return handleErrorAuth(request, error, "invoices.markUnpaid");
   }
 }

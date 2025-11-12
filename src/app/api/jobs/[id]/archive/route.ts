@@ -19,12 +19,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = await request.json().catch(() => ({}));
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const job = await archiveJob(id, reason);
-    return okAuth(req, job);
+    return okAuth(request, job);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid job id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "jobs.archive");
+    return handleErrorAuth(request, error, "jobs.archive");
   }
 }
 

@@ -5,9 +5,9 @@ import { handleLogin } from "@/server/services/auth";
 import { buildAuthCookieOptions } from "@/lib/utils/auth-cookies";
 import { handleError, fail, ok } from "@/server/api/respond";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { email, password } = loginSchema.parse(body);
 
     // Handle complete login workflow

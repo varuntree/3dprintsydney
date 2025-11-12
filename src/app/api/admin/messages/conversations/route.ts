@@ -3,10 +3,10 @@ import { requireAdmin } from "@/server/auth/api-helpers";
 import { listAdminConversationSummaries } from "@/server/services/messages";
 import { okAuth, handleErrorAuth } from "@/server/api/respond";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdmin(req);
-    const { searchParams } = new URL(req.url);
+    const admin = await requireAdmin(request);
+    const { searchParams } = new URL(request.url);
 
     const limitParam = searchParams.get("limit");
     const search = searchParams.get("search");
@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
       search: search ?? null,
     });
 
-    return okAuth(req, { conversations });
+    return okAuth(request, { conversations });
   } catch (error) {
-    return handleErrorAuth(req, error, "admin.messages.conversations.get");
+    return handleErrorAuth(request, error, "admin.messages.conversations.get");
   }
 }

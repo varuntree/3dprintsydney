@@ -3,13 +3,13 @@ import { requireAdmin } from "@/server/auth/api-helpers";
 import { listUserMessages, createMessage } from "@/server/services/messages";
 import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 
-export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin(req);
+    await requireAdmin(request);
     const { id } = await context.params;
     const userId = Number(id);
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const limit = Number(searchParams.get("limit") ?? "50");
     const offset = Number(searchParams.get("offset") ?? "0");
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
@@ -20,28 +20,28 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       order,
     });
 
-    return okAuth(req, messages);
+    return okAuth(request, messages);
   } catch (error) {
-    return handleErrorAuth(req, error, 'admin.users.messages');
+    return handleErrorAuth(request, error, 'admin.users.messages');
   }
 }
 
-export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin(req);
+    await requireAdmin(request);
     const { id } = await context.params;
     const userId = Number(id);
 
-    const { content } = await req.json();
+    const { content } = await request.json();
 
     if (!content || typeof content !== "string") {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid content", 422);
+      return failAuth(request, "VALIDATION_ERROR", "Invalid content", 422);
     }
 
     const message = await createMessage(userId, content, "ADMIN", null);
 
-    return okAuth(req, message);
+    return okAuth(request, message);
   } catch (error) {
-    return handleErrorAuth(req, error, 'admin.users.messages');
+    return handleErrorAuth(request, error, 'admin.users.messages');
   }
 }

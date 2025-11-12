@@ -86,17 +86,17 @@ function parseOrientationPayload(body: Record<string, unknown>):
   return { fileId: rawId, orientation };
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const contentType = req.headers.get("content-type") ?? "";
+    const user = await requireAuth(request);
+    const contentType = request.headers.get("content-type") ?? "";
 
     if (contentType.includes("application/json")) {
-      const body = (await req.json()) as Record<string, unknown>;
+      const body = (await request.json()) as Record<string, unknown>;
       const parsed = parseOrientationPayload(body);
 
       if (!parsed) {
-        return failAuth(req,
+        return failAuth(request,
           "VALIDATION_ERROR",
           "Invalid orientation payload",
           422,
@@ -104,19 +104,19 @@ export async function POST(req: NextRequest) {
       }
 
       const result = await saveOrientationSnapshot(parsed.fileId, parsed.orientation, user.id);
-      return okAuth(req, result);
+      return okAuth(request, result);
     }
 
     if (
       contentType.includes("multipart/form-data") ||
       contentType.includes("application/x-www-form-urlencoded")
     ) {
-      const formData = await req.formData();
+      const formData = await request.formData();
       const fileId = formData.get("fileId") as string;
       const orientedSTL = formData.get("orientedSTL") as File;
 
       if (!fileId || !orientedSTL) {
-        return failAuth(req,
+        return failAuth(request,
           "VALIDATION_ERROR",
           "Missing required fields: fileId and orientedSTL",
           422,
@@ -133,17 +133,17 @@ export async function POST(req: NextRequest) {
         user.id,
       );
 
-      return okAuth(req, result);
+      return okAuth(request, result);
     }
 
-    return failAuth(req,
+    return failAuth(request,
       "UNSUPPORTED_MEDIA_TYPE",
       "Content-Type must be application/json or multipart form data",
       415,
     );
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req,
+      return failAuth(request,
         error.code,
         error.message,
         error.status,
@@ -151,6 +151,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.orient", message: 'Orientation failed', error });
-    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(request, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

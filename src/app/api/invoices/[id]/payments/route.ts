@@ -24,16 +24,16 @@ export async function POST(
     const body = await request.json();
     const validated = paymentInputSchema.parse(body);
     const payment = await addManualPayment(id, validated);
-    return okAuth(req, payment, { status: 201 });
+    return okAuth(request, payment, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid payment payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid payment payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.payment.add");
+    return handleErrorAuth(request, error, "invoices.payment.add");
   }
 }

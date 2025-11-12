@@ -31,7 +31,7 @@ export async function POST(
     // Verify invoice belongs to this client
     const invoice = await getInvoiceDetail(invoiceId);
     if (invoice.client.id !== user.clientId) {
-      return failAuth(req, "FORBIDDEN", "You don't have access to this invoice", 403);
+      return failAuth(request, "FORBIDDEN", "You don't have access to this invoice", 403);
     }
 
   if (invoice.status === 'PAID' || invoice.balanceDue <= 0) {
@@ -46,15 +46,15 @@ export async function POST(
 
   const result = await applyWalletCreditToInvoice(invoiceId, amount);
 
-    return okAuth(req, {
+    return okAuth(request, {
       creditApplied: result.creditApplied,
       newBalanceDue: result.newBalanceDue,
       fullyPaid: result.newBalanceDue <= 0
     });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.applyCredit");
+    return handleErrorAuth(request, error, "invoices.applyCredit");
   }
 }

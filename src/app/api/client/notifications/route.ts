@@ -8,9 +8,9 @@ import { AppError } from '@/lib/errors';
  * GET /api/client/notifications
  * Fetch current client's notification preferences
  */
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
+    const user = await requireClientWithId(request);
 
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
       throw new AppError(`Failed to load preferences: ${error?.message ?? 'Not found'}`, 'DATABASE_ERROR', 500);
     }
 
-    return okAuth(req, {
+    return okAuth(request, {
       notifyOnJobStatus: data.notify_on_job_status ?? false,
     });
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.notifications.get');
+    return handleErrorAuth(request, error, 'client.notifications.get');
   }
 }
 
@@ -35,14 +35,14 @@ export async function GET(req: NextRequest) {
  * PATCH /api/client/notifications
  * Update current client's notification preferences
  */
-export async function PATCH(req: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
-    const body = await req.json();
+    const user = await requireClientWithId(request);
+    const body = await request.json();
     const { notifyOnJobStatus } = body;
 
     if (typeof notifyOnJobStatus !== 'boolean') {
-      return failAuth(req, 'VALIDATION_ERROR', 'notifyOnJobStatus must be a boolean', 400);
+      return failAuth(request, 'VALIDATION_ERROR', 'notifyOnJobStatus must be a boolean', 400);
     }
 
     const supabase = getServiceSupabase();
@@ -69,10 +69,10 @@ export async function PATCH(req: NextRequest) {
       metadata: { notifyOnJobStatus },
     });
 
-    return okAuth(req, {
+    return okAuth(request, {
       notifyOnJobStatus: data.notify_on_job_status ?? false,
     });
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.notifications.patch');
+    return handleErrorAuth(request, error, 'client.notifications.patch');
   }
 }

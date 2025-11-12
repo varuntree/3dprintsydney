@@ -27,20 +27,20 @@ export async function PUT(
     const body = await request.json();
     const validated = productTemplateInputSchema.parse(body);
     const template = await updateProductTemplate(id, validated);
-    return okAuth(req, template);
+    return okAuth(request, template);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid template payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid template payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message.includes("required")) {
-      return failAuth(req, "BUSINESS_RULE", error.message, 422);
+      return failAuth(request, "BUSINESS_RULE", error.message, 422);
     }
     if (error instanceof Error && error.message === "Invalid template id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "templates.update");
+    return handleErrorAuth(request, error, "templates.update");
   }
 }
 
@@ -52,11 +52,11 @@ export async function DELETE(
   try {
     const id = await parseId(context.params);
     const template = await deleteProductTemplate(id);
-    return okAuth(req, template);
+    return okAuth(request, template);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid template id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "templates.delete");
+    return handleErrorAuth(request, error, "templates.delete");
   }
 }

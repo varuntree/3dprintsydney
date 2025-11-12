@@ -8,15 +8,15 @@ import { AppError } from "@/lib/errors";
 import { logger, bugLogger } from "@/lib/logger";
 import { quickOrderPriceSchema } from "@/lib/schemas/quick-order";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = await req.json();
+    const user = await requireAuth(request);
+    const body = await request.json();
     const parsed = quickOrderPriceSchema.safeParse(body);
     if (!parsed.success) {
       bugLogger.logBug32(parsed.error, body);
       return failAuth(
-        req,
+        request,
         "VALIDATION_ERROR",
         "Invalid pricing payload",
         422,
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
     const { items, location } = parsed.data;
     if (!Array.isArray(items) || items.length === 0) {
-      return failAuth(req, "NO_ITEMS", "No items", 400);
+      return failAuth(request, "NO_ITEMS", "No items", 400);
     }
     let discountType: DiscountType = "NONE";
     let discountValue = 0;
@@ -43,16 +43,16 @@ export async function POST(req: NextRequest) {
       state: typeof location?.state === "string" ? location.state : undefined,
       postcode: typeof location?.postcode === "string" ? location.postcode : undefined,
     }, { discountType, discountValue });
-    return okAuth(req, {
+    return okAuth(request, {
       ...priced,
       studentDiscountEligible,
       studentDiscountRate,
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'quick-order.price', message: 'Price calculation failed', error });
-    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(request, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

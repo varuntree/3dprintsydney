@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
     await runDailyMaintenance();
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
-    return handleErrorAuth(req, error, "maintenance.run");
+    return handleErrorAuth(request, error, "maintenance.run");
   }
 }
 

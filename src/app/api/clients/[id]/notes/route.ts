@@ -24,16 +24,16 @@ export async function POST(
     const body = await request.json();
     const validated = clientNoteSchema.parse(body);
     const note = await addClientNote(id, validated);
-    return okAuth(req, note, { status: 201 });
+    return okAuth(request, note, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid note payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid note payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid client id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "clients.addNote");
+    return handleErrorAuth(request, error, "clients.addNote");
   }
 }

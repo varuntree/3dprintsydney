@@ -17,13 +17,13 @@ export async function POST(request: NextRequest) {
         printerId: entry.printerId ?? null,
       })),
     );
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid input", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid input", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "jobs.reorder");
+    return handleErrorAuth(request, error, "jobs.reorder");
   }
 }

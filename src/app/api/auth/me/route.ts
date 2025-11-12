@@ -4,11 +4,11 @@ import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(req);
-    if (!user) return failAuth(req, "UNAUTHORIZED", "Unauthorized", 401);
-    return okAuth(req, {
+    const user = await getAuthUser(request);
+    if (!user) return failAuth(request, "UNAUTHORIZED", "Unauthorized", 401);
+    return okAuth(request, {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -18,9 +18,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'auth.me', message: 'Failed to fetch user profile', error });
-    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(request, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

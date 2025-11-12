@@ -3,12 +3,12 @@ import { requireClientWithId } from "@/server/auth/api-helpers";
 import { getClientDashboardStats } from "@/server/services/dashboard";
 import { okAuth, handleErrorAuth } from "@/server/api/respond";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
+    const user = await requireClientWithId(request);
     const stats = await getClientDashboardStats(user.clientId);
-    return okAuth(req, stats);
+    return okAuth(request, stats);
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.dashboard');
+    return handleErrorAuth(request, error, 'client.dashboard');
   }
 }

@@ -25,11 +25,11 @@ export async function DELETE(
     await requireAttachmentAccess(request, attachmentId);
     await requireAdmin(request);
     const attachment = await removeInvoiceAttachment(attachmentId);
-    return okAuth(req, attachment);
+    return okAuth(request, attachment);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid attachment id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.attachments.delete");
+    return handleErrorAuth(request, error, "invoices.attachments.delete");
   }
 }

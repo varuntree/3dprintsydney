@@ -24,16 +24,16 @@ export async function POST(
     const payload = await request.json();
     const parsed = jobStatusSchema.parse(payload);
     const job = await updateJobStatus(id, parsed.status, parsed.note || undefined);
-    return okAuth(req, job);
+    return okAuth(request, job);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid input", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid input", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid job id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "jobs.status");
+    return handleErrorAuth(request, error, "jobs.status");
   }
 }

@@ -27,9 +27,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, quotes);
+    return okAuth(request, quotes);
   } catch (error) {
-    return handleErrorAuth(req, error, "quotes.list");
+    return handleErrorAuth(request, error, "quotes.list");
   }
 }
 
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = quoteInputSchema.parse(body);
     const quote = await createQuote(validated);
-    return okAuth(req, quote, { status: 201 });
+    return okAuth(request, quote, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid quote payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid quote payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "quotes.create");
+    return handleErrorAuth(request, error, "quotes.create");
   }
 }

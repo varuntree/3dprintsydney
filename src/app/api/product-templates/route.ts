@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, templates);
+    return okAuth(request, templates);
   } catch (error) {
-    return handleErrorAuth(req, error, "templates.list");
+    return handleErrorAuth(request, error, "templates.list");
   }
 }
 
@@ -41,16 +41,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = productTemplateInputSchema.parse(body);
     const template = await createProductTemplate(validated);
-    return okAuth(req, template, { status: 201 });
+    return okAuth(request, template, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid template payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid template payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message.includes("required")) {
-      return failAuth(req, "BUSINESS_RULE", error.message, 422);
+      return failAuth(request, "BUSINESS_RULE", error.message, 422);
     }
-    return handleErrorAuth(req, error, "templates.create");
+    return handleErrorAuth(request, error, "templates.create");
   }
 }

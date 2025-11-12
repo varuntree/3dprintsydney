@@ -15,12 +15,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const id = await parseId(context.params);
     const quote = await sendQuote(id);
-    return okAuth(req, quote);
+    return okAuth(request, quote);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid quote id")) {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "quotes.send");
+    return handleErrorAuth(request, error, "quotes.send");
   }
 }
 

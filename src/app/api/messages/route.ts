@@ -8,10 +8,10 @@ import { parsePaginationParams } from "@/lib/utils/api-params";
 import { getSenderType } from "@/lib/utils/auth-helpers";
 import { messageInputSchema } from "@/lib/schemas/messages";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const { searchParams } = new URL(req.url);
+    const user = await requireAuth(request);
+    const { searchParams } = new URL(request.url);
 
     const { limit, offset } = parsePaginationParams(searchParams);
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
@@ -25,20 +25,20 @@ export async function GET(req: NextRequest) {
       invoiceId,
     });
 
-    return okAuth(req, messages);
+    return okAuth(request, messages);
   } catch (error) {
-    return handleErrorAuth(req, error, "messages.get");
+    return handleErrorAuth(request, error, "messages.get");
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = await req.json();
+    const user = await requireAuth(request);
+    const body = await request.json();
     const validated = messageInputSchema.parse(body);
 
     if (validated.invoiceId && Number.isFinite(validated.invoiceId)) {
-      await requireInvoiceAccess(req, validated.invoiceId);
+      await requireInvoiceAccess(request, validated.invoiceId);
     }
 
     const sender = getSenderType(user);
@@ -49,13 +49,13 @@ export async function POST(req: NextRequest) {
       validated.invoiceId ?? null,
     );
 
-    return okAuth(req, message);
+    return okAuth(request, message);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid message payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid message payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "messages.post");
+    return handleErrorAuth(request, error, "messages.post");
   }
 }

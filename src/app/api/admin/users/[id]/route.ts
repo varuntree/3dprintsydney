@@ -3,14 +3,14 @@ import { requireAdmin } from "@/server/auth/api-helpers";
 import { deleteUserAndData } from "@/server/services/users";
 import { okAuth, handleErrorAuth } from "@/server/api/respond";
 
-export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin(req);
+    await requireAdmin(request);
     const { id } = await context.params;
     const userId = Number(id);
     await deleteUserAndData(userId);
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
-    return handleErrorAuth(req, error, 'admin.users.delete');
+    return handleErrorAuth(request, error, 'admin.users.delete');
   }
 }

@@ -24,9 +24,9 @@ export async function GET(
     return NextResponse.redirect(downloadUrl);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid attachment id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return failAuth(req, 
+    return failAuth(request, 
       "ATTACHMENT_ERROR",
       error instanceof Error ? error.message : "Unable to read attachment",
       500,

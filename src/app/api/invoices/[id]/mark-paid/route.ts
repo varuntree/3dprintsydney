@@ -58,16 +58,16 @@ export async function POST(
       note,
     });
 
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid payment payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid payment payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.markPaid");
+    return handleErrorAuth(request, error, "invoices.markPaid");
   }
 }

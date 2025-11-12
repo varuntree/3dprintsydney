@@ -14,19 +14,19 @@ export const runtime = "nodejs";
  * the small business use case while still surfacing detailed progress/errors.
  * Delegates business logic to sliceQuickOrderFile service function
  */
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = await req.json();
+    const user = await requireAuth(request);
+    const body = await request.json();
     const item = body?.file;
 
     if (!item || typeof item.id !== "string") {
-      return failAuth(req, "NO_FILE", "No file provided", 400);
+      return failAuth(request, "NO_FILE", "No file provided", 400);
     }
 
     const fileUserKey = item.id.split("/")[0];
     if (fileUserKey !== String(user.id)) {
-      return failAuth(req, "UNAUTHORIZED", "Unauthorized", 403);
+      return failAuth(request, "UNAUTHORIZED", "Unauthorized", 403);
     }
 
     const supports = item.supports ?? {
@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return okAuth(req, result);
+    return okAuth(request, result);
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, 
+      return failAuth(request, 
         error.code,
         error.message,
         error.status,
@@ -57,6 +57,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.slice", message: 'Slicing failed', error });
-    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(request, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

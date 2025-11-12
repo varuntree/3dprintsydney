@@ -1,5 +1,5 @@
 import { create, type StateCreator } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { browserLogger } from '@/lib/logging/browser-logger';
 
@@ -65,49 +65,56 @@ const STORAGE_KEY = "quickprint-orientation";
 export const ORIENTATION_STORAGE_KEY = STORAGE_KEY;
 
 const isClient = typeof window !== "undefined";
-
-const sessionStorageAdapter = {
-  getItem: (name: string) => {
-    if (!isClient) return null;
-    try {
-      return window.sessionStorage.getItem(name);
-    } catch (error) {
-    browserLogger.error({
-      scope: "bug.31.orientation-missing",
-      message: "Failed to read orientation persistence",
-      error,
-    });
-      return null;
-    }
-  },
-  setItem: (name: string, value: string) => {
-    if (!isClient) return;
-    try {
-      window.sessionStorage.setItem(name, value);
-    } catch (error) {
-      browserLogger.error({
-        scope: "bug.31.orientation-missing",
-        message: "Failed to write orientation persistence",
-        error,
-      });
-    }
-  },
-  removeItem: (name: string) => {
-    if (!isClient) return;
-    try {
-      window.sessionStorage.removeItem(name);
-    } catch (error) {
-      browserLogger.error({
-        scope: "bug.31.orientation-missing",
-        message: "Failed to clear orientation persistence",
-        error,
-      });
-    }
-  },
-};
+const sessionStorage = isClient
+  ? createJSONStorage(() => ({
+      getItem: (name: string) => {
+        try {
+          return window.sessionStorage.getItem(name);
+        } catch (error) {
+          browserLogger.error({
+            scope: "bug.31.orientation-missing",
+            message: "Failed to read orientation persistence",
+            error,
+          });
+          return null;
+        }
+      },
+      setItem: (name: string, value: string) => {
+        try {
+          window.sessionStorage.setItem(name, value);
+        } catch (error) {
+          browserLogger.error({
+            scope: "bug.31.orientation-missing",
+            message: "Failed to write orientation persistence",
+            error,
+          });
+        }
+      },
+      removeItem: (name: string) => {
+        try {
+          window.sessionStorage.removeItem(name);
+        } catch (error) {
+          browserLogger.error({
+            scope: "bug.31.orientation-missing",
+            message: "Failed to clear orientation persistence",
+            error,
+          });
+        }
+      },
+    }))
+  : undefined;
 
 export function clearOrientationPersistence() {
-  sessionStorageAdapter.removeItem(STORAGE_KEY);
+  if (!isClient) return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    browserLogger.error({
+      scope: "bug.31.orientation-missing",
+      message: "Failed to clear orientation persistence",
+      error,
+    });
+  }
 }
 
 const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
@@ -151,7 +158,7 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
 export const useOrientationStore = create<OrientationStore>()(
   persist(createOrientationStore, {
     name: STORAGE_KEY,
-    storage: sessionStorageAdapter,
+    storage: sessionStorage,
   }),
 );
 

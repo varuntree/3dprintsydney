@@ -16,11 +16,11 @@ export const runtime = "nodejs";
  * Uses catch-all route to handle multi-segment file IDs (userId/uploadId/filename)
  */
 export async function GET(
-  req: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string[] }> }
 ) {
   try {
-    const user = await requireAuth(req);
+    const user = await requireAuth(request);
     const { id: segments } = await context.params;
 
     // Join segments to reconstruct the full file ID (e.g., "3/bd3739aa/filename.stl")
@@ -49,9 +49,9 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'tmp-file.get', message: 'Temp file retrieval failed', error });
-    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(request, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

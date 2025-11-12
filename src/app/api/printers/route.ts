@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, printers);
+    return okAuth(request, printers);
   } catch (error) {
-    return handleErrorAuth(req, error, "printers.list");
+    return handleErrorAuth(request, error, "printers.list");
   }
 }
 
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = printerInputSchema.parse(body);
     const printer = await createPrinter(validated);
-    return okAuth(req, printer, { status: 201 });
+    return okAuth(request, printer, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid printer payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid printer payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "printers.create");
+    return handleErrorAuth(request, error, "printers.create");
   }
 }

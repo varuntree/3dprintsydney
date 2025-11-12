@@ -20,19 +20,19 @@ export async function POST(
     await requireAdmin(request);
     const invoiceId = await parseId(context.params);
     await revertInvoiceToQuote(invoiceId);
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
     if (error instanceof Error) {
       if (error.message.includes("Paid invoices cannot")) {
-        return failAuth(req, "INVOICE_PAID", error.message, 409);
+        return failAuth(request, "INVOICE_PAID", error.message, 409);
       }
       if (error.message.includes("payments")) {
-        return failAuth(req, "INVOICE_HAS_PAYMENTS", error.message, 409);
+        return failAuth(request, "INVOICE_HAS_PAYMENTS", error.message, 409);
       }
     }
-    return handleErrorAuth(req, error, "invoices.revert");
+    return handleErrorAuth(request, error, "invoices.revert");
   }
 }

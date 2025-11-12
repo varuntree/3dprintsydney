@@ -16,12 +16,12 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
   }
 }
 
-export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const invoiceId = await parseId(context.params);
-    await requireInvoiceAccess(req, invoiceId);
+    await requireInvoiceAccess(request, invoiceId);
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const { limit, offset } = parsePaginationParams(searchParams);
     const order = (searchParams.get("order") as "asc" | "desc" | null) ?? "asc";
 
@@ -32,41 +32,41 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     });
 
     // Return simplified format (without userId)
-    return okAuth(req, messages.map(msg => ({
+    return okAuth(request, messages.map(msg => ({
       id: msg.id,
       sender: msg.sender,
       content: msg.content,
       createdAt: msg.createdAt,
     })));
   } catch (error) {
-    return handleErrorAuth(req, error, 'invoices.messages');
+    return handleErrorAuth(request, error, 'invoices.messages');
   }
 }
 
-export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireAuth(req);
+    const user = await requireAuth(request);
     const invoiceId = await parseId(context.params);
-    await requireInvoiceAccess(req, invoiceId);
+    await requireInvoiceAccess(request, invoiceId);
 
-    const body = await req.json();
+    const body = await request.json();
     const content = (body?.content ?? "").trim();
 
     if (!content) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid content", 422);
+      return failAuth(request, "VALIDATION_ERROR", "Invalid content", 422);
     }
 
     const sender = getSenderType(user);
     const message = await createInvoiceMessage(invoiceId, content, sender);
 
     // Return simplified format (without userId)
-    return okAuth(req, {
+    return okAuth(request, {
       id: message.id,
       sender: message.sender,
       content: message.content,
       createdAt: message.createdAt,
     });
   } catch (error) {
-    return handleErrorAuth(req, error, 'invoices.messages');
+    return handleErrorAuth(request, error, 'invoices.messages');
   }
 }

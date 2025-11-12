@@ -5,23 +5,23 @@ import { listUsers, createAdminUser } from "@/server/services/users";
 import { okAuth, failAuth, handleErrorAuth } from "@/server/api/respond";
 import { userInviteSchema } from "@/lib/schemas/users";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(req);
+    await requireAdmin(request);
     const users = await listUsers();
-    return okAuth(req, users);
+    return okAuth(request, users);
   } catch (error) {
-    return handleErrorAuth(req, error, 'admin.users.get');
+    return handleErrorAuth(request, error, 'admin.users.get');
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(req);
-    const payload = userInviteSchema.parse(await req.json());
+    await requireAdmin(request);
+    const payload = userInviteSchema.parse(await request.json());
 
     if (payload.role === "CLIENT" && !payload.clientId) {
-      return failAuth(req, "VALIDATION_ERROR", "clientId required for client role", 422);
+      return failAuth(request, "VALIDATION_ERROR", "clientId required for client role", 422);
     }
 
     const user = await createAdminUser({
@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
       clientId: payload.clientId,
     });
 
-    return okAuth(req, user, { status: 201 });
+    return okAuth(request, user, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid request data", 422, { issues: error.issues });
+      return failAuth(request, "VALIDATION_ERROR", "Invalid request data", 422, { issues: error.issues });
     }
-    return handleErrorAuth(req, error, 'admin.users.post');
+    return handleErrorAuth(request, error, 'admin.users.post');
   }
 }

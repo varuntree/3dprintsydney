@@ -4,15 +4,15 @@ import { listClientInvoices } from "@/server/services/invoices";
 import { okAuth, handleErrorAuth } from "@/server/api/respond";
 import { BadRequestError } from "@/lib/errors";
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
+    const user = await requireAuth(request);
 
     if (!user.clientId) {
       throw new BadRequestError("No client associated with user");
     }
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const limit = Number(searchParams.get("limit") ?? "50");
     const offset = Number(searchParams.get("offset") ?? "0");
 
@@ -21,8 +21,8 @@ export async function GET(req: NextRequest) {
       offset,
     });
 
-    return okAuth(req, invoices);
+    return okAuth(request, invoices);
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.invoices');
+    return handleErrorAuth(request, error, 'client.invoices');
   }
 }

@@ -18,7 +18,7 @@ export async function GET(
     try {
       fileId = parseNumericId(resolvedParams.id);
     } catch {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid file ID", 400);
+      return failAuth(request, "VALIDATION_ERROR", "Invalid file ID", 400);
     }
 
     // Get file record
@@ -26,13 +26,13 @@ export async function GET(
 
     // Authorization check: Admin can access all files, clients can only access their own
     if (user.role !== "ADMIN" && user.clientId !== file.client_id) {
-      return failAuth(req, "FORBIDDEN", "Forbidden", 403);
+      return failAuth(request, "FORBIDDEN", "Forbidden", 403);
     }
 
     // Get signed download URL (expires in 5 minutes)
     const downloadUrl = await getOrderFileDownloadUrl(fileId, 300);
 
-    return okAuth(req, {
+    return okAuth(request, {
       id: file.id,
       filename: file.filename,
       fileType: file.file_type,
@@ -44,9 +44,9 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: 'order-files.get', message: 'Order file retrieval failed', error });
-    return failAuth(req, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
+    return failAuth(request, 'INTERNAL_ERROR', 'An unexpected error occurred', 500);
   }
 }

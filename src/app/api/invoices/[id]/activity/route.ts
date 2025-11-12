@@ -19,13 +19,13 @@ async function parseId(paramsPromise: Promise<{ id: string }>) {
  * ADMIN ONLY - Activity logs contain sensitive information about
  * internal operations and should never be exposed to clients
  */
-export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const invoiceId = await parseId(context.params);
     // SECURITY: Only admins can view activity logs
-    await requireAdmin(req);
+    await requireAdmin(request);
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const limit = Number(searchParams.get("limit") ?? "50");
     const offset = Number(searchParams.get("offset") ?? "0");
 
@@ -34,8 +34,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       offset,
     });
 
-    return okAuth(req, activity);
+    return okAuth(request, activity);
   } catch (error) {
-    return handleErrorAuth(req, error, 'invoices.activity');
+    return handleErrorAuth(request, error, 'invoices.activity');
   }
 }

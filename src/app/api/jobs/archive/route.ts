@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
       : [];
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const count = await bulkArchiveJobs(ids, reason);
-    return okAuth(req, { count });
+    return okAuth(request, { count });
   } catch (error) {
-    return handleErrorAuth(req, error, "jobs.archive.bulk");
+    return handleErrorAuth(request, error, "jobs.archive.bulk");
   }
 }
 

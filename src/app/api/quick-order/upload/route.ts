@@ -8,13 +8,13 @@ import { validateOrderFile } from "@/lib/utils/validators";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const form = await req.formData();
+    const user = await requireAuth(request);
+    const form = await request.formData();
     const entries = form.getAll("files");
     if (!entries.length) {
-      return failAuth(req, "NO_FILES", "No files", 400);
+      return failAuth(request, "NO_FILES", "No files", 400);
     }
     const results: Array<{ id: string; filename: string; size: number; type: string }> = [];
     for (const entry of entries) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         validateOrderFile({ size: entry.size, type: entry.type, name });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Invalid file";
-        return failAuth(req, "VALIDATION_ERROR", message, 400);
+        return failAuth(request, "VALIDATION_ERROR", message, 400);
       }
 
       const buf = Buffer.from(await entry.arrayBuffer());
@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
         type: record.mime_type || "application/octet-stream",
       });
     }
-    return okAuth(req, results);
+    return okAuth(request, results);
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     const fallbackMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
     logger.error({ scope: 'quick-order.upload', message: 'File upload failed', error });
-    return failAuth(req, 'INTERNAL_ERROR', fallbackMessage, 500);
+    return failAuth(request, 'INTERNAL_ERROR', fallbackMessage, 500);
   }
 }

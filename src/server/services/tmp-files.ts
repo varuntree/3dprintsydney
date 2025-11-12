@@ -41,6 +41,79 @@ export type OrientationData = {
   supportWeight?: number;
 };
 
+type RawTmpFileRow = Record<string, unknown>;
+const TMP_FILE_STATUSES: TmpFileStatus[] = ["idle", "running", "completed", "failed"];
+
+function ensureNumberField(row: RawTmpFileRow, key: string) {
+  const value = row[key];
+  if (typeof value !== "number") {
+    throw new AppError(`Tmp file record missing numeric field "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureStringField(row: RawTmpFileRow, key: string) {
+  const value = row[key];
+  if (typeof value !== "string") {
+    throw new AppError(`Tmp file record missing string field "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureNullableStringField(row: RawTmpFileRow, key: string) {
+  const value = row[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new AppError(`Tmp file record invalid nullable string "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureStatusField(value: unknown): TmpFileStatus {
+  if (typeof value !== "string" || !TMP_FILE_STATUSES.includes(value as TmpFileStatus)) {
+    throw new AppError(`Tmp file record has invalid status "${String(value)}"`, "DATABASE_ERROR", 500);
+  }
+  return value as TmpFileStatus;
+}
+
+function ensureMetadataField(value: unknown): TmpFileMetadata | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "object") {
+    throw new AppError("Tmp file metadata is malformed", "DATABASE_ERROR", 500);
+  }
+  return value as TmpFileMetadata;
+}
+
+function ensureOrientationField(value: unknown): OrientationData | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "object") {
+    throw new AppError("Tmp file orientation data is malformed", "DATABASE_ERROR", 500);
+  }
+  return value as OrientationData;
+}
+
+function mapTmpFileRow(row: RawTmpFileRow, includeOrientation: boolean): TmpFileRecord {
+  return {
+    id: ensureNumberField(row, "id"),
+    user_id: ensureNumberField(row, "user_id"),
+    storage_key: ensureStringField(row, "storage_key"),
+    filename: ensureStringField(row, "filename"),
+    size_bytes: ensureNumberField(row, "size_bytes"),
+    mime_type: ensureNullableStringField(row, "mime_type"),
+    status: ensureStatusField(row.status),
+    metadata: ensureMetadataField(row.metadata),
+    orientation_data: includeOrientation ? ensureOrientationField(row.orientation_data) : null,
+    created_at: ensureStringField(row, "created_at"),
+    updated_at: ensureStringField(row, "updated_at"),
+  };
+}
+
 const TMP_FILE_BASE_COLUMNS = [
   "id",
   "user_id",
@@ -112,13 +185,10 @@ export async function saveTmpFile(
   }
 
   logger.info({ scope: 'tmp-files.save', data: { tmpId: data.storage_key, filename } });
-  const record = data as TmpFileRecord;
-  if (!includeOrientation) {
-    record.orientation_data = null;
-  }
+  const record = mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
   return {
     record,
-    tmpId: data.storage_key,
+    tmpId: record.storage_key,
   };
 }
 
@@ -149,11 +219,7 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
   if (data.user_id !== userId) {
     throw new ForbiddenError("Unauthorized");
   }
-  const record = data as TmpFileRecord;
-  if (!includeOrientation) {
-    record.orientation_data = null;
-  }
-  return record;
+  return mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
 }
 
 /**
@@ -199,11 +265,7 @@ export async function updateTmpFile(
     throw new AppError(error?.message ?? "Failed to update tmp file", 'DATABASE_ERROR', 500);
   }
 
-  const record = data as TmpFileRecord;
-  if (!includeOrientation) {
-    record.orientation_data = null;
-  }
-  return record;
+  return mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
 }
 
 /**

@@ -28,17 +28,17 @@ export async function PUT(
     const body = await request.json();
     const validated = printerInputSchema.parse(body);
     const printer = await updatePrinter(id, validated);
-    return okAuth(req, printer);
+    return okAuth(request, printer);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid printer payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid printer payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid printer id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "printers.update");
+    return handleErrorAuth(request, error, "printers.update");
   }
 }
 
@@ -54,11 +54,11 @@ export async function DELETE(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const printer = await deletePrinter(id);
-    return okAuth(req, printer);
+    return okAuth(request, printer);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid printer id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "printers.delete");
+    return handleErrorAuth(request, error, "printers.delete");
   }
 }

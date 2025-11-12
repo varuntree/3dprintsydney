@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, materials);
+    return okAuth(request, materials);
   } catch (error) {
-    return handleErrorAuth(req, error, "materials.list");
+    return handleErrorAuth(request, error, "materials.list");
   }
 }
 
@@ -41,13 +41,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = materialInputSchema.parse(body);
     const material = await createMaterial(validated);
-    return okAuth(req, material, { status: 201 });
+    return okAuth(request, material, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid material payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid material payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "materials.create");
+    return handleErrorAuth(request, error, "materials.create");
   }
 }

@@ -15,11 +15,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const id = await parseId(context.params);
     await clearPrinterQueue(id);
-    return okAuth(req, { success: true });
+    return okAuth(request, { success: true });
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid printer id")) {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "printers.clear_queue");
+    return handleErrorAuth(request, error, "printers.clear_queue");
   }
 }

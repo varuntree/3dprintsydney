@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
     const { limit, offset } = parsePaginationParams(searchParams);
 
     const result = await getRecentActivity({ limit, offset });
-    return okAuth(req, result);
+    return okAuth(request, result);
   } catch (error) {
-    return handleErrorAuth(req, error, "dashboard.activity");
+    return handleErrorAuth(request, error, "dashboard.activity");
   }
 }

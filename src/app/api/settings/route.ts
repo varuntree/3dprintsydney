@@ -13,9 +13,9 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request);
     const settings = await getSettings();
-    return okAuth(req, settings);
+    return okAuth(request, settings);
   } catch (error) {
-    return handleErrorAuth(req, error, "settings.fetch");
+    return handleErrorAuth(request, error, "settings.fetch");
   }
 }
 
@@ -29,13 +29,13 @@ export async function PUT(request: NextRequest) {
     const payload = await request.json();
     const validated = settingsInputSchema.parse(payload); // Validate at boundary
     const settings = await updateSettings(validated);
-    return okAuth(req, settings);
+    return okAuth(request, settings);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid settings payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid settings payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "settings.update");
+    return handleErrorAuth(request, error, "settings.update");
   }
 }

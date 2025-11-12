@@ -28,17 +28,17 @@ export async function PUT(
     const body = await request.json();
     const validated = materialInputSchema.parse(body);
     const material = await updateMaterial(id, validated);
-    return okAuth(req, material);
+    return okAuth(request, material);
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid material payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid material payload", 422, {
         issues: error.issues,
       });
     }
     if (error instanceof Error && error.message === "Invalid material id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "materials.update");
+    return handleErrorAuth(request, error, "materials.update");
   }
 }
 
@@ -54,11 +54,11 @@ export async function DELETE(
     await requireAdmin(request);
     const id = await parseId(context.params);
     const material = await deleteMaterial(id);
-    return okAuth(req, material);
+    return okAuth(request, material);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid material id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "materials.delete");
+    return handleErrorAuth(request, error, "materials.delete");
   }
 }

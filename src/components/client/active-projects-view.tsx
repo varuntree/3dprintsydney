@@ -18,9 +18,9 @@ const FILTERS: (ClientProjectStatus | "ALL")[] = [
 export function ActiveProjectsView() {
   const [filter, setFilter] = useState<ClientProjectStatus | "ALL">("ALL");
 
-  const { data, isLoading } = useQuery<ClientProjectSummary[]>(
-    ["client", "projects", "active"],
-    async () => {
+  const { data, isLoading } = useQuery<ClientProjectSummary[]>({
+    queryKey: ["client", "projects", "active"],
+    queryFn: async () => {
       const res = await fetch("/api/client/projects?status=active");
       if (!res.ok) {
         throw new Error("Failed to load active projects");
@@ -28,7 +28,7 @@ export function ActiveProjectsView() {
       const payload = await res.json();
       return payload.data.projects;
     },
-  );
+  });
 
   const filtered = useMemo(() => {
     if (!data) return [];

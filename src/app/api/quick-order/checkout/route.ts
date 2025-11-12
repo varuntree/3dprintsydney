@@ -13,16 +13,16 @@ import { quickOrderCheckoutSchema } from "@/lib/schemas/quick-order";
  * Creates an invoice for a quick order with all files and settings
  * Delegates business logic to createQuickOrderInvoice service function
  */
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
+    const user = await requireClientWithId(request);
 
-    const body = await req.json();
+    const body = await request.json();
     const parsed = quickOrderCheckoutSchema.safeParse(body);
     if (!parsed.success) {
       bugLogger.logBug32(parsed.error, body);
       return failAuth(
-        req,
+        request,
         "VALIDATION_ERROR",
         "Invalid checkout payload",
         422,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const { items, address, creditRequestedAmount, paymentPreference } = parsed.data;
 
     if (!Array.isArray(items) || items.length === 0) {
-      return failAuth(req, "NO_ITEMS", "No items", 400);
+      return failAuth(request, "NO_ITEMS", "No items", 400);
     }
 
     // Delegate business logic to service
@@ -57,10 +57,10 @@ export async function POST(req: NextRequest) {
       // best-effort; ignore revalidation failures
     });
 
-    return okAuth(req, result);
+    return okAuth(request, result);
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, 
+      return failAuth(request, 
         error.code,
         error.message,
         error.status,
@@ -68,6 +68,6 @@ export async function POST(req: NextRequest) {
       );
     }
     logger.error({ scope: "quick-order.checkout", message: 'Checkout failed', error });
-    return failAuth(req, "INTERNAL_ERROR", "An unexpected error occurred", 500);
+    return failAuth(request, "INTERNAL_ERROR", "An unexpected error occurred", 500);
   }
 }

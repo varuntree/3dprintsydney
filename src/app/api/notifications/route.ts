@@ -15,10 +15,10 @@ function parseLimit(searchParams: URLSearchParams): number {
   return Math.min(Math.trunc(value), 50);
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const { searchParams } = new URL(req.url);
+    const user = await requireAuth(request);
+    const { searchParams } = new URL(request.url);
     const limit = parseLimit(searchParams);
     
     // Allow filtering out messages from currently open conversation
@@ -32,16 +32,16 @@ export async function GET(req: NextRequest) {
         : null,
     });
 
-    return okAuth(req, { items: notifications, lastSeenAt });
+    return okAuth(request, { items: notifications, lastSeenAt });
   } catch (error) {
-    return handleErrorAuth(req, error, "notifications.get");
+    return handleErrorAuth(request, error, "notifications.get");
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = (await req.json().catch(() => ({}))) as {
+    const user = await requireAuth(request);
+    const body = (await request.json().catch(() => ({}))) as {
       lastSeenAt?: unknown;
       conversationUserId?: unknown;
     } | undefined;
@@ -56,21 +56,21 @@ export async function PATCH(req: NextRequest) {
 
     const date = candidate ? new Date(candidate) : new Date();
     if (Number.isNaN(date.getTime())) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid lastSeenAt timestamp", 422);
+      return failAuth(request, "VALIDATION_ERROR", "Invalid lastSeenAt timestamp", 422);
     }
 
     const iso = date.toISOString();
     if (conversationUserId && Number.isFinite(conversationUserId)) {
       await markConversationSeen(user.id, conversationUserId, iso);
-      return okAuth(req, {
+      return okAuth(request, {
         lastSeenAt: iso,
         conversationUserId,
       });
     }
 
     await updateMessageLastSeenAt(user.id, iso);
-    return okAuth(req, { lastSeenAt: iso });
+    return okAuth(request, { lastSeenAt: iso });
   } catch (error) {
-    return handleErrorAuth(req, error, "notifications.patch");
+    return handleErrorAuth(request, error, "notifications.patch");
   }
 }

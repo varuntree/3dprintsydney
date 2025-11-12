@@ -17,11 +17,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const body = await request.json().catch(() => ({}));
     const reason = typeof body?.reason === "string" ? body.reason : undefined;
     const invoice = await voidInvoice(id, reason);
-    return okAuth(req, invoice);
+    return okAuth(request, invoice);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Invalid invoice id")) {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.void");
+    return handleErrorAuth(request, error, "invoices.void");
   }
 }

@@ -22,7 +22,7 @@ export async function GET(
 
     const file = await getOrderFile(fileId);
     if (user.role !== "ADMIN" && user.clientId !== file.client_id) {
-      return failAuth(req, "FORBIDDEN", "Forbidden", 403);
+      return failAuth(request, "FORBIDDEN", "Forbidden", 403);
     }
 
     const shouldApplyOrientation = mode === "oriented";
@@ -30,7 +30,8 @@ export async function GET(
       ? await downloadOrderFileWithOrientation(fileId, { applyOrientation: true })
       : { buffer: await downloadOrderFileToBuffer(fileId), filename: file.filename, mimeType: file.mime_type, orientationApplied: false };
 
-    const response = new NextResponse(buffer, {
+    const payload = new Uint8Array(buffer);
+    const response = new NextResponse(payload, {
       headers: {
         "Content-Type": mimeType || "application/octet-stream",
         "Content-Disposition": `attachment; filename="${orientationApplied ? filename : file.filename}"`,
@@ -39,9 +40,9 @@ export async function GET(
     return response;
   } catch (error) {
     if (error instanceof AppError) {
-      return failAuth(req, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
+      return failAuth(request, error.code, error.message, error.status, error.details as Record<string, unknown> | undefined);
     }
     logger.error({ scope: "order-files.download", message: "Download failed", error });
-    return failAuth(req, "INTERNAL_ERROR", "Failed to download file", 500);
+    return failAuth(request, "INTERNAL_ERROR", "Failed to download file", 500);
   }
 }

@@ -22,11 +22,11 @@ export async function DELETE(
     const id = await parsePaymentParams(context.params);
     await requirePaymentAccess(request, id);
     const payment = await deletePayment(id);
-    return okAuth(req, payment);
+    return okAuth(request, payment);
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid payment id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.payment.delete");
+    return handleErrorAuth(request, error, "invoices.payment.delete");
   }
 }

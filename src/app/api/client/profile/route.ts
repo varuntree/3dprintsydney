@@ -8,9 +8,9 @@ import { AppError } from '@/lib/errors';
  * GET /api/client/profile
  * Fetch current client's profile data
  */
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
+    const user = await requireClientWithId(request);
 
     const supabase = getServiceSupabase();
     const { data, error } = await supabase
@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
       throw new AppError(`Failed to load profile: ${error?.message ?? 'Not found'}`, 'DATABASE_ERROR', 500);
     }
 
-    return okAuth(req, data);
+    return okAuth(request, data);
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.profile.get');
+    return handleErrorAuth(request, error, 'client.profile.get');
   }
 }
 
@@ -33,15 +33,15 @@ export async function GET(req: NextRequest) {
  * PATCH /api/client/profile
  * Update current client's profile data
  */
-export async function PATCH(req: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
-    const user = await requireClientWithId(req);
-    const body = await req.json();
+    const user = await requireClientWithId(request);
+    const body = await request.json();
     const { firstName, lastName, phone, company, position } = body;
 
     // Basic validation
     if (!firstName || !lastName || !phone) {
-      return failAuth(req, 'VALIDATION_ERROR', 'First name, last name, and phone are required', 400);
+      return failAuth(request, 'VALIDATION_ERROR', 'First name, last name, and phone are required', 400);
     }
 
     const supabase = getServiceSupabase();
@@ -73,8 +73,8 @@ export async function PATCH(req: NextRequest) {
       metadata: { fields: ['first_name', 'last_name', 'phone', 'company', 'position'] },
     });
 
-    return okAuth(req, data);
+    return okAuth(request, data);
   } catch (error) {
-    return handleErrorAuth(req, error, 'client.profile.patch');
+    return handleErrorAuth(request, error, 'client.profile.patch');
   }
 }

@@ -25,17 +25,17 @@ export async function POST(
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return failAuth(req, "INVALID_FILE", "File upload missing", 400);
+      return failAuth(request, "INVALID_FILE", "File upload missing", 400);
     }
 
     // Delegate validation and upload to service layer
     const attachment = await uploadInvoiceAttachment(id, file);
 
-    return okAuth(req, attachment, { status: 201 });
+    return okAuth(request, attachment, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message === "Invalid invoice id") {
-      return failAuth(req, "INVALID_ID", error.message, 400);
+      return failAuth(request, "INVALID_ID", error.message, 400);
     }
-    return handleErrorAuth(req, error, "invoices.attachments.add");
+    return handleErrorAuth(request, error, "invoices.attachments.add");
   }
 }
