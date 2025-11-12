@@ -1,7 +1,5 @@
-import {
-  InvoiceEditor,
-  type InvoiceFormValues,
-} from "@/components/invoices/invoice-editor";
+import { InvoiceEditor } from "@/components/invoices/invoice-editor";
+import type { InvoiceFormValues } from "@/lib/types/invoice-form";
 import { listClients } from "@/server/services/clients";
 import { getSettings } from "@/server/services/settings";
 import { listProductTemplates } from "@/server/services/product-templates";
@@ -46,6 +44,14 @@ export default async function NewInvoicePage() {
         discountType: "NONE",
         discountValue: 0,
         productTemplateId: null,
+        lineType: "PRINT",
+        calculatorBreakdown: undefined,
+        modellingBrief: "",
+        modellingComplexity: "SIMPLE",
+        modellingRevisionCount: 0,
+        modellingHourlyRate: 0,
+        modellingEstimatedHours: 0,
+        orderIndex: 0,
       },
     ],
   };

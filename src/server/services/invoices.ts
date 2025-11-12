@@ -576,6 +576,27 @@ export async function createInvoice(input: InvoiceInput) {
 
   if (client?.email) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     await emailService.sendInvoiceCreated(client.email, {
       clientName: client.business_name || client.contact_name,
       invoiceNumber: number,
@@ -834,6 +855,9 @@ export async function addManualPayment(invoiceId: number, input: PaymentInput) {
 
   if (client?.email) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     await emailService.sendPaymentConfirmation(client.email, {
       clientName: client.business_name || client.contact_name,
       invoiceNumber: updatedInvoice.number,
@@ -1150,6 +1174,9 @@ export async function markInvoicePaid(invoiceId: number, options?: {
 
   if (client?.email) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     await emailService.sendPaymentConfirmation(client.email, {
       clientName: client.business_name || client.contact_name,
       invoiceNumber: invoice.number,

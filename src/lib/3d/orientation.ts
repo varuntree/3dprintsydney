@@ -223,6 +223,7 @@ export function computeAutoOrientQuaternion(
     return {
       quaternion: new THREE.Quaternion(),
       metrics: { supportVolume: 0, height: 0, contactArea: 0, score: Infinity },
+      timedOut: false,
     };
   }
 

@@ -516,12 +516,6 @@ function Scene({
   }, []);
 
   useEffect(() => {
-    if (!modelVersion) return;
-    if (!objectRef.current) return;
-    prepareGroup(objectRef.current);
-  }, [modelVersion, prepareGroup]);
-
-  useEffect(() => {
     return () => {
       analysisGeometryRef.current?.dispose();
       serializedGeometryRef.current = null;
@@ -708,6 +702,12 @@ function Scene({
       urlKey,
     ]
   );
+
+  useEffect(() => {
+    if (!modelVersion) return;
+    if (!objectRef.current) return;
+    prepareGroup(objectRef.current);
+  }, [modelVersion, prepareGroup]);
 
   // Emit transform changes only when user interaction actually changes the scene
   useEffect(() => {

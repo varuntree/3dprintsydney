@@ -12,7 +12,8 @@ const normalizeNumber = (value: number) => (Number.isNaN(value) ? 0 : value);
 
 export function ModellingLineItemForm({ index }: { index: number }) {
   const { watch, setValue } = useFormContext<InvoiceFormValues>();
-  const line = watch((form) => form.lines[index]);
+  const lines = watch("lines") ?? [];
+  const line = lines[index];
   if (!line) return null;
 
   const handleHourlyChange = (value: number) => {

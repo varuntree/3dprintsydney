@@ -32,6 +32,20 @@ type NotificationRow = MessageRow & {
   } | null;
 };
 
+function isNotificationRow(value: unknown): value is NotificationRow {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const row = value as Record<string, unknown>;
+  return (
+    typeof row.id === "number" &&
+    typeof row.user_id === "number" &&
+    (row.sender === "ADMIN" || row.sender === "CLIENT") &&
+    typeof row.content === "string" &&
+    typeof row.created_at === "string"
+  );
+}
+
 export type MessageNotificationDTO = {
   id: number;
   userId: number;
@@ -355,7 +369,14 @@ export async function listNotificationsForUser(
     );
   }
 
-  const rows = (data ?? []) as NotificationRow[];
+  const rows: NotificationRow[] = [];
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (isNotificationRow(item)) {
+        rows.push(item);
+      }
+    }
+  }
 
   let conversationSeenMap = new Map<number, string | null>();
   if (user.role === "ADMIN") {

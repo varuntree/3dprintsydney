@@ -96,6 +96,13 @@ export interface QuoteViewModel {
     discountValue: number | null;
     total: number;
     orderIndex: number;
+    calculatorBreakdown: Record<string, unknown> | null;
+    lineType: "PRINT" | "MODELLING";
+    modellingBrief?: string;
+    modellingComplexity?: string | null;
+    modellingRevisionCount?: number;
+    modellingHourlyRate?: number;
+    modellingEstimatedHours?: number;
   }>;
 }
 

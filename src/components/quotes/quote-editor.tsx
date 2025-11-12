@@ -65,6 +65,7 @@ import {
   calculateLineTotal,
   calculateDocumentTotals,
 } from "@/lib/calculations";
+import { invoiceLineTypes, modellingComplexityValues } from "@/lib/types/modelling";
 import { mutateJson } from "@/lib/http";
 import { useNavigation } from "@/hooks/useNavigation";
 import type { ProductTemplateDTO } from "@/server/services/product-templates";
@@ -86,6 +87,12 @@ type QuoteLineFormValue = {
   discountType: DiscountTypeValue;
   discountValue?: number;
   calculatorBreakdown?: Record<string, unknown>;
+  lineType: typeof invoiceLineTypes[number];
+  modellingBrief?: string;
+  modellingComplexity?: typeof modellingComplexityValues[number];
+  modellingRevisionCount?: number;
+  modellingHourlyRate?: number;
+  modellingEstimatedHours?: number;
 };
 
 type QuoteFormValues = {
@@ -157,6 +164,12 @@ export function QuoteEditor({
         discountValue: 0,
         productTemplateId: null,
         calculatorBreakdown: undefined,
+        lineType: "PRINT",
+        modellingBrief: "",
+        modellingComplexity: modellingComplexityValues[0],
+        modellingRevisionCount: 0,
+        modellingHourlyRate: 0,
+        modellingEstimatedHours: 0,
       },
     ],
   };
@@ -247,6 +260,12 @@ export function QuoteEditor({
           ...line,
           discountValue: line.discountValue ?? 0,
           productTemplateId: line.productTemplateId ?? null,
+          lineType: line.lineType ?? "PRINT",
+          modellingBrief: line.modellingBrief ?? "",
+          modellingComplexity: line.modellingComplexity ?? modellingComplexityValues[0],
+          modellingRevisionCount: line.modellingRevisionCount ?? 0,
+          modellingHourlyRate: line.modellingHourlyRate ?? 0,
+          modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
           orderIndex: index,
         })),
       });
@@ -272,6 +291,12 @@ export function QuoteEditor({
           productTemplateId: line.productTemplateId ?? undefined,
           discountValue: line.discountValue ?? 0,
           orderIndex: index,
+          lineType: line.lineType ?? "PRINT",
+          modellingBrief: line.modellingBrief ?? "",
+          modellingComplexity: line.modellingComplexity ?? modellingComplexityValues[0],
+          modellingRevisionCount: line.modellingRevisionCount ?? 0,
+          modellingHourlyRate: line.modellingHourlyRate ?? 0,
+          modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
         })),
       };
       if (mode === "create") {
@@ -342,6 +367,12 @@ export function QuoteEditor({
       discountValue: 0,
       productTemplateId: null,
       calculatorBreakdown: undefined,
+      lineType: "PRINT",
+      modellingBrief: "",
+      modellingComplexity: modellingComplexityValues[0],
+      modellingRevisionCount: 0,
+      modellingHourlyRate: 0,
+      modellingEstimatedHours: 0,
     });
   }
 

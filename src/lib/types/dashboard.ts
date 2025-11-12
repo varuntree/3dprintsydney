@@ -31,3 +31,8 @@ export type ClientProjectSummary = {
   updatedAt: string;
   archivedAt: string | null;
 };
+
+export type ClientProjectListResponse = {
+  projects: ClientProjectSummary[];
+  total: number;
+};

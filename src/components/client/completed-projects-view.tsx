@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ProjectCard } from "@/components/projects/project-card";
 import { toast } from "sonner";
-import type { ClientProjectSummary } from "@/lib/types/dashboard";
+import type { ClientProjectSummary, ClientProjectListResponse } from "@/lib/types/dashboard";
 
 const LIMIT = 50;
 
@@ -15,7 +15,7 @@ export function CompletedProjectsView() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ClientProjectListResponse>({
     queryKey: ["client", "projects", "completed", page],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -28,9 +28,8 @@ export function CompletedProjectsView() {
         throw new Error("Failed to load completed projects");
       }
       const payload = await res.json();
-      return payload.data;
+      return payload.data as ClientProjectListResponse;
     },
-    keepPreviousData: true,
   });
 
   useEffect(() => {

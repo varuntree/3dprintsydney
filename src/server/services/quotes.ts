@@ -33,6 +33,7 @@ import type {
   QuoteLineDTO,
   QuoteFilters,
 } from '@/lib/types/quotes';
+import type { InvoiceLineType, ModellingComplexity } from "@/lib/types/modelling";
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
@@ -51,6 +52,22 @@ function mapLineDiscount(
   if (type === "PERCENT") return DiscountTypeEnum.PERCENT;
   if (type === "FIXED") return DiscountTypeEnum.FIXED;
   return DiscountTypeEnum.NONE;
+}
+
+function normalizeQuoteLine(line: QuoteInput["lines"][number]): QuoteInput["lines"][number] {
+  return {
+    ...line,
+    lineType: line.lineType ?? "PRINT",
+    modellingBrief: line.modellingBrief ?? "",
+    modellingComplexity: (line.modellingComplexity ?? "SIMPLE") as ModellingComplexity,
+    modellingRevisionCount: line.modellingRevisionCount ?? 0,
+    modellingHourlyRate: line.modellingHourlyRate ?? 0,
+    modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
+  };
+}
+
+function normalizeQuoteLines(lines: QuoteInput["lines"]) {
+  return lines.map(normalizeQuoteLine);
 }
 
 type QuoteItemRow = {
@@ -163,26 +180,39 @@ function mapQuoteSummary(row: QuoteRow): QuoteSummaryDTO {
 
 function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_items"]): QuoteLineDTO[] {
   const source = items ?? [];
-  return source.map((item) => ({
-    id: item.id,
-    productTemplateId: item.product_template_id ?? undefined,
-    name: item.name,
-    description: item.description ?? "",
-    quantity: Number(item.quantity ?? 0),
-    unit: item.unit ?? "",
-    unitPrice: Number(item.unit_price ?? 0),
-    discountType: (item.discount_type ?? "NONE") as DiscountTypeValue,
-    discountValue: item.discount_value ? Number(item.discount_value) : 0,
-    total: Number(item.total ?? 0),
-    orderIndex: item.order_index,
-    calculatorBreakdown: item.calculator_breakdown as Record<string, unknown> | null,
-    lineType: (item.calculator_breakdown as Record<string, unknown> | null)?.lineType ?? "PRINT",
-    modellingBrief: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.brief ?? "",
-    modellingComplexity: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.complexity,
-    modellingRevisionCount: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.revisionCount ?? 0,
-    modellingHourlyRate: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.hourlyRate ?? 0,
-    modellingEstimatedHours: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.estimatedHours ?? 0,
-  }));
+  return source.map((item) => {
+    const breakdown = item.calculator_breakdown as Record<string, unknown> | null;
+    const modelling = breakdown?.modelling as
+      | {
+          brief?: string;
+          complexity?: string;
+          revisionCount?: number;
+          hourlyRate?: number;
+          estimatedHours?: number;
+        }
+      | null
+      | undefined;
+    return {
+      id: item.id,
+      productTemplateId: item.product_template_id ?? undefined,
+      name: item.name,
+      description: item.description ?? "",
+      quantity: Number(item.quantity ?? 0),
+      unit: item.unit ?? "",
+      unitPrice: Number(item.unit_price ?? 0),
+      discountType: (item.discount_type ?? "NONE") as DiscountTypeValue,
+      discountValue: item.discount_value ? Number(item.discount_value) : 0,
+      total: Number(item.total ?? 0),
+      orderIndex: item.order_index,
+      calculatorBreakdown: breakdown,
+      lineType: (breakdown?.lineType as InvoiceLineType) ?? "PRINT",
+      modellingBrief: modelling?.brief ?? "",
+      modellingComplexity: modelling?.complexity as ModellingComplexity | undefined,
+      modellingRevisionCount: modelling?.revisionCount ?? 0,
+      modellingHourlyRate: modelling?.hourlyRate ?? 0,
+      modellingEstimatedHours: modelling?.estimatedHours ?? 0,
+    };
+  });
 }
 
 type ResolvedPaymentTerm = Awaited<ReturnType<typeof resolvePaymentTermsOptions>>["paymentTerms"][number] & {
@@ -382,28 +412,30 @@ export async function createQuote(input: QuoteInput) {
         discountValue: coercedDiscount.discountValue,
       }
     : { ...input, discountValue: input.discountValue ?? 0 };
-  const totals = computeTotals(payload);
+  const normalizedLines = normalizeQuoteLines(payload.lines);
+  const normalizedPayload: QuoteInput = { ...payload, lines: normalizedLines };
+  const totals = computeTotals(normalizedPayload);
 
   const supabase = getServiceSupabase();
-  const issueDate = payload.issueDate ? new Date(payload.issueDate) : new Date();
-  const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
+  const issueDate = normalizedPayload.issueDate ? new Date(normalizedPayload.issueDate) : new Date();
+  const expiryDate = normalizedPayload.expiryDate ? new Date(normalizedPayload.expiryDate) : null;
   const number = await nextDocumentNumber("quote");
 
   const { data: created, error } = await supabase
     .from("quotes")
     .insert({
       number,
-      client_id: payload.clientId,
+      client_id: normalizedPayload.clientId,
       status: QuoteStatusEnum.DRAFT,
       issue_date: issueDate.toISOString(),
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(payload.taxRate),
-      discount_type: mapDiscount(payload.discountType),
-      discount_value: toDecimal(payload.discountValue),
-      shipping_cost: toDecimal(payload.shippingCost),
-      shipping_label: payload.shippingLabel || null,
-      notes: payload.notes || null,
-      terms: payload.terms || null,
+      tax_rate: toDecimal(normalizedPayload.taxRate),
+      discount_type: mapDiscount(normalizedPayload.discountType),
+      discount_value: toDecimal(normalizedPayload.discountValue),
+      shipping_cost: toDecimal(normalizedPayload.shippingCost),
+      shipping_label: normalizedPayload.shippingLabel || null,
+      notes: normalizedPayload.notes || null,
+      terms: normalizedPayload.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -415,7 +447,7 @@ export async function createQuote(input: QuoteInput) {
     throw new AppError(`Failed to create quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = payload.lines.map((line, index) => {
+  const itemPayload = normalizedLines.map((line, index) => {
     const breakdown = {
       ...(line.calculatorBreakdown ?? {}),
       lineType: line.lineType,
@@ -491,24 +523,26 @@ export async function updateQuote(id: number, input: QuoteInput) {
         discountValue: coercedDiscount.discountValue,
       }
     : { ...input, discountValue: input.discountValue ?? 0 };
-  const totals = computeTotals(payload);
+  const normalizedLines = normalizeQuoteLines(payload.lines);
+  const normalizedPayload: QuoteInput = { ...payload, lines: normalizedLines };
+  const totals = computeTotals(normalizedPayload);
   const supabase = getServiceSupabase();
-  const issueDate = payload.issueDate ? new Date(payload.issueDate) : undefined;
-  const expiryDate = payload.expiryDate ? new Date(payload.expiryDate) : null;
+  const issueDate = normalizedPayload.issueDate ? new Date(normalizedPayload.issueDate) : undefined;
+  const expiryDate = normalizedPayload.expiryDate ? new Date(normalizedPayload.expiryDate) : null;
 
   const { data: updated, error } = await supabase
     .from("quotes")
     .update({
-      client_id: payload.clientId,
+      client_id: normalizedPayload.clientId,
       issue_date: issueDate ? issueDate.toISOString() : undefined,
       expiry_date: expiryDate ? expiryDate.toISOString() : null,
-      tax_rate: toDecimal(payload.taxRate),
-      discount_type: mapDiscount(payload.discountType),
-      discount_value: toDecimal(payload.discountValue),
-      shipping_cost: toDecimal(payload.shippingCost),
-      shipping_label: payload.shippingLabel || null,
-      notes: payload.notes || null,
-      terms: payload.terms || null,
+      tax_rate: toDecimal(normalizedPayload.taxRate),
+      discount_type: mapDiscount(normalizedPayload.discountType),
+      discount_value: toDecimal(normalizedPayload.discountValue),
+      shipping_cost: toDecimal(normalizedPayload.shippingCost),
+      shipping_label: normalizedPayload.shippingLabel || null,
+      notes: normalizedPayload.notes || null,
+      terms: normalizedPayload.terms || null,
       subtotal: String(totals.subtotal),
       total: String(totals.total),
       tax_total: String(totals.taxTotal),
@@ -529,7 +563,7 @@ export async function updateQuote(id: number, input: QuoteInput) {
     throw new AppError(`Failed to reset quote items: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = payload.lines.map((line, index) => ({
+  const itemPayload = normalizedLines.map((line, index) => ({
     quote_id: id,
     product_template_id: line.productTemplateId ?? null,
     name: line.name,
@@ -870,6 +904,9 @@ export async function sendQuote(id: number) {
 
   if (client?.email) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     await emailService.sendQuoteSent(client.email, {
       clientName: client.business_name || client.contact_name,
       quoteNumber: quote.number,
@@ -933,6 +970,9 @@ export async function acceptQuote(id: number, note?: string) {
 
   if (client) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     if (settings.businessEmail) {
       await emailService.sendQuoteAccepted(settings.businessEmail, {
         quoteNumber: quote.number,
@@ -998,6 +1038,9 @@ export async function declineQuote(id: number, note?: string) {
 
   if (client) {
     const settings = await getSettings();
+    if (!settings) {
+      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    }
     if (settings.businessEmail) {
       await emailService.sendQuoteDeclined(settings.businessEmail, {
         quoteNumber: quote.number,

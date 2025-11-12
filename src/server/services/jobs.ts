@@ -72,17 +72,25 @@ type JobRow = {
   archived_at: string | null;
   archived_reason: string | null;
   completed_by: string | null;
+  job_number?: string | null;
 };
 
 type JobWithRelationsRow = JobRow & {
   printers?: PrinterRow | null;
   clients?: ClientRow | null;
-  invoices?: InvoiceRow | null;
+  invoices?: InvoiceRow | InvoiceRow[] | null;
 };
+
+function resolveInvoiceRecord(record: InvoiceRow | InvoiceRow[] | null | undefined): InvoiceRow | null {
+  if (Array.isArray(record)) {
+    return record[0] ?? null;
+  }
+  return record ?? null;
+}
 
 type JobForNotification = JobWithRelationsRow & {
   clients?: (ClientRow & { notify_on_job_status?: boolean | null; email?: string | null }) | null;
-  invoices?: InvoiceRow | null;
+  invoices?: InvoiceRow | InvoiceRow[] | null;
 };
 
 type ClientJobSummary = {
@@ -124,7 +132,7 @@ function toNumber(value: string | number | null | undefined): number | null {
 function mapJobCard(row: JobWithRelationsRow): JobCardDTO {
   const printer = row.printers ?? null;
   const client = row.clients ?? null;
-  const invoice = row.invoices ?? null;
+  const invoice = resolveInvoiceRecord(row.invoices);
 
   return {
     id: row.id,
@@ -149,7 +157,7 @@ function mapJobCard(row: JobWithRelationsRow): JobCardDTO {
 }
 
 function mapClientJob(row: JobWithRelationsRow): ClientJobSummary {
-  const invoice = row.invoices ?? null;
+  const invoice = resolveInvoiceRecord(row.invoices);
   return {
     id: row.id,
     title: row.title,
@@ -599,7 +607,7 @@ export async function listClientProjects(
   }
 
   const projects = (data ?? []).map((row) => {
-    const invoice = row.invoices ?? null;
+    const invoice = resolveInvoiceRecord(row.invoices);
     const balanceDue = toNumber((invoice as { balance_due?: string | number })?.balance_due) ?? 0;
     const clientStatus = mapToClientStatus(
       (row.status ?? JobStatus.QUEUED) as JobStatus,
@@ -615,7 +623,7 @@ export async function listClientProjects(
       total: toNumber((invoice as { total?: string | number })?.total) ?? 0,
       balanceDue,
       clientStatus,
-      invoiceStatus: invoice?.status ?? null,
+      invoiceStatus: invoice?.status ?? "",
       jobStatus: row.status ?? JobStatus.QUEUED,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -775,7 +783,7 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
       await accumulateRun();
       const globalSettings = await getSettings();
       if (globalSettings?.jobCreationPolicy === JobCreationPolicy.ON_PAYMENT) {
-        const invoice = jobRecord.invoices ?? null;
+        const invoice = resolveInvoiceRecord(jobRecord.invoices);
         const invoiceBalance = toNumber((invoice as { balance_due?: string | number })?.balance_due) ?? 0;
         if (invoice?.status !== InvoiceStatus.PAID || invoiceBalance > 0) {
           throw new BadRequestError(
@@ -1158,7 +1166,7 @@ async function maybeNotifyJobStatusChange(
   }
 
   // Only send emails for significant status changes
-  const notifiableStatuses = [JobStatus.PRINTING, JobStatus.COMPLETED, JobStatus.OUT_FOR_DELIVERY];
+  const notifiableStatuses: JobStatus[] = [JobStatus.PRINTING, JobStatus.COMPLETED, JobStatus.OUT_FOR_DELIVERY];
   if (!notifiableStatuses.includes(currentStatus)) {
     return;
   }
@@ -1170,7 +1178,7 @@ async function maybeNotifyJobStatusChange(
       jobId: job.id,
       clientId: job.client_id,
       clientEmail: client.email ?? null,
-      invoiceNumber: job.invoices?.number ?? null,
+      invoiceNumber: resolveInvoiceRecord(job.invoices)?.number ?? null,
       previousStatus,
       newStatus: currentStatus,
       note: note ?? null,
@@ -1179,26 +1187,19 @@ async function maybeNotifyJobStatusChange(
 
   // Send email notification
   if (client.email) {
-    const statusMessages: Record<JobStatus, string> = {
+    const statusMessages: Partial<Record<JobStatus, string>> = {
       [JobStatus.PRINTING]: "Your job has started printing.",
       [JobStatus.COMPLETED]: "Your job has been completed and is ready.",
       [JobStatus.OUT_FOR_DELIVERY]: "Your job is on its way to you.",
-      [JobStatus.QUEUED]: "",
-      [JobStatus.PAUSED]: "",
-      [JobStatus.CANCELLED]: "",
-      [JobStatus.READY_FOR_QC]: "",
-      [JobStatus.IN_QC]: "",
-      [JobStatus.REQUIRES_REWORK]: "",
-      [JobStatus.READY_FOR_PICKUP]: "",
-      [JobStatus.DELIVERED]: "",
     };
+    const jobNumber = job.job_number ?? `#${job.id}`;
 
     await emailService.sendJobStatusUpdate(client.email, {
       clientName: client.name || 'Client',
-      jobNumber: job.job_number,
+      jobNumber,
       businessName: settings.businessName,
       status: currentStatus,
-      statusMessage: statusMessages[currentStatus] || "Job status has been updated.",
+      statusMessage: statusMessages[currentStatus] ?? "Job status has been updated.",
       customMessage: settings.emailTemplates?.job_status?.body || "Your job status has changed.",
     });
   }

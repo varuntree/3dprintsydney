@@ -31,8 +31,7 @@ async function detectOrientationDataColumn(table: OrientationTable): Promise<boo
       logger.warn({
         scope: "schema.orientation",
         message: "Orientation data column missing; falling back to legacy schema",
-        table,
-        column: COLUMN_NAME,
+        data: { table, column: COLUMN_NAME },
         error: error.message,
       });
       return false;

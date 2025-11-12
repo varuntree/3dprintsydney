@@ -32,7 +32,7 @@ async function cleanup() {
     const { data: quotes, error: quotesError } = await supabase
       .from('quotes')
       .delete()
-      .ilike('quote_number', 'TEST-%')
+      .ilike('number', 'TEST-%')
       .select()
 
     if (quotesError) throw quotesError
@@ -42,7 +42,7 @@ async function cleanup() {
     const { data: invoices, error: invoicesError } = await supabase
       .from('invoices')
       .delete()
-      .ilike('invoice_number', 'TEST-%')
+      .ilike('number', 'TEST-%')
       .select()
 
     if (invoicesError) throw invoicesError

@@ -3,6 +3,7 @@ import { getServiceSupabase } from "@/server/supabase/service-client";
 import { createQuote } from "@/server/services/quotes";
 import { logger } from "@/lib/logger";
 import { DiscountType } from "@/lib/constants/enums";
+import type { InvoiceLineType, ModellingComplexity } from "@/lib/types/modelling";
 
 export async function reorderProject(projectId: number, clientId: number) {
   const scope = "projects.reorder";
@@ -28,17 +29,36 @@ export async function reorderProject(projectId: number, clientId: number) {
     throw new NotFoundError("Project", projectId);
   }
 
-  const lines = (invoice.invoice_items ?? []).map((item) => ({
-    productTemplateId: item.product_template_id ?? null,
-    name: item.name,
-    description: item.description ?? null,
-    quantity: Number(item.quantity) || 0,
-    unit: item.unit ?? null,
-    unitPrice: Number(item.unit_price) || 0,
-    discountType: (item.discount_type as DiscountType) ?? "NONE",
-    discountValue: Number(item.discount_value) || 0,
-    calculatorBreakdown: item.calculator_breakdown,
-  }));
+  const lines = (invoice.invoice_items ?? []).map((item) => {
+    const breakdown = item.calculator_breakdown as Record<string, unknown> | null;
+    const modelling = breakdown?.modelling as
+      | {
+          brief?: string;
+          complexity?: string;
+          revisionCount?: number;
+          hourlyRate?: number;
+          estimatedHours?: number;
+        }
+      | null
+      | undefined;
+    return {
+      productTemplateId: item.product_template_id ?? null,
+      name: item.name,
+      description: item.description ?? null,
+      quantity: Number(item.quantity) || 0,
+      unit: item.unit ?? null,
+      unitPrice: Number(item.unit_price) || 0,
+      discountType: (item.discount_type as DiscountType) ?? "NONE",
+      discountValue: Number(item.discount_value) || 0,
+      calculatorBreakdown: breakdown ?? undefined,
+      lineType: (breakdown?.lineType as InvoiceLineType) ?? "PRINT",
+      modellingBrief: modelling?.brief ?? "",
+      modellingComplexity: modelling?.complexity as ModellingComplexity | undefined,
+      modellingRevisionCount: modelling?.revisionCount ?? 0,
+      modellingHourlyRate: modelling?.hourlyRate ?? 0,
+      modellingEstimatedHours: modelling?.estimatedHours ?? 0,
+    };
+  });
 
   const quote = await createQuote({
     clientId: invoice.client_id,
@@ -48,6 +68,7 @@ export async function reorderProject(projectId: number, clientId: number) {
     shippingCost: Number(invoice.shipping_cost) || 0,
     shippingLabel: invoice.shipping_label ?? undefined,
     notes: `Reordered from Invoice ${invoice.number}`,
+    expiryDate: undefined,
     lines,
   });
 

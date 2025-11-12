@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
-import {
-  InvoiceEditor,
-  type InvoiceFormValues,
-} from "@/components/invoices/invoice-editor";
+import { InvoiceEditor } from "@/components/invoices/invoice-editor";
+import type { InvoiceFormValues } from "@/lib/types/invoice-form";
+import type { InvoiceLineType, ModellingComplexity } from "@/lib/types/modelling";
 import { InvoiceView, type InvoiceViewModel } from "@/components/invoices/invoice-view";
 import {
   InvoicePayments,
@@ -64,27 +63,33 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         discountType: detail.discountType,
         discountValue: detail.discountValue,
         shippingCost: detail.shippingCost,
-        shippingLabel: detail.shippingLabel,
+        shippingLabel: detail.shippingLabel ?? "",
         poNumber: detail.poNumber ?? "",
-        notes: detail.notes,
-        terms: detail.terms,
-        lines: detail.lines.map((line) => ({
-          productTemplateId: line.productTemplateId ?? null,
-          name: line.name,
-          description: line.description ?? "",
-          quantity: line.quantity,
-          unit: line.unit ?? "",
-          unitPrice: line.unitPrice,
-          discountType: line.discountType,
-          discountValue: line.discountValue,
-          calculatorBreakdown: line.calculatorBreakdown ?? undefined,
-          lineType: line.lineType ?? "PRINT",
-          modellingBrief: line.modellingBrief ?? "",
-          modellingComplexity: line.modellingComplexity ?? undefined,
-          modellingRevisionCount: line.modellingRevisionCount ?? 0,
-          modellingHourlyRate: line.modellingHourlyRate ?? 0,
-          modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
-        })),
+        notes: detail.notes ?? "",
+        terms: detail.terms ?? "",
+        lines: detail.lines.map((line) => {
+          const resolvedLineType = (line.lineType ?? "PRINT") as InvoiceLineType;
+          const resolvedModellingComplexity = line.modellingComplexity
+            ? (line.modellingComplexity as ModellingComplexity)
+            : undefined;
+          return {
+            productTemplateId: line.productTemplateId ?? null,
+            name: line.name,
+            description: line.description ?? "",
+            quantity: line.quantity,
+            unit: line.unit ?? "",
+            unitPrice: line.unitPrice,
+            discountType: line.discountType,
+            discountValue: line.discountValue,
+            calculatorBreakdown: line.calculatorBreakdown ?? undefined,
+            lineType: resolvedLineType,
+            modellingBrief: line.modellingBrief ?? "",
+            modellingComplexity: resolvedModellingComplexity,
+            modellingRevisionCount: line.modellingRevisionCount ?? 0,
+            modellingHourlyRate: line.modellingHourlyRate ?? 0,
+            modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
+          };
+        }),
       };
 
       return (
@@ -138,10 +143,10 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       dueDate: detail.dueDate ? detail.dueDate.toISOString() : null,
       paidAt: detail.paidAt ? detail.paidAt.toISOString() : null,
       clientName: detail.client.name,
-      businessName: settings.businessName,
-      businessEmail: settings.businessEmail,
-      businessPhone: settings.businessPhone,
-      businessAddress: settings.businessAddress,
+      businessName: settings.businessName ?? "",
+      businessEmail: settings.businessEmail ?? "",
+      businessPhone: settings.businessPhone ?? "",
+      businessAddress: settings.businessAddress ?? "",
       abn: detail.client.abn ?? settings.abn ?? null,
       paymentTerms: detail.paymentTerms
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
@@ -154,8 +159,8 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       total: detail.total,
       balanceDue: detail.balanceDue,
       poNumber: detail.poNumber ?? null,
-      notes: detail.notes,
-      terms: detail.terms,
+      notes: detail.notes ?? "",
+      terms: detail.terms ?? "",
       currency: settings.defaultCurrency ?? "AUD",
       stripeCheckoutUrl: detail.stripeCheckoutUrl ?? null,
       bankDetails: settings.bankDetails,
@@ -170,6 +175,13 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
         discountValue: line.discountValue,
         total: line.total,
         orderIndex: line.orderIndex ?? index,
+        calculatorBreakdown: line.calculatorBreakdown,
+        lineType: line.lineType,
+        modellingBrief: line.modellingBrief ?? "",
+        modellingComplexity: line.modellingComplexity ?? undefined,
+        modellingRevisionCount: line.modellingRevisionCount ?? 0,
+        modellingHourlyRate: line.modellingHourlyRate ?? 0,
+        modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
       })),
     };
 

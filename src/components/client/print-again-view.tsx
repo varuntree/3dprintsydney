@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ProjectCard } from "@/components/projects/project-card";
 import { ReorderButton } from "@/components/projects/reorder-button";
-import type { ClientProjectSummary } from "@/lib/types/dashboard";
+import type { ClientProjectSummary, ClientProjectListResponse } from "@/lib/types/dashboard";
 
 const LIMIT = 50;
 
@@ -14,7 +14,7 @@ export function PrintAgainView() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ClientProjectListResponse>({
     queryKey: ["client", "projects", "history", page, search],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -28,9 +28,8 @@ export function PrintAgainView() {
         throw new Error("Failed to load history");
       }
       const payload = await res.json();
-      return payload.data;
+      return payload.data as ClientProjectListResponse;
     },
-    keepPreviousData: true,
   });
 
   if (isLoading) {
@@ -54,7 +53,7 @@ export function PrintAgainView() {
         <Input
           placeholder="Search projects..."
           value={search}
-          onChange={(event) => {
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setSearch(event.target.value);
             setPage(1);
           }}

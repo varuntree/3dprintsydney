@@ -152,6 +152,9 @@ export async function signupClient(
 
   // Send welcome email
   const settings = await getSettings();
+  if (!settings) {
+    throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+  }
   await emailService.sendWelcome(email, {
     firstName: firstName || email.split('@')[0],
     businessName: settings.businessName,

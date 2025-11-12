@@ -85,8 +85,9 @@ async function getClientProjectCounters(clientId: number, walletBalance: number)
   let completed = 0;
 
   (data ?? []).forEach((row) => {
-    const invoiceStatus = (row.invoice?.status ?? "").toUpperCase();
-    const balanceDue = decimalToNumber((row.invoice as { balance_due?: unknown })?.balance_due);
+    const invoiceRecord = Array.isArray(row.invoice) ? row.invoice[0] ?? null : row.invoice ?? null;
+    const invoiceStatus = (invoiceRecord?.status ?? "").toUpperCase();
+    const balanceDue = decimalToNumber((invoiceRecord as { balance_due?: unknown })?.balance_due);
     const needsPayment =
       invoiceStatus !== InvoiceStatus.PAID || (balanceDue > 0);
     if (needsPayment) {
@@ -439,6 +440,7 @@ export async function getClientDashboardStats(
   paidCount: number;
   totalSpent: number;
   walletBalance: number;
+  projectCounters: ClientProjectCounters;
 }> {
   const supabase = getServiceSupabase();
 

@@ -18,12 +18,14 @@ export default function OrientationGizmo({ target, enabled, onDraggingChange }: 
     return null;
   }
 
-  const handleDraggingChange = (dragging: boolean) => {
-    onDraggingChange?.(dragging);
-    if (!dragging) {
-      const q = target.quaternion.clone();
-      setOrientation([q.x, q.y, q.z, q.w], position);
-    }
+  const handleMouseDown = () => {
+    onDraggingChange?.(true);
+  };
+
+  const handleMouseUp = () => {
+    onDraggingChange?.(false);
+    const q = target.quaternion.clone();
+    setOrientation([q.x, q.y, q.z, q.w], position);
   };
 
   return (
@@ -34,7 +36,8 @@ export default function OrientationGizmo({ target, enabled, onDraggingChange }: 
       showX
       showY
       showZ
-      onDraggingChange={handleDraggingChange}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
     />
   );
 }

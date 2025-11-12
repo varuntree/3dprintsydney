@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SettingsPayload } from "@/components/settings/settings-form";
-import type { Material } from "@/server/services/materials";
+import type { MaterialDTO } from "@/server/services/materials";
 import {
   Calculator,
   Truck,
@@ -17,7 +17,7 @@ import {
 
 type DocumentationViewProps = {
   settings: SettingsPayload;
-  materials: Material[];
+  materials: MaterialDTO[];
 };
 
 export function DocumentationView({ settings, materials }: DocumentationViewProps) {

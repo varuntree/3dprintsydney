@@ -499,23 +499,52 @@ Relation "clients" does not exist
 npx supabase db reset
 ```
 
-#### Port Already in Use
+#### Port Already in Use / "port is already allocated"
 
 **Error:**
 ```
-Port 54321 is already in use
+failed to start docker container: Bind for 0.0.0.0:54324 failed: port is already allocated
 ```
 
-**Solution:**
+**Root Cause:** Docker has stale port bindings from crashed/ungracefully stopped containers. This commonly happens after:
+- Docker Desktop crashes or force quits
+- System restarts with containers still running
+- Supabase CLI project naming changes (containers run as `supabase_*_3dprintsydney` but CLI looks for `supabase_*_local`)
+
+**Solution (Quick Fix):**
 ```bash
-# Stop Supabase
-npx supabase stop
+# Stop with explicit project ID
+npx supabase stop --project-id local
 
-# Wait a few seconds
-sleep 5
+# Clean all Supabase containers manually
+docker stop $(docker ps -q --filter "name=supabase")
+docker rm $(docker ps -aq --filter "name=supabase")
 
-# Start again
+# Reset Docker network state
+docker network prune -f
+
+# Start fresh
 npx supabase start
+```
+
+**Solution (If Quick Fix Fails):**
+```bash
+# Complete Docker cleanup
+docker system prune --volumes -f
+
+# Restart Docker Desktop entirely
+# (Quit from menu bar, wait 10 seconds, restart)
+
+# Start Supabase
+npx supabase start
+```
+
+**Permanent Fix (Prevents Future Issues):**
+Change port in `supabase/config.toml` if a specific port keeps conflicting:
+```toml
+[studio]
+enabled = true
+port = 54325  # Changed from 54324
 ```
 
 #### Test Data Not Cleaned

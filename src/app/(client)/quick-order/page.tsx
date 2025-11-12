@@ -340,46 +340,38 @@ export default function QuickOrderPage() {
 
   useEffect(() => {
     if (!currentlyOrienting) return;
-    const unsubscribe = useOrientationStore.subscribe(
-      (state) => ({
+    const unsubscribe = useOrientationStore.subscribe((state) => {
+      if (!currentlyOrienting || orientationHydratingRef.current) return;
+      const next = {
         quaternion: state.quaternion,
         position: state.position,
-        isAutoOriented: state.isAutoOriented,
+        autoOriented: state.isAutoOriented,
         supportVolume: state.supportVolume,
         supportWeight: state.supportWeight,
-      }),
-      (next) => {
-        if (!currentlyOrienting || orientationHydratingRef.current) return;
-        setOrientationState((prev) => ({
+      };
+      setOrientationState((prev) => ({
+        ...prev,
+        [currentlyOrienting]: next,
+      }));
+      let unlocked = false;
+      setOrientationLocked((prev) => {
+        if (!prev[currentlyOrienting]) return prev;
+        unlocked = true;
+        return {
           ...prev,
-          [currentlyOrienting]: {
-            quaternion: next.quaternion,
-            position: next.position,
-            autoOriented: next.isAutoOriented,
-            supportVolume: next.supportVolume,
-            supportWeight: next.supportWeight,
-          },
-        }));
-        let unlocked = false;
-        setOrientationLocked((prev) => {
+          [currentlyOrienting]: false,
+        };
+      });
+      if (unlocked) {
+        setMetrics((prev) => {
           if (!prev[currentlyOrienting]) return prev;
-          unlocked = true;
-          return {
-            ...prev,
-            [currentlyOrienting]: false,
-          };
+          const nextMetrics = { ...prev };
+          delete nextMetrics[currentlyOrienting];
+          return nextMetrics;
         });
-        if (unlocked) {
-          setMetrics((prev) => {
-            if (!prev[currentlyOrienting]) return prev;
-            const nextMetrics = { ...prev };
-            delete nextMetrics[currentlyOrienting];
-            return nextMetrics;
-          });
-          setPriceData(null);
-        }
+        setPriceData(null);
       }
-    );
+    });
     return () => {
       unsubscribe();
     };

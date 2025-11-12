@@ -7,6 +7,7 @@ import { listMaterials } from "@/server/services/materials";
 import { getSettings } from "@/server/services/settings";
 import { getQuoteDetail } from "@/server/services/quotes";
 import { quoteInputSchema } from "@/lib/schemas/quotes";
+import type { QuoteLineInput } from "@/lib/schemas/quotes";
 import type { z } from "zod";
 
 type QuoteFormValues = z.infer<typeof quoteInputSchema>;
@@ -50,21 +51,31 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
         discountType: detail.discountType,
         discountValue: detail.discountValue,
         shippingCost: detail.shippingCost,
-        shippingLabel: detail.shippingLabel,
-        notes: detail.notes,
-        terms: detail.terms,
-        lines: detail.lines.map((line, index) => ({
-          productTemplateId: line.productTemplateId ?? null,
-          name: line.name,
-          description: line.description ?? "",
-          quantity: line.quantity,
-          unit: line.unit ?? "unit",
-          unitPrice: line.unitPrice,
-          discountType: line.discountType,
-          discountValue: line.discountValue ?? 0,
-          orderIndex: line.orderIndex ?? index,
-          calculatorBreakdown: line.calculatorBreakdown ?? undefined,
-        })),
+        shippingLabel: detail.shippingLabel ?? "",
+        notes: detail.notes ?? "",
+        terms: detail.terms ?? "",
+        lines: detail.lines.map((line, index) => {
+          const resolvedLineType = (line.lineType ?? "PRINT") as QuoteLineInput["lineType"];
+          const resolvedModellingComplexity = (line.modellingComplexity ?? "SIMPLE") as QuoteLineInput["modellingComplexity"];
+          return {
+            productTemplateId: line.productTemplateId ?? null,
+            name: line.name,
+            description: line.description ?? "",
+            quantity: line.quantity,
+            unit: line.unit ?? "unit",
+            unitPrice: line.unitPrice,
+            discountType: line.discountType,
+            discountValue: line.discountValue ?? 0,
+            orderIndex: line.orderIndex ?? index,
+            calculatorBreakdown: line.calculatorBreakdown ?? undefined,
+            lineType: resolvedLineType,
+            modellingBrief: line.modellingBrief ?? "",
+            modellingComplexity: resolvedModellingComplexity,
+            modellingRevisionCount: line.modellingRevisionCount ?? 0,
+            modellingHourlyRate: line.modellingHourlyRate ?? 0,
+            modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
+          };
+        }),
       };
 
       return (
@@ -95,10 +106,10 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
       number: detail.number,
       status: detail.status,
       client: detail.client,
-      businessName: settings.businessName,
-      businessEmail: settings.businessEmail,
-      businessPhone: settings.businessPhone,
-      businessAddress: settings.businessAddress,
+      businessName: settings.businessName ?? "",
+      businessEmail: settings.businessEmail ?? "",
+      businessPhone: settings.businessPhone ?? "",
+      businessAddress: settings.businessAddress ?? "",
       abn: detail.client.abn ?? settings.abn ?? null,
       currency: settings.defaultCurrency ?? "AUD",
       paymentTerms: detail.paymentTerms
@@ -112,8 +123,8 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
       shippingCost: detail.shippingCost,
       taxTotal: detail.taxTotal,
       total: detail.total,
-      notes: detail.notes,
-      terms: detail.terms,
+      notes: detail.notes ?? "",
+      terms: detail.terms ?? "",
       lines: detail.lines.map((line, index) => ({
         id: line.id ?? null,
         name: line.name,
@@ -125,6 +136,13 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
         discountValue: line.discountValue,
         total: line.total,
         orderIndex: line.orderIndex ?? index,
+        calculatorBreakdown: line.calculatorBreakdown,
+        lineType: line.lineType,
+        modellingBrief: line.modellingBrief ?? "",
+        modellingComplexity: line.modellingComplexity ?? undefined,
+        modellingRevisionCount: line.modellingRevisionCount ?? 0,
+        modellingHourlyRate: line.modellingHourlyRate ?? 0,
+        modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
       })),
     };
 

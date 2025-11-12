@@ -21,6 +21,7 @@ import path from "path";
 import { promises as fsp } from "fs";
 import os from "os";
 import { applyOrientationToModel } from "@/server/geometry/orient";
+import type { InvoiceLineType, ModellingComplexity } from "@/lib/types/modelling";
 
 export type QuickOrderItemInput = {
   fileId?: string;
@@ -78,6 +79,34 @@ type ShippingLocation = {
 let cachedSettings: Awaited<ReturnType<typeof getSettings>> | null = null;
 let cachedSettingsAt = 0;
 const SETTINGS_TTL_MS = 60_000;
+
+type SupportSettingsInput = {
+  enabled?: boolean;
+  pattern?: "normal" | "tree";
+  angle?: number;
+  style?: "grid" | "organic";
+  interfaceLayers?: number;
+};
+
+function normalizeSupportSettings(input?: SupportSettingsInput) {
+  const pattern: "normal" | "tree" = input?.pattern === "tree" ? "tree" : "normal";
+  const style: "grid" | "organic" = input?.style ?? (pattern === "tree" ? "organic" : "grid");
+  const interfaceLayers =
+    typeof input?.interfaceLayers === "number" && Number.isFinite(input.interfaceLayers)
+      ? input.interfaceLayers
+      : 3;
+  const angle =
+    typeof input?.angle === "number" && Number.isFinite(input.angle)
+      ? input.angle
+      : 45;
+  return {
+    enabled: input?.enabled ?? true,
+    pattern,
+    angle,
+    style,
+    interfaceLayers,
+  };
+}
 
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
@@ -320,6 +349,12 @@ export function buildQuickOrderLines(
     discountType: "NONE" as const,
     discountValue: 0,
     calculatorBreakdown: p.breakdown,
+    lineType: "PRINT" as InvoiceLineType,
+    modellingBrief: "",
+    modellingComplexity: undefined as ModellingComplexity | undefined,
+    modellingRevisionCount: 0,
+    modellingHourlyRate: 0,
+    modellingEstimatedHours: 0,
   }));
 }
 
@@ -448,10 +483,11 @@ export async function executeSlicingWithRetry(
     };
   },
   maxAttempts = 2,
-): Promise<{ timeSec: number; grams: number; gcodePath?: string } | null> {
+): Promise<{ timeSec: number; grams: number; supportGrams: number; gcodePath?: string } | null> {
   let attempt = 0;
   let lastError: Error & { stderr?: string } | null = null;
-  let metrics: { timeSec: number; grams: number; gcodePath?: string } | null = null;
+  let metrics: { timeSec: number; grams: number; supportGrams: number; gcodePath?: string } | null = null;
+  const normalizedSupports = normalizeSupportSettings(settings.supports);
 
   while (attempt < maxAttempts) {
     attempt += 1;
@@ -459,13 +495,7 @@ export async function executeSlicingWithRetry(
       const result = await sliceFileWithCli(srcPath, {
         layerHeight: Number(settings.layerHeight),
         infill: Number(settings.infill),
-        supports: {
-          enabled: Boolean(settings.supports.enabled),
-          angle: settings.supports.angle,
-          pattern: settings.supports.pattern === "tree" ? "tree" : "normal",
-          style: settings.supports.style,
-          interfaceLayers: settings.supports.interfaceLayers,
-        },
+        supports: normalizedSupports,
       });
       metrics = result;
       lastError = null;
@@ -479,7 +509,7 @@ export async function executeSlicingWithRetry(
           attempt,
           layerHeight: settings.layerHeight,
           infill: settings.infill,
-          supports: settings.supports,
+          supports: normalizedSupports,
         },
         error: lastError.stderr || lastError.message,
       });
@@ -625,6 +655,8 @@ export async function sliceQuickOrderFile(
   const startTime = Date.now();
   let attempts = 1;
   let tmpDir: string | null = null;
+  const normalizedSupports = normalizeSupportSettings(settings.supports);
+  const slicingSettings = { ...settings, supports: normalizedSupports };
   try {
     const record = await requireTmpFile(userId, fileId);
     const baseMeta = (record.metadata ?? {}) as TmpFileMetadata;
@@ -637,7 +669,7 @@ export async function sliceQuickOrderFile(
         fileId,
         userId,
         attempts,
-        settings,
+        settings: slicingSettings,
       },
     });
 
@@ -650,7 +682,7 @@ export async function sliceQuickOrderFile(
         settings: {
           layerHeight: settings.layerHeight,
           infill: settings.infill,
-          supports: settings.supports,
+          supports: normalizedSupports,
         },
         fallback: false,
         error: null,
@@ -667,7 +699,7 @@ export async function sliceQuickOrderFile(
     await fsp.writeFile(src, sourceBuffer);
 
     // Execute slicing with retry
-    const metrics = await executeSlicingWithRetry(src, settings);
+    const metrics = await executeSlicingWithRetry(src, slicingSettings);
 
     // Handle failure with fallback
     if (!metrics) {
@@ -685,7 +717,7 @@ export async function sliceQuickOrderFile(
           settings: {
             layerHeight: settings.layerHeight,
             infill: settings.infill,
-            supports: settings.supports,
+            supports: normalizedSupports,
           },
           metrics: {
             timeSec: fallbackMetrics.timeSec,
@@ -729,7 +761,7 @@ export async function sliceQuickOrderFile(
         settings: {
           layerHeight: settings.layerHeight,
           infill: settings.infill,
-          supports: settings.supports,
+          supports: normalizedSupports,
         },
         metrics: { timeSec: metrics.timeSec, grams: metrics.grams, supportGrams: metrics.supportGrams },
         fallback: false,

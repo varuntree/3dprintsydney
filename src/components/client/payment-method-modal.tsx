@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Wallet, Loader2 } from "lucide-react";
@@ -209,7 +210,7 @@ export function PaymentMethodModal({
                 max={maxCredit}
                 className="h-9"
                 value={creditInput}
-                onChange={(event) => setCreditInput(event.target.value)}
+                onChange={(event: ChangeEvent<HTMLInputElement>) => setCreditInput(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
                 Remaining after credit: {formatCurrency(remainingAfterCredit)}

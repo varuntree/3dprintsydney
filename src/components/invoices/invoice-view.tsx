@@ -70,6 +70,13 @@ export interface InvoiceViewModel {
     discountValue: number | null;
     total: number;
     orderIndex: number;
+    calculatorBreakdown: Record<string, unknown> | null;
+    lineType: "PRINT" | "MODELLING";
+    modellingBrief?: string;
+    modellingComplexity?: string | null;
+    modellingRevisionCount?: number;
+    modellingHourlyRate?: number;
+    modellingEstimatedHours?: number;
   }>;
   bankDetails?: string | null;
 }
@@ -473,10 +480,10 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                           <p>Complexity: {modellingDetails.complexity}</p>
                           <p>Revisions: {modellingDetails.revisionCount}</p>
                           <p>
-                            {modellingDetails.estimatedHours}h @ {formatCurrency(
-                              modellingDetails.hourlyRate,
-                              invoice.currency,
-                            )}
+                          {modellingDetails.estimatedHours ?? 0}h @ {formatCurrency(
+                            modellingDetails.hourlyRate ?? 0,
+                            invoice.currency,
+                          )}
                           </p>
                         </div>
                       ) : null}
@@ -543,10 +550,10 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                           <p>Complexity: {modellingDetails.complexity}</p>
                           <p>Revisions: {modellingDetails.revisionCount}</p>
                           <p>
-                            {modellingDetails.estimatedHours}h @ {formatCurrency(
-                              modellingDetails.hourlyRate,
-                              invoice.currency,
-                            )}
+                        {modellingDetails.estimatedHours ?? 0}h @ {formatCurrency(
+                          modellingDetails.hourlyRate ?? 0,
+                          invoice.currency,
+                        )}
                           </p>
                         </div>
                       ) : null}

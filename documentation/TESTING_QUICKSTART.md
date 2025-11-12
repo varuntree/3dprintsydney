@@ -128,15 +128,21 @@ npx supabase start
 
 **Fix:** Re-run step 3 (Create Test Users) above
 
-### Port In Use
+### Port Already Allocated
 
-**Error:** `Port 54321 already in use`
+**Error:** `Bind for 0.0.0.0:54324 failed: port is already allocated`
+
+**Root Cause:** Stale Docker port bindings after crashes/restarts
 
 **Fix:**
 ```bash
-npx supabase stop
-sleep 5
+# Clean containers and network
+docker stop $(docker ps -q --filter "name=supabase")
+docker rm $(docker ps -aq --filter "name=supabase")
+docker network prune -f
 npx supabase start
+
+# If that fails, restart Docker Desktop entirely
 ```
 
 ### Test Data Conflicts

@@ -98,6 +98,12 @@ function ensureOrientationField(value: unknown): OrientationData | null {
   return value as OrientationData;
 }
 
+function assertRawTmpFileRow(value: unknown): asserts value is RawTmpFileRow {
+  if (typeof value !== "object" || value === null) {
+    throw new AppError("Tmp file row is malformed", "DATABASE_ERROR", 500);
+  }
+}
+
 function mapTmpFileRow(row: RawTmpFileRow, includeOrientation: boolean): TmpFileRecord {
   return {
     id: ensureNumberField(row, "id"),
@@ -112,6 +118,20 @@ function mapTmpFileRow(row: RawTmpFileRow, includeOrientation: boolean): TmpFile
     created_at: ensureStringField(row, "created_at"),
     updated_at: ensureStringField(row, "updated_at"),
   };
+}
+
+function getSupabaseErrorMessage(error: unknown) {
+  if (!error) return "no data returned";
+  if (typeof error === "string") {
+    return error;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as Record<string, unknown>).message;
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+  return "Unknown error";
 }
 
 const TMP_FILE_BASE_COLUMNS = [
@@ -173,19 +193,20 @@ export async function saveTmpFile(
     .single();
 
   if (error || !data) {
+    const errorMessage = getSupabaseErrorMessage(error);
     logger.error({
       scope: 'tmp-files.save',
       message: 'Failed to register tmp file in database',
-      userId,
-      filename,
-      error: error?.message ?? 'no data returned',
+      data: { userId, filename },
+      error: errorMessage,
     });
     await deleteFromStorage(key).catch(() => undefined);
-    throw new AppError(error?.message ?? "Failed to register tmp file", 'DATABASE_ERROR', 500);
+    throw new AppError(errorMessage, 'DATABASE_ERROR', 500);
   }
 
-  logger.info({ scope: 'tmp-files.save', data: { tmpId: data.storage_key, filename } });
-  const record = mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
+  assertRawTmpFileRow(data);
+  const record = mapTmpFileRow(data, includeOrientation);
+  logger.info({ scope: 'tmp-files.save', data: { tmpId: record.storage_key, filename } });
   return {
     record,
     tmpId: record.storage_key,
@@ -211,15 +232,17 @@ export async function requireTmpFile(userId: number, tmpId: string): Promise<Tmp
     .maybeSingle();
 
   if (error) {
-    throw new AppError(`Failed to load tmp file: ${error.message}`, 'DATABASE_ERROR', 500);
+    const message = getSupabaseErrorMessage(error);
+    throw new AppError(`Failed to load tmp file: ${message}`, 'DATABASE_ERROR', 500);
   }
   if (!data) {
     throw new NotFoundError("Tmp file", tmpId);
   }
+  assertRawTmpFileRow(data);
   if (data.user_id !== userId) {
     throw new ForbiddenError("Unauthorized");
   }
-  return mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
+  return mapTmpFileRow(data, includeOrientation);
 }
 
 /**
@@ -262,10 +285,12 @@ export async function updateTmpFile(
     .single();
 
   if (error || !data) {
-    throw new AppError(error?.message ?? "Failed to update tmp file", 'DATABASE_ERROR', 500);
+    const message = getSupabaseErrorMessage(error);
+    throw new AppError(message, 'DATABASE_ERROR', 500);
   }
 
-  return mapTmpFileRow(data as RawTmpFileRow, includeOrientation);
+  assertRawTmpFileRow(data);
+  return mapTmpFileRow(data, includeOrientation);
 }
 
 /**

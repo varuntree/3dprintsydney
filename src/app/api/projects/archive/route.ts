@@ -11,8 +11,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const ids = Array.isArray(body?.ids)
       ? body.ids
-          .map((value: unknown) => Number(value))
-          .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value: unknown) => Number(value))
+      .filter((value: number) => Number.isFinite(value) && value > 0)
       : [];
     if (ids.length === 0) {
       return okAuth(request, { count: 0 });

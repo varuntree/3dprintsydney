@@ -285,18 +285,19 @@ export function InvoiceEditor({
 
   const mutation = useMutation<{ id: number }, Error, InvoiceFormValues>({
     mutationFn: async (values: InvoiceFormValues) => {
-      const payload: InvoiceInput = {
-        ...values,
-        dueDate: values.dueDate || undefined,
-        discountValue: values.discountValue ?? 0,
-        shippingCost: values.shippingCost ?? 0,
-        lines: values.lines.map((line, index) => ({
-          ...line,
-          productTemplateId: line.productTemplateId ?? undefined,
-          discountValue: line.discountValue ?? 0,
-          orderIndex: index,
-        })),
-      };
+    const payload: InvoiceInput = {
+      ...values,
+      dueDate: values.dueDate || undefined,
+      discountValue: values.discountValue ?? 0,
+      shippingCost: values.shippingCost ?? 0,
+      creditRequestedAmount: values.creditRequestedAmount ?? 0,
+      lines: values.lines.map((line, index) => ({
+        ...line,
+        productTemplateId: line.productTemplateId ?? undefined,
+        discountValue: line.discountValue ?? 0,
+        orderIndex: index,
+      })),
+    };
       const trimmedPo = values.poNumber?.trim();
       payload.poNumber = trimmedPo ? trimmedPo : undefined;
       if (mode === "create") {
@@ -862,7 +863,6 @@ export function InvoiceEditor({
                             onValueChange={(value) =>
                               setLineType(index, value as typeof invoiceLineTypes[number])
                             }
-                            className="w-full"
                           >
                             <SelectTrigger className="w-full">
                               <SelectValue />

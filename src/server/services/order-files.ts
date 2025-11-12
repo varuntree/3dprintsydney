@@ -29,6 +29,121 @@ export type OrderFileRecord = {
   uploaded_at: string;
 };
 
+type RawOrderFileRow = Record<string, unknown>;
+const ORDER_FILE_BASE_COLUMNS = [
+  "id",
+  "invoice_id",
+  "quote_id",
+  "client_id",
+  "filename",
+  "storage_key",
+  "file_type",
+  "mime_type",
+  "size_bytes",
+  "metadata",
+  "uploaded_by",
+  "uploaded_at",
+];
+
+function getOrderFileSelectColumns(includeOrientation: boolean) {
+  const columns = [...ORDER_FILE_BASE_COLUMNS];
+  if (includeOrientation) {
+    columns.push("orientation_data");
+  }
+  return columns.join(", ");
+}
+
+const ORDER_FILE_TYPES: OrderFileType[] = ["model", "settings"];
+
+function ensureNumberField(row: RawOrderFileRow, key: string) {
+  const value = row[key];
+  if (typeof value !== "number") {
+    throw new AppError(`Order file record missing numeric field "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureNullableNumberField(row: RawOrderFileRow, key: string) {
+  const value = row[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "number") {
+    throw new AppError(`Order file record invalid nullable number "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureStringField(row: RawOrderFileRow, key: string) {
+  const value = row[key];
+  if (typeof value !== "string") {
+    throw new AppError(`Order file record missing string field "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureNullableStringField(row: RawOrderFileRow, key: string) {
+  const value = row[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new AppError(`Order file record invalid nullable string "${key}"`, "DATABASE_ERROR", 500);
+  }
+  return value;
+}
+
+function ensureMetadataField(value: unknown): Record<string, unknown> | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "object") {
+    throw new AppError("Order file metadata is malformed", "DATABASE_ERROR", 500);
+  }
+  return value as Record<string, unknown>;
+}
+
+function ensureOrientationField(value: unknown): OrientationData | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "object") {
+    throw new AppError("Order file orientation data is malformed", "DATABASE_ERROR", 500);
+  }
+  return value as OrientationData;
+}
+
+function ensureOrderFileType(value: unknown): OrderFileType {
+  if (typeof value !== "string" || !ORDER_FILE_TYPES.includes(value as OrderFileType)) {
+    throw new AppError(`Order file record has invalid file type "${String(value)}"`, "DATABASE_ERROR", 500);
+  }
+  return value as OrderFileType;
+}
+
+function assertRawOrderFileRow(value: unknown): asserts value is RawOrderFileRow {
+  if (typeof value !== "object" || value === null) {
+    throw new AppError("Order file row is malformed", "DATABASE_ERROR", 500);
+  }
+}
+
+function mapOrderFileRow(row: RawOrderFileRow, includeOrientation: boolean): OrderFileRecord {
+  return {
+    id: ensureNumberField(row, "id"),
+    invoice_id: ensureNullableNumberField(row, "invoice_id"),
+    quote_id: ensureNullableNumberField(row, "quote_id"),
+    client_id: ensureNumberField(row, "client_id"),
+    filename: ensureStringField(row, "filename"),
+    storage_key: ensureStringField(row, "storage_key"),
+    file_type: ensureOrderFileType(row.file_type),
+    mime_type: ensureNullableStringField(row, "mime_type"),
+    size_bytes: ensureNumberField(row, "size_bytes"),
+    metadata: ensureMetadataField(row.metadata),
+    orientation_data: includeOrientation ? ensureOrientationField(row.orientation_data) : null,
+    uploaded_by: ensureNullableNumberField(row, "uploaded_by"),
+    uploaded_at: ensureStringField(row, "uploaded_at"),
+  };
+}
+
 /**
  * Save an order file to storage and database
  * @param params - File save parameters (buffer, filename, invoice/quote ID, user ID)
@@ -89,10 +204,11 @@ export async function saveOrderFile(params: {
   if (includeOrientation) {
     insertPayload.orientation_data = orientationData ?? null;
   }
+  const selectColumns = getOrderFileSelectColumns(includeOrientation);
   const { data, error } = await supabase
     .from("order_files")
     .insert(insertPayload)
-    .select()
+    .select(selectColumns)
     .single();
 
   if (error || !data) {
@@ -101,11 +217,9 @@ export async function saveOrderFile(params: {
     throw new AppError(error?.message ?? "Failed to save order file record", 'DATABASE_ERROR', 500);
   }
 
-  logger.info({ scope: 'order-files.save', data: { id: data.id, filename, invoiceId, quoteId } });
-  const record = data as OrderFileRecord;
-  if (!includeOrientation) {
-    record.orientation_data = null;
-  }
+  assertRawOrderFileRow(data);
+  const record = mapOrderFileRow(data, includeOrientation);
+  logger.info({ scope: 'order-files.save', data: { id: record.id, filename, invoiceId, quoteId } });
   return record;
 }
 
@@ -117,9 +231,11 @@ export async function saveOrderFile(params: {
  */
 export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFileRecord[]> {
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("order_files");
+  const selectColumns = getOrderFileSelectColumns(includeOrientation);
   const { data, error } = await supabase
     .from("order_files")
-    .select("*")
+    .select(selectColumns)
     .eq("invoice_id", invoiceId)
     .order("uploaded_at", { ascending: true });
 
@@ -127,7 +243,10 @@ export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFi
     throw new AppError(`Failed to get order files: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
-  return (data ?? []) as OrderFileRecord[];
+  return (Array.isArray(data) ? data : []).map((row) => {
+    assertRawOrderFileRow(row);
+    return mapOrderFileRow(row, includeOrientation);
+  });
 }
 
 /**
@@ -138,9 +257,11 @@ export async function getOrderFilesByInvoice(invoiceId: number): Promise<OrderFi
  */
 export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRecord[]> {
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("order_files");
+  const selectColumns = getOrderFileSelectColumns(includeOrientation);
   const { data, error } = await supabase
     .from("order_files")
-    .select("*")
+    .select(selectColumns)
     .eq("quote_id", quoteId)
     .order("uploaded_at", { ascending: true });
 
@@ -148,7 +269,10 @@ export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRe
     throw new AppError(`Failed to get order files: ${error.message}`, 'DATABASE_ERROR', 500);
   }
 
-  return (data ?? []) as OrderFileRecord[];
+  return (Array.isArray(data) ? data : []).map((row) => {
+    assertRawOrderFileRow(row);
+    return mapOrderFileRow(row, includeOrientation);
+  });
 }
 
 /**
@@ -160,9 +284,11 @@ export async function getOrderFilesByQuote(quoteId: number): Promise<OrderFileRe
  */
 export async function getOrderFile(id: number): Promise<OrderFileRecord> {
   const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("order_files");
+  const selectColumns = getOrderFileSelectColumns(includeOrientation);
   const { data, error } = await supabase
     .from("order_files")
-    .select("*")
+    .select(selectColumns)
     .eq("id", id)
     .single();
 
@@ -170,7 +296,8 @@ export async function getOrderFile(id: number): Promise<OrderFileRecord> {
     throw new NotFoundError("Order file", id);
   }
 
-  return data as OrderFileRecord;
+  assertRawOrderFileRow(data);
+  return mapOrderFileRow(data, includeOrientation);
 }
 
 export async function getOrderFileOrientationData(fileId: number): Promise<OrientationData | null> {
@@ -222,7 +349,12 @@ export async function downloadOrderFileWithOrientation(
       orientationApplied: true,
     };
   } catch (error) {
-    logger.error({ scope: "order-files.orient", message: "Failed to apply orientation", error, fileId: id });
+    logger.error({
+      scope: "order-files.orient",
+      message: "Failed to apply orientation",
+      error,
+      data: { fileId: id },
+    });
     throw new AppError("Failed to generate oriented file", "ORIENTATION_ERROR", 500);
   }
 }
