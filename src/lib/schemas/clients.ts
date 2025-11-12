@@ -1,9 +1,26 @@
 import { z } from "zod";
 
+const abnPattern = /^\d{11}$/;
+
+const abnSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return "";
+    }
+    return value.replace(/[^0-9]/g, "");
+  },
+  z
+    .string()
+    .refine((value) => value.length === 0 || abnPattern.test(value), {
+      message: "ABN must be 11 digits",
+    })
+    .or(z.literal("")),
+);
+
 export const clientInputSchema = z.object({
   name: z.string().min(1),
   company: z.string().optional().or(z.literal("")),
-  abn: z.string().optional().or(z.literal("")),
+  abn: abnSchema,
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),

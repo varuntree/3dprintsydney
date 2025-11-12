@@ -59,13 +59,16 @@ import {
   calculateLineTotal,
   calculateDocumentTotals,
 } from "@/lib/calculations";
-import { formatCurrency } from "@/lib/currency";
+import { formatCurrency } from "@/lib/utils/formatters";
 import type { SettingsInput } from "@/lib/schemas/settings";
 import type { ClientSummaryRecord } from "@/components/clients/clients-view";
 import { mutateJson } from "@/lib/http";
 import { useNavigation } from "@/hooks/useNavigation";
 import { ClientPickerDialog } from "@/components/ui/client-picker-dialog";
 import { getUserMessage } from "@/lib/errors/user-messages";
+import type { InvoiceFormValues, InvoiceLineFormValue } from "@/lib/types/invoice-form";
+import { invoiceLineTypes } from "@/lib/types/modelling";
+import { ModellingLineItemForm } from "@/components/invoices/modelling-line-item-form";
 
 const NO_SHIPPING_OPTION_VALUE = "__no_shipping__";
 const MANUAL_TEMPLATE_OPTION_VALUE = "__manual_entry__";
@@ -79,33 +82,6 @@ interface InvoiceEditorProps {
   templates: ProductTemplateDTO[];
   materials: CalculatorMaterialOption[];
 }
-
-export type InvoiceLineFormValue = {
-  productTemplateId?: number | null;
-  name: string;
-  description?: string;
-  quantity: number;
-  unit?: string;
-  unitPrice: number;
-  discountType: (typeof discountTypeValues)[number];
-  discountValue?: number;
-  calculatorBreakdown?: Record<string, unknown>;
-};
-
-export type InvoiceFormValues = {
-  clientId: number;
-  issueDate?: string;
-  dueDate?: string;
-  taxRate?: number;
-  discountType: (typeof discountTypeValues)[number];
-  discountValue?: number;
-  shippingCost?: number;
-  shippingLabel?: string;
-  poNumber?: string;
-  notes?: string;
-  terms?: string;
-  lines: InvoiceLineFormValue[];
-};
 
 export function InvoiceEditor({
   mode,
@@ -147,6 +123,12 @@ export function InvoiceEditor({
         discountType: "NONE",
         discountValue: 0,
         productTemplateId: null,
+        lineType: "PRINT",
+        modellingBrief: "",
+        modellingComplexity: "SIMPLE",
+        modellingRevisionCount: 0,
+        modellingHourlyRate: 0,
+        modellingEstimatedHours: 0,
       },
     ],
   };
@@ -295,6 +277,8 @@ export function InvoiceEditor({
     control: form.control,
   });
 
+  const normalizeNumber = (value: number) => (Number.isNaN(value) ? 0 : value);
+
   // Recompute totals whenever form values change (reactive like the quote editor)
   const watched = form.watch();
   const totals = useInvoiceTotals(watched, settings);
@@ -342,7 +326,6 @@ export function InvoiceEditor({
     },
   });
 
-  const normalizeNumber = (value: number) => (Number.isNaN(value) ? 0 : value);
   const [calculator, setCalculator] = useState<{
     index: number;
     templateId: number;
@@ -379,7 +362,48 @@ export function InvoiceEditor({
       discountType: "NONE",
       discountValue: 0,
       productTemplateId: null,
+      lineType: "PRINT",
+      modellingBrief: "",
+      modellingComplexity: "SIMPLE",
+      modellingRevisionCount: 0,
+      modellingHourlyRate: 0,
+      modellingEstimatedHours: 0,
     });
+  }
+
+  function addModellingLine() {
+    linesFieldArray.append({
+      name: "Modelling service",
+      description: "",
+      quantity: 1,
+      unit: "hour",
+      unitPrice: 0,
+      discountType: "NONE",
+      discountValue: 0,
+      productTemplateId: null,
+      lineType: "MODELLING",
+      modellingBrief: "",
+      modellingComplexity: "SIMPLE",
+      modellingRevisionCount: 0,
+      modellingHourlyRate: 0,
+      modellingEstimatedHours: 1,
+    });
+  }
+
+  function setLineType(index: number, value: typeof invoiceLineTypes[number]) {
+    const current = form.getValues(`lines.${index}`) ?? {};
+    form.setValue(`lines.${index}.lineType`, value, { shouldValidate: true });
+    if (value === "MODELLING") {
+      const hourly = current.modellingHourlyRate ?? current.unitPrice ?? 0;
+      const hours = current.modellingEstimatedHours ?? current.quantity ?? 1;
+      form.setValue(`lines.${index}.modellingHourlyRate`, hourly, { shouldDirty: true, shouldValidate: true });
+      form.setValue(`lines.${index}.modellingEstimatedHours`, hours, { shouldDirty: true, shouldValidate: true });
+      form.setValue(`lines.${index}.unitPrice`, hourly, { shouldValidate: true });
+      form.setValue(`lines.${index}.quantity`, hours, { shouldValidate: true });
+      if (!current.modellingComplexity) {
+        form.setValue(`lines.${index}.modellingComplexity`, "SIMPLE", { shouldValidate: true });
+      }
+    }
   }
 
   function useInvoiceTotals(
@@ -781,7 +805,7 @@ export function InvoiceEditor({
           <CardContent className="space-y-4">
             {/* Mobile view */}
             <div className="space-y-4 md:hidden">
-              {linesFieldArray.fields.map((field, index) => {
+                    {linesFieldArray.fields.map((field, index) => {
                 const line = form.watch(`lines.${index}`);
                 const template = line.productTemplateId
                   ? templates.find(
@@ -799,8 +823,8 @@ export function InvoiceEditor({
                 return (
                   <Card key={field.id} className="rounded-2xl border border-border bg-background">
                     <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0 space-y-2">
                           <Select
                             value={
                               line.productTemplateId
@@ -833,12 +857,27 @@ export function InvoiceEditor({
                               ))}
                             </SelectContent>
                           </Select>
+                          <Select
+                            value={line.lineType ?? "PRINT"}
+                            onValueChange={(value) =>
+                              setLineType(index, value as typeof invoiceLineTypes[number])
+                            }
+                            className="w-full"
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="PRINT">Print</SelectItem>
+                              <SelectItem value="MODELLING">Modelling</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="ml-2 h-8 w-8 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => linesFieldArray.remove(index)}
                         >
                           <X className="h-4 w-4" />
@@ -991,6 +1030,9 @@ export function InvoiceEditor({
                         </div>
                       </div>
                     </CardContent>
+                    {line.lineType === "MODELLING" ? (
+                      <ModellingLineItemForm index={index} />
+                    ) : null}
                     <CardFooter className="pt-3">
                       <div className="flex justify-between items-center w-full">
                         <span className="text-sm text-muted-foreground">
@@ -1225,6 +1267,14 @@ export function InvoiceEditor({
 
             <Button type="button" variant="outline" className="rounded-full" onClick={addLine}>
               Add line item
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="rounded-full"
+              onClick={addModellingLine}
+            >
+              Add modelling item
             </Button>
           </CardContent>
           <CardFooter className="justify-end">

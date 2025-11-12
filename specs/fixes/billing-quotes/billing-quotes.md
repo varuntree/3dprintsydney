@@ -1,5 +1,11 @@
 # Plan: Billing & Quotes Enhancements
 
+## Issue Checklist
+- [x] Credit visibility front-and-center (wallet card + credit history link)
+- [x] ABN capture/validation plus displaying the ABN on invoice and quote views
+- [x] Modelling line item form/editor with brief/complexity/revision fields
+- [x] Modelling line item schema/API + invoice PDF compliance details
+
 ## Plan Description
 Enhance billing and quoting system with improved credit management (add/remove with UI visibility), ABN capture for compliance, 3D modelling line item support (brief, complexity, revisions), and comprehensive dashboard counters showing financial/project roll-ups.
 

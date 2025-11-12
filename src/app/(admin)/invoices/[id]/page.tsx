@@ -78,6 +78,12 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
           discountType: line.discountType,
           discountValue: line.discountValue,
           calculatorBreakdown: line.calculatorBreakdown ?? undefined,
+          lineType: line.lineType ?? "PRINT",
+          modellingBrief: line.modellingBrief ?? "",
+          modellingComplexity: line.modellingComplexity ?? undefined,
+          modellingRevisionCount: line.modellingRevisionCount ?? 0,
+          modellingHourlyRate: line.modellingHourlyRate ?? 0,
+          modellingEstimatedHours: line.modellingEstimatedHours ?? 0,
         })),
       };
 
@@ -136,7 +142,7 @@ export default async function InvoiceDetailPage({ params, searchParams }: Invoic
       businessEmail: settings.businessEmail,
       businessPhone: settings.businessPhone,
       businessAddress: settings.businessAddress,
-      abn: settings.abn || null,
+      abn: detail.client.abn ?? settings.abn ?? null,
       paymentTerms: detail.paymentTerms
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }
         : null,

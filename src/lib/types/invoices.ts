@@ -25,6 +25,12 @@ export type InvoiceLineDTO = {
   total: number;
   orderIndex: number;
   calculatorBreakdown: Record<string, unknown> | null;
+  lineType: "PRINT" | "MODELLING";
+  modellingBrief?: string;
+  modellingComplexity?: string | null;
+  modellingRevisionCount?: number;
+  modellingHourlyRate?: number;
+  modellingEstimatedHours?: number;
 };
 
 /**
@@ -117,6 +123,7 @@ export type InvoiceDetailDTO = {
     email?: string | null;
     phone?: string | null;
     address?: string | null;
+    abn?: string | null;
   };
   paymentTerms: PaymentTermDTO | null;
   attachments: InvoiceAttachmentDTO[];

@@ -99,7 +99,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
       businessEmail: settings.businessEmail,
       businessPhone: settings.businessPhone,
       businessAddress: settings.businessAddress,
-      abn: settings.abn || null,
+      abn: detail.client.abn ?? settings.abn ?? null,
       currency: settings.defaultCurrency ?? "AUD",
       paymentTerms: detail.paymentTerms
         ? { label: detail.paymentTerms.label, days: detail.paymentTerms.days }

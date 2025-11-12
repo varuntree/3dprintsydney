@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
 import { getUserMessage } from "@/lib/errors/user-messages";
-import { formatCurrency } from "@/lib/currency";
+import { formatCurrency, formatAbn } from "@/lib/utils/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -209,10 +209,13 @@ export function QuoteView({ quote }: QuoteViewProps) {
         }
         title={quote.client.name}
         description={
-          <span className="text-sm text-muted-foreground">
-            Issued {format(issueDate, "dd MMM yyyy")} • Expires{" "}
-            {expiryDate ? format(expiryDate, "dd MMM yyyy") : "—"}
-          </span>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <span>
+              Issued {format(issueDate, "dd MMM yyyy")} • Expires{" "}
+              {expiryDate ? format(expiryDate, "dd MMM yyyy") : "—"}
+            </span>
+            {quote.abn ? <span>ABN {formatAbn(quote.abn)}</span> : null}
+          </div>
         }
         meta={
           <div className="flex flex-wrap items-center gap-3">

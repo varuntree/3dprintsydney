@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency } from "@/lib/currency";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, ChevronUp, ChevronRight, Receipt, DollarSign, Clock, ClipboardList, Wallet, GraduationCap } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, Receipt, Clock, ClipboardList, Wallet, GraduationCap, Package, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ClientHomeCTA } from "@/components/client/client-home-cta";
+import type { ClientProjectCounters } from "@/lib/types/dashboard";
 
 type DashboardStats = {
   totalProjects: number;
@@ -15,6 +17,7 @@ type DashboardStats = {
   paidCount: number;
   totalSpent: number;
   walletBalance: number;
+  projectCounters?: ClientProjectCounters;
 };
 
 type InvoiceRow = {
@@ -77,6 +80,7 @@ export function ClientDashboard() {
           paidCount: data?.paidCount ?? 0,
           totalSpent: data?.totalSpent ?? 0,
           walletBalance: data?.walletBalance ?? 0,
+          projectCounters: data?.projectCounters ?? undefined,
         });
       }
 
@@ -189,6 +193,8 @@ export function ClientDashboard() {
         </div>
       </div>
 
+      <ClientHomeCTA projectCounters={stats?.projectCounters} />
+
       {/* Primary Actions */}
       <Link href="/client/orders" className="block">
         <Card className="border border-border bg-surface-overlay transition-transform duration-200 hover:-translate-y-1 hover:bg-surface-muted">
@@ -205,7 +211,7 @@ export function ClientDashboard() {
       </Link>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-green-200/50 bg-green-50/30 shadow-sm dark:border-green-900/30 dark:bg-green-950/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">
@@ -220,62 +226,72 @@ export function ClientDashboard() {
             <p className="mt-1 text-xs text-green-600/80 dark:text-green-400/80">
               Wallet balance
             </p>
+            <Link
+              href="/client/account"
+              className="mt-2 inline-flex text-xs font-semibold text-primary-600 transition hover:text-primary"
+            >
+              View credit history
+            </Link>
           </CardContent>
         </Card>
 
         <Card className="border border-border bg-surface-overlay">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Projects
+              Pending Payment
             </CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? "..." : stats?.totalProjects ?? 0}
+              {loading ? "..." : stats?.pendingCount ?? 0}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Invoices awaiting payment
+            </p>
           </CardContent>
         </Card>
 
         <Card className="border border-border bg-surface-overlay">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending
+              Pending Print
             </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? "..." : stats?.pendingCount ?? 0}
+              {loading
+                ? "..."
+                : Math.max(
+                    0,
+                    (stats?.totalProjects ?? 0) -
+                      ((stats?.pendingCount ?? 0) + (stats?.paidCount ?? 0)),
+                  )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              Projects still in production
+            </p>
           </CardContent>
         </Card>
 
         <Card className="border border-border bg-surface-overlay">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Paid
+              Total Completed
             </CardTitle>
-            <Receipt className="h-4 w-4 text-success" />
+            <CheckCircle2 className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {loading ? "..." : stats?.paidCount ?? 0}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border bg-surface-overlay">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Spent
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {loading ? "..." : formatCurrency(stats?.totalSpent ?? 0)}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Total projects finished
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Tracked projects: {loading ? "..." : stats?.totalProjects ?? 0}
+            </p>
           </CardContent>
         </Card>
       </div>

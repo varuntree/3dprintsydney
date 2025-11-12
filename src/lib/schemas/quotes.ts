@@ -1,21 +1,62 @@
 import { z } from "zod";
+import {
+  invoiceLineTypes,
+  modellingComplexityValues,
+} from "@/lib/types/modelling";
 
 export const discountTypeValues = ["NONE", "PERCENT", "FIXED"] as const;
 export type DiscountTypeValue = (typeof discountTypeValues)[number];
 
-export const quoteLineSchema = z.object({
-  id: z.number().optional(),
-  productTemplateId: z.number().optional().nullable(),
-  name: z.string().min(1),
-  description: z.string().optional().or(z.literal("")),
-  quantity: z.number().min(0.01),
-  unit: z.string().optional().or(z.literal("")),
-  unitPrice: z.number().min(0),
-  discountType: z.enum(discountTypeValues).default("NONE"),
-  discountValue: z.number().min(0).optional().default(0),
-  orderIndex: z.number().optional(),
-  calculatorBreakdown: z.record(z.string(), z.unknown()).optional(),
-});
+export const quoteLineSchema = z
+  .object({
+    id: z.number().optional(),
+    productTemplateId: z.number().optional().nullable(),
+    name: z.string().min(1),
+    description: z.string().optional().or(z.literal("")),
+    quantity: z.number().min(0.01),
+    unit: z.string().optional().or(z.literal("")),
+    unitPrice: z.number().min(0),
+    discountType: z.enum(discountTypeValues).default("NONE"),
+    discountValue: z.number().min(0).optional().default(0),
+    orderIndex: z.number().optional(),
+    calculatorBreakdown: z.record(z.string(), z.unknown()).optional(),
+    lineType: z.enum(invoiceLineTypes).default("PRINT"),
+    modellingBrief: z.string().optional().or(z.literal("")),
+    modellingComplexity: z
+      .enum(modellingComplexityValues)
+      .optional(),
+    modellingRevisionCount: z.number().int().min(0).optional(),
+    modellingHourlyRate: z.number().min(0).optional(),
+    modellingEstimatedHours: z.number().min(0).optional(),
+  })
+  .superRefine((line, ctx) => {
+    if (line.lineType === "MODELLING") {
+      if (!line.modellingBrief?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide a modelling brief" });
+      }
+      if (!line.modellingComplexity) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Select a complexity" });
+      }
+      if ((line.modellingRevisionCount ?? 0) < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Revision count cannot be negative",
+        });
+      }
+      if ((line.modellingHourlyRate ?? 0) <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Hourly rate must be greater than zero",
+        });
+      }
+      if ((line.modellingEstimatedHours ?? 0) <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Estimated hours must be greater than zero",
+        });
+      }
+    }
+  });
 
 export type QuoteLineInput = z.infer<typeof quoteLineSchema>;
 

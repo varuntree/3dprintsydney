@@ -12,6 +12,7 @@ import type { JobStatus } from "@/lib/constants/enums";
 import { CheckCircle2, Circle, Loader2, PauseCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InvoicePaymentSection } from "@/components/client/invoice-payment-section";
+import { formatAbn } from "@/lib/utils/formatters";
 
 const JOB_STATUS_FLOW: JobStatus[] = [
   "PRE_PROCESSING",
@@ -118,6 +119,11 @@ export default async function ClientInvoiceDetailPage({ params }: ClientInvoiceP
                 <div className="mt-1 font-semibold text-amber-700">${detail.balanceDue.toFixed(2)}</div>
               </div>
             </div>
+            {detail.client.abn ? (
+              <p className="text-xs text-muted-foreground">
+                Customer ABN: {formatAbn(detail.client.abn)}
+              </p>
+            ) : null}
             {detail.balanceDue > 0 ? (
               <InvoicePaymentSection
                 invoiceId={detail.id}

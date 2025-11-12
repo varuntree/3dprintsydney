@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { mutateJson } from "@/lib/http";
-import { formatCurrency } from "@/lib/currency";
+import { formatCurrency, formatAbn } from "@/lib/utils/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -254,6 +254,11 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
               {dueDate ? format(dueDate, "dd MMM yyyy") : "—"}
               {isOverdue ? " · overdue" : ""}
             </p>
+            {invoice.abn ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground/80">
+                ABN {formatAbn(invoice.abn)}
+              </p>
+            ) : null}
             {invoice.poNumber ? (
               <p className="text-xs font-medium text-muted-foreground">
                 PO Number: <span className="text-foreground/90">{invoice.poNumber}</span>
@@ -444,6 +449,15 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
           <div className="space-y-3 md:hidden">
             {invoice.lines.map((line, index) => {
               const hasDiscount = line.discountType !== "NONE" && (line.discountValue ?? 0) > 0;
+              const modellingDetails = line.calculatorBreakdown?.modelling as
+                | {
+                    brief?: string;
+                    complexity?: string;
+                    revisionCount?: number;
+                    hourlyRate?: number;
+                    estimatedHours?: number;
+                  }
+                | undefined;
               return (
                 <Card key={index} className="rounded-2xl border border-border bg-background">
                   <CardContent className="pt-4">
@@ -454,6 +468,18 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                           {line.description}
                         </p>
                       )}
+                      {line.lineType === "MODELLING" && modellingDetails ? (
+                        <div className="text-xs text-muted-foreground">
+                          <p>Complexity: {modellingDetails.complexity}</p>
+                          <p>Revisions: {modellingDetails.revisionCount}</p>
+                          <p>
+                            {modellingDetails.estimatedHours}h @ {formatCurrency(
+                              modellingDetails.hourlyRate,
+                              invoice.currency,
+                            )}
+                          </p>
+                        </div>
+                      ) : null}
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <span>
                           <span className="text-muted-foreground">Qty:</span> {formatQuantity(line.quantity)} {line.unit}
@@ -492,36 +518,59 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.lines.map((line) => (
-                <TableRow
-                  key={line.id ?? `${line.name}-${line.orderIndex}`}
-                  className="align-top"
-                >
-                  <TableCell className="font-medium text-foreground">
-                    {line.name}
-                  </TableCell>
-                  <TableCell className="whitespace-pre-wrap text-sm text-muted-foreground">
-                    {line.description || "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatQuantity(line.quantity)}
-                  </TableCell>
-                  <TableCell>{line.unit || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(line.unitPrice, invoice.currency)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {discountLabel(
-                      line.discountType,
-                      line.discountValue,
-                      invoice.currency,
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-foreground">
-                    {formatCurrency(line.total, invoice.currency)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {invoice.lines.map((line) => {
+                const modellingDetails = line.calculatorBreakdown?.modelling as
+                  | {
+                      brief?: string;
+                      complexity?: string;
+                      revisionCount?: number;
+                      hourlyRate?: number;
+                      estimatedHours?: number;
+                    }
+                  | undefined;
+                return (
+                  <TableRow
+                    key={line.id ?? `${line.name}-${line.orderIndex}`}
+                    className="align-top"
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      {line.name}
+                    </TableCell>
+                    <TableCell className="whitespace-pre-wrap text-sm text-muted-foreground">
+                      {line.description || "—"}
+                      {line.lineType === "MODELLING" && modellingDetails ? (
+                        <div className="mt-1 space-y-1 text-[11px]">
+                          <p>Complexity: {modellingDetails.complexity}</p>
+                          <p>Revisions: {modellingDetails.revisionCount}</p>
+                          <p>
+                            {modellingDetails.estimatedHours}h @ {formatCurrency(
+                              modellingDetails.hourlyRate,
+                              invoice.currency,
+                            )}
+                          </p>
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatQuantity(line.quantity)}
+                    </TableCell>
+                    <TableCell>{line.unit || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(line.unitPrice, invoice.currency)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {discountLabel(
+                        line.discountType,
+                        line.discountValue,
+                        invoice.currency,
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-foreground">
+                      {formatCurrency(line.total, invoice.currency)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

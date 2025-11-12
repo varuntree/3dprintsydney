@@ -26,6 +26,12 @@ export type QuoteLineDTO = {
   total: number;
   orderIndex: number;
   calculatorBreakdown: Record<string, unknown> | null;
+  lineType: "PRINT" | "MODELLING";
+  modellingBrief?: string;
+  modellingComplexity?: string | null;
+  modellingRevisionCount?: number;
+  modellingHourlyRate?: number;
+  modellingEstimatedHours?: number;
 };
 
 /**
@@ -42,6 +48,7 @@ export type QuoteDetailDTO = {
     email?: string | null;
     phone?: string | null;
     address?: string | null;
+    abn?: string | null;
   };
   status: QuoteStatus;
   paymentTerms: (PaymentTermDTO & { source: 'client' | 'default' }) | null;

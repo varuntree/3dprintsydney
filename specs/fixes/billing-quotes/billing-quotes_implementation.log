@@ -1,0 +1,6 @@
+2025-11-12 16:00:00 - Billing & Quotes plan reviewed; focusing on ABN compliance and credit visibility enhancements to start.
+2025-11-12 16:15:00 - npm run build succeeded after applying the ABN and credit-display updates.
+2025-11-12 16:05:00 - Dashboard stats now call out credit, pending payment, pending print, and completed counters with a Credit History link.
+2025-11-12 16:10:00 - Invoice/quote views and client forms now capture and render the validated ABN for compliance.
+2025-11-12 16:40:00 - Modeling line items now supported: schema, editor form, server data, and invoice/quote views include the details.
+2025-11-12 16:45:00 - `npm run build` now succeeds after implementing modelling line items and environment-safe correlation helpers.

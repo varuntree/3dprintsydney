@@ -126,7 +126,12 @@ export function ClientCreateForm() {
                     <FormItem>
                       <FormLabel>ABN</FormLabel>
                       <FormControl>
-                        <Input placeholder="00 000 000 000" {...field} />
+                        <Input
+                          placeholder="00 000 000 000"
+                          maxLength={11}
+                          inputMode="numeric"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

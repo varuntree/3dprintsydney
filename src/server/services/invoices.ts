@@ -120,6 +120,7 @@ type InvoiceClientRecord = {
   email?: string | null;
   phone?: string | null;
   address?: unknown;
+  abn?: string | null;
   payment_terms?: string | null;
 };
 
@@ -355,6 +356,7 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
       email: client?.email ?? null,
       phone: client?.phone ?? null,
       address: coerceClientAddress(client?.address),
+      abn: client?.abn ?? null,
     },
     paymentTerms: paymentTerm ? { ...paymentTerm } : null,
     attachments: (row.attachments ?? []).map((att) => ({
@@ -365,20 +367,39 @@ function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTer
       storageKey: att.storage_key,
       uploadedAt: new Date(att.uploaded_at ?? row.updated_at ?? row.created_at ?? new Date().toISOString()),
     })),
-    lines: (row.items ?? []).map((item) => ({
-      id: item.id,
-      productTemplateId: item.product_template_id ?? undefined,
-      name: item.name,
-      description: item.description ?? '',
-      quantity: Number(item.quantity ?? 0),
-      unit: item.unit ?? '',
-      unitPrice: Number(item.unit_price ?? 0),
-      discountType: (item.discount_type ?? 'NONE') as DiscountType,
-      discountValue: item.discount_value ? Number(item.discount_value) : 0,
-      total: Number(item.total ?? 0),
-      orderIndex: item.order_index,
-      calculatorBreakdown: item.calculator_breakdown as Record<string, unknown> | null,
-    })),
+    lines: (row.items ?? []).map((item) => {
+      const breakdown = item.calculator_breakdown as Record<string, unknown> | null;
+      const modelling = breakdown?.modelling as
+        | {
+            brief?: string;
+            complexity?: string;
+            revisionCount?: number;
+            hourlyRate?: number;
+            estimatedHours?: number;
+          }
+        | null
+        | undefined;
+      return {
+        id: item.id,
+        productTemplateId: item.product_template_id ?? undefined,
+        name: item.name,
+        description: item.description ?? '',
+        quantity: Number(item.quantity ?? 0),
+        unit: item.unit ?? '',
+        unitPrice: Number(item.unit_price ?? 0),
+        discountType: (item.discount_type ?? 'NONE') as DiscountType,
+        discountValue: item.discount_value ? Number(item.discount_value) : 0,
+        total: Number(item.total ?? 0),
+        orderIndex: item.order_index,
+        calculatorBreakdown: breakdown,
+        lineType: (breakdown?.lineType as 'PRINT' | 'MODELLING') ?? 'PRINT',
+        modellingBrief: modelling?.brief ?? '',
+        modellingComplexity: modelling?.complexity ?? undefined,
+        modellingRevisionCount: modelling?.revisionCount ?? 0,
+        modellingHourlyRate: modelling?.hourlyRate ?? 0,
+        modellingEstimatedHours: modelling?.estimatedHours ?? 0,
+      };
+    }),
     payments: (row.payments ?? []).map((payment) => ({
       id: payment.id,
       amount: Number(payment.amount ?? 0),
@@ -497,19 +518,34 @@ export async function createInvoice(input: InvoiceInput) {
     balance_due: String(totals.total),
   };
 
-  const lineInserts = payload.lines.map((line, index) => ({
-    product_template_id: line.productTemplateId ?? '',
-    name: line.name,
-    description: line.description ?? '',
-    quantity: String(line.quantity),
-    unit: line.unit ?? '',
-    unit_price: String(line.unitPrice),
-    discount_type: line.discountType,
-    discount_value: toDecimal(line.discountValue) ?? '',
-    total: String(totals.lineTotals[index].total),
-    order_index: String(line.orderIndex ?? index),
-    calculator_breakdown: line.calculatorBreakdown ?? null,
-  }));
+  const lineInserts = payload.lines.map((line, index) => {
+    const breakdown = {
+      ...(line.calculatorBreakdown ?? {}),
+      lineType: line.lineType,
+    } as Record<string, unknown>;
+    if (line.lineType === "MODELLING") {
+      breakdown.modelling = {
+        brief: line.modellingBrief ?? "",
+        complexity: line.modellingComplexity ?? "SIMPLE",
+        revisionCount: line.modellingRevisionCount ?? 0,
+        hourlyRate: line.modellingHourlyRate ?? 0,
+        estimatedHours: line.modellingEstimatedHours ?? 0,
+      };
+    }
+    return {
+      product_template_id: line.productTemplateId ?? '',
+      name: line.name,
+      description: line.description ?? '',
+      quantity: String(line.quantity),
+      unit: line.unit ?? '',
+      unit_price: String(line.unitPrice),
+      discount_type: line.discountType,
+      discount_value: toDecimal(line.discountValue) ?? '',
+      total: String(totals.lineTotals[index].total),
+      order_index: String(line.orderIndex ?? index),
+      calculator_breakdown: breakdown,
+    };
+  });
 
   const { data, error } = await supabase.rpc('create_invoice_with_items', {
     payload: {

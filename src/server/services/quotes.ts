@@ -77,6 +77,7 @@ type QuoteClientRecord = {
   phone?: string | null;
   address?: unknown;
   payment_terms?: string | null;
+  abn?: string | null;
 };
 
 type QuoteRow = {
@@ -175,6 +176,12 @@ function mapQuoteLines(items: QuoteDetailRow["items"] | QuoteDetailRow["quote_it
     total: Number(item.total ?? 0),
     orderIndex: item.order_index,
     calculatorBreakdown: item.calculator_breakdown as Record<string, unknown> | null,
+    lineType: (item.calculator_breakdown as Record<string, unknown> | null)?.lineType ?? "PRINT",
+    modellingBrief: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.brief ?? "",
+    modellingComplexity: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.complexity,
+    modellingRevisionCount: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.revisionCount ?? 0,
+    modellingHourlyRate: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.hourlyRate ?? 0,
+    modellingEstimatedHours: (item.calculator_breakdown as Record<string, unknown> | null)?.modelling?.estimatedHours ?? 0,
   }));
 }
 
@@ -194,6 +201,7 @@ function mapQuoteDetail(row: QuoteDetailRow, paymentTerm: ResolvedPaymentTerm | 
       email: client?.email ?? null,
       phone: client?.phone ?? null,
       address: coerceClientAddress(client?.address),
+      abn: client?.abn ?? null,
     },
     status: (row.status ?? "DRAFT") as QuoteStatusValue,
     paymentTerms: paymentTerm,
@@ -223,7 +231,7 @@ async function loadQuoteDetail(id: number): Promise<QuoteDetailDTO> {
   const { data, error } = await supabase
     .from("quotes")
     .select(
-      `*, client:clients(id, name, company, email, phone, address, payment_terms), items:quote_items(*, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown)`
+      `*, client:clients(id, name, company, email, phone, address, payment_terms, abn), items:quote_items(*, product_template_id, name, description, quantity, unit, unit_price, discount_type, discount_value, total, order_index, calculator_breakdown)`
     )
     .eq("id", id)
     .order("order_index", { foreignTable: "quote_items", ascending: true })
@@ -407,20 +415,35 @@ export async function createQuote(input: QuoteInput) {
     throw new AppError(`Failed to create quote: ${error?.message ?? "Unknown error"}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = payload.lines.map((line, index) => ({
-    quote_id: created.id,
-    product_template_id: line.productTemplateId ?? null,
-    name: line.name,
-    description: line.description || null,
-    quantity: String(line.quantity),
-    unit: line.unit || null,
-    unit_price: String(line.unitPrice),
-    discount_type: mapLineDiscount(line.discountType),
-    discount_value: toDecimal(line.discountValue),
-    total: String(totals.lineTotals[index].total),
-    order_index: line.orderIndex ?? index,
-    calculator_breakdown: line.calculatorBreakdown ?? null,
-  }));
+  const itemPayload = payload.lines.map((line, index) => {
+    const breakdown = {
+      ...(line.calculatorBreakdown ?? {}),
+      lineType: line.lineType,
+    } as Record<string, unknown>;
+    if (line.lineType === "MODELLING") {
+      breakdown.modelling = {
+        brief: line.modellingBrief ?? "",
+        complexity: line.modellingComplexity ?? "SIMPLE",
+        revisionCount: line.modellingRevisionCount ?? 0,
+        hourlyRate: line.modellingHourlyRate ?? 0,
+        estimatedHours: line.modellingEstimatedHours ?? 0,
+      };
+    }
+    return {
+      quote_id: created.id,
+      product_template_id: line.productTemplateId ?? null,
+      name: line.name,
+      description: line.description || null,
+      quantity: String(line.quantity),
+      unit: line.unit || null,
+      unit_price: String(line.unitPrice),
+      discount_type: mapLineDiscount(line.discountType),
+      discount_value: toDecimal(line.discountValue),
+      total: String(totals.lineTotals[index].total),
+      order_index: line.orderIndex ?? index,
+      calculator_breakdown: breakdown,
+    };
+  });
 
   if (itemPayload.length > 0) {
     const { error: itemError } = await supabase.from("quote_items").insert(itemPayload);

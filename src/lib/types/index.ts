@@ -5,6 +5,7 @@
 
 // Common/shared types
 export * from './common';
+export * from './dashboard';
 
 // Enums (re-export from constants for convenience)
 export * from '../constants/enums';
@@ -18,3 +19,4 @@ export * from './invoices';
 export * from './quotes';
 export * from './jobs';
 export * from './messages';
+export * from './modelling';
