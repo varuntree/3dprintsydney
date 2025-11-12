@@ -333,7 +333,7 @@ export function DocumentationView({ settings, materials }: DocumentationViewProp
                   <ul className="space-y-1 text-sm">
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>
-                      <span>Quick orders</span>
+                      <span>QuickPrint</span>
                     </li>
                     <li className="flex gap-2">
                       <span className="text-primary">•</span>

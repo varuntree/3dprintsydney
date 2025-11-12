@@ -10,7 +10,7 @@ import { ChevronDown, ChevronUp, ChevronRight, Receipt, DollarSign, Clock, Clipb
 import { Button } from "@/components/ui/button";
 
 type DashboardStats = {
-  totalOrders: number;
+  totalProjects: number;
   pendingCount: number;
   paidCount: number;
   totalSpent: number;
@@ -40,13 +40,13 @@ type JobRow = {
  * Client Dashboard
  *
  * Provides a comprehensive overview for clients:
- * - Statistics cards (orders, pending, paid, total spent)
- * - Recent orders table (last 5 invoices)
+ * - Statistics cards (projects, pending, paid, total spent)
+ * - Recent projects table (last 5 invoices)
  * - Quick actions
  */
 export function ClientDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentOrders, setRecentOrders] = useState<InvoiceRow[]>([]);
+  const [recentProjects, setRecentProjects] = useState<InvoiceRow[]>([]);
   const [jobs, setJobs] = useState<JobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notifyOnJobStatus, setNotifyOnJobStatus] = useState(false);
@@ -71,12 +71,18 @@ export function ClientDashboard() {
 
       if (statsRes.ok) {
         const { data } = await statsRes.json();
-        setStats(data);
+        setStats({
+          totalProjects: data?.totalProjects ?? data?.totalOrders ?? 0,
+          pendingCount: data?.pendingCount ?? 0,
+          paidCount: data?.paidCount ?? 0,
+          totalSpent: data?.totalSpent ?? 0,
+          walletBalance: data?.walletBalance ?? 0,
+        });
       }
 
       if (ordersRes.ok) {
         const { data } = await ordersRes.json();
-        setRecentOrders(data);
+        setRecentProjects(data);
       }
 
       if (jobsRes.ok) {
@@ -116,7 +122,7 @@ export function ClientDashboard() {
         <div>
           <h1 className="text-2xl font-bold text-foreground sm:text-3xl">Welcome Back</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your orders and communicate with our team
+            Manage your projects and communicate with our team
           </p>
         </div>
       <div className="rounded-2xl border border-border/60 bg-card/80 shadow-sm shadow-black/5">
@@ -154,7 +160,7 @@ export function ClientDashboard() {
                 <div>
                   <p className="text-sm font-semibold">Student pricing active</p>
                   <p className="text-xs text-emerald-700/90">
-                    A {studentDiscount.rate}% discount is automatically applied to every order in this account.
+                  A {studentDiscount.rate}% discount is automatically applied to every project in this account.
                   </p>
                 </div>
               </div>
@@ -164,20 +170,20 @@ export function ClientDashboard() {
       </div>
       </div>
 
-      {/* Quick Order Banner - Mobile optimized: Stack on mobile, horizontal on sm+ */}
+      {/* QuickPrint Banner - Mobile optimized: Stack on mobile, horizontal on sm+ */}
       <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4 shadow-sm shadow-primary/20">
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-primary">Need something printed fast?</p>
             <p className="text-xs text-primary/80">
-              Jump into Quick Order to upload files and lock in pricing in minutes.
+              Jump into QuickPrint to upload files and lock in pricing in minutes.
             </p>
           </div>
           <Link
             href="/quick-order"
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/40 transition hover:bg-primary/90 sm:h-auto sm:w-auto"
           >
-            Open Quick Order
+            Open QuickPrint
             <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -188,7 +194,7 @@ export function ClientDashboard() {
         <Card className="border border-border bg-surface-overlay transition-transform duration-200 hover:-translate-y-1 hover:bg-surface-muted">
           <CardHeader className="flex flex-row items-start justify-between">
             <div className="space-y-2">
-              <CardTitle className="text-base font-semibold">View All Orders</CardTitle>
+              <CardTitle className="text-base font-semibold">View All Projects</CardTitle>
               <p className="text-xs text-muted-foreground">
                 Track production status, invoices, and payments.
               </p>
@@ -220,13 +226,13 @@ export function ClientDashboard() {
         <Card className="border border-border bg-surface-overlay">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Orders
+              Total Projects
             </CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loading ? "..." : stats?.totalOrders ?? 0}
+              {loading ? "..." : stats?.totalProjects ?? 0}
             </div>
           </CardContent>
         </Card>
@@ -281,7 +287,7 @@ export function ClientDashboard() {
             <CardTitle className="text-base">Current Jobs</CardTitle>
             <Link href="/client/orders">
               <Button variant="ghost" size="sm">
-                View Orders
+                View Projects
               </Button>
             </Link>
           </div>
@@ -323,11 +329,11 @@ export function ClientDashboard() {
         </CardContent>
       </Card>
 
-      {/* Recent Orders - Mobile optimized: Card view on mobile, table on sm+ */}
+      {/* Recent Projects - Mobile optimized: Card view on mobile, table on sm+ */}
       <Card className="border border-border bg-surface-overlay">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Recent Orders</CardTitle>
+            <CardTitle className="text-base">Recent Projects</CardTitle>
             <Link href="/client/orders">
               <Button variant="ghost" size="sm">
                 View All
@@ -337,27 +343,27 @@ export function ClientDashboard() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground">Loading orders...</p>
-          ) : recentOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No orders yet.</p>
+            <p className="text-sm text-muted-foreground">Loading projects...</p>
+          ) : recentProjects.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No projects yet.</p>
           ) : (
             <>
               {/* Mobile: Card View */}
               <div className="space-y-3 sm:hidden">
-                {recentOrders.map((order) => (
+                {recentProjects.map((project) => (
                   <Link
-                    key={order.id}
-                    href={`/client/orders/${order.id}`}
+                    key={project.id}
+                    href={`/client/orders/${project.id}`}
                     className="block rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm shadow-black/5 transition hover:bg-card"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-foreground">{order.number}</p>
-                          <StatusBadge status={order.status} size="sm" />
+                          <p className="font-semibold text-foreground">{project.number}</p>
+                          <StatusBadge status={project.status} size="sm" />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(order.issueDate).toLocaleDateString()}
+                          {new Date(project.issueDate).toLocaleDateString()}
                         </p>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -365,12 +371,12 @@ export function ClientDashboard() {
                     <div className="mt-3 flex items-center justify-between border-t border-border/50 pt-3 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Total</p>
-                        <p className="font-medium">{formatCurrency(order.total)}</p>
+                        <p className="font-medium">{formatCurrency(project.total)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-muted-foreground">Balance Due</p>
                         <p className="font-semibold text-primary">
-                          {formatCurrency(order.balanceDue)}
+                          {formatCurrency(project.balanceDue)}
                         </p>
                       </div>
                     </div>
@@ -391,27 +397,27 @@ export function ClientDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {recentOrders.map((order) => (
-                      <tr key={order.id} className="border-b last:border-0">
+                    {recentProjects.map((project) => (
+                      <tr key={project.id} className="border-b last:border-0">
                         <td className="py-2">
                           <Link
-                            href={`/client/orders/${order.id}`}
+                            href={`/client/orders/${project.id}`}
                             className="font-medium underline hover:text-primary"
                           >
-                            {order.number}
+                            {project.number}
                           </Link>
                         </td>
                         <td className="py-2 text-muted-foreground">
-                          {new Date(order.issueDate).toLocaleDateString()}
+                          {new Date(project.issueDate).toLocaleDateString()}
                         </td>
                         <td className="py-2">
-                          <StatusBadge status={order.status} size="sm" />
+                          <StatusBadge status={project.status} size="sm" />
                         </td>
                         <td className="py-2 text-right">
-                          {formatCurrency(order.total)}
+                          {formatCurrency(project.total)}
                         </td>
                         <td className="py-2 text-right font-medium">
-                          {formatCurrency(order.balanceDue)}
+                          {formatCurrency(project.balanceDue)}
                         </td>
                       </tr>
                     ))}

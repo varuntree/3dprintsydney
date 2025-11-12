@@ -62,7 +62,7 @@ export function PricingSection({
         <CardHeader>
           <CardTitle>Pricing Calculations Overview</CardTitle>
           <CardDescription>
-            How we calculate prices for 3D printing orders across quotes, invoices, and quick orders
+            How we calculate prices for 3D printing projects across quotes, invoices, and QuickPrint
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -82,12 +82,12 @@ export function PricingSection({
         </CardContent>
       </Card>
 
-      {/* Quick Order Pricing */}
+      {/* QuickPrint Pricing */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Order Pricing Formula</CardTitle>
+          <CardTitle>QuickPrint Pricing Formula</CardTitle>
           <CardDescription>
-            How prices are calculated when clients upload 3D models
+            How prices are calculated when clients upload 3D models via QuickPrint
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -154,7 +154,7 @@ export function PricingSection({
                 <Info className="h-4 w-4" />
                 <AlertDescription>
                   <strong>Admin:</strong> Change these values in <strong>Settings → Calculator</strong> tab.
-                  Adjusting hourly rate, setup fee, or minimum price affects all future Quick Order pricing.
+                  Adjusting hourly rate, setup fee, or minimum price affects all future QuickPrint pricing.
                   Material costs are set in <strong>Dashboard → Materials</strong>.
                 </AlertDescription>
               </Alert>

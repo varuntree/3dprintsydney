@@ -380,8 +380,9 @@ function buildRevenueTrend(
 }
 
 /**
- * Get dashboard statistics for a specific client
+ * Get dashboard statistics for a specific client's projects
  * @param clientId - The client ID to get stats for
+ * @returns Aggregated project metrics (totalOrders currently represents the project count)
  */
 export async function getClientDashboardStats(
   clientId: number
@@ -457,6 +458,7 @@ export async function getClientDashboardStats(
     );
   }
 
+  // TODO: Rename totalOrders to totalProjects when the API payload and clients are aligned.
   const totalOrders = totalRes.count ?? 0;
   const pendingCount = pendingRes.count ?? 0;
   const paidCount = paidRes.count ?? 0;

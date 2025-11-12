@@ -1,0 +1,13 @@
+2025-11-12 09:00:00 - Branding and Copy Standardization plan reviewed and execution begun.
+2025-11-12 09:05:00 - Step 1: Updated client navigation labels to QuickPrint and Projects.
+2025-11-12 09:25:00 - Step 2: Client dashboard strings, stats, and recent project list updated to QuickPrint/Projects terminology.
+2025-11-12 09:40:00 - Step 3: Projects page heading, description, and empty state now use QuickPrint/Project terminology.
+2025-11-12 09:55:00 - Step 4: QuickOrder flow page copy now references QuickPrint/Project terminology (dialogs, button, totals).
+2025-11-12 10:05:00 - Step 5: Documentation view now references QuickPrint instead of the old Quick orders label.
+2025-11-12 10:20:00 - Step 6: Business guide workflows, pricing, and slicing sections now mention QuickPrint/projects instead of Quick Order terminology.
+2025-11-12 10:35:00 - Step 8: Dashboard service docs now describe project metrics and include TODO for future totalProjects migration.
+2025-11-12 10:45:00 - Step 9: Created dashboard-migration plan outlining totalOrders → totalProjects migration and deprecation milestones.
+2025-11-12 10:50:00 - Step 10: Reviewed admin components; no customer-facing "order" labels remained that needed renaming.
+2025-11-12 11:10:00 - Validation: `npm run build` failed (existing syntax error in email service and missing @/lib/utils/formatters); check stack trace from Next.js.
+2025-11-12 11:15:00 - Validation: `npm run dev` started successfully before being stopped; no startup errors observed.
+2025-11-12 11:20:00 - Validation: Search for legacy "quick order" and ""Order" quotes returned no customer-facing matches after replacements.

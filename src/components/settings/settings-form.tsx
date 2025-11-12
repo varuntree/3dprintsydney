@@ -691,7 +691,7 @@ export function SettingsForm({ initial, user }: SettingsFormProps) {
           <TabsContent value="shipping" className="space-y-6 focus-visible:outline-none">
             <SettingsCard
               title="Shipping"
-              description="Configure shipping regions for delivery estimates across quick orders, quotes, and invoices."
+            description="Configure shipping regions for delivery estimates across QuickPrint, quotes, and invoices."
             >
               <div className="space-y-4">
                 <FormField

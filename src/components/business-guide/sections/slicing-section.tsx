@@ -46,7 +46,7 @@ export function SlicingSection() {
         <CardContent className="space-y-4">
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              When a client uploads a 3D model for a quick order, the file needs to be
+              When a client uploads a 3D model for QuickPrint, the file needs to be
               &quot;sliced&quot; before we can price it accurately. Slicing converts the 3D model into
               layers and calculates:
             </p>

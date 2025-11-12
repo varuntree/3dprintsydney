@@ -63,8 +63,8 @@ export default function ClientOrdersPage() {
     <div className="space-y-4">
       {/* Header - Mobile optimized */}
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">Your Orders</h1>
-        <p className="text-sm text-muted-foreground">Invoices generated from Quick Orders and other work.</p>
+        <h1 className="text-xl font-semibold sm:text-2xl">Your Projects</h1>
+        <p className="text-sm text-muted-foreground">Invoices generated from QuickPrint and other work.</p>
       </div>
 
       {/* Mobile: Card View */}
@@ -190,7 +190,7 @@ export default function ClientOrdersPage() {
       {/* Pagination and Empty State */}
       {rows.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-muted-foreground">No orders to view</p>
+          <p className="text-muted-foreground">No projects to view</p>
         </div>
       ) : hasMore ? (
         <div className="flex justify-center">

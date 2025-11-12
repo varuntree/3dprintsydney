@@ -331,12 +331,12 @@ export function WorkflowsSection() {
         </CardContent>
       </Card>
 
-      {/* Quick Order Flow */}
+      {/* QuickPrint Flow */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Order Self-Service Flow</CardTitle>
+          <CardTitle>QuickPrint Self-Service Flow</CardTitle>
           <CardDescription>
-            Client-driven ordering process for uploaded 3D models
+            Client-driven QuickPrint workflow for uploaded 3D models
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -396,7 +396,7 @@ export function WorkflowsSection() {
               <div>
                 <p className="font-semibold text-sm">Checkout & Payment</p>
                 <p className="text-xs text-muted-foreground">
-                  Review order, enter shipping address, pay online via Stripe
+                  Review project, enter shipping address, pay online via Stripe
                 </p>
               </div>
             </div>

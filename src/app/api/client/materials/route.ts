@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 /**
  * GET /api/client/materials
  * Auth: any authenticated user (CLIENT or ADMIN)
- * Returns a limited, client-safe view of materials for Quick Order
+ * Returns a limited, client-safe view of materials for QuickPrint
  */
 export async function GET(request: NextRequest) {
   try {
@@ -19,4 +19,3 @@ export async function GET(request: NextRequest) {
     return handleErrorAuth(request, error, "client.materials.list");
   }
 }
-

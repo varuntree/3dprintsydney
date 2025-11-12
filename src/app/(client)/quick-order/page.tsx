@@ -1182,7 +1182,7 @@ export default function QuickOrderPage() {
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Resume Previous Order?</DialogTitle>
+            <DialogTitle>Resume Previous Project?</DialogTitle>
             <DialogDescription>
               You have an unsaved draft from a previous session. Would you like to continue where you left off?
             </DialogDescription>
@@ -2298,7 +2298,7 @@ export default function QuickOrderPage() {
                   onClick={() => setPaymentReviewOpen(true)}
                   disabled={!priceData || !shippingQuote || loading}
                 >
-                  {loading ? "Processing..." : "Place Order"}
+                  {loading ? "Processing..." : "Place Project"}
                 </Button>
               </div>
             </section>
@@ -2328,7 +2328,7 @@ export default function QuickOrderPage() {
             <div className="space-y-4">
               <div className="rounded-2xl border border-border bg-surface-overlay p-4">
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Order total</span>
+                  <span>Project total</span>
                   <span className="font-semibold">{formatCurrency(priceData?.total ?? 0)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">

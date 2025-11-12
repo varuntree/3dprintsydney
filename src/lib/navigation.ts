@@ -43,8 +43,8 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { name: "Home", href: "/client", icon: "home" },
-      { name: "Quick Order", href: "/quick-order", icon: "rocket" },
-      { name: "Orders", href: "/client/orders", icon: "receipt" },
+      { name: "QuickPrint", href: "/quick-order", icon: "rocket" },
+      { name: "Projects", href: "/client/orders", icon: "receipt" },
       { name: "Messages", href: "/client/messages", icon: "messages-square" },
       { name: "Settings", href: "/client/account", icon: "settings" },
     ],
