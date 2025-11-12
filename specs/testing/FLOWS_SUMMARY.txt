@@ -1,0 +1,317 @@
+================================================================================
+3D PRINT SYDNEY - CRITICAL USER FLOWS DOCUMENTATION
+PHASE 1: USER JOURNEY MAPPING
+================================================================================
+
+FILE LOCATION:
+  /Users/varunprasad/code/prjs/3dprintsydney/specs/testing/phase1-user-flows.md
+  (1444 lines, comprehensive coverage)
+
+================================================================================
+OVERVIEW - 5 MAJOR USER FLOW CATEGORIES
+================================================================================
+
+1. AUTHENTICATION & ONBOARDING (3 flows)
+   - Login (Admin & Client)
+   - Signup (Client Registration) 
+   - Session Management & Token Refresh
+
+2. ADMIN WORKFLOWS (5 categories, 17 flows)
+   - Client Management (create, view detail, add credit)
+   - Quote Workflow (create, send, accept, decline, convert)
+   - Invoice Workflow (create, add payment, mark paid, apply credit, write-off, void)
+   - Job Management (board view, status updates)
+   - Dashboard & Reporting (metrics, trends, activity)
+
+3. CLIENT PORTAL WORKFLOWS (4 categories, 8 flows)
+   - Client Dashboard (overview, wallet, recent orders)
+   - Orders (list view, detail view, payment options)
+   - Project Tracking (active, completed, archived projects)
+   - Messaging (send messages to admin)
+
+4. QUICK-ORDER WORKFLOW (5 steps)
+   - File Upload & Processing
+   - Model Viewing & Orientation
+   - Configure & Price Order
+   - Payment & Checkout (Stripe, wallet, or invoice)
+   - Order Confirmation & Job Queue
+
+5. CROSS-CUTTING FLOWS (3 systems)
+   - Email Notifications (7 email triggers with templates)
+   - Activity Logging (immutable audit trail)
+   - Wallet/Credit System (admin add, client use, transactions)
+
+================================================================================
+CRITICAL DECISION POINTS & BRANCHING PATHS
+================================================================================
+
+LOGIN:
+  - Role-based redirect: ADMIN → /dashboard, CLIENT → /client
+  - Token expiry handling with automatic refresh
+  - Session timeout → redirect to /login with callbackUrl
+
+SIGNUP:
+  - New client account created with business metadata
+  - Automatic student discount detection & eligibility
+  - Welcome email triggered
+
+QUOTE WORKFLOW:
+  - Branches: DRAFT → SENT → [ACCEPTED/DECLINED] → [CONVERTED/ARCHIVED]
+  - Admin accept/decline different from client actions
+  - Quote becomes read-only after conversion
+
+INVOICE PAYMENT:
+  3 payment paths:
+  a) Stripe checkout (webhook-driven status update)
+  b) Wallet credit (immediate deduction)
+  c) Manual payment by admin (recorded with method)
+
+QUICK-ORDER:
+  4 configuration steps, 3 payment options:
+  - File upload → Orient → Configure → Price → Checkout
+  - Payment: Stripe | Wallet | Invoice (request credit)
+  - Temp files → Permanent on successful checkout
+
+================================================================================
+KEY AUTHENTICATION & PERMISSION CHECKS
+================================================================================
+
+requireAdmin(request)
+  - Verifies user role = ADMIN
+  - Used in: Quote/Invoice operations, Client management, Job updates
+
+requireClientWithId(request)
+  - Verifies user role = CLIENT + user.clientId set
+  - Used in: Quick-order checkout, wallet credit apply
+
+requireInvoiceAccess(request, invoiceId)
+  - Admin: always allowed
+  - Client: must own invoice (client_id match)
+  - Used in: Payment operations, invoice detail view
+
+Session Middleware:
+  - Token refresh on stale access token
+  - Role-based route redirects
+  - Prevents CLIENT accessing /admin routes
+  - Redirects authenticated users away from /login, /signup
+
+================================================================================
+CRITICAL DATA FLOWS & TRANSFORMATIONS
+================================================================================
+
+Quote → Invoice Conversion:
+  - All quote_lines copied to invoice_lines
+  - Pricing, discounts, tax preserved exactly
+  - Quote status: CONVERTED (read-only)
+  - Invoice status: DRAFT (ready for payment)
+
+Quick-Order Checkout → Invoice & Jobs:
+  1. Move tmp_files → order_files (permanent)
+  2. Create invoice from pricing
+  3. Process payment (Stripe/wallet/invoice)
+  4. Auto-create jobs from invoice lines
+  5. Revalidate admin dashboards
+
+Invoice Payment Flow:
+  - Manual payment: admin records amount/method
+  - Wallet credit: immediate deduction + transaction log
+  - Stripe: webhook-driven update
+  - Status changes: DRAFT → PARTIALLY_PAID → PAID
+
+Credit System:
+  - Admin adds credit (reason tracked for audit)
+  - Client uses credit (transaction logged)
+  - Real-time wallet balance: SUM(added) - SUM(used)
+
+================================================================================
+CRITICAL NOTIFICATION TRIGGERS
+================================================================================
+
+Email Templates (7 total):
+  1. welcome.tsx → signup completion
+  2. quote-sent.tsx → quote sent to client
+  3. quote-accepted.tsx → admin accepts quote
+  4. quote-declined.tsx → admin declines quote
+  5. invoice-created.tsx → invoice generated (quote→invoice OR quick-order)
+  6. payment-confirmation.tsx → payment received (manual OR Stripe)
+  7. job-status-update.tsx → job completion/failure
+
+Activity Logging:
+  - QUOTE_CREATED/SENT/ACCEPTED/DECLINED/CONVERTED
+  - INVOICE_CREATED/PAID/WRITE_OFF/VOIDED
+  - PAYMENT_ADDED
+  - JOB_STATUS_CHANGED
+  - CLIENT_CREDIT_ADJUSTED
+  - MESSAGE_CREATED
+
+================================================================================
+CRITICAL TESTING SCENARIOS (Covered in documentation)
+================================================================================
+
+Auth & Session (8 scenarios)
+  - Valid/invalid credentials, timeout, token refresh, role redirects
+
+Quotes (8 scenarios)
+  - Create, send, accept, decline, convert, edit, duplicate, delete
+
+Invoices (7 scenarios)
+  - Create, add payment, mark paid, apply credit, stripe, write-off, void
+
+Client Portal (6 scenarios)
+  - Dashboard load, view orders, detail view, apply credit, stripe pay, messages
+
+Quick-Order (8 scenarios)
+  - Upload, validate, orient, configure, price, checkout (3 paths), confirmation
+
+Permissions (5 scenarios)
+  - Role-based access, client isolation, admin override, self-access
+
+Email & Notifications (7 scenarios)
+  - All email triggers + activity logging
+
+================================================================================
+API ENDPOINTS DOCUMENTED
+================================================================================
+
+AUTH (4):
+  POST /api/auth/login
+  POST /api/auth/signup
+  POST /api/auth/logout
+  POST /api/auth/change-password
+
+QUOTES (8):
+  POST /api/quotes (create)
+  GET /api/quotes/[id]
+  POST /api/quotes/[id] (update)
+  DELETE /api/quotes/[id]
+  POST /api/quotes/[id]/send
+  POST /api/quotes/[id]/accept
+  POST /api/quotes/[id]/decline
+  POST /api/quotes/[id]/convert
+  POST /api/quotes/[id]/duplicate
+
+INVOICES (9):
+  POST /api/invoices (create)
+  GET /api/invoices/[id]
+  POST /api/invoices/[id] (update)
+  DELETE /api/invoices/[id]
+  POST /api/invoices/[id]/payments (add payment)
+  POST /api/invoices/[id]/mark-paid
+  POST /api/invoices/[id]/apply-credit (wallet)
+  POST /api/invoices/[id]/write-off
+  POST /api/invoices/[id]/void
+  POST /api/invoices/[id]/stripe-session
+
+QUICK-ORDER (4):
+  POST /api/quick-order/upload
+  POST /api/quick-order/price
+  POST /api/quick-order/checkout
+  POST /api/quick-order/orient (optional)
+
+CLIENTS (3):
+  POST /api/clients (create)
+  GET /api/clients (list)
+  POST /api/clients/[id]/credit (add wallet credit)
+
+JOBS (2):
+  POST /api/jobs/[id]/status (update)
+  GET /jobs (board view)
+
+MESSAGES (2):
+  GET /api/messages
+  POST /api/messages (create)
+
+STRIPE (2):
+  POST /api/invoices/[id]/stripe-session
+  POST /api/stripe/webhook (receives events)
+
+MISC (3):
+  GET /api/client/dashboard
+  GET /api/client/invoices
+  GET /api/client/projects
+
+================================================================================
+ASYNC/FIRE-AND-FORGET OPERATIONS
+================================================================================
+
+Email sending (all 7 templates):
+  - Doesn't block API response
+  - Logged if failure occurs
+  - User not notified of email failures
+  - Retry logic handled by email service
+
+Stripe webhooks:
+  - Asynchronous payment confirmation
+  - Invoice status eventually consistent
+  - Activity log + email confirmation
+
+Revalidation paths (after checkout):
+  - /invoices, /jobs, /clients, /client/orders
+  - Next.js ISR (on-demand revalidation)
+
+================================================================================
+KEY ARCHITECTURAL PATTERNS
+================================================================================
+
+1. ROLE-BASED ACCESS CONTROL (RBAC)
+   - Two roles: ADMIN, CLIENT
+   - Middleware enforces role-based routing
+   - Permission checks in API handlers
+
+2. ATOMIC TRANSACTIONS
+   - Quote→Invoice conversion
+   - Quick-order checkout (files + invoice + jobs)
+   - Payment processing
+
+3. EVENTUAL CONSISTENCY
+   - Stripe webhooks update status asynchronously
+   - Email delivery async
+   - Dashboard refresh on client-side
+
+4. AUDIT TRAIL
+   - All critical actions logged to activity table
+   - Immutable (no updates to activity log)
+   - Supports compliance & debugging
+
+5. WALLET/CREDIT SYSTEM
+   - Transaction-based (immutable history)
+   - Real-time balance calculated from transactions
+   - Prevents double-spend via application logic
+
+================================================================================
+REMAINING UNRESOLVED QUESTIONS (If any)
+================================================================================
+
+For refinement based on actual requirements:
+  - Rate limiting strategy & thresholds
+  - Email retry logic & max attempts
+  - Stripe webhook timeout handling
+  - Concurrent update conflict resolution strategy
+  - Student discount determination logic (email pattern vs. database flag?)
+  - Max file size limits & storage quotas
+  - Invoice PDF generation (on-demand vs. cached)
+  - Payment method processor details (Stripe vs. bank vs. cash metadata)
+
+================================================================================
+DOCUMENT STATISTICS
+================================================================================
+
+Total Sections: 9 major sections
+Total Lines: 1444
+Coverage:
+  - 5 main user flow categories
+  - 15+ sub-flows (quote, invoice, quick-order, etc.)
+  - 50+ detailed scenarios
+  - 30+ API endpoints
+  - 7 email notification triggers
+  - Complete authentication flows
+  - Complete permission models
+  - Error handling scenarios
+  - Testing checklist (24 scenarios)
+  - Technical notes & patterns
+
+Format: Detailed flowchart-style markdown with ASCII diagrams and tables
+Target Audience: QA, developers, product managers
+Use Cases: Manual testing, automated test design, user documentation
+
+================================================================================
