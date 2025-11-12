@@ -1,4 +1,0 @@
-{
-  "phase": "implementation",
-  "next": "Wire payment-term displays across invoice/quote views, finish calculator persistence, and continue Stripe/pdf integration"
-}

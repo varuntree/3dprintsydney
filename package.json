@@ -13,6 +13,9 @@
     "format:write": "prettier --write .",
     "audit": "npm audit",
     "test": "vitest",
+    "test:setup": "tsx test_fixtures/setup.ts",
+    "test:cleanup": "tsx test_fixtures/cleanup.ts",
+    "test:verify": "PGPASSWORD=postgres psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c \"SELECT email, role FROM users WHERE email IN ('admin@test.local', 'client@test.local')\"",
     "create:admin": "node scripts/create-admin.mjs",
     "email:dev": "email dev"
   },
