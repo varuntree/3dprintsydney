@@ -97,6 +97,16 @@ export const settingsInputSchema = z.object({
   overdueDays: z.number().int().min(0).default(0),
   reminderCadenceDays: z.number().int().min(1).default(7),
   enableEmailSend: z.boolean().default(false),
+  emailTemplates: z.object({
+    quote_sent: z.object({ subject: z.string(), body: z.string() }),
+    invoice_created: z.object({ subject: z.string(), body: z.string() }),
+    payment_confirmation: z.object({ subject: z.string(), body: z.string() }),
+    job_status: z.object({ subject: z.string(), body: z.string() }),
+    welcome: z.object({ subject: z.string(), body: z.string() }),
+    quote_accepted: z.object({ subject: z.string(), body: z.string() }),
+    quote_declined: z.object({ subject: z.string(), body: z.string() }),
+  }).optional(),
+  emailFromAddress: z.string().email().optional(),
 }).superRefine((data, ctx) => {
   const codes = new Set<string>();
   data.paymentTerms.forEach((term, index) => {

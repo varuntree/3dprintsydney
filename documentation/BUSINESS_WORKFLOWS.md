@@ -549,7 +549,8 @@ last_run_started_at = null;
 - Client must have `notify_on_job_status = true`
 - Client must have valid email address
 
-**Implementation**: Currently logs notification intent; email delivery to be implemented
+**Implementation**:
+- The Node service now renders React Email templates and sends them through Resend when a client's job enters one of the notifiable states: `PRINTING`, `COMPLETED`, or `OUT_FOR_DELIVERY`. The email subject/body can be customized in `settings.email_templates`, and `settings.email_from_address` overrides the default sender. The helper also logs webhook events from Resend so you can monitor deliveries, bounces, clicks, and opens.
 
 ---
 

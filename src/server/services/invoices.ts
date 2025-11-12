@@ -1,4 +1,4 @@
-import { addDays } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { DiscountType, InvoiceStatus, JobStatus, PaymentMethod } from '@/lib/constants/enums';
 import {
@@ -12,7 +12,10 @@ import {
 import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
-import { resolvePaymentTermsOptions } from '@/server/services/settings';
+import { resolvePaymentTermsOptions, getSettings } from '@/server/services/settings';
+import { emailService } from '@/server/services/email';
+import { getAppUrl } from '@/lib/env';
+import { formatCurrency } from '@/lib/utils/formatters';
 import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl, deleteFromStorage } from '@/server/storage/supabase';
 import { coerceStudentDiscount, getClientStudentDiscount } from '@/server/services/student-discount';
 import { AppError, NotFoundError, BadRequestError } from '@/lib/errors';
@@ -528,6 +531,26 @@ export async function createInvoice(input: InvoiceInput) {
     await ensureJobForInvoice(invoiceId);
   }
 
+  // Send email notification to client
+  const { data: client } = await supabase
+    .from("clients")
+    .select("email, business_name, contact_name")
+    .eq("id", payload.clientId)
+    .single();
+
+  if (client?.email) {
+    const settings = await getSettings();
+    await emailService.sendInvoiceCreated(client.email, {
+      clientName: client.business_name || client.contact_name,
+      invoiceNumber: number,
+      businessName: settings.businessName,
+      total: formatCurrency(totals.total, settings.defaultCurrency || 'AUD'),
+      dueDate: dueDate ? format(dueDate, 'PPP') : 'N/A',
+      viewUrl: `${getAppUrl()}/client/invoices/${invoiceId}`,
+      customMessage: settings.emailTemplates?.invoice_created?.body || "Your invoice is ready.",
+    });
+  }
+
   logger.info({ scope: 'invoices.create', data: { id: invoiceId } });
 
   return getInvoice(invoiceId);
@@ -764,6 +787,25 @@ export async function addManualPayment(invoiceId: number, input: PaymentInput) {
     if (policy === 'ON_PAYMENT') {
       await ensureJobForInvoice(invoiceId);
     }
+  }
+
+  // Send payment confirmation email to client
+  const { data: client } = await supabase
+    .from("clients")
+    .select("email, business_name, contact_name")
+    .eq("id", updatedInvoice.client_id)
+    .single();
+
+  if (client?.email) {
+    const settings = await getSettings();
+    await emailService.sendPaymentConfirmation(client.email, {
+      clientName: client.business_name || client.contact_name,
+      invoiceNumber: updatedInvoice.number,
+      businessName: settings.businessName,
+      amount: formatCurrency(input.amount, settings.defaultCurrency || 'AUD'),
+      paymentMethod: input.method,
+      customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
+    });
   }
 
   return payment;
@@ -1062,6 +1104,26 @@ export async function markInvoicePaid(invoiceId: number, options?: {
     method: options?.method ?? 'OTHER',
     amount: 0,
   });
+
+  // Send payment confirmation email to client
+  const { data: client } = await supabase
+    .from("clients")
+    .select("email, business_name, contact_name")
+    .eq("id", invoice.client_id)
+    .single();
+
+  if (client?.email) {
+    const settings = await getSettings();
+    await emailService.sendPaymentConfirmation(client.email, {
+      clientName: client.business_name || client.contact_name,
+      invoiceNumber: invoice.number,
+      businessName: settings.businessName,
+      amount: formatCurrency(0, settings.defaultCurrency || 'AUD'),
+      paymentMethod: options?.method || 'OTHER',
+      customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
+    });
+  }
+
   logger.info({ scope: 'invoices.markPaid', data: { invoiceId, amount: 0 } });
   return null;
 }

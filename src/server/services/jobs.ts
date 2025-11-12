@@ -9,6 +9,8 @@ import {
 } from "@/lib/constants/enums";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
+import { emailService } from "@/server/services/email";
+import { getAppUrl } from "@/lib/env";
 import type {
   JobCardDTO,
   JobBoardColumnDTO,
@@ -989,6 +991,12 @@ async function maybeNotifyJobStatusChange(
     return;
   }
 
+  // Only send emails for significant status changes
+  const notifiableStatuses = [JobStatus.PRINTING, JobStatus.COMPLETED, JobStatus.OUT_FOR_DELIVERY];
+  if (!notifiableStatuses.includes(currentStatus)) {
+    return;
+  }
+
   logger.info({
     scope: "jobs.notify",
     message: "Dispatching job status notification",
@@ -1002,5 +1010,30 @@ async function maybeNotifyJobStatusChange(
       note: note ?? null,
     },
   });
-  // Future: integrate email delivery
+
+  // Send email notification
+  if (client.email) {
+    const statusMessages: Record<JobStatus, string> = {
+      [JobStatus.PRINTING]: "Your job has started printing.",
+      [JobStatus.COMPLETED]: "Your job has been completed and is ready.",
+      [JobStatus.OUT_FOR_DELIVERY]: "Your job is on its way to you.",
+      [JobStatus.QUEUED]: "",
+      [JobStatus.PAUSED]: "",
+      [JobStatus.CANCELLED]: "",
+      [JobStatus.READY_FOR_QC]: "",
+      [JobStatus.IN_QC]: "",
+      [JobStatus.REQUIRES_REWORK]: "",
+      [JobStatus.READY_FOR_PICKUP]: "",
+      [JobStatus.DELIVERED]: "",
+    };
+
+    await emailService.sendJobStatusUpdate(client.email, {
+      clientName: client.name || 'Client',
+      jobNumber: job.job_number,
+      businessName: settings.businessName,
+      status: currentStatus,
+      statusMessage: statusMessages[currentStatus] || "Job status has been updated.",
+      customMessage: settings.emailTemplates?.job_status?.body || "Your job status has changed.",
+    });
+  }
 }

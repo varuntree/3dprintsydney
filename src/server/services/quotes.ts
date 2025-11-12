@@ -9,8 +9,10 @@ import {
 } from "@/lib/schemas/quotes";
 import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
-import { resolvePaymentTermsOptions } from "@/server/services/settings";
+import { resolvePaymentTermsOptions, getSettings } from "@/server/services/settings";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { emailService } from "@/server/services/email";
+import { getAppUrl } from "@/lib/env";
 import {
   DiscountType as DiscountTypeEnum,
   InvoiceStatus,
@@ -836,6 +838,24 @@ export async function sendQuote(id: number) {
     });
   }
 
+  // Send email notification to client
+  const { data: client } = await supabase
+    .from("clients")
+    .select("email, business_name, contact_name")
+    .eq("id", quote.client_id)
+    .single();
+
+  if (client?.email) {
+    const settings = await getSettings();
+    await emailService.sendQuoteSent(client.email, {
+      clientName: client.business_name || client.contact_name,
+      quoteNumber: quote.number,
+      businessName: settings.businessName,
+      viewUrl: `${getAppUrl()}/client/quotes/${quote.id}`,
+      customMessage: settings.emailTemplates?.quote_sent?.body || "Your quote is ready for review.",
+    });
+  }
+
   logger.info({ scope: "quotes.send", data: { id } });
   return loadQuoteDetail(id);
 }
@@ -881,6 +901,26 @@ export async function acceptQuote(id: number, note?: string) {
     });
   }
 
+  // Send email notification to admin
+  const { data: client } = await supabase
+    .from("clients")
+    .select("business_name, contact_name")
+    .eq("id", quote.client_id)
+    .single();
+
+  if (client) {
+    const settings = await getSettings();
+    if (settings.businessEmail) {
+      await emailService.sendQuoteAccepted(settings.businessEmail, {
+        quoteNumber: quote.number,
+        clientName: client.business_name || client.contact_name,
+        businessName: settings.businessName,
+        viewUrl: `${getAppUrl()}/quotes/${quote.id}`,
+        customMessage: settings.emailTemplates?.quote_accepted?.body || "Client accepted quote.",
+      });
+    }
+  }
+
   logger.info({ scope: "quotes.accept", data: { id } });
   return loadQuoteDetail(id);
 }
@@ -924,6 +964,26 @@ export async function declineQuote(id: number, note?: string) {
       error: activityError,
       data: { quoteId: quote.id },
     });
+  }
+
+  // Send email notification to admin
+  const { data: client } = await supabase
+    .from("clients")
+    .select("business_name, contact_name")
+    .eq("id", quote.client_id)
+    .single();
+
+  if (client) {
+    const settings = await getSettings();
+    if (settings.businessEmail) {
+      await emailService.sendQuoteDeclined(settings.businessEmail, {
+        quoteNumber: quote.number,
+        clientName: client.business_name || client.contact_name,
+        businessName: settings.businessName,
+        viewUrl: `${getAppUrl()}/quotes/${quote.id}`,
+        customMessage: settings.emailTemplates?.quote_declined?.body || "Client declined quote.",
+      });
+    }
   }
 
   logger.info({ scope: "quotes.decline", data: { id } });

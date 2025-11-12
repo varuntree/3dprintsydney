@@ -1012,9 +1012,24 @@ Product templates can define calculator settings for auto-pricing 3D models:
 - Display count in dashboard metrics
 - Color-coded indicators (red)
 
-**No Automated Actions:**
-- No automatic emails (currently paused)
-- Manual follow-up by admin
+**Automated Actions:**
+- Automatic email delivery is now active for the workflows listed below; make sure `enable_email_send` is `true` in settings and `RESEND_API_KEY` is provisioned in the environment.
+- Templates (subject/body) live in `settings.email_templates`, and you can override the sender with `settings.email_from_address` or the `EMAIL_FROM_ADDRESS` env var.
+- In development, deliveries are redirected to `delivered@resend.dev` so you can preview without spamming real clients.
+
+### Automated Email Notifications
+
+| Trigger | Recipient | Template |
+| --- | --- | --- |
+| Signup | client | `welcome` (includes name, business name, login link) |
+| Quote sent | client | `quote_sent` links to `/client/quotes/:id` |
+| Quote accepted | admin | `quote_accepted` for the business email |
+| Quote declined | admin | `quote_declined` for the business email |
+| Invoice created | client | `invoice_created` with total, due date, link |
+| Manual payment or mark-as-paid | client | `payment_confirmation` with amount/method |
+| Job status → `PRINTING`, `COMPLETED`, `OUT_FOR_DELIVERY` | client (if opted in) | `job_status` with status message |
+
+Each action uses the new `email_templates` payload to render both subject and body via React Email components before sending through Resend. This keeps the client-facing copy consistent with the database-stored templates you can edit in the admin UI.
 
 ---
 

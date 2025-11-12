@@ -6,10 +6,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getServiceSupabase } from '@/server/supabase/service-client';
-import { getSupabaseUrl, getSupabaseAnonKey } from '@/lib/env';
+import { getSupabaseUrl, getSupabaseAnonKey, getAppUrl } from '@/lib/env';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { validatePasswordChange } from '@/lib/utils/validators';
+import { emailService } from '@/server/services/email';
+import { getSettings } from '@/server/services/settings';
 
 /**
  * User profile type for auth operations
@@ -146,6 +148,15 @@ export async function signupClient(
     scope: 'auth.signup',
     message: 'User signed up',
     data: { userId: profile.id, clientId: client.id },
+  });
+
+  // Send welcome email
+  const settings = await getSettings();
+  await emailService.sendWelcome(email, {
+    firstName: firstName || email.split('@')[0],
+    businessName: settings.businessName,
+    loginUrl: `${getAppUrl()}/login`,
+    customMessage: settings.emailTemplates?.welcome?.body || "Thanks for signing up!",
   });
 
   return {

@@ -47,3 +47,11 @@ export function getStripeCancelUrl(): string {
 export function getStripeCurrency(): string {
   return (process.env.STRIPE_CURRENCY?.trim() || 'AUD').toUpperCase();
 }
+
+export function getResendApiKey(): string | null {
+  return process.env.RESEND_API_KEY?.trim() || null;
+}
+
+export function getEmailFromAddress(): string {
+  return process.env.EMAIL_FROM_ADDRESS?.trim() || 'noreply@3dprintsydney.com';
+}

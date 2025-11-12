@@ -59,6 +59,8 @@ type SettingsRow = {
   overdue_days: number | null;
   reminder_cadence_days: number | null;
   enable_email_send: boolean | null;
+  email_templates: unknown;
+  email_from_address: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -143,6 +145,8 @@ function serializeSettings(row: SettingsRow | null): SerializedSettings | null {
     overdueDays: row.overdue_days ?? 0,
     reminderCadenceDays: row.reminder_cadence_days ?? 7,
     enableEmailSend: row.enable_email_send ?? false,
+    emailTemplates: row.email_templates as SettingsInput['emailTemplates'] ?? undefined,
+    emailFromAddress: row.email_from_address ?? undefined,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -217,6 +221,8 @@ export async function updateSettings(payload: SettingsInput): Promise<Serialized
     overdue_days: payload.overdueDays,
     reminder_cadence_days: payload.reminderCadenceDays,
     enable_email_send: payload.enableEmailSend,
+    email_templates: payload.emailTemplates || null,
+    email_from_address: payload.emailFromAddress || null,
   };
 
   const { data, error } = await supabase

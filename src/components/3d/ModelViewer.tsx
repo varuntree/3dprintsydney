@@ -306,7 +306,7 @@ function isGeometryEffectivelyFlat(geometry: THREE.BufferGeometry | null) {
 
 // (Removed geometry baking; orientation is applied once to the group's quaternion)
 
-function STLObject({ url, onGroup }: { url: string; onGroup: (g: THREE.Group) => void }) {
+function STLObject({ url, onLoaded }: { url: string; onLoaded?: () => void }) {
   const raw = useLoader(STLLoader, url) as THREE.BufferGeometry;
   const groupRef = useRef<THREE.Group>(null);
   const group = useMemo(() => {
@@ -324,14 +324,13 @@ function STLObject({ url, onGroup }: { url: string; onGroup: (g: THREE.Group) =>
   }, [raw]);
 
   useEffect(() => {
-    if (group) onGroup(group);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group]);
+    onLoaded?.();
+  }, [onLoaded]);
 
   return <primitive ref={groupRef} object={group} />;
 }
 
-function ThreeMFObject({ url, onGroup }: { url: string; onGroup: (g: THREE.Group) => void }) {
+function ThreeMFObject({ url, onLoaded }: { url: string; onLoaded?: () => void }) {
   const groupRaw = useLoader(ThreeMFLoader as any, url) as THREE.Group;
   const groupRef = useRef<THREE.Group>(null);
   const group = useMemo(() => {
@@ -349,9 +348,8 @@ function ThreeMFObject({ url, onGroup }: { url: string; onGroup: (g: THREE.Group
   }, [groupRaw]);
 
   useEffect(() => {
-    if (group) onGroup(group);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group]);
+    onLoaded?.();
+  }, [onLoaded]);
 
   return <primitive ref={groupRef} object={group} />;
 }
@@ -412,6 +410,7 @@ function Scene({
   const thresholdRef = useRef(overhangThreshold);
   const [analysisGeometry, setAnalysisGeometry] = useState<THREE.BufferGeometry | null>(null);
   const [gizmoDragging, setGizmoDragging] = useState(false);
+  const [modelVersion, setModelVersion] = useState(0);
   const overhangTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const workerFailedRef = useRef(false);
@@ -517,6 +516,16 @@ function Scene({
     },
     [dispatchOverhangAnalysis]
   );
+
+  const handleModelLoaded = useCallback(() => {
+    setModelVersion((version) => version + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!modelVersion) return;
+    if (!objectRef.current) return;
+    prepareGroup(objectRef.current);
+  }, [modelVersion, prepareGroup]);
 
   useEffect(() => {
     return () => {
@@ -733,21 +742,9 @@ function Scene({
       {/* Loaded object group */}
       <group ref={objectRef}>
         {ext === "3mf" ? (
-          <ThreeMFObject
-            url={url}
-            onGroup={(g) => {
-              objectRef.current = g;
-              prepareGroup(g);
-            }}
-          />
+          <ThreeMFObject url={url} onLoaded={handleModelLoaded} />
         ) : (
-          <STLObject
-            url={url}
-            onGroup={(g) => {
-              objectRef.current = g;
-              prepareGroup(g);
-            }}
-          />
+          <STLObject url={url} onLoaded={handleModelLoaded} />
         )}
         {analysisGeometry && supportEnabled && overhangFaces.length > 0 ? (
           <OverhangHighlight geometry={analysisGeometry} overhangFaces={overhangFaces} />
