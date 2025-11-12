@@ -1,5 +1,7 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
+import { browserLogger } from '@/lib/logging/browser-logger';
 
 export type OrientationQuaternion = [number, number, number, number];
 export type OrientationPosition = [number, number, number];
@@ -59,7 +61,56 @@ const initialState: OrientationState = {
 
 export type OrientationStore = OrientationState & OrientationActions;
 
-export const useOrientationStore = create<OrientationStore>((set) => ({
+const STORAGE_KEY = "quickprint-orientation";
+export const ORIENTATION_STORAGE_KEY = STORAGE_KEY;
+
+const isClient = typeof window !== "undefined";
+
+const sessionStorageAdapter = {
+  getItem: (name: string) => {
+    if (!isClient) return null;
+    try {
+      return window.sessionStorage.getItem(name);
+    } catch (error) {
+    browserLogger.error({
+      scope: "bug.31.orientation-missing",
+      message: "Failed to read orientation persistence",
+      error,
+    });
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    if (!isClient) return;
+    try {
+      window.sessionStorage.setItem(name, value);
+    } catch (error) {
+      browserLogger.error({
+        scope: "bug.31.orientation-missing",
+        message: "Failed to write orientation persistence",
+        error,
+      });
+    }
+  },
+  removeItem: (name: string) => {
+    if (!isClient) return;
+    try {
+      window.sessionStorage.removeItem(name);
+    } catch (error) {
+      browserLogger.error({
+        scope: "bug.31.orientation-missing",
+        message: "Failed to clear orientation persistence",
+        error,
+      });
+    }
+  },
+};
+
+export function clearOrientationPersistence() {
+  sessionStorageAdapter.removeItem(STORAGE_KEY);
+}
+
+const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
   ...initialState,
   setOrientation: (quaternion, position = initialPosition, options) =>
     set((state) => ({
@@ -91,8 +142,18 @@ export const useOrientationStore = create<OrientationStore>((set) => ({
       return { warnings: [...state.warnings, message] };
     }),
   clearWarnings: () => set(() => ({ warnings: [] })),
-  reset: () => set({ ...initialState }),
-}));
+  reset: () => {
+    clearOrientationPersistence();
+    set({ ...initialState });
+  },
+});
+
+export const useOrientationStore = create<OrientationStore>()(
+  persist(createOrientationStore, {
+    name: STORAGE_KEY,
+    storage: sessionStorageAdapter,
+  }),
+);
 
 export const useOrientation = () =>
   useOrientationStore(

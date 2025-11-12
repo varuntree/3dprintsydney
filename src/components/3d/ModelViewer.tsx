@@ -20,6 +20,7 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
 import { detectOverhangs } from "@/lib/3d/overhang-detector";
 import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
+import { centerObjectAtOrigin } from "@/lib/3d/geometry";
 import {
   useOrientationStore,
   OrientationQuaternion,
@@ -29,6 +30,7 @@ import BuildPlate from "./BuildPlate";
 import OverhangHighlight from "./OverhangHighlight";
 import OrientationGizmo from "./OrientationGizmo";
 import { browserLogger } from "@/lib/logging/browser-logger";
+import { useWebGLContext } from "@/hooks/use-webgl-context";
 
 type SupportedExt = "stl" | "3mf";
 
@@ -132,14 +134,6 @@ const tempCenter = new THREE.Vector3();
 const tempSphere = new THREE.Sphere();
 const tempCenterVec = new THREE.Vector3();
 const tempDir = new THREE.Vector3();
-
-function centerGroupToOrigin(group: THREE.Group) {
-  tempBox.setFromObject(group);
-  if (tempBox.isEmpty()) return;
-  tempBox.getCenter(tempCenter);
-  group.position.sub(tempCenter);
-  group.updateMatrixWorld(true);
-}
 
 function fitCameraToGroup(
   group: THREE.Group,
@@ -674,7 +668,7 @@ function Scene({
           setAnalysisStatus("error", "No geometry to analyze. Delete and re-upload.");
         }
 
-        centerGroupToOrigin(group);
+        centerObjectAtOrigin(group);
 
         if (appliedQuaternion && isIdentityTuple(storeState.quaternion)) {
           setOrientationState(quaternionToTuple(appliedQuaternion), vectorToTuple(group.position), { auto: true });
@@ -790,12 +784,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     onFacePickComplete,
     overhangThreshold = 45,
   }, ref) => {
-    const [sceneObject, setSceneObject] = useState<THREE.Object3D | null>(null);
-    const [error, setError] = useState<Error | null>(null);
-    const [helpersVisible, setHelpersVisible] = useState(false);
-    const [gizmoEnabled, setGizmoEnabledState] = useState(false);
-    const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-    const controlsRef = useRef<any | null>(null);
+  const [sceneObject, setSceneObject] = useState<THREE.Object3D | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [helpersVisible, setHelpersVisible] = useState(false);
+  const [gizmoEnabled, setGizmoEnabledState] = useState(false);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<any | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
+
+  useWebGLContext(renderer);
     const setOrientationState = useOrientationStore((state) => state.setOrientation);
     const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
     const addWarning = useOrientationStore((state) => state.addWarning);
@@ -848,7 +846,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           setStatus: setAutoOrientStatus,
           addWarning,
         });
-        centerGroupToOrigin(group);
+        centerObjectAtOrigin(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -858,7 +856,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       recenter: () => {
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
-        centerGroupToOrigin(group);
+        centerObjectAtOrigin(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -890,7 +888,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           setStatus: setAutoOrientStatus,
           addWarning,
         });
-        centerGroupToOrigin(group);
+        centerObjectAtOrigin(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -1035,14 +1033,16 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     return (
       <div className="h-[480px] w-full overflow-hidden rounded-lg border border-border bg-surface-muted">
         <Canvas
-          key={urlKey}
-          dpr={[1, 2]}
-          camera={{ position: [120, 160, 220], fov: 45, near: 0.1, far: 1000 }}
-          gl={{ preserveDrawingBuffer: true, antialias: true, powerPreference: "high-performance" }}
-          onCreated={({ camera }) => {
-            camera.up.set(0, 1, 0);
-            cameraRef.current = camera as THREE.PerspectiveCamera;
-          }}
+        key={urlKey}
+        dpr={[1, 2]}
+        camera={{ position: [120, 160, 220], fov: 45, near: 0.1, far: 1000 }}
+        gl={{ preserveDrawingBuffer: true, antialias: true, powerPreference: "high-performance" }}
+        onCreated={({ camera, gl }) => {
+          camera.up.set(0, 1, 0);
+          cameraRef.current = camera as THREE.PerspectiveCamera;
+          rendererRef.current = gl;
+          setRenderer(gl);
+        }}
         >
           <Suspense fallback={<LoaderOverlay />}>
             <Scene

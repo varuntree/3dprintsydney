@@ -1,23 +1,48 @@
 import { z } from "zod";
 
-// Quick order item schema (shared across multiple endpoints)
-const quickOrderItemSchema = z.object({
-  id: z.string().min(1),
-  filename: z.string().min(1),
-  material: z.string().min(1),
-  quantity: z.number().int().min(1),
-  color: z.string().optional(),
-  infill: z.number().min(0).max(100).optional(),
-  layerHeight: z.number().positive().optional(),
+const orientationSnapshotSchema = z.object({
+  quaternion: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  position: z.tuple([z.number(), z.number(), z.number()]),
+  autoOriented: z.boolean().optional(),
+  supportVolume: z.number().nonnegative().optional(),
+  supportWeight: z.number().nonnegative().optional(),
 });
 
-// Location schema for pricing
+const supportsSchema = z.object({
+  enabled: z.boolean(),
+  pattern: z.enum(["normal", "tree"]),
+  angle: z.number().min(0).max(90),
+  style: z.enum(["grid", "organic"]).optional(),
+  interfaceLayers: z.number().int().min(0).optional(),
+  acceptedFallback: z.boolean().optional(),
+});
+
+const metricsSchema = z.object({
+  grams: z.number().nonnegative(),
+  supportGrams: z.number().nonnegative().optional(),
+  timeSec: z.number().nonnegative(),
+  fallback: z.boolean().optional(),
+  error: z.string().optional(),
+});
+
+const quickOrderItemSchema = z.object({
+  fileId: z.string().min(1),
+  filename: z.string().min(1),
+  materialId: z.number().int().nonnegative(),
+  materialName: z.string().optional(),
+  layerHeight: z.number().positive(),
+  infill: z.number().min(0).max(100),
+  quantity: z.number().int().min(1),
+  orientation: orientationSnapshotSchema.optional(),
+  supports: supportsSchema.optional(),
+  metrics: metricsSchema,
+});
+
 const locationSchema = z.object({
   state: z.string().optional(),
   postcode: z.string().optional(),
 });
 
-// Address schema for checkout
 const addressSchema = z.object({
   line1: z.string().optional(),
   line2: z.string().optional(),
@@ -27,41 +52,35 @@ const addressSchema = z.object({
   country: z.string().optional(),
 });
 
-// Supports configuration for slicing
-const supportsSchema = z.object({
-  enabled: z.boolean().default(true),
-  pattern: z.enum(["normal", "tree"]).default("normal"),
-  angle: z.number().min(0).max(90).default(45),
-});
-
-// File object for slicing
-const sliceFileSchema = z.object({
-  id: z.string().min(1),
-  layerHeight: z.number().positive().optional(),
-  infill: z.number().min(0).max(100).optional(),
-  supports: supportsSchema.optional(),
-});
-
-// Price endpoint schema
 export const quickOrderPriceSchema = z.object({
   items: z.array(quickOrderItemSchema).min(1, "At least one item required"),
   location: locationSchema.optional(),
 });
 
-// Checkout endpoint schema
-export const quickOrderCheckoutSchema = z.object({
-  items: z.array(quickOrderItemSchema).min(1, "At least one item required"),
+export const quickOrderCheckoutSchema = quickOrderPriceSchema.extend({
   address: addressSchema.optional(),
+  creditRequestedAmount: z.number().nonnegative().optional(),
+  paymentPreference: z.string().optional(),
 });
 
-// Slice endpoint schema
+const supportsSliceSchema = z.object({
+  enabled: z.boolean().default(true),
+  pattern: z.enum(["normal", "tree"]).default("normal"),
+  angle: z.number().min(0).max(90).default(45),
+});
+
+const sliceFileSchema = z.object({
+  id: z.string().min(1),
+  layerHeight: z.number().positive().optional(),
+  infill: z.number().min(0).max(100).optional(),
+  supports: supportsSliceSchema.optional(),
+});
+
 export const quickOrderSliceSchema = z.object({
   file: sliceFileSchema,
 });
 
-// Orient endpoint - FormData based, validated manually in route
-// Upload endpoint - FormData based, uses validateOrderFile utility
-
+export type QuickOrderItemInput = z.infer<typeof quickOrderItemSchema>;
 export type QuickOrderPriceInput = z.infer<typeof quickOrderPriceSchema>;
 export type QuickOrderCheckoutInput = z.infer<typeof quickOrderCheckoutSchema>;
 export type QuickOrderSliceInput = z.infer<typeof quickOrderSliceSchema>;

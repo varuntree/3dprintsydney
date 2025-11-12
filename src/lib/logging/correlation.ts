@@ -1,5 +1,4 @@
-import { AsyncLocalStorage } from "async_hooks";
-import { randomUUID } from "crypto";
+import type { AsyncLocalStorage } from "async_hooks";
 
 interface CorrelationContext {
   correlationId: string;
@@ -7,14 +6,22 @@ interface CorrelationContext {
   userId?: string | number;
 }
 
-const storage = new AsyncLocalStorage<CorrelationContext>();
+let storage: AsyncLocalStorage<CorrelationContext> | null = null;
 
-export function generateCorrelationId(): string {
-  return randomUUID();
+if (typeof window === "undefined") {
+  const asyncHooks = await import("async_hooks");
+  storage = new asyncHooks.AsyncLocalStorage<CorrelationContext>();
+}
+
+function generateCorrelationId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function getContext(): CorrelationContext | undefined {
-  return storage.getStore();
+  return storage?.getStore();
 }
 
 export function getCorrelationId(): string | undefined {
@@ -54,6 +61,10 @@ export function runWithCorrelationContext<T>(
   callback: () => T,
   context: Partial<CorrelationContext> = {},
 ): T {
+  if (!storage) {
+    return callback();
+  }
+
   const base = getContext();
   const merged: CorrelationContext = {
     correlationId:

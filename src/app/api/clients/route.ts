@@ -4,6 +4,7 @@ import { listClients, createClient } from "@/server/services/clients";
 import { clientInputSchema } from "@/lib/schemas/clients";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import type { NextRequest } from "next/server";
+import { bugLogger } from "@/lib/logger";
 
 /**
  * GET /api/clients
@@ -25,9 +26,10 @@ export async function GET(request: NextRequest) {
       sort: sort ?? undefined,
       order: order ?? undefined,
     });
-    return okAuth(req, clients);
+    return okAuth(request, clients);
   } catch (error) {
-    return handleErrorAuth(req, error, "clients.list");
+    bugLogger.logBug30(error);
+    return handleErrorAuth(request, error, "clients.list");
   }
 }
 
@@ -41,13 +43,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = clientInputSchema.parse(body);
     const client = await createClient(validated);
-    return okAuth(req, client, { status: 201 });
+    return okAuth(request, client, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
-      return failAuth(req, "VALIDATION_ERROR", "Invalid client payload", 422, {
+      return failAuth(request, "VALIDATION_ERROR", "Invalid client payload", 422, {
         issues: error.issues,
       });
     }
-    return handleErrorAuth(req, error, "clients.create");
+    bugLogger.logBug30(error);
+    return handleErrorAuth(request, error, "clients.create");
   }
 }

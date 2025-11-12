@@ -1,13 +1,11 @@
 import { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireClientWithId } from "@/server/auth/api-helpers";
-import {
-  createQuickOrderInvoice,
-  type QuickOrderItemInput,
-} from "@/server/services/quick-order";
+import { createQuickOrderInvoice } from "@/server/services/quick-order";
 import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { logger, bugLogger } from "@/lib/logger";
+import { quickOrderCheckoutSchema } from "@/lib/schemas/quick-order";
 
 /**
  * POST /api/quick-order/checkout
@@ -20,10 +18,18 @@ export async function POST(req: NextRequest) {
     const user = await requireClientWithId(req);
 
     const body = await req.json();
-    const items: QuickOrderItemInput[] = body?.items ?? [];
-    const address = body?.address ?? {};
-    const creditRequestedAmount = typeof body?.creditRequestedAmount === 'number' ? body.creditRequestedAmount : 0;
-    const paymentPreference = typeof body?.paymentPreference === 'string' ? body.paymentPreference : undefined;
+    const parsed = quickOrderCheckoutSchema.safeParse(body);
+    if (!parsed.success) {
+      bugLogger.logBug32(parsed.error, body);
+      return failAuth(
+        req,
+        "VALIDATION_ERROR",
+        "Invalid checkout payload",
+        422,
+        { issues: parsed.error.issues },
+      );
+    }
+    const { items, address, creditRequestedAmount, paymentPreference } = parsed.data;
 
     if (!Array.isArray(items) || items.length === 0) {
       return failAuth(req, "NO_ITEMS", "No items", 400);

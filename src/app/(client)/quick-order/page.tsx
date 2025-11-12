@@ -45,6 +45,7 @@ import {
   useOrientationStore,
   type OrientationQuaternion,
   type OrientationPosition,
+  clearOrientationPersistence,
 } from "@/stores/orientation-store";
 import { browserLogger } from "@/lib/logging/browser-logger";
 
@@ -472,6 +473,7 @@ export default function QuickOrderPage() {
   const clearDraft = useCallback(() => {
     try {
       localStorage.removeItem(DRAFT_KEY);
+      clearOrientationPersistence();
     } catch (error) {
       logQuickOrderError("draft.clear", "Failed to clear draft", error);
     }

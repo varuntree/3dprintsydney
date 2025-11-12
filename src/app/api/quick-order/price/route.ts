@@ -5,17 +5,28 @@ import { priceQuickOrder } from "@/server/services/quick-order";
 import { coerceStudentDiscount, getClientStudentDiscount } from "@/server/services/student-discount";
 import { okAuth, failAuth } from "@/server/api/respond";
 import { AppError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { logger, bugLogger } from "@/lib/logger";
+import { quickOrderPriceSchema } from "@/lib/schemas/quick-order";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     const body = await req.json();
-    const items = body?.items ?? [];
+    const parsed = quickOrderPriceSchema.safeParse(body);
+    if (!parsed.success) {
+      bugLogger.logBug32(parsed.error, body);
+      return failAuth(
+        req,
+        "VALIDATION_ERROR",
+        "Invalid pricing payload",
+        422,
+        { issues: parsed.error.issues },
+      );
+    }
+    const { items, location } = parsed.data;
     if (!Array.isArray(items) || items.length === 0) {
       return failAuth(req, "NO_ITEMS", "No items", 400);
     }
-    const location = body?.location ?? {};
     let discountType: DiscountType = "NONE";
     let discountValue = 0;
     let studentDiscountEligible = false;

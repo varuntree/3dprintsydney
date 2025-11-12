@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     // This does not affect typechecking in CI/local dev.
     ignoreBuildErrors: true,
   },
+  generateBuildId: async () => `build-${Date.now()}`,
 };
 
 export default nextConfig;

@@ -4,6 +4,7 @@ import { JobStatus } from "@/lib/constants/enums";
 import { requireAdmin } from "@/server/auth/api-helpers";
 import { calculateDateWindow } from "@/lib/utils/api-params";
 import type { NextRequest } from "next/server";
+import { bugLogger } from "@/lib/logger";
 
 /**
  * GET /api/jobs
@@ -29,8 +30,9 @@ export async function GET(request: NextRequest) {
       completedSince = startDate;
     }
     const board = await getJobBoard({ includeArchived, statuses, completedSince });
-    return okAuth(req, board);
+    return okAuth(request, board);
   } catch (error) {
-    return handleErrorAuth(req, error, "jobs.list");
+    bugLogger.logBug30(error);
+    return handleErrorAuth(request, error, "jobs.list");
   }
 }

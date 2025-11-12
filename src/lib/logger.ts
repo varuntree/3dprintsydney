@@ -138,3 +138,37 @@ export const logger = {
   error: (payload: LogPayload) => emit("error", payload),
   timing,
 };
+
+export const bugLogger = {
+  logBug30: (error: unknown) =>
+    logger.error({
+      scope: "bug.30.request-undefined",
+      message: "Request context helpers used outside handler scope",
+      error,
+    }),
+  logBug31: (error: unknown) =>
+    logger.error({
+      scope: "bug.31.orientation-missing",
+      message: "Orientation data could not be loaded from persistence",
+      error,
+    }),
+  logBug32: (error: unknown, formData: unknown) =>
+    logger.error({
+      scope: "bug.32.multi-form-validation",
+      message: "Multi-form submit validation failed",
+      error,
+      data: { formData },
+    }),
+  logBug33: (modelBounds: unknown) =>
+    logger.error({
+      scope: "bug.33.model-alignment",
+      message: "Model alignment offset detected",
+      data: { modelBounds },
+    }),
+  logBug34: (context: unknown) =>
+    logger.error({
+      scope: "bug.34.preview-crash",
+      message: "WebGL context loss or preview crash",
+      data: { context },
+    }),
+};

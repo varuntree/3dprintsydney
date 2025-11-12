@@ -1,0 +1,3 @@
+2025-11-12T03:17:12Z Starting critical bug fix work.
+2025-11-12T03:22:14Z Added persistence, schema updates, WebGL context handling, and logging scaffolding.
+2025-11-12T03:27:14Z npm run build succeeded; npx tsc --noEmit fails with pre-existing errors in unrelated admin/client pages/reporting.

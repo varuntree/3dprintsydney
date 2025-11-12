@@ -1,5 +1,12 @@
 # Plan: Critical Bug Fixes
 
+## Bug Checklist
+- [x] Bug #30: "request is not defined" in API routes
+- [x] Bug #31: Orientation session state lost on navigation/refresh
+- [x] Bug #32: Multi-form validation failing during quick-order checkout
+- [x] Bug #33: 3D model alignment offset/pivot mis-center
+- [x] Bug #34: Intermittent 3D preview crashes after deployment
+
 ## Plan Description
 Fix 5 critical production bugs blocking core workflows: "request is not defined" errors, orientation data persistence failures, multi-form submission errors, model alignment issues, and intermittent preview crashes after deployment.
 
