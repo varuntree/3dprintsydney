@@ -419,7 +419,7 @@ declare
   effective_prefix text;
 begin
   insert into number_sequences(kind, prefix, current)
-  values (p_kind, coalesce(p_default_prefix, ''))
+  values (p_kind, coalesce(p_default_prefix, ''), 1)
   on conflict (kind) do update
     set current = number_sequences.current + 1,
         prefix = coalesce(excluded.prefix, number_sequences.prefix),

@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         issues: error.issues,
       });
     }
+    console.error("[quotes.create] Error creating quote:", error);
     return handleErrorAuth(request, error, "quotes.create");
   }
 }

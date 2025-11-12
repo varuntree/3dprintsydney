@@ -448,19 +448,29 @@ export async function createQuote(input: QuoteInput) {
   }
 
   const itemPayload = normalizedLines.map((line, index) => {
-    const breakdown = {
-      ...(line.calculatorBreakdown ?? {}),
-      lineType: line.lineType,
-    } as Record<string, unknown>;
+    let breakdown: Record<string, unknown> | null = line.calculatorBreakdown ?? null;
+
+    // Only construct breakdown if line used calculator or is MODELLING type
     if (line.lineType === "MODELLING") {
-      breakdown.modelling = {
-        brief: line.modellingBrief ?? "",
-        complexity: line.modellingComplexity ?? "SIMPLE",
-        revisionCount: line.modellingRevisionCount ?? 0,
-        hourlyRate: line.modellingHourlyRate ?? 0,
-        estimatedHours: line.modellingEstimatedHours ?? 0,
+      breakdown = {
+        ...(line.calculatorBreakdown ?? {}),
+        lineType: line.lineType,
+        modelling: {
+          brief: line.modellingBrief ?? "",
+          complexity: line.modellingComplexity ?? "SIMPLE",
+          revisionCount: line.modellingRevisionCount ?? 0,
+          hourlyRate: line.modellingHourlyRate ?? 0,
+          estimatedHours: line.modellingEstimatedHours ?? 0,
+        },
+      };
+    } else if (breakdown) {
+      // For PRINT lines that used calculator, add lineType
+      breakdown = {
+        ...breakdown,
+        lineType: line.lineType,
       };
     }
+
     return {
       quote_id: created.id,
       product_template_id: line.productTemplateId ?? null,
@@ -563,20 +573,45 @@ export async function updateQuote(id: number, input: QuoteInput) {
     throw new AppError(`Failed to reset quote items: ${deleteError.message}`, 'DATABASE_ERROR', 500);
   }
 
-  const itemPayload = normalizedLines.map((line, index) => ({
-    quote_id: id,
-    product_template_id: line.productTemplateId ?? null,
-    name: line.name,
-    description: line.description || null,
-    quantity: String(line.quantity),
-    unit: line.unit || null,
-    unit_price: String(line.unitPrice),
-    discount_type: mapLineDiscount(line.discountType),
-    discount_value: toDecimal(line.discountValue),
-    total: String(totals.lineTotals[index].total),
-    order_index: line.orderIndex ?? index,
-    calculator_breakdown: line.calculatorBreakdown ?? null,
-  }));
+  const itemPayload = normalizedLines.map((line, index) => {
+    let breakdown: Record<string, unknown> | null = line.calculatorBreakdown ?? null;
+
+    // Only construct breakdown if line used calculator or is MODELLING type
+    if (line.lineType === "MODELLING") {
+      breakdown = {
+        ...(line.calculatorBreakdown ?? {}),
+        lineType: line.lineType,
+        modelling: {
+          brief: line.modellingBrief ?? "",
+          complexity: line.modellingComplexity ?? "SIMPLE",
+          revisionCount: line.modellingRevisionCount ?? 0,
+          hourlyRate: line.modellingHourlyRate ?? 0,
+          estimatedHours: line.modellingEstimatedHours ?? 0,
+        },
+      };
+    } else if (breakdown) {
+      // For PRINT lines that used calculator, add lineType
+      breakdown = {
+        ...breakdown,
+        lineType: line.lineType,
+      };
+    }
+
+    return {
+      quote_id: id,
+      product_template_id: line.productTemplateId ?? null,
+      name: line.name,
+      description: line.description || null,
+      quantity: String(line.quantity),
+      unit: line.unit || null,
+      unit_price: String(line.unitPrice),
+      discount_type: mapLineDiscount(line.discountType),
+      discount_value: toDecimal(line.discountValue),
+      total: String(totals.lineTotals[index].total),
+      order_index: line.orderIndex ?? index,
+      calculator_breakdown: breakdown,
+    };
+  });
 
   if (itemPayload.length > 0) {
     const { error: insertError } = await supabase.from("quote_items").insert(itemPayload);
