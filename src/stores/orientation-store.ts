@@ -6,6 +6,14 @@ import { browserLogger } from '@/lib/logging/browser-logger';
 export type OrientationQuaternion = [number, number, number, number];
 export type OrientationPosition = [number, number, number];
 
+export interface OrientationBoundsStatus {
+  inBounds: boolean;
+  width: number;
+  depth: number;
+  height: number;
+  violations: string[];
+}
+
 type LoadingState = "idle" | "running" | "error" | "timeout";
 
 interface OrientationState {
@@ -23,6 +31,7 @@ interface OrientationState {
   interactionDisabled: boolean;
   interactionMessage?: string;
   warnings: string[];
+  boundsStatus: OrientationBoundsStatus | null;
 }
 
 interface OrientationActions {
@@ -39,6 +48,7 @@ interface OrientationActions {
   setInteractionLock: (disabled: boolean, message?: string) => void;
   addWarning: (message: string) => void;
   clearWarnings: () => void;
+  setBoundsStatus: (status: OrientationBoundsStatus | null) => void;
   reset: () => void;
 }
 
@@ -57,6 +67,7 @@ const initialState: OrientationState = {
   autoOrientStatus: "idle",
   interactionDisabled: false,
   warnings: [],
+  boundsStatus: null,
 };
 
 export type OrientationStore = OrientationState & OrientationActions;
@@ -149,6 +160,7 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
       return { warnings: [...state.warnings, message] };
     }),
   clearWarnings: () => set(() => ({ warnings: [] })),
+  setBoundsStatus: (status) => set(() => ({ boundsStatus: status })),
   reset: () => {
     clearOrientationPersistence();
     set({ ...initialState });
@@ -185,6 +197,7 @@ export const useSupports = () =>
       interactionDisabled: state.interactionDisabled,
       interactionMessage: state.interactionMessage,
       warnings: state.warnings,
+      boundsStatus: state.boundsStatus,
     })),
   );
 

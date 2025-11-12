@@ -30,9 +30,3 @@ export function calculateModelCenter(object: THREE.Object3D): THREE.Vector3 {
   }
   return center;
 }
-
-export function centerObjectAtOrigin(object: THREE.Object3D): void {
-  const center = calculateModelCenter(object);
-  object.position.sub(center);
-  object.updateMatrixWorld(true);
-}

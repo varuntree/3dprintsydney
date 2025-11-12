@@ -20,12 +20,13 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
 import { detectOverhangs } from "@/lib/3d/overhang-detector";
 import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
-import { centerObjectAtOrigin } from "@/lib/3d/geometry";
+import { recenterObjectToGround } from "@/lib/3d/coordinates";
 import {
   useOrientationStore,
   OrientationQuaternion,
   OrientationPosition,
 } from "@/stores/orientation-store";
+import { describeBuildVolume } from "@/lib/3d/build-volume";
 import BuildPlate from "./BuildPlate";
 import OverhangHighlight from "./OverhangHighlight";
 import OrientationGizmo from "./OrientationGizmo";
@@ -397,6 +398,7 @@ function Scene({
   const setAnalysisStatus = useOrientationStore((state) => state.setAnalysisStatus);
   const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
   const setInteractionLock = useOrientationStore((state) => state.setInteractionLock);
+  const setBoundsStatus = useOrientationStore((state) => state.setBoundsStatus);
   const addWarning = useOrientationStore((state) => state.addWarning);
   const clearWarnings = useOrientationStore((state) => state.clearWarnings);
   const analysisGeometryRef = useRef<THREE.BufferGeometry | null>(null);
@@ -409,6 +411,7 @@ function Scene({
   const workerRef = useRef<Worker | null>(null);
   const workerFailedRef = useRef(false);
   const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
+  const buildBoundsRef = useRef(new THREE.Box3());
 
   const ext = extFromFilename(filename) ?? "stl";
   const urlKey = `${url}|${filename ?? ""}`;
@@ -418,6 +421,12 @@ function Scene({
     clearWarnings();
     setInteractionLock(false, undefined);
   }, [urlKey, clearWarnings, setInteractionLock]);
+
+  useEffect(() => {
+    return () => {
+      setBoundsStatus(null);
+    };
+  }, [setBoundsStatus]);
 
   useEffect(() => {
     if (largeModel) {
@@ -495,6 +504,23 @@ function Scene({
     }
     serializedGeometryRef.current = { positions: positionsCopy, index: indexCopy };
   }, []);
+
+  const updateBoundsStatus = useCallback(
+    (group?: THREE.Group | null) => {
+      if (!group) {
+        setBoundsStatus(null);
+        return;
+      }
+      buildBoundsRef.current.setFromObject(group);
+      if (buildBoundsRef.current.isEmpty()) {
+        setBoundsStatus(null);
+        return;
+      }
+      const status = describeBuildVolume(buildBoundsRef.current);
+      setBoundsStatus(status);
+    },
+    [setBoundsStatus]
+  );
 
   const runOverhangAnalysis = useCallback(
     (quaternion?: THREE.Quaternion) => {
@@ -606,7 +632,8 @@ function Scene({
     objectRef.current.quaternion.copy(quaternion);
     objectRef.current.updateMatrixWorld(true);
     runOverhangAnalysis(quaternion);
-  }, [storeQuaternion, runOverhangAnalysis]);
+    updateBoundsStatus(objectRef.current);
+  }, [storeQuaternion, runOverhangAnalysis, updateBoundsStatus]);
 
   useEffect(() => {
     thresholdRef.current = overhangThreshold;
@@ -662,7 +689,8 @@ function Scene({
           setAnalysisStatus("error", "No geometry to analyze. Delete and re-upload.");
         }
 
-        centerObjectAtOrigin(group);
+        recenterObjectToGround(group);
+        updateBoundsStatus(group);
 
         if (appliedQuaternion && isIdentityTuple(storeState.quaternion)) {
           setOrientationState(quaternionToTuple(appliedQuaternion), vectorToTuple(group.position), { auto: true });
@@ -800,13 +828,17 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
     const syncOrientationFromGroup = useCallback(
       (options?: { auto?: boolean }) => {
-        if (!sceneObject) return;
+        if (!sceneObject) {
+          updateBoundsStatus(null);
+          return;
+        }
         const group = sceneObject as THREE.Group;
         setOrientationState(quaternionToTuple(group.quaternion), vectorToTuple(group.position), {
           auto: options?.auto,
         });
+        updateBoundsStatus(group);
       },
-      [sceneObject, setOrientationState]
+      [sceneObject, setOrientationState, updateBoundsStatus]
     );
 
     const applyFaceAlignment = useCallback(
@@ -846,7 +878,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           setStatus: setAutoOrientStatus,
           addWarning,
         });
-        centerObjectAtOrigin(group);
+        recenterObjectToGround(group);
+        updateBoundsStatus(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -856,7 +889,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       recenter: () => {
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
-        centerObjectAtOrigin(group);
+        recenterObjectToGround(group);
+        updateBoundsStatus(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -888,7 +922,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           setStatus: setAutoOrientStatus,
           addWarning,
         });
-        centerObjectAtOrigin(group);
+        recenterObjectToGround(group);
+        updateBoundsStatus(group);
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
@@ -982,6 +1017,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           group.position.set(positionTuple[0], positionTuple[1], positionTuple[2]);
         }
         group.updateMatrixWorld(true);
+        updateBoundsStatus(group);
         setOrientationState(quaternionTuple, positionTuple ?? vectorToTuple(group.position));
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -997,11 +1033,13 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       setAutoOrientStatus,
       setOrientationState,
       syncOrientationFromGroup,
+      updateBoundsStatus,
     ]);
 
     const handleReady = (object: THREE.Object3D | null) => {
       setSceneObject(object);
       if (object) {
+        updateBoundsStatus(object as THREE.Group);
         onLoadComplete?.();
         onTransformChange?.(object.matrixWorld.clone());
       }

@@ -1,10 +1,11 @@
 import { memo, useMemo } from "react";
 import { Text } from "@react-three/drei";
+import { BUILD_HEIGHT_MM, BUILD_PLATE_SIZE_MM } from "@/lib/3d/build-volume";
 
-const PLATE_SIZE = 240;
+const PLATE_SIZE = BUILD_PLATE_SIZE_MM;
 const GRID_DIVISIONS = 24;
-const AXIS_LENGTH = 120;
-const BUILD_HEIGHT = 240;
+const AXIS_LENGTH = PLATE_SIZE / 2;
+const BUILD_HEIGHT = BUILD_HEIGHT_MM;
 
 const labelPositions: [number, number, number][] = [
   [PLATE_SIZE / 2 + 6, 0.1, PLATE_SIZE / 2 + 6],
