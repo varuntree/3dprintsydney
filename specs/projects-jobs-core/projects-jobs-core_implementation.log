@@ -1,0 +1,5 @@
+Plan created on 2025-11-12 02:21:30 UTC
+2025-11-12 14:45 UTC - Added client status helpers, project counters, and new `listClientProjects` + archive/unarchive helpers in `jobs.ts`. Updated dashboard service to deliver project counters with wallet data.
+2025-11-12 14:58 UTC - Added client-facing APIs for listing projects, reorder, and archive/unarchive flows plus the new project reorder service.
+2025-11-12 15:10 UTC - Built the ClientHomeCTA + ProjectCard + status badge + reorder button, created active/history/completed/archived views + routes, and updated navigation and design tokens.
+2025-11-12 15:20 UTC - Added E2E instructions for the new project flow.

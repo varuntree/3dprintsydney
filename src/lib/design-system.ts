@@ -29,6 +29,8 @@ export const STATUS_MAPPINGS = {
   PENDING: "warning",
   DRAFT: "warning",
   WAITING: "warning",
+  PENDING_PRINT: "info",
+  PENDING_PAYMENT: "warning",
   OVERDUE: "warning",
 
   DECLINED: "danger",

@@ -1,5 +1,13 @@
 # Plan: Client Portal UX & Flow Improvements
 
+## Issue Checklist
+- [ ] Home dashboard redesign with CTA cards and wallet summary (deferred)
+- [ ] Orientation lock gate + hard reset + step navigation controls (deferred)
+- [ ] Address autocomplete & shipping estimation details (deferred)
+- [x] Active Projects view, filters, and `/client/projects/active` route (complete)
+- [x] Print Again history view, search, pagination, and `/client/projects/history` route (complete)
+- [x] Client navigation update with new Projects section (complete)
+
 ## Plan Description
 Comprehensive overhaul of the client portal experience to streamline navigation and improve the QuickPrint configurator workflow. This includes redesigning the home page with three clear CTAs (New Project, Active Projects, Print Again), implementing proper orientation locking gates, adding step navigation controls (next/previous), implementing a hard reset function, integrating Google Places autocomplete for addresses, and adding shipping cost estimation by postcode/distance.
 

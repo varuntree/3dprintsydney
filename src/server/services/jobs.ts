@@ -7,7 +7,9 @@ import {
   JobStatus,
   PrinterStatus,
 } from "@/lib/constants/enums";
+import { ClientProjectStatus } from "@/lib/constants/client-project-status";
 import { getServiceSupabase } from "@/server/supabase/service-client";
+import { getOrderFilesByInvoice } from "@/server/services/order-files";
 import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
 import { emailService } from "@/server/services/email";
 import { getAppUrl } from "@/lib/env";
@@ -17,6 +19,7 @@ import type {
   JobBoardSnapshotDTO,
   JobFilters,
 } from '@/lib/types/jobs';
+import type { ClientProjectSummary } from '@/lib/types/dashboard';
 
 type BoardFilters = JobFilters;
 
@@ -157,6 +160,40 @@ function mapClientJob(row: JobWithRelationsRow): ClientJobSummary {
     updatedAt: new Date(row.updated_at),
     createdAt: new Date(row.created_at),
   };
+}
+
+function mapToClientStatus(
+  jobStatus: JobStatus | string | null | undefined,
+  invoiceStatus: InvoiceStatus | string | null | undefined,
+  balanceDue: number | null | undefined,
+): ClientProjectStatus {
+  const normalizedInvoiceStatus =
+    typeof invoiceStatus === "string" ? invoiceStatus.toUpperCase() : "";
+  const hasPendingInvoice =
+    normalizedInvoiceStatus !== InvoiceStatus.PAID || (balanceDue ?? 0) > 0;
+  if (hasPendingInvoice) {
+    return ClientProjectStatus.PENDING_PAYMENT;
+  }
+
+  const status = (jobStatus ?? JobStatus.QUEUED) as JobStatus;
+  if (status === JobStatus.COMPLETED || status === JobStatus.CANCELLED) {
+    return ClientProjectStatus.COMPLETED;
+  }
+
+  return ClientProjectStatus.PENDING_PRINT;
+}
+
+async function ensureOrientationLocked(invoiceId: number | null | undefined) {
+  if (!invoiceId) return;
+  const files = await getOrderFilesByInvoice(invoiceId);
+  if (files.length === 0) return;
+  const allLocked = files.every((file) => {
+    const metadata = file.metadata as Record<string, unknown> | null;
+    return metadata?.orientation && (metadata.orientation as Record<string, unknown>)?.locked === true;
+  });
+  if (!allLocked) {
+    throw new BadRequestError("Cannot start printing: orientation must be locked for all files");
+  }
 }
 
 async function getOpsSettings(): Promise<SettingsOptions> {
@@ -363,7 +400,7 @@ async function fetchJobWithRelations(id: number): Promise<JobWithRelationsRow> {
   const { data, error } = await supabase
     .from("jobs")
     .select(
-      "*, clients(id, name, email, notify_on_job_status), invoices(id, number, status), printers(id, name, status)",
+      "*, clients(id, name, email, notify_on_job_status), invoices(id, number, status, balance_due), printers(id, name, status)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -511,6 +548,87 @@ export async function listJobsForClient(
   return (data as JobWithRelationsRow[]).map(mapClientJob);
 }
 
+type ClientProjectsListOptions = {
+  status?: "active" | "completed" | "archived";
+  limit?: number;
+  offset?: number;
+  search?: string;
+};
+
+export async function listClientProjects(
+  clientId: number,
+  options?: ClientProjectsListOptions,
+): Promise<{ projects: ClientProjectSummary[]; total: number }> {
+  const supabase = getServiceSupabase();
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+  let query = supabase
+    .from("jobs")
+    .select(
+      "id, title, description, status, created_at, updated_at, archived_at, invoice_id, invoices(id, number, status, total, balance_due)",
+      { count: "exact" },
+    )
+    .eq("client_id", clientId)
+    .order("created_at", { ascending: false });
+
+  switch (options?.status) {
+    case "active":
+      query = query.is("archived_at", null).not("status", "eq", JobStatus.COMPLETED);
+      break;
+    case "completed":
+      query = query.is("archived_at", null).eq("status", JobStatus.COMPLETED);
+      break;
+    case "archived":
+      query = query.not("archived_at", "is", null);
+      break;
+    default:
+      break;
+  }
+
+  const search = options?.search?.trim();
+  if (search) {
+    const pattern = `%${search}%`;
+    query = query.or(`title.ilike.${pattern},description.ilike.${pattern}`);
+  }
+
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
+  if (error) {
+    throw new AppError(`Failed to list projects: ${error.message}`, 'DATABASE_ERROR', 500);
+  }
+
+  const projects = (data ?? []).map((row) => {
+    const invoice = row.invoices ?? null;
+    const balanceDue = toNumber((invoice as { balance_due?: string | number })?.balance_due) ?? 0;
+    const clientStatus = mapToClientStatus(
+      (row.status ?? JobStatus.QUEUED) as JobStatus,
+      invoice?.status ?? null,
+      balanceDue,
+    );
+    return {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      invoiceId: invoice?.id ?? row.invoice_id ?? null,
+      invoiceNumber: invoice?.number ?? null,
+      total: toNumber((invoice as { total?: string | number })?.total) ?? 0,
+      balanceDue,
+      clientStatus,
+      invoiceStatus: invoice?.status ?? null,
+      jobStatus: row.status ?? JobStatus.QUEUED,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      archivedAt: row.archived_at,
+    };
+  });
+
+  return {
+    projects,
+    total: count ?? projects.length,
+  };
+}
+
 /**
  * Updates job details and optionally reassigns to a different printer
  * @param id - The job ID
@@ -631,6 +749,7 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
     };
 
     if (status === JobStatus.PRINTING) {
+      await ensureOrientationLocked(jobRecord.invoice_id);
       if (!jobRecord.printer_id) {
         throw new BadRequestError("Cannot start printing without a printer assignment");
       }
@@ -654,6 +773,16 @@ export async function updateJobStatus(id: number, status: JobStatus, note?: stri
       updates.paused_at = now.toISOString();
     } else if (status === JobStatus.COMPLETED) {
       await accumulateRun();
+      const globalSettings = await getSettings();
+      if (globalSettings?.jobCreationPolicy === JobCreationPolicy.ON_PAYMENT) {
+        const invoice = jobRecord.invoices ?? null;
+        const invoiceBalance = toNumber((invoice as { balance_due?: string | number })?.balance_due) ?? 0;
+        if (invoice?.status !== InvoiceStatus.PAID || invoiceBalance > 0) {
+          throw new BadRequestError(
+            'Cannot mark completed: invoice must be paid',
+          );
+        }
+      }
       updates.completed_at = now.toISOString();
       if (!jobRecord.started_at) {
         updates.started_at = now.toISOString();
@@ -958,6 +1087,43 @@ export async function bulkArchiveJobs(ids: number[], reason?: string) {
       message: "Failed to bulk archive jobs",
       error,
       data: { ids, reason: reason ?? null },
+    });
+    throw error;
+  }
+}
+
+export async function bulkUnarchiveJobs(ids: number[]) {
+  if (ids.length === 0) return 0;
+  const scope = "jobs.unarchive.bulk";
+  const startTime = Date.now();
+  logger.info({
+    scope,
+    message: "Bulk unarchiving jobs",
+    data: { count: ids.length },
+  });
+  try {
+    const supabase = getServiceSupabase();
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        archived_at: null,
+        archived_reason: null,
+      })
+      .in("id", ids);
+    if (error) {
+      throw new AppError(`Failed to bulk unarchive jobs: ${error.message}`, 'DATABASE_ERROR', 500);
+    }
+    logger.timing(scope, startTime, {
+      message: "Jobs bulk unarchived",
+      data: { count: ids.length },
+    });
+    return ids.length;
+  } catch (error) {
+    logger.error({
+      scope,
+      message: "Failed to bulk unarchive jobs",
+      error,
+      data: { ids },
     });
     throw error;
   }

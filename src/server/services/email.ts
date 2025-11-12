@@ -71,7 +71,7 @@ class EmailService {
     let result = template;
     Object.entries(variables).forEach(([key, value]) => {
       result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
-    } });
+    });
     return result;
   }
 
@@ -93,22 +93,28 @@ class EmailService {
       }
 
       if (!settings.enableEmailSend) {
-        logger.info({ scope: 'email.send', data: {
-          to: 'disabled',
-          template: templateType,
-          success: false,
-          reason: 'email_sending_disabled',
-        } });
+        logger.info({
+          scope: 'email.send',
+          data: {
+            to: 'disabled',
+            template: templateType,
+            success: false,
+            reason: 'email_sending_disabled',
+          },
+        });
         return { success: false, error: 'Email sending is disabled' };
       }
 
       if (!this.resend) {
-        logger.error({ scope: 'email.send', data: {
-          to,
-          template: templateType,
-          success: false,
-          error: 'Resend API key not configured',
-        } });
+        logger.error({
+          scope: 'email.send',
+          data: {
+            to,
+            template: templateType,
+            success: false,
+            error: 'Resend API key not configured',
+          },
+        });
         return { success: false, error: 'Email service not configured' };
       }
 
@@ -127,18 +133,21 @@ class EmailService {
             to: recipient,
             subject,
             html,
-          } });
+          });
 
           if (error) {
             // Don't retry on 4xx errors (client errors)
             if (error.message?.includes('4')) {
-              logger.error({ scope: 'email.send', data: {
-                to: recipient,
-                template: templateType,
-                success: false,
-                error: error.message,
-                attempt,
-              } });
+              logger.error({
+                scope: 'email.send',
+                data: {
+                  to: recipient,
+                  template: templateType,
+                  success: false,
+                  error: error.message,
+                  attempt,
+                },
+              });
               return { success: false, error: error.message };
             }
 
@@ -146,13 +155,16 @@ class EmailService {
           }
 
           const duration = Date.now() - startTime;
-          logger.info({ scope: 'email.send', data: {
-            to: recipient,
-            template: templateType,
-            success: true,
-            duration,
-            messageId: data?.id,
-          } });
+          logger.info({
+            scope: 'email.send',
+            data: {
+              to: recipient,
+              template: templateType,
+              success: true,
+              duration,
+              messageId: data?.id,
+            },
+          });
 
           return { success: true, messageId: data?.id };
         } catch (err) {
@@ -167,27 +179,33 @@ class EmailService {
 
       // All retries failed
       const duration = Date.now() - startTime;
-      logger.error({ scope: 'email.send', data: {
-        to: recipient,
-        template: templateType,
-        success: false,
-        error: lastError?.message,
-        duration,
-        attempts: 3,
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to: recipient,
+          template: templateType,
+          success: false,
+          error: lastError?.message,
+          duration,
+          attempts: 3,
+        },
+      });
 
       return { success: false, error: lastError?.message || 'Failed to send email' };
     } catch (err) {
       const duration = Date.now() - startTime;
       const error = err instanceof Error ? err.message : String(err);
 
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: templateType,
-        success: false,
-        error,
-        duration,
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: templateType,
+          success: false,
+          error,
+          duration,
+        },
+      });
 
       return { success: false, error };
     }
@@ -203,19 +221,22 @@ class EmailService {
       const subject = this.replaceVariables(template.subject, {
         quoteNumber: data.quoteNumber,
         businessName: data.businessName,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(QuoteSentEmail(emailProps));
 
       return this.send(to, subject, html, 'quote_sent');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'quote_sent',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'quote_sent',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -230,19 +251,22 @@ class EmailService {
       const subject = this.replaceVariables(template.subject, {
         invoiceNumber: data.invoiceNumber,
         businessName: data.businessName,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(InvoiceCreatedEmail(emailProps));
 
       return this.send(to, subject, html, 'invoice_created');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'invoice_created',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'invoice_created',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -260,19 +284,22 @@ class EmailService {
 
       const subject = this.replaceVariables(template.subject, {
         invoiceNumber: data.invoiceNumber,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(PaymentConfirmationEmail(emailProps));
 
       return this.send(to, subject, html, 'payment_confirmation');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'payment_confirmation',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'payment_confirmation',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -290,19 +317,22 @@ class EmailService {
       const subject = this.replaceVariables(template.subject, {
         jobNumber: data.jobNumber,
         status: data.status,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(JobStatusUpdateEmail(emailProps));
 
       return this.send(to, subject, html, 'job_status');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'job_status',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'job_status',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -315,19 +345,22 @@ class EmailService {
 
       const subject = this.replaceVariables(template.subject, {
         businessName: data.businessName,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(WelcomeEmail(emailProps));
 
       return this.send(to, subject, html, 'welcome');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'welcome',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'welcome',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -341,19 +374,22 @@ class EmailService {
 
       const subject = this.replaceVariables(template.subject, {
         quoteNumber: data.quoteNumber,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(QuoteAcceptedEmail(emailProps));
 
       return this.send(to, subject, html, 'quote_accepted');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'quote_accepted',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'quote_accepted',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }
@@ -367,19 +403,22 @@ class EmailService {
 
       const subject = this.replaceVariables(template.subject, {
         quoteNumber: data.quoteNumber,
-      } });
+      });
 
       const emailProps = { ...data, customMessage: template.body };
       const html = await render(QuoteDeclinedEmail(emailProps));
 
       return this.send(to, subject, html, 'quote_declined');
     } catch (error) {
-      logger.error({ scope: 'email.send', data: {
-        to,
-        template: 'quote_declined',
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      } });
+      logger.error({
+        scope: 'email.send',
+        data: {
+          to,
+          template: 'quote_declined',
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
       return { success: false, error: 'Failed to render email template' };
     }
   }

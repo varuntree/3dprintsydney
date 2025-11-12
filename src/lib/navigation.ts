@@ -44,7 +44,6 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
     items: [
       { name: "Home", href: "/client", icon: "home" },
       { name: "QuickPrint", href: "/quick-order", icon: "rocket" },
-      { name: "Projects", href: "/client/orders", icon: "receipt" },
       { name: "Messages", href: "/client/messages", icon: "messages-square" },
       { name: "Settings", href: "/client/account", icon: "settings" },
     ],
@@ -55,6 +54,7 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
       { name: "New Project", href: "/quick-order", icon: "plus" },
       { name: "Active Projects", href: "/client/projects/active", icon: "clock" },
       { name: "Print Again", href: "/client/projects/history", icon: "repeat" },
+      { name: "Archived", href: "/client/projects/archived", icon: "archive" },
     ],
   },
 ];

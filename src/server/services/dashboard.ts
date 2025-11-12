@@ -1,5 +1,6 @@
 import { format, startOfMonth, subDays, subMonths } from "date-fns";
 import { InvoiceStatus, JobStatus, QuoteStatus } from "@/lib/constants/enums";
+import { ClientProjectCounters } from "@/lib/types/dashboard";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
@@ -61,6 +62,52 @@ function decimalToNumber(value: unknown): number {
   if (typeof value === "number") return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function getClientProjectCounters(clientId: number, walletBalance: number): Promise<ClientProjectCounters> {
+  const supabase = getServiceSupabase();
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("status, invoice:invoices(status, balance_due)")
+    .eq("client_id", clientId)
+    .is("archived_at", null);
+
+  if (error) {
+    throw new AppError(
+      `Failed to load client projects for counters: ${error.message}`,
+      'DASHBOARD_ERROR',
+      500,
+    );
+  }
+
+  let pendingPrint = 0;
+  let pendingPayment = 0;
+  let completed = 0;
+
+  (data ?? []).forEach((row) => {
+    const invoiceStatus = (row.invoice?.status ?? "").toUpperCase();
+    const balanceDue = decimalToNumber((row.invoice as { balance_due?: unknown })?.balance_due);
+    const needsPayment =
+      invoiceStatus !== InvoiceStatus.PAID || (balanceDue > 0);
+    if (needsPayment) {
+      pendingPayment += 1;
+      return;
+    }
+
+    if ((row.status ?? JobStatus.QUEUED) === JobStatus.COMPLETED) {
+      completed += 1;
+      return;
+    }
+
+    pendingPrint += 1;
+  });
+
+  return {
+    pendingPrint,
+    pendingPayment,
+    completed,
+    availableCredit: walletBalance,
+  };
 }
 
 function buildActivityContext(activity: ActivityRow): string {
@@ -469,6 +516,7 @@ export async function getClientDashboardStats(
   const walletBalance = decimalToNumber(
     (clientRes.data as { wallet_balance: unknown } | null)?.wallet_balance
   );
+  const projectCounters = await getClientProjectCounters(clientId, walletBalance);
 
   return {
     totalOrders,
@@ -476,5 +524,6 @@ export async function getClientDashboardStats(
     paidCount,
     totalSpent,
     walletBalance,
+    projectCounters,
   };
 }
