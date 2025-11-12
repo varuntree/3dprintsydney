@@ -49,6 +49,14 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
       { name: "Settings", href: "/client/account", icon: "settings" },
     ],
   },
+  {
+    title: "Projects",
+    items: [
+      { name: "New Project", href: "/quick-order", icon: "plus" },
+      { name: "Active Projects", href: "/client/projects/active", icon: "clock" },
+      { name: "Print Again", href: "/client/projects/history", icon: "repeat" },
+    ],
+  },
 ];
 
 export function getNavSections(role: "ADMIN" | "CLIENT" | null | undefined): NavSection[] {
