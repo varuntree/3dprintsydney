@@ -62,9 +62,9 @@ function parseOrientationPayload(body: Record<string, unknown>):
       ? body.fileId
       : null;
   const quaternion = parseNumberTuple(body.quaternion, 4);
-  const position = parseNumberTuple(body.position, 3) ?? [0, 0, 0];
+  const position = parseNumberTuple(body.position, 3);
 
-  if (!rawId || !quaternion) {
+  if (!rawId || !quaternion || !position) {
     return null;
   }
 

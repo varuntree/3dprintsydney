@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, forwardRef } from "react";
+import { useState, useEffect, forwardRef, type ForwardedRef } from "react";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ModelViewerHandle } from "./ModelViewer";
@@ -41,7 +41,7 @@ const ModelViewerWrapper = forwardRef<ModelViewerHandle, ModelViewerWrapperProps
 
   return (
     <div className={isMobile ? "mx-auto w-full max-w-[min(480px,100%)]" : "w-full"}>
-      <ModelViewer ref={ref as any} {...props} />
+      <ModelViewer ref={ref as ForwardedRef<ModelViewerHandle>} {...props} />
     </div>
   );
 });

@@ -1,6 +1,14 @@
+export type NavItem = {
+  name: string;
+  href: string;
+  icon: string;
+  /** Controls whether the item should be highlighted when the href matches the current pathname */
+  highlight?: boolean;
+};
+
 export type NavSection = {
   title?: string;
-  items: { name: string; href: string; icon: string }[];
+  items: NavItem[];
 };
 
 export const OWNER_NAV_SECTIONS: NavSection[] = [
@@ -51,7 +59,7 @@ export const CLIENT_NAV_SECTIONS: NavSection[] = [
   {
     title: "Projects",
     items: [
-      { name: "New Project", href: "/quick-order", icon: "plus" },
+      { name: "New Project", href: "/quick-order", icon: "plus", highlight: false },
       { name: "Active Projects", href: "/client/projects/active", icon: "clock" },
       { name: "Print Again", href: "/client/projects/history", icon: "repeat" },
       { name: "Archived", href: "/client/projects/archived", icon: "archive" },

@@ -16,6 +16,7 @@ import { AdaptiveDpr, Html, OrbitControls } from "@react-three/drei";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
 import { detectOverhangs } from "@/lib/3d/overhang-detector";
@@ -25,16 +26,16 @@ import {
   useOrientationStore,
   OrientationQuaternion,
   OrientationPosition,
+  OrientationBoundsStatus,
 } from "@/stores/orientation-store";
-import { describeBuildVolume } from "@/lib/3d/build-volume";
+import { describeBuildVolume, HALF_PLATE_MM } from "@/lib/3d/build-volume";
 import BuildPlate from "./BuildPlate";
 import OverhangHighlight from "./OverhangHighlight";
-import OrientationGizmo from "./OrientationGizmo";
+import OrientationGizmo, { type GizmoMode } from "./OrientationGizmo";
 import { browserLogger } from "@/lib/logging/browser-logger";
 import { useWebGLContext } from "@/hooks/use-webgl-context";
 
 type SupportedExt = "stl" | "3mf";
-
 function extFromFilename(name?: string | null): SupportedExt | null {
   if (!name) return null;
   const ext = name.toLowerCase().split(".").pop();
@@ -62,6 +63,7 @@ export interface ModelViewerHandle {
   getOrientation: () => { quaternion: OrientationQuaternion; position: OrientationPosition };
   setOrientation: (quaternion: OrientationQuaternion, position?: OrientationPosition) => void;
   setGizmoEnabled: (enabled: boolean) => void;
+  setGizmoMode: (mode: GizmoMode) => void;
 }
 
 interface ModelViewerProps {
@@ -81,7 +83,7 @@ function mergeObjectGeometries(root: THREE.Object3D): THREE.BufferGeometry | nul
   root.updateMatrixWorld(true);
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
-    if ((mesh as any).isMesh && mesh.geometry) {
+    if (mesh.isMesh && mesh.geometry) {
       const cloned = mesh.geometry.clone();
       const world = mesh.matrixWorld.clone();
       cloned.applyMatrix4(world);
@@ -131,15 +133,29 @@ function isIdentityTuple(tuple: OrientationQuaternion) {
 }
 
 const tempBox = new THREE.Box3();
-const tempCenter = new THREE.Vector3();
 const tempSphere = new THREE.Sphere();
-const tempCenterVec = new THREE.Vector3();
 const tempDir = new THREE.Vector3();
+const tempTranslation = new THREE.Vector3();
+const DEFAULT_BOUNDS_MESSAGE = "Model exceeds the 240mm build volume. Reposition before locking orientation.";
+
+function computeBoundsStatusFromObject(object: THREE.Object3D | null): OrientationBoundsStatus | null {
+  if (!object) return null;
+  tempBox.setFromObject(object);
+  if (tempBox.isEmpty()) return null;
+  return describeBuildVolume(tempBox);
+}
+
+function formatBoundsMessage(status: OrientationBoundsStatus): string {
+  if (!status.violations.length) {
+    return DEFAULT_BOUNDS_MESSAGE;
+  }
+  return `Build volume exceeded: ${status.violations[0]}`;
+}
 
 function fitCameraToGroup(
   group: THREE.Group,
   camera: THREE.PerspectiveCamera,
-  controls?: any
+  controls?: OrbitControlsImpl | null
 ) {
   tempBox.setFromObject(group);
   if (tempBox.isEmpty()) return;
@@ -177,12 +193,11 @@ function getGroupRadius(group: THREE.Group): number {
 function positionCameraForPreset(
   group: THREE.Group,
   camera: THREE.PerspectiveCamera,
-  controls: any,
+  controls: OrbitControlsImpl | null,
   preset: ViewPreset
 ) {
   const radius = getGroupRadius(group);
   const distance = Math.max(radius * 2, 25);
-  const tilt = radius * 0.2;
 
   switch (preset) {
     case "top":
@@ -326,17 +341,17 @@ function STLObject({ url, onLoaded }: { url: string; onLoaded?: () => void }) {
 }
 
 function ThreeMFObject({ url, onLoaded }: { url: string; onLoaded?: () => void }) {
-  const groupRaw = useLoader(ThreeMFLoader as any, url) as THREE.Group;
+  const groupRaw = useLoader(ThreeMFLoader, url) as THREE.Group;
   const groupRef = useRef<THREE.Group>(null);
   const group = useMemo(() => {
     const g = groupRaw.clone(true);
     const defaultMat = new THREE.MeshStandardMaterial({ color: "#ff7435", metalness: 0.0, roughness: 0.8 });
     g.traverse((obj) => {
-      if ((obj as any).isMesh) {
-        const m = obj as THREE.Mesh;
-        m.material = defaultMat;
-        m.castShadow = false;
-        m.receiveShadow = false;
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh) {
+        mesh.material = defaultMat;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
       }
     });
     return g;
@@ -368,8 +383,9 @@ function Scene({
   onError,
   onTransformChange,
   onCameraReady,
-  helpersVisible: _helpersVisible = false,
+  helpersVisible = false,
   gizmoEnabled = false,
+  gizmoMode = "rotate",
   facePickMode = false,
   onFacePickRequest,
   overhangThreshold = 45,
@@ -380,17 +396,19 @@ function Scene({
   onReady: (object: THREE.Object3D | null) => void;
   onError?: (error: Error) => void;
   onTransformChange?: (matrix: THREE.Matrix4) => void;
-  onCameraReady?: (camera: THREE.PerspectiveCamera, controls: any) => void;
+  onCameraReady?: (camera: THREE.PerspectiveCamera, controls: OrbitControlsImpl | null) => void;
   helpersVisible?: boolean;
   gizmoEnabled?: boolean;
+  gizmoMode?: GizmoMode;
   facePickMode?: boolean;
   onFacePickRequest?: (normal: THREE.Vector3) => void;
   overhangThreshold?: number;
 }) {
   const { camera, gl } = useThree();
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const objectRef = useRef<THREE.Group | null>(null);
   const storeQuaternion = useOrientationStore((state) => state.quaternion);
+  const storePosition = useOrientationStore((state) => state.position);
   const overhangFaces = useOrientationStore((state) => state.overhangFaces);
   const supportEnabled = useOrientationStore((state) => state.supportEnabled);
   const setOrientationState = useOrientationStore((state) => state.setOrientation);
@@ -411,7 +429,7 @@ function Scene({
   const workerRef = useRef<Worker | null>(null);
   const workerFailedRef = useRef(false);
   const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
-  const buildBoundsRef = useRef(new THREE.Box3());
+  const boundsLockRef = useRef<{ active: boolean; message: string | null }>({ active: false, message: null });
 
   const ext = extFromFilename(filename) ?? "stl";
   const urlKey = `${url}|${filename ?? ""}`;
@@ -425,8 +443,15 @@ function Scene({
   useEffect(() => {
     return () => {
       setBoundsStatus(null);
+      if (boundsLockRef.current.active) {
+        const store = useOrientationStore.getState();
+        if (store.interactionMessage === boundsLockRef.current.message) {
+          setInteractionLock(false, undefined);
+        }
+        boundsLockRef.current = { active: false, message: null };
+      }
     };
-  }, [setBoundsStatus]);
+  }, [setBoundsStatus, setInteractionLock]);
 
   useEffect(() => {
     if (largeModel) {
@@ -435,14 +460,14 @@ function Scene({
   }, [addWarning, largeModel]);
 
   const performOverhangAnalysis = useCallback(
-    (quaternion: THREE.Quaternion) => {
+    (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
       const geometry = analysisGeometryRef.current;
       if (!geometry) {
         setAnalysisStatus("error", "No geometry available for overhang analysis.");
         return;
       }
       try {
-        const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45);
+        const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45, translation ?? null);
         setOverhangData({
           faces: data.overhangFaceIndices,
           supportVolume: data.supportVolume,
@@ -462,22 +487,40 @@ function Scene({
   );
 
   const dispatchOverhangAnalysis = useCallback(
-    (quaternion: THREE.Quaternion) => {
+    (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
       const worker = workerRef.current;
       const serialized = serializedGeometryRef.current;
       setAnalysisStatus("running", "Detecting overhangs…");
-      if (worker && serialized && !workerFailedRef.current) {
+      const translationTuple = translation
+        ? ([translation.x, translation.y, translation.z] as [number, number, number])
+        : null;
+      if (worker && serialized && !workerFailedRef.current && !largeModel) {
         worker.postMessage({
           positions: serialized.positions.slice(0),
           index: serialized.index ? serialized.index.slice(0) : null,
           quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
+          position: translationTuple,
           threshold: thresholdRef.current ?? 45,
         });
         return;
       }
-      performOverhangAnalysis(quaternion);
+
+      const reason = largeModel
+        ? "large-model"
+        : !worker || workerFailedRef.current
+          ? "worker-unavailable"
+          : "geometry-missing";
+      browserLogger.info({
+        scope: "browser.overhang.analysis",
+        message: "Falling back to inline overhang estimation",
+        data: {
+          reason,
+          fileSizeBytes,
+        },
+      });
+      performOverhangAnalysis(quaternion, translation);
     },
-    [performOverhangAnalysis, setAnalysisStatus]
+    [fileSizeBytes, largeModel, performOverhangAnalysis, setAnalysisStatus]
   );
 
   const cloneGeometryForWorker = useCallback((geometry: THREE.BufferGeometry | null) => {
@@ -507,34 +550,94 @@ function Scene({
 
   const updateBoundsStatus = useCallback(
     (group?: THREE.Group | null) => {
-      if (!group) {
-        setBoundsStatus(null);
-        return;
-      }
-      buildBoundsRef.current.setFromObject(group);
-      if (buildBoundsRef.current.isEmpty()) {
-        setBoundsStatus(null);
-        return;
-      }
-      const status = describeBuildVolume(buildBoundsRef.current);
+      const status = computeBoundsStatusFromObject(group ?? objectRef.current);
       setBoundsStatus(status);
+      if (status && !status.inBounds) {
+        const message = formatBoundsMessage(status);
+        if (!boundsLockRef.current.active || boundsLockRef.current.message !== message) {
+          boundsLockRef.current = { active: true, message };
+          setInteractionLock(true, message);
+        }
+      } else if (boundsLockRef.current.active) {
+        const store = useOrientationStore.getState();
+        if (store.interactionMessage === boundsLockRef.current.message) {
+          setInteractionLock(false, undefined);
+        }
+        boundsLockRef.current = { active: false, message: null };
+      }
     },
-    [setBoundsStatus]
+    [setBoundsStatus, setInteractionLock]
   );
+  const clampGroupToBuildVolume = useCallback((group: THREE.Group) => {
+    tempBox.setFromObject(group);
+    if (tempBox.isEmpty()) return;
+    let deltaX = 0;
+    if (tempBox.min.x < -HALF_PLATE_MM) {
+      deltaX = -HALF_PLATE_MM - tempBox.min.x;
+    } else if (tempBox.max.x > HALF_PLATE_MM) {
+      deltaX = HALF_PLATE_MM - tempBox.max.x;
+    }
+    let deltaZ = 0;
+    if (tempBox.min.z < -HALF_PLATE_MM) {
+      deltaZ = -HALF_PLATE_MM - tempBox.min.z;
+    } else if (tempBox.max.z > HALF_PLATE_MM) {
+      deltaZ = HALF_PLATE_MM - tempBox.max.z;
+    }
+    let deltaY = 0;
+    if (tempBox.min.y < 0) {
+      deltaY = -tempBox.min.y;
+    }
+    if (deltaX !== 0 || deltaY !== 0 || deltaZ !== 0) {
+      group.position.x += deltaX;
+      group.position.y += deltaY;
+      group.position.z += deltaZ;
+      group.updateMatrixWorld(true);
+    }
+  }, []);
 
   const runOverhangAnalysis = useCallback(
-    (quaternion?: THREE.Quaternion) => {
+    (quaternion?: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
       if (overhangTimeoutRef.current) {
         clearTimeout(overhangTimeoutRef.current);
       }
       const targetQuat = quaternion ?? objectRef.current?.quaternion ?? null;
+      const targetTranslation = translation ?? objectRef.current?.position ?? null;
       if (!targetQuat) return;
-      const cloned = targetQuat.clone();
+      const clonedQuat = targetQuat.clone();
+      const clonedTranslation = targetTranslation ? targetTranslation.clone() : null;
       overhangTimeoutRef.current = setTimeout(() => {
-        dispatchOverhangAnalysis(cloned);
+        dispatchOverhangAnalysis(clonedQuat, clonedTranslation);
       }, 300);
     },
     [dispatchOverhangAnalysis]
+  );
+
+  const handleGizmoTransform = useCallback(
+    (obj: THREE.Object3D) => {
+      const group = obj as THREE.Group;
+      if (gizmoMode === "translate") {
+        clampGroupToBuildVolume(group);
+      }
+      updateBoundsStatus(group);
+      if (onTransformChange) {
+        onTransformChange(group.matrixWorld.clone());
+      }
+    },
+    [clampGroupToBuildVolume, gizmoMode, onTransformChange, updateBoundsStatus]
+  );
+
+  const handleGizmoTransformComplete = useCallback(
+    (obj: THREE.Object3D) => {
+      const group = obj as THREE.Group;
+      if (gizmoMode === "translate") {
+        clampGroupToBuildVolume(group);
+      }
+      updateBoundsStatus(group);
+      if (onTransformChange) {
+        onTransformChange(group.matrixWorld.clone());
+      }
+    },
+    [clampGroupToBuildVolume, gizmoMode, onTransformChange, updateBoundsStatus]
   );
 
   const handleModelLoaded = useCallback(() => {
@@ -629,11 +732,14 @@ function Scene({
   useEffect(() => {
     if (!objectRef.current) return;
     const quaternion = tupleToQuaternion(storeQuaternion);
+    const [px, py, pz] = storePosition;
     objectRef.current.quaternion.copy(quaternion);
+    objectRef.current.position.set(px, py, pz);
     objectRef.current.updateMatrixWorld(true);
-    runOverhangAnalysis(quaternion);
+    tempTranslation.set(px, py, pz);
+    runOverhangAnalysis(quaternion, tempTranslation);
     updateBoundsStatus(objectRef.current);
-  }, [storeQuaternion, runOverhangAnalysis, updateBoundsStatus]);
+  }, [storePosition, storeQuaternion, runOverhangAnalysis, updateBoundsStatus]);
 
   useEffect(() => {
     thresholdRef.current = overhangThreshold;
@@ -700,7 +806,7 @@ function Scene({
         fitCameraToGroup(group, persp, controlsRef.current);
 
         preparedForKeyRef.current = urlKey;
-        runOverhangAnalysis(appliedQuaternion ?? group.quaternion.clone());
+        runOverhangAnalysis(appliedQuaternion ?? group.quaternion.clone(), group.position.clone());
         onReady(group);
       } catch (err) {
         browserLogger.error({
@@ -727,6 +833,7 @@ function Scene({
       setAutoOrientStatus,
       setInteractionLock,
       setOrientationState,
+      updateBoundsStatus,
       urlKey,
     ]
   );
@@ -740,15 +847,16 @@ function Scene({
   // Emit transform changes only when user interaction actually changes the scene
   useEffect(() => {
     if (!controlsRef.current || !onTransformChange || !objectRef.current) return;
+    const controls = controlsRef.current;
     const handler = () => {
       if (objectRef.current) {
         onTransformChange(objectRef.current.matrixWorld.clone());
       }
     };
-    controlsRef.current.addEventListener("change", handler);
+    controls.addEventListener("change", handler);
     return () => {
       try {
-        controlsRef.current?.removeEventListener("change", handler);
+        controls.removeEventListener("change", handler);
       } catch {}
     };
   }, [onTransformChange]);
@@ -759,7 +867,7 @@ function Scene({
       <hemisphereLight intensity={0.8} groundColor={"#bcbcbc"} color={"#ffffff"} />
       <directionalLight intensity={0.5} position={[40, 80, 40]} />
 
-      <BuildPlate />
+      {helpersVisible ? <BuildPlate /> : null}
 
       {/* Loaded object group */}
       <group ref={objectRef}>
@@ -777,7 +885,11 @@ function Scene({
         <OrientationGizmo
           target={objectRef.current}
           enabled={gizmoEnabled}
+          mode={gizmoMode}
+          translationSnap={1}
           onDraggingChange={setGizmoDragging}
+          onTransform={handleGizmoTransform}
+          onTransformComplete={handleGizmoTransformComplete}
         />
       ) : null}
 
@@ -814,32 +926,46 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
   }, ref) => {
   const [sceneObject, setSceneObject] = useState<THREE.Object3D | null>(null);
   const [error, setError] = useState<Error | null>(null);
-  const [helpersVisible, setHelpersVisible] = useState(false);
-  const [gizmoEnabled, setGizmoEnabledState] = useState(false);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<any | null>(null);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
 
   useWebGLContext(renderer);
-    const setOrientationState = useOrientationStore((state) => state.setOrientation);
-    const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
-    const addWarning = useOrientationStore((state) => state.addWarning);
-    const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
-    const syncOrientationFromGroup = useCallback(
-      (options?: { auto?: boolean }) => {
-        if (!sceneObject) {
-          updateBoundsStatus(null);
-          return;
-        }
-        const group = sceneObject as THREE.Group;
-        setOrientationState(quaternionToTuple(group.quaternion), vectorToTuple(group.position), {
-          auto: options?.auto,
-        });
-        updateBoundsStatus(group);
-      },
-      [sceneObject, setOrientationState, updateBoundsStatus]
-    );
+  const helpersVisible = useOrientationStore((state) => state.helpersVisible);
+  const setHelpersVisible = useOrientationStore((state) => state.setHelpersVisible);
+  const gizmoEnabled = useOrientationStore((state) => state.gizmoEnabled);
+  const setGizmoEnabledState = useOrientationStore((state) => state.setGizmoEnabledState);
+  const gizmoMode = useOrientationStore((state) => state.gizmoMode);
+  const setGizmoModeState = useOrientationStore((state) => state.setGizmoMode);
+  const setBoundsStatusGlobal = useOrientationStore((state) => state.setBoundsStatus);
+  const updateBoundsStatus = useCallback(
+    (target?: THREE.Object3D | null) => {
+      const status = computeBoundsStatusFromObject(
+        (target as THREE.Object3D | null) ?? (sceneObject as THREE.Object3D | null)
+      );
+      setBoundsStatusGlobal(status);
+    },
+    [sceneObject, setBoundsStatusGlobal]
+  );
+  const setOrientationState = useOrientationStore((state) => state.setOrientation);
+  const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
+  const addWarning = useOrientationStore((state) => state.addWarning);
+  const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
+  const syncOrientationFromGroup = useCallback(
+    (options?: { auto?: boolean }) => {
+      if (!sceneObject) {
+        setBoundsStatusGlobal(null);
+        return;
+      }
+      const group = sceneObject as THREE.Group;
+      setOrientationState(quaternionToTuple(group.quaternion), vectorToTuple(group.position), {
+        auto: options?.auto,
+      });
+      updateBoundsStatus(group);
+    },
+    [sceneObject, setBoundsStatusGlobal, setOrientationState, updateBoundsStatus]
+  );
 
     const applyFaceAlignment = useCallback(
       (faceNormal: THREE.Vector3 | null) => {
@@ -864,8 +990,14 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     );
 
     useEffect(() => {
-      useOrientationStore.getState().reset();
-    }, [url]);
+    useOrientationStore.getState().reset();
+  }, [url]);
+
+  useEffect(() => {
+    if (!gizmoEnabled && gizmoMode !== "rotate") {
+      setGizmoModeState("rotate");
+    }
+  }, [gizmoEnabled, gizmoMode, setGizmoModeState]);
 
     useImperativeHandle(ref, () => ({
       getObject: () => sceneObject,
@@ -933,9 +1065,10 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       pan: (direction, stepScale = 1) => {
         if (!sceneObject || !controlsRef.current || !cameraRef.current) return;
         const group = sceneObject as THREE.Group;
-        const controls = controlsRef.current as any;
+        const controls = controlsRef.current;
+        if (!controls) return;
         const camera = cameraRef.current as THREE.PerspectiveCamera;
-        const element = (controls.domElement ?? {}) as { clientHeight?: number; clientWidth?: number };
+        const element = controls.domElement as HTMLElement | undefined;
 
         // Screen pixel intent per click (tweakable)
         const pixelStep = 80 * stepScale;
@@ -943,7 +1076,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         const pixelY = direction === "up" ? -pixelStep : direction === "down" ? pixelStep : 0;
 
         // Map screen pixels to world units (same math OrbitControls uses internally)
-        const clientHeight = element.clientHeight ?? 600;
+        const clientHeight = element?.clientHeight ?? 600;
         const toTarget = camera.position.clone().sub(controls.target ?? new THREE.Vector3());
         const targetDistance = toTarget.length();
         const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
@@ -971,7 +1104,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       },
       zoom: (direction, factor = 1) => {
         if (!controlsRef.current) return;
-        const controls = controlsRef.current as any;
+        const controls = controlsRef.current;
+        if (!controls) return;
         const speed = Math.max(factor, 0.1);
         const scale = Math.pow(0.95, speed);
         if (typeof controls.dollyIn === "function" && typeof controls.dollyOut === "function") {
@@ -998,7 +1132,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         setHelpersVisible(visible);
       },
       toggleHelpers: () => {
-        setHelpersVisible((prev) => !prev);
+        const current = useOrientationStore.getState().helpersVisible;
+        setHelpersVisible(!current);
       },
       orientToFace: (faceNormal) => {
         if (!faceNormal) return;
@@ -1024,17 +1159,25 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       setGizmoEnabled: (enabled) => {
         setGizmoEnabledState(enabled);
       },
-    }), [
+      setGizmoMode: (mode) => {
+        setGizmoModeState(mode);
+      },
+    }),
+    [
       addWarning,
       applyFaceAlignment,
       largeModel,
       onTransformChange,
       sceneObject,
       setAutoOrientStatus,
+      setGizmoEnabledState,
+      setGizmoModeState,
+      setHelpersVisible,
       setOrientationState,
       syncOrientationFromGroup,
       updateBoundsStatus,
-    ]);
+    ]
+  );
 
     const handleReady = (object: THREE.Object3D | null) => {
       setSceneObject(object);
@@ -1099,6 +1242,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               }}
               helpersVisible={helpersVisible}
               gizmoEnabled={gizmoEnabled}
+              gizmoMode={gizmoMode}
               facePickMode={facePickMode}
               onFacePickRequest={handleFacePickRequest}
               overhangThreshold={overhangThreshold}

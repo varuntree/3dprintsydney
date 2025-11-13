@@ -5,6 +5,7 @@ import { browserLogger } from '@/lib/logging/browser-logger';
 
 export type OrientationQuaternion = [number, number, number, number];
 export type OrientationPosition = [number, number, number];
+export type OrientationGizmoMode = "rotate" | "translate";
 
 export interface OrientationBoundsStatus {
   inBounds: boolean;
@@ -32,6 +33,9 @@ interface OrientationState {
   interactionMessage?: string;
   warnings: string[];
   boundsStatus: OrientationBoundsStatus | null;
+  helpersVisible: boolean;
+  gizmoEnabled: boolean;
+  gizmoMode: OrientationGizmoMode;
 }
 
 interface OrientationActions {
@@ -49,6 +53,9 @@ interface OrientationActions {
   addWarning: (message: string) => void;
   clearWarnings: () => void;
   setBoundsStatus: (status: OrientationBoundsStatus | null) => void;
+  setHelpersVisible: (visible: boolean) => void;
+  setGizmoEnabledState: (enabled: boolean) => void;
+  setGizmoMode: (mode: OrientationGizmoMode) => void;
   reset: () => void;
 }
 
@@ -68,6 +75,9 @@ const initialState: OrientationState = {
   interactionDisabled: false,
   warnings: [],
   boundsStatus: null,
+  helpersVisible: false,
+  gizmoEnabled: false,
+  gizmoMode: "rotate",
 };
 
 export type OrientationStore = OrientationState & OrientationActions;
@@ -161,6 +171,9 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
     }),
   clearWarnings: () => set(() => ({ warnings: [] })),
   setBoundsStatus: (status) => set(() => ({ boundsStatus: status })),
+  setHelpersVisible: (visible) => set(() => ({ helpersVisible: visible })),
+  setGizmoEnabledState: (enabled) => set(() => ({ gizmoEnabled: enabled })),
+  setGizmoMode: (mode) => set(() => ({ gizmoMode: mode })),
   reset: () => {
     clearOrientationPersistence();
     set({ ...initialState });

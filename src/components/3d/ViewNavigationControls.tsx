@@ -12,6 +12,7 @@ import {
   Compass,
   Grid,
   Move,
+  RotateCcw,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -31,6 +32,8 @@ interface ViewNavigationControlsProps {
   mode?: "full" | "presets-only";
   onToggleGizmo?: (enabled: boolean) => void;
   gizmoEnabled?: boolean;
+  onGizmoModeChange?: (mode: "rotate" | "translate") => void;
+  gizmoMode?: "rotate" | "translate";
 }
 
 const presetButtons: Array<{ label: string; preset: ViewPreset; title: string }> = [
@@ -56,6 +59,8 @@ export default function ViewNavigationControls({
   mode = "full",
   onToggleGizmo,
   gizmoEnabled = false,
+  onGizmoModeChange,
+  gizmoMode = "rotate",
 }: ViewNavigationControlsProps) {
   const presets = (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -109,10 +114,28 @@ export default function ViewNavigationControls({
               className="h-8 gap-1 text-xs"
               disabled={disabled}
               onClick={() => onToggleGizmo(!gizmoEnabled)}
-              title={gizmoEnabled ? "Hide rotation gizmo" : "Show rotation gizmo"}
+              title={gizmoEnabled ? "Hide gizmo" : "Show gizmo"}
             >
               <Move className="h-3.5 w-3.5" />
               Gizmo
+            </Button>
+          ) : null}
+          {onGizmoModeChange ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={gizmoMode === "translate" ? "default" : "outline"}
+              className="h-8 gap-1 text-xs"
+              disabled={disabled || !gizmoEnabled}
+              onClick={() => onGizmoModeChange(gizmoMode === "rotate" ? "translate" : "rotate")}
+              title={gizmoMode === "rotate" ? "Switch to translate mode" : "Switch to rotate mode"}
+            >
+              {gizmoMode === "rotate" ? (
+                <RotateCcw className="h-3.5 w-3.5" />
+              ) : (
+                <Move className="h-3.5 w-3.5" />
+              )}
+              {gizmoMode === "rotate" ? "Rotate" : "Move"}
             </Button>
           ) : null}
           <Button
@@ -236,10 +259,9 @@ export default function ViewNavigationControls({
             variant="outline"
             disabled={disabled}
             onClick={onReset}
-            className="flex h-10 items-center justify-center gap-2 text-sm"
+            className="flex h-10 items-center justify-center gap-2 text-xs"
           >
-            <Move className="h-4 w-4" />
-            Reset
+            Reset View
           </Button>
         </div>
       </div>

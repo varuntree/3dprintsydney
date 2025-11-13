@@ -129,8 +129,11 @@ export function NavigationDrawer() {
                     ) : null}
                     <div className="space-y-1.5">
                       {section.items.map((item) => {
+                        const shouldHighlight = item.highlight ?? true;
                         const Icon = getIcon(item.icon);
-                        const active = isNavItemActive(item.href, pathname);
+                        const active = shouldHighlight
+                          ? isNavItemActive(item.href, pathname)
+                          : false;
                         return (
                           <NavigationLink
                             key={item.href}

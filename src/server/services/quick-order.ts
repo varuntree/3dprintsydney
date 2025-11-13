@@ -392,7 +392,7 @@ export async function processQuickOrderFiles(
           originalSize: tmpRecord.size_bytes,
           uploadedFrom: "quick-order",
         },
-        orientationData: (tmpRecord as any).orientation_data ?? null,
+        orientationData: tmpRecord.orientation_data ?? null,
       });
 
       // Also keep a copy in attachments for backward compatibility
@@ -692,10 +692,30 @@ export async function sliceQuickOrderFile(
     // Download and prepare file
     const buffer = await downloadTmpFileToBuffer(fileId);
     tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), "slice-"));
-    const src = path.join(tmpDir, path.basename(fileId) || `input-${Date.now()}.stl`);
-    const sourceBuffer = record.orientation_data
-      ? applyOrientationToModel(buffer, record.filename, record.orientation_data)
-      : buffer;
+    let sourceBuffer = buffer;
+    let sourceFilename = record.filename;
+    if (record.orientation_data) {
+      try {
+        const oriented = applyOrientationToModel(buffer, record.filename, record.orientation_data);
+        sourceBuffer = oriented.buffer;
+        sourceFilename = oriented.filename;
+        logger.info({
+          scope: "quick-order.slice.orientation",
+          message: "Applied orientation snapshot",
+          data: { fileId, userId, filename: sourceFilename },
+        });
+      } catch (error) {
+        logger.error({
+          scope: "quick-order.slice.orientation",
+          message: "Failed to apply orientation snapshot",
+          error,
+          data: { fileId, userId },
+        });
+      }
+    }
+    const baseName = path.basename(sourceFilename || `input-${Date.now()}.stl`);
+    const fileNameWithExt = path.extname(baseName) ? baseName : `${baseName}.stl`;
+    const src = path.join(tmpDir, fileNameWithExt);
     await fsp.writeFile(src, sourceBuffer);
 
     // Execute slicing with retry
@@ -864,6 +884,27 @@ type OrientationSnapshotInput = {
   supportWeight?: number;
 };
 
+function ensureFiniteTuple(
+  tuple: number[],
+  expectedLength: number,
+  label: string
+): number[] {
+  if (!Array.isArray(tuple) || tuple.length !== expectedLength) {
+    throw new AppError(`Orientation ${label} must contain ${expectedLength} values`, "VALIDATION_ERROR", 422);
+  }
+  const normalized = tuple.map((value, index) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new AppError(
+        `Orientation ${label}[${index}] must be a finite number`,
+        "VALIDATION_ERROR",
+        422
+      );
+    }
+    return value;
+  });
+  return normalized;
+}
+
 /**
  * Persist the orientation snapshot for an uploaded tmp file
  * @param fileId - Tmp file identifier
@@ -882,9 +923,11 @@ export async function saveOrientationSnapshot(
   size: number;
   orientation: OrientationData;
 }> {
+  const quaternion = ensureFiniteTuple([...orientation.quaternion], 4, "quaternion") as OrientationData["quaternion"];
+  const position = ensureFiniteTuple([...orientation.position], 3, "position") as OrientationData["position"];
   const normalized: OrientationData = {
-    quaternion: orientation.quaternion,
-    position: orientation.position,
+    quaternion,
+    position,
     autoOriented: orientation.autoOriented ?? false,
     supportVolume:
       typeof orientation.supportVolume === "number" && Number.isFinite(orientation.supportVolume)

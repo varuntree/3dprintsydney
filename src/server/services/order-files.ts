@@ -341,11 +341,11 @@ export async function downloadOrderFileWithOrientation(
 
   try {
     const oriented = applyOrientationToModel(buffer, file.filename, file.orientation_data);
-    const orientedName = file.filename.replace(/\.stl$/i, "_oriented.stl");
+    const orientedName = oriented.filename.replace(/\.stl$/i, "_oriented.stl");
     return {
-      buffer: oriented,
-      filename: orientedName === file.filename ? `${file.filename}_oriented.stl` : orientedName,
-      mimeType: "application/octet-stream",
+      buffer: oriented.buffer,
+      filename: orientedName,
+      mimeType: oriented.mimeType,
       orientationApplied: true,
     };
   } catch (error) {

@@ -36,6 +36,7 @@ interface RotationControlsProps {
   onOrientToFaceToggle?: (enabled: boolean) => void;
   orientToFaceActive?: boolean;
   supportCostPerGram?: number;
+  lockGuardReason?: string;
 }
 
 type ControlAction = {
@@ -57,6 +58,7 @@ export default function RotationControls({
   onOrientToFaceToggle,
   orientToFaceActive,
   supportCostPerGram = 0.25,
+  lockGuardReason,
 }: RotationControlsProps) {
   const primaryActions = useMemo<ControlAction[]>(
     () => [
@@ -196,10 +198,11 @@ export default function RotationControls({
           <Axis3D className="h-4 w-4" />
           Orientation Controls
         </div>
-        <p className="text-xs text-muted-foreground">
-          Fine tune orientation before locking it in.
-        </p>
+        <div className="flex items-center gap-2" />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Fine tune orientation before locking it in.
+      </p>
 
       <div className="grid gap-2 sm:grid-cols-5">
         {primaryActions.map((action) => (
@@ -331,7 +334,7 @@ export default function RotationControls({
         </Button>
         <Button
           type="button"
-          disabled={disabled || isLocking}
+          disabled={disabled || isLocking || interactionDisabled || Boolean(lockGuardReason)}
           className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 sm:col-span-2"
           onClick={onLock}
         >
@@ -348,6 +351,12 @@ export default function RotationControls({
           )}
         </Button>
       </div>
+
+      {lockGuardReason ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          {lockGuardReason}
+        </div>
+      ) : null}
 
       {interactionDisabled && interactionMessage ? (
         <div className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2 text-xs text-amber-900">

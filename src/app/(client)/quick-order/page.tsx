@@ -93,6 +93,8 @@ type FileStatusState = {
   fallback?: boolean;
 };
 
+type GizmoMode = "rotate" | "translate";
+
 type PriceDataState = {
   originalSubtotal: number;
   subtotal: number;
@@ -118,6 +120,9 @@ type OrientationSnapshot = {
   autoOriented?: boolean;
   supportVolume?: number;
   supportWeight?: number;
+  helpersVisible?: boolean;
+  gizmoEnabled?: boolean;
+  gizmoMode?: GizmoMode;
 };
 
 type SliceResult = { grams: number; timeSec: number; fallback?: boolean; error?: string };
@@ -152,9 +157,9 @@ type DraftState = {
   metrics: Record<string, { grams: number; timeSec: number; fallback?: boolean; error?: string }>;
 };
 
-const logQuickOrderError = (scopeSuffix: string, message: string, error?: unknown) => {
+const logQuickPrintError = (scopeSuffix: string, message: string, error?: unknown) => {
   browserLogger.error({
-    scope: `browser.quick-order.${scopeSuffix}`,
+    scope: `browser.quick-print.${scopeSuffix}`,
     message,
     error,
   });
@@ -205,9 +210,42 @@ export default function QuickOrderPage() {
   const [isLocking, setIsLocking] = useState(false);
   const viewerRef = useRef<ModelViewerRef>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
-  const [viewHelpersVisible, setViewHelpersVisible] = useState(false);
-  const [gizmoEnabled, setGizmoEnabled] = useState(false);
+  const viewHelpersVisible = useOrientationStore((state) => state.helpersVisible);
+  const setViewHelpersVisible = useOrientationStore((state) => state.setHelpersVisible);
+  const gizmoEnabled = useOrientationStore((state) => state.gizmoEnabled);
+  const setGizmoEnabledState = useOrientationStore((state) => state.setGizmoEnabledState);
+  const gizmoMode = useOrientationStore((state) => state.gizmoMode);
+  const setGizmoModeStore = useOrientationStore((state) => state.setGizmoMode);
+  const boundsStatus = useOrientationStore((state) => state.boundsStatus);
+  const interactionDisabled = useOrientationStore((state) => state.interactionDisabled);
+  const interactionMessage = useOrientationStore((state) => state.interactionMessage);
   const orientationHydratingRef = useRef(false);
+  const handleViewerReset = useCallback(() => {
+    setViewHelpersVisible(false);
+    viewerRef.current?.resetView();
+  }, [setViewHelpersVisible, viewerRef]);
+
+  const handleToggleGizmo = useCallback(
+    (enabled: boolean) => {
+      setGizmoEnabledState(enabled);
+      if (!enabled) {
+        setGizmoModeStore("rotate");
+      }
+      viewerRef.current?.setGizmoEnabled(enabled);
+      if (!enabled) {
+        viewerRef.current?.setGizmoMode?.("rotate");
+      }
+    },
+    [setGizmoEnabledState, setGizmoModeStore, viewerRef]
+  );
+
+  const handleGizmoModeChange = useCallback(
+    (mode: GizmoMode) => {
+      setGizmoModeStore(mode);
+      viewerRef.current?.setGizmoMode?.(mode);
+    },
+    [setGizmoModeStore, viewerRef]
+  );
 
   const maxCreditAvailable = useMemo(() => {
     if (!priceData) return 0;
@@ -223,6 +261,12 @@ export default function QuickOrderPage() {
     () => uploads.reduce((count, upload) => (metrics[upload.id]?.grams ? count + 1 : count), 0),
     [uploads, metrics]
   );
+  const boundsViolationMessage = useMemo(() => {
+    if (!boundsStatus || boundsStatus.inBounds) {
+      return undefined;
+    }
+    return boundsStatus.violations?.[0] ?? "Model exceeds the 240mm build volume. Reorient before locking.";
+  }, [boundsStatus]);
   const configurationComplete = uploads.length > 0 && preparedCount === uploads.length;
   const priceStageComplete = configurationComplete && !!priceData;
   const uploadComplete = uploads.length > 0;
@@ -268,19 +312,13 @@ export default function QuickOrderPage() {
   );
 
   useEffect(() => {
-    if (!currentlyOrienting) return;
-    viewerRef.current?.setHelpersVisible(viewHelpersVisible);
-  }, [viewHelpersVisible, currentlyOrienting]);
-
-  useEffect(() => {
     setViewHelpersVisible(false);
-  }, [currentlyOrienting]);
+  }, [currentlyOrienting, setViewHelpersVisible]);
 
   useEffect(() => {
-    setGizmoEnabled(false);
     setFacePickMode(false);
-    viewerRef.current?.setGizmoEnabled(false);
-  }, [currentlyOrienting]);
+    handleToggleGizmo(false);
+  }, [currentlyOrienting, handleToggleGizmo]);
 
   useEffect(() => {
     setSettings((prev) => {
@@ -322,6 +360,9 @@ export default function QuickOrderPage() {
           supportVolume: snapshot.supportVolume ?? 0,
           supportWeight: snapshot.supportWeight ?? snapshot.supportVolume ?? 0,
           overhangFaces: [],
+          helpersVisible: snapshot.helpersVisible ?? false,
+          gizmoEnabled: snapshot.gizmoEnabled ?? false,
+          gizmoMode: snapshot.gizmoMode ?? "rotate",
         }));
       } else {
         store.reset();
@@ -348,6 +389,9 @@ export default function QuickOrderPage() {
         autoOriented: state.isAutoOriented,
         supportVolume: state.supportVolume,
         supportWeight: state.supportWeight,
+        helpersVisible: state.helpersVisible,
+        gizmoEnabled: state.gizmoEnabled,
+        gizmoMode: state.gizmoMode,
       };
       setOrientationState((prev) => ({
         ...prev,
@@ -405,7 +449,7 @@ export default function QuickOrderPage() {
     if (priceData) {
       setPriceData(null);
     }
-  }, [settings, metrics, uploads]);
+  }, [settings, metrics, uploads, priceData]);
 
   useEffect(() => {
     async function loadWalletBalance() {
@@ -416,7 +460,7 @@ export default function QuickOrderPage() {
           setWalletBalance(data.walletBalance ?? 0);
         }
       } catch (err) {
-        logQuickOrderError("wallet-balance", "Failed to fetch wallet balance", err);
+        logQuickPrintError("wallet-balance", "Failed to fetch wallet balance", err);
       }
     }
     loadWalletBalance();
@@ -447,7 +491,7 @@ export default function QuickOrderPage() {
       setDraftSaved(true);
       setTimeout(() => setDraftSaved(false), 2000);
     } catch (error) {
-      logQuickOrderError("draft.save", "Failed to save draft", error);
+      logQuickPrintError("draft.save", "Failed to save draft", error);
     }
   }, [currentStep, uploads, settings, orientationState, orientationLocked, address, metrics]);
 
@@ -457,7 +501,7 @@ export default function QuickOrderPage() {
       if (!stored) return null;
       return JSON.parse(stored) as DraftState;
     } catch (error) {
-      logQuickOrderError("draft.load", "Failed to load draft", error);
+      logQuickPrintError("draft.load", "Failed to load draft", error);
       return null;
     }
   }, []);
@@ -467,7 +511,7 @@ export default function QuickOrderPage() {
       localStorage.removeItem(DRAFT_KEY);
       clearOrientationPersistence();
     } catch (error) {
-      logQuickOrderError("draft.clear", "Failed to clear draft", error);
+      logQuickPrintError("draft.clear", "Failed to clear draft", error);
     }
   }, []);
 
@@ -506,7 +550,7 @@ export default function QuickOrderPage() {
       setShowResumeDialog(false);
       draftLoadedRef.current = true;
     } catch (error) {
-      logQuickOrderError("draft.restore", "Failed to restore draft", error);
+      logQuickPrintError("draft.restore", "Failed to restore draft", error);
     }
   }, [goToStep]);
 
@@ -733,6 +777,15 @@ export default function QuickOrderPage() {
 
   async function handleLockOrientation() {
     if (!currentlyOrienting) return;
+    if (boundsViolationMessage) {
+      browserLogger.warn({
+        scope: "browser.quick-print.orientation",
+        message: "Lock blocked due to bounds violation",
+        data: { fileId: currentlyOrienting },
+      });
+      setError(boundsViolationMessage);
+      return;
+    }
 
     try {
       setIsLocking(true);
@@ -744,27 +797,79 @@ export default function QuickOrderPage() {
         quaternion: [...store.quaternion] as OrientationQuaternion,
         position: [...store.position] as OrientationPosition,
         autoOriented: store.isAutoOriented,
+        supportVolume: store.supportVolume,
+        supportWeight: store.supportWeight,
+        helpersVisible: store.helpersVisible,
+        gizmoEnabled: store.gizmoEnabled,
+        gizmoMode: store.gizmoMode,
       };
+
+      const resolvedSupportVolume = (() => {
+        const volume = snapshot.supportVolume ?? store.supportVolume;
+        return typeof volume === "number" && Number.isFinite(volume) ? volume : undefined;
+      })();
+      const resolvedSupportWeight = (() => {
+        const weight = snapshot.supportWeight ?? store.supportWeight ?? resolvedSupportVolume;
+        return typeof weight === "number" && Number.isFinite(weight) ? weight : undefined;
+      })();
+
+      const payload: Record<string, unknown> = {
+        originalFileId: currentlyOrienting,
+        quaternion: snapshot.quaternion,
+        position: snapshot.position,
+        autoOriented: snapshot.autoOriented ?? false,
+      };
+      if (resolvedSupportVolume !== undefined) {
+        payload.supportVolume = resolvedSupportVolume;
+      }
+      if (resolvedSupportWeight !== undefined) {
+        payload.supportWeight = resolvedSupportWeight;
+      }
 
       const res = await fetch("/api/quick-order/orient", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          originalFileId: currentlyOrienting,
-          quaternion: snapshot.quaternion,
-          position: snapshot.position,
-          autoOriented: snapshot.autoOriented ?? false,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         throw new Error("Failed to save orientation");
       }
 
+      const result = (await res.json()) as {
+        success?: boolean;
+        orientation?: {
+          quaternion: OrientationQuaternion;
+          position: OrientationPosition;
+          autoOriented?: boolean;
+          supportVolume?: number;
+          supportWeight?: number;
+        };
+      };
+
+      if (!result?.success || !result.orientation) {
+        throw new Error("Orientation snapshot missing from response");
+      }
+
+      const persisted = result.orientation;
+      const nextSnapshot: OrientationSnapshot = {
+        ...snapshot,
+        quaternion: persisted.quaternion,
+        position: persisted.position,
+        autoOriented: persisted.autoOriented ?? snapshot.autoOriented,
+        supportVolume: persisted.supportVolume ?? resolvedSupportVolume ?? snapshot.supportVolume,
+        supportWeight: persisted.supportWeight ?? resolvedSupportWeight ?? snapshot.supportWeight,
+      };
+
       setOrientationState((prev) => ({
         ...prev,
-        [currentlyOrienting]: snapshot,
+        [currentlyOrienting]: nextSnapshot,
       }));
+      browserLogger.info({
+        scope: "browser.quick-print.orientation",
+        message: "Orientation locked",
+        data: { fileId: currentlyOrienting },
+      });
       const updatedLockState = { ...orientationLocked, [currentlyOrienting]: true };
       setOrientationLocked(updatedLockState);
 
@@ -776,7 +881,7 @@ export default function QuickOrderPage() {
         goToStep("configure");
       }
     } catch (err) {
-      logQuickOrderError("orientation-lock", "Orientation lock error", err);
+      logQuickPrintError("orientation-lock", "Orientation lock error", err);
       setError("Failed to lock orientation");
     } finally {
       setIsLocking(false);
@@ -1002,7 +1107,7 @@ export default function QuickOrderPage() {
       });
       goToStep("price");
     } catch (err) {
-      logQuickOrderError("pricing", "Pricing failed", err);
+      logQuickPrintError("pricing", "Pricing failed", err);
       setError("Pricing failed");
     } finally {
       setLoading(false);
@@ -1972,6 +2077,18 @@ export default function QuickOrderPage() {
                     </div>
                   ) : null}
 
+                  {(boundsViolationMessage || (interactionDisabled && interactionMessage)) ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="mt-0.5 h-4 w-4" />
+                        <div className="space-y-1">
+                          {boundsViolationMessage ? <p>{boundsViolationMessage}</p> : null}
+                          {interactionDisabled && interactionMessage ? <p>{interactionMessage}</p> : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="space-y-3">
                     <ViewNavigationControls
                       helpersVisible={viewHelpersVisible}
@@ -1980,20 +2097,16 @@ export default function QuickOrderPage() {
                       onZoom={(direction) => viewerRef.current?.zoom(direction)}
                       onPreset={(preset) => viewerRef.current?.setView(preset)}
                       onFit={() => viewerRef.current?.fit()}
-                      onReset={() => {
-                        setViewHelpersVisible(false);
-                        viewerRef.current?.resetView();
-                      }}
-                      onToggleHelpers={() => setViewHelpersVisible((prev) => !prev)}
-                      onToggleGizmo={(enabled) => {
-                        setGizmoEnabled(enabled);
-                        viewerRef.current?.setGizmoEnabled(enabled);
-                      }}
+                      onReset={handleViewerReset}
+                      onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
+                      onToggleGizmo={handleToggleGizmo}
                       gizmoEnabled={gizmoEnabled}
+                      onGizmoModeChange={handleGizmoModeChange}
+                      gizmoMode={gizmoMode}
                     />
                     <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
                       <RotationControls
-                        onReset={() => viewerRef.current?.resetView()}
+                        onReset={handleViewerReset}
                         onRecenter={() => viewerRef.current?.recenter()}
                         onFitView={() => viewerRef.current?.fit()}
                         onAutoOrient={() => {
@@ -2005,13 +2118,13 @@ export default function QuickOrderPage() {
                         onOrientToFaceToggle={(enabled) => {
                           setFacePickMode(enabled);
                           if (enabled) {
-                            setGizmoEnabled(false);
-                            viewerRef.current?.setGizmoEnabled(false);
+                            handleToggleGizmo(false);
                           }
                         }}
                         orientToFaceActive={facePickMode}
                         isLocking={isLocking}
                         disabled={isLocking || viewerErrorActive}
+                        lockGuardReason={boundsViolationMessage}
                         supportCostPerGram={currentOrientationMaterialCost}
                       />
                     </div>
@@ -2371,7 +2484,7 @@ export default function QuickOrderPage() {
                     onChange={(event) => setCreditManualEntry(event.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    You'll pay {formatCurrency(remainingBalance)} after the credit is applied.
+                    You&rsquo;ll pay {formatCurrency(remainingBalance)} after the credit is applied.
                   </p>
                 </div>
               ) : null}

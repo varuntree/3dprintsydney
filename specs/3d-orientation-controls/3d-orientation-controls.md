@@ -197,6 +197,8 @@ None - foundational feature for quick-order flow
 - Verify grid stays fixed when model rotates via existing rotation controls
 - Test: rotate model via RotationControls → grid should NOT move
 
+> **2025-11-14 Update:** Gizmo toggles now live inside View Controls (Rotation Controls no longer expose a secondary "Reorientate" button) and QuickPrint surfaces inline warnings whenever build-volume or flat-model locks prevent orientation. Use those alerts to clear violations before locking.
+
 ---
 ✅ CHECKPOINT: Steps 1-4 complete (Foundation). Build plate fixed, orientation storage ready. Continue to step 5.
 ---

@@ -16,6 +16,7 @@ const TEMP_CB = new Vector3();
 const TEMP_AB = new Vector3();
 const NORMAL = new Vector3();
 const TEMP_VERTEX = new Vector3();
+const ZERO_TRANSLATION = new Vector3();
 
 const DEFAULT_DENSITY_FACTOR = 0.3;
 const PLA_DENSITY_G_PER_MM3 = 0.00124; // Approx 1.24 g/cm^3
@@ -32,7 +33,8 @@ const EMPTY_RESULT: OverhangData = Object.freeze({
 export function detectOverhangs(
   geometry: BufferGeometry,
   quaternion: Quaternion,
-  threshold = 45
+  threshold = 45,
+  translation?: Vector3 | null
 ): OverhangData {
   const positionAttr = geometry.getAttribute("position");
   if (!positionAttr || positionAttr.count === 0) {
@@ -46,12 +48,14 @@ export function detectOverhangs(
   }
 
   const vertexCount = positionAttr.count;
+  const translationVec = translation ?? ZERO_TRANSLATION;
   const rotatedPositions = new Float32Array(vertexCount * 3);
   let minWorldY = Infinity;
 
   for (let i = 0; i < vertexCount; i += 1) {
     TEMP_VERTEX.fromBufferAttribute(positionAttr as BufferAttribute, i);
     TEMP_VERTEX.applyQuaternion(quaternion);
+    TEMP_VERTEX.add(translationVec);
     rotatedPositions[i * 3] = TEMP_VERTEX.x;
     rotatedPositions[i * 3 + 1] = TEMP_VERTEX.y;
     rotatedPositions[i * 3 + 2] = TEMP_VERTEX.z;
