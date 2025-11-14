@@ -19,7 +19,7 @@ export default function ClientMessagesPage() {
                 Messages
               </p>
               <h1 className="text-lg font-semibold tracking-tight text-foreground">
-                Chat with our team about your orders
+                Chat with our team about your projects
               </h1>
             </div>
           </div>

@@ -35,6 +35,8 @@ import {
   AlertTriangle,
   Info,
   Truck,
+  Lock,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/currency";
@@ -209,6 +211,8 @@ export default function QuickOrderPage() {
   const [facePickMode, setFacePickMode] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
   const viewerRef = useRef<ModelViewerRef>(null);
+  const baselineSettingsRef = useRef<Record<string, FileSettings>>({});
+  const [resetCandidate, setResetCandidate] = useState<string | null>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
   const viewHelpersVisible = useOrientationStore((state) => state.helpersVisible);
   const setViewHelpersVisible = useOrientationStore((state) => state.setHelpersVisible);
@@ -314,6 +318,15 @@ export default function QuickOrderPage() {
   useEffect(() => {
     setViewHelpersVisible(false);
   }, [currentlyOrienting, setViewHelpersVisible]);
+
+  useEffect(() => {
+    uploads.forEach((upload) => {
+      const fileSettings = settings[upload.id];
+      if (fileSettings && !baselineSettingsRef.current[upload.id]) {
+        baselineSettingsRef.current[upload.id] = { ...fileSettings };
+      }
+    });
+  }, [uploads, settings]);
 
   useEffect(() => {
     setFacePickMode(false);
@@ -657,6 +670,7 @@ export default function QuickOrderPage() {
           supportStyle: "grid",
           supportInterfaceLayers: 3,
         };
+        baselineSettingsRef.current[it.id] = { ...next[it.id] };
       });
       return next;
     });
@@ -728,6 +742,7 @@ export default function QuickOrderPage() {
     const nextUploads = uploads.filter((u) => u.id !== id);
     if (nextUploads.length === uploads.length) return;
     setUploads(nextUploads);
+    delete baselineSettingsRef.current[id];
     setSettings((prev) => {
       const copy = { ...prev } as typeof prev;
       delete copy[id];
@@ -774,6 +789,77 @@ export default function QuickOrderPage() {
     setShippingQuote(null);
     goToStep(nextUploads.length === 0 ? "upload" : "configure");
   }
+
+  const resetFileToBaseline = useCallback(
+    (fileId: string) => {
+      setSettings((prev) => {
+        const baseline = baselineSettingsRef.current[fileId];
+        if (!prev[fileId] && !baseline) return prev;
+        const next = { ...prev } as Record<string, FileSettings>;
+        if (baseline) {
+          next[fileId] = { ...baseline };
+        } else if (prev[fileId]) {
+          next[fileId] = { ...prev[fileId] };
+        }
+        return next;
+      });
+      setOrientationState((prev) => {
+        if (!prev[fileId]) return prev;
+        const next = { ...prev };
+        delete next[fileId];
+        return next;
+      });
+      setOrientationLocked((prev) => {
+        if (!prev[fileId]) return prev;
+        const next = { ...prev };
+        delete next[fileId];
+        return next;
+      });
+      setMetrics((prev) => {
+        if (!prev[fileId]) return prev;
+        const next = { ...prev };
+        delete next[fileId];
+        return next;
+      });
+      setFileStatuses((prev) => ({
+        ...prev,
+        [fileId]: { state: "idle" },
+      }));
+      setViewerErrors((prev) => {
+        if (!prev[fileId]) return prev;
+        const next = { ...prev };
+        delete next[fileId];
+        return next;
+      });
+      setAcceptedFallbacks((prev) => {
+        if (!prev.has(fileId)) return prev;
+        const next = new Set(prev);
+        next.delete(fileId);
+        return next;
+      });
+      useOrientationStore.getState().reset();
+      clearOrientationPersistence();
+      setPriceData(null);
+      setCurrentlyOrienting(fileId);
+    },
+    [
+      setSettings,
+      setOrientationState,
+      setOrientationLocked,
+      setMetrics,
+      setFileStatuses,
+      setViewerErrors,
+      setAcceptedFallbacks,
+      setPriceData,
+      setCurrentlyOrienting,
+    ]
+  );
+
+  const handleConfirmReset = useCallback(() => {
+    if (!resetCandidate) return;
+    resetFileToBaseline(resetCandidate);
+    setResetCandidate(null);
+  }, [resetCandidate, resetFileToBaseline]);
 
   async function handleLockOrientation() {
     if (!currentlyOrienting) return;
@@ -1245,6 +1331,7 @@ export default function QuickOrderPage() {
   const fallbackNeedsAttention = uploads.some(
     (u) => metrics[u.id]?.fallback && !acceptedFallbacks.has(u.id),
   );
+  const orientationLockBlocked = currentStep === "orient" && !allOrientationsLocked;
   const hasStudentDiscount = Boolean(
     priceData && priceData.discountType === "PERCENT" && priceData.discountValue > 0,
   );
@@ -1341,6 +1428,7 @@ export default function QuickOrderPage() {
               size="sm"
               onClick={() => nextStepId && goToStep(nextStepId)}
               disabled={!nextStepId || !isStepUnlocked(nextStepId)}
+              title={orientationLockBlocked ? "Lock orientation to continue" : undefined}
               className="h-8 px-2 text-[11px] sm:h-8 sm:text-xs"
             >
               <span className="hidden sm:inline">Next</span>
@@ -1988,17 +2076,22 @@ export default function QuickOrderPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-start gap-1 sm:items-end">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => goToStep("configure")}
                     disabled={isLocking || !allOrientationsLocked}
-                    title={allOrientationsLocked ? undefined : "Lock each file before moving on"}
+                    title={orientationLockBlocked ? "Lock orientation to continue" : undefined}
                     className="whitespace-nowrap"
                   >
                     Continue
                   </Button>
+                  {orientationLockBlocked ? (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                      <Lock className="h-3.5 w-3.5" /> Lock orientation to continue
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -2127,6 +2220,18 @@ export default function QuickOrderPage() {
                         lockGuardReason={boundsViolationMessage}
                         supportCostPerGram={currentOrientationMaterialCost}
                       />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-2 text-muted-foreground"
+                        disabled={!currentlyOrienting}
+                        onClick={() => currentlyOrienting && setResetCandidate(currentlyOrienting)}
+                      >
+                        <RotateCcw className="h-4 w-4" /> Reset to import
+                      </Button>
                     </div>
                   </div>
 
@@ -2424,6 +2529,71 @@ export default function QuickOrderPage() {
               </section>
             )}
         </div>
+        <div className="sticky bottom-3 z-20 mt-8 rounded-2xl border border-border/70 bg-surface-overlay/95 p-4 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground/70">Step navigation</p>
+              <p className="text-sm font-medium text-foreground">
+                Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {orientationLockBlocked ? (
+                <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  <Lock className="h-3 w-3" /> Lock orientation to continue
+                </span>
+              ) : null}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => previousStepId && goToStep(previousStepId)}
+                  disabled={!previousStepId}
+                  className="gap-2 rounded-full px-5"
+                >
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => nextStepId && goToStep(nextStepId)}
+                  disabled={!nextStepId || !isStepUnlocked(nextStepId)}
+                  title={orientationLockBlocked ? "Lock orientation to continue" : undefined}
+                  className="gap-2 rounded-full px-5"
+                >
+                  Next <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <Dialog
+          open={Boolean(resetCandidate)}
+          onOpenChange={(open) => {
+            if (!open) setResetCandidate(null);
+          }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Reset orientation and settings?</DialogTitle>
+              <DialogDescription>
+                This will revert the selected model to its import orientation and default QuickPrint settings.
+              </DialogDescription>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              You&apos;ll need to re-lock the orientation and re-run preparation before pricing again.
+            </p>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setResetCandidate(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmReset} disabled={!resetCandidate}>
+                Reset file
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog open={paymentReviewOpen} onOpenChange={setPaymentReviewOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>

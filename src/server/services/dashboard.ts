@@ -55,6 +55,7 @@ export type DashboardSnapshot = {
   }[];
   recentActivity: RecentActivityEntry[];
   recentActivityNextOffset: number | null;
+  projectCounters: ClientProjectCounters;
 };
 
 function decimalToNumber(value: unknown): number {
@@ -234,6 +235,8 @@ export async function getDashboardSnapshot(options?: {
     printersRes,
     activityRes,
     paymentsTrendRes,
+    clientsWalletRes,
+    pendingPaymentCountRes,
   ] = await Promise.all([
     supabase
       .from("payments")
@@ -257,6 +260,11 @@ export async function getDashboardSnapshot(options?: {
       .from("payments")
       .select("amount, paid_at")
       .gte("paid_at", trendStart.toISOString()),
+    supabase.from("clients").select("wallet_balance"),
+    supabase
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .in("status", [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]),
   ]);
 
   if (paymentsLast60Res.error) {
@@ -280,6 +288,16 @@ export async function getDashboardSnapshot(options?: {
   }
   if (paymentsTrendRes.error) {
     throw new AppError(`Failed to load revenue trend: ${paymentsTrendRes.error.message}`, 'DATABASE_ERROR', 500);
+  }
+  if (clientsWalletRes.error) {
+    throw new AppError(`Failed to load client balances: ${clientsWalletRes.error.message}`, 'DATABASE_ERROR', 500);
+  }
+  if (pendingPaymentCountRes.error) {
+    throw new AppError(
+      `Failed to count pending invoices: ${pendingPaymentCountRes.error.message}`,
+      'DATABASE_ERROR',
+      500,
+    );
   }
 
   const paymentsLast60 = (paymentsLast60Res.data ?? []) as PaymentRow[];
@@ -315,9 +333,10 @@ export async function getDashboardSnapshot(options?: {
       const status = (row.status ?? JobStatus.QUEUED) as JobStatus;
       if (status === JobStatus.QUEUED) acc.queued += 1;
       if (status === JobStatus.PRINTING) acc.printing += 1;
+      if (status === JobStatus.COMPLETED) acc.completed += 1;
       return acc;
     },
-    { queued: 0, printing: 0 },
+    { queued: 0, printing: 0, completed: 0 },
   );
 
   const outstandingInvoices = outstandingInvoicesRows.map((invoice) => ({
@@ -388,6 +407,18 @@ export async function getDashboardSnapshot(options?: {
 
   const { items: recentActivity, nextOffset: recentActivityNextOffset } = activityRes;
 
+  const availableCredit = (clientsWalletRes.data ?? []).reduce(
+    (sum, row) => sum + decimalToNumber((row as { wallet_balance: unknown }).wallet_balance),
+    0,
+  );
+
+  const projectCounters: ClientProjectCounters = {
+    availableCredit,
+    pendingPayment: pendingPaymentCountRes.count ?? 0,
+    pendingPrint: jobCounts.queued + jobCounts.printing,
+    completed: jobCounts.completed,
+  };
+
   return {
     metrics: {
       revenue30,
@@ -403,6 +434,7 @@ export async function getDashboardSnapshot(options?: {
     outstandingInvoices,
     recentActivity,
     recentActivityNextOffset,
+    projectCounters,
   };
 }
 

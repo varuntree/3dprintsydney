@@ -18,7 +18,8 @@ export default async function DashboardPage() {
     outstandingInvoices: snapshot.outstandingInvoices,
     recentActivity: snapshot.recentActivity,
     recentActivityNextOffset: snapshot.recentActivityNextOffset,
+    projectCounters: snapshot.projectCounters,
   };
 
-  return <DashboardView initial={initial} />;
+  return <DashboardView initial={initial} user={user} />;
 }
