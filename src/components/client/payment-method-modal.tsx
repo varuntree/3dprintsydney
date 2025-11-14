@@ -170,7 +170,7 @@ export function PaymentMethodModal({
                 <RadioGroupItem value="card" className="mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold">Charge card only</p>
-                  <p className="text-xs text-muted-foreground">Save credits for another order</p>
+                  <p className="text-xs text-muted-foreground">Save credits for another project</p>
                 </div>
               </label>
               <label

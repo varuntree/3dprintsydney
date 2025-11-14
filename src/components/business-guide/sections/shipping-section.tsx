@@ -127,7 +127,7 @@ export function ShippingSection({ settings }: ShippingSectionProps) {
             <AlertDescription>
               <strong>Admin:</strong> Manage shipping regions in <strong>Settings → Shipping</strong> tab.
               You can add/edit/delete regions, adjust base amounts, set remote surcharges, and configure
-              postcode prefixes. Changes affect all future orders immediately.
+              postcode prefixes. Changes affect all future projects immediately.
             </AlertDescription>
           </Alert>
         </CardContent>

@@ -15,26 +15,26 @@ export function ReorderButton({ projectId }: { projectId: number }) {
         method: "POST",
       });
       if (!res.ok) {
-        throw new Error("Reorder failed");
+        throw new Error("Print again failed");
       }
       return res.json();
     },
     onSuccess: (payload) => {
       const quoteId = payload.data?.quoteId;
-      toast.success("Project reordered! Redirecting to quote...");
+      toast.success("Print again started! Redirecting to quote...");
       queryClient.invalidateQueries({ queryKey: ["client", "projects"] });
       if (quoteId) {
         router.push(`/quotes/${quoteId}`);
       }
     },
     onError: () => {
-      toast.error("Failed to reorder project");
+      toast.error("Failed to print this project again");
     },
   });
 
   return (
     <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-      {mutation.isPending ? "Reordering..." : "Print Again"}
+      {mutation.isPending ? "Printing again..." : "Print Again"}
     </Button>
   );
 }

@@ -9,5 +9,5 @@ export default async function ClientHome() {
   if (!user) redirect("/login");
   if (user.role !== "CLIENT") redirect("/dashboard");
 
-  return <ClientDashboard />;
+  return <ClientDashboard user={user} />;
 }

@@ -97,7 +97,7 @@ export function AddCreditModal({
         <DialogHeader>
           <DialogTitle>Add Credit to {clientName}</DialogTitle>
           <DialogDescription>
-            Add monetary credit to client&apos;s wallet for future orders
+            Add monetary credit to client&apos;s wallet for future projects
           </DialogDescription>
         </DialogHeader>
 
