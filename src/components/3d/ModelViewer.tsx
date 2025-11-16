@@ -24,6 +24,13 @@ import { detectOverhangs } from "@/lib/3d/overhang-detector";
 import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
 import { recenterObjectToGround } from "@/lib/3d/coordinates";
 import {
+  fitCameraToGroup,
+  positionCameraForPreset,
+  retargetControlsToGroup,
+  getGroupRadius,
+  type ViewPreset as CameraViewPreset,
+} from "@/lib/3d/camera";
+import {
   useOrientationStore,
   OrientationQuaternion,
   OrientationPosition,
@@ -45,7 +52,7 @@ function extFromFilename(name?: string | null): SupportedExt | null {
 }
 
 export type PanDirection = "left" | "right" | "up" | "down";
-export type ViewPreset = "top" | "bottom" | "front" | "back" | "left" | "right" | "iso";
+export type ViewPreset = CameraViewPreset;
 
 export interface ModelViewerHandle {
   getObject: () => THREE.Object3D | null;
@@ -139,8 +146,33 @@ const tempSphere = new THREE.Sphere();
 const tempDir = new THREE.Vector3();
 const tempTranslation = new THREE.Vector3();
 const DEFAULT_BOUNDS_MESSAGE = "Model exceeds the 240mm build volume. Reposition before locking orientation.";
-const tempTarget = new THREE.Vector3();
-const tempCenter = new THREE.Vector3();
+
+function clampGroupToBuildVolume(group: THREE.Group) {
+  tempBox.setFromObject(group);
+  if (tempBox.isEmpty()) return;
+  let deltaX = 0;
+  if (tempBox.min.x < -HALF_PLATE_MM) {
+    deltaX = -HALF_PLATE_MM - tempBox.min.x;
+  } else if (tempBox.max.x > HALF_PLATE_MM) {
+    deltaX = HALF_PLATE_MM - tempBox.max.x;
+  }
+  let deltaZ = 0;
+  if (tempBox.min.z < -HALF_PLATE_MM) {
+    deltaZ = -HALF_PLATE_MM - tempBox.min.z;
+  } else if (tempBox.max.z > HALF_PLATE_MM) {
+    deltaZ = HALF_PLATE_MM - tempBox.max.z;
+  }
+  let deltaY = 0;
+  if (tempBox.min.y < 0) {
+    deltaY = -tempBox.min.y;
+  }
+  if (deltaX !== 0 || deltaY !== 0 || deltaZ !== 0) {
+    group.position.x += deltaX;
+    group.position.y += deltaY;
+    group.position.z += deltaZ;
+    group.updateMatrixWorld(true);
+  }
+}
 
 function computeBoundsStatusFromObject(object: THREE.Object3D | null): OrientationBoundsStatus | null {
   if (!object) return null;
@@ -154,115 +186,6 @@ function formatBoundsMessage(status: OrientationBoundsStatus): string {
     return DEFAULT_BOUNDS_MESSAGE;
   }
   return `Build volume exceeded: ${status.violations[0]}`;
-}
-
-function fitCameraToGroup(
-  group: THREE.Group,
-  camera: THREE.PerspectiveCamera,
-  controls?: OrbitControlsImpl | null
-) {
-  tempBox.setFromObject(group);
-  if (tempBox.isEmpty()) return;
-  tempBox.getBoundingSphere(tempSphere);
-  const radius = tempSphere.radius || 1;
-  tempCenter.copy(tempSphere.center ?? new THREE.Vector3());
-  const fov = THREE.MathUtils.degToRad(camera.fov);
-  const distance = (radius / Math.tan(fov / 2)) * 1.4;
-  camera.position.set(tempCenter.x, tempCenter.y + radius * 0.6, tempCenter.z + distance);
-  camera.near = Math.max(0.1, distance / 1000);
-  camera.far = Math.max(distance * 10, camera.near + 10);
-  camera.updateProjectionMatrix();
-  if (controls?.target) {
-    controls.target.copy(tempCenter);
-    controls.update();
-  } else {
-    camera.lookAt(tempCenter);
-  }
-}
-
-function getGroupBoundingSphere(group: THREE.Group): THREE.Sphere | null {
-  tempBox.setFromObject(group);
-  if (tempBox.isEmpty()) return null;
-  tempBox.getBoundingSphere(tempSphere);
-  return tempSphere;
-}
-
-function getGroupRadius(group: THREE.Group): number {
-  const sphere = getGroupBoundingSphere(group);
-  if (!sphere || !isFinite(sphere.radius) || sphere.radius === 0) {
-    return 50;
-  }
-  return sphere.radius;
-}
-
-function positionCameraForPreset(
-  group: THREE.Group,
-  camera: THREE.PerspectiveCamera,
-  controls: OrbitControlsImpl | null,
-  preset: ViewPreset
-) {
-  const sphere = getGroupBoundingSphere(group);
-  const center = sphere?.center ?? tempTarget.set(0, 0, 0);
-  const radius = sphere?.radius ?? getGroupRadius(group);
-  const distance = Math.max(radius * 2, 25);
-
-  switch (preset) {
-    case "top":
-      camera.position.set(center.x, center.y + distance, center.z + 0.001);
-      camera.up.set(0, 0, -1);
-      break;
-    case "bottom":
-      camera.position.set(center.x, center.y - distance, center.z - 0.001);
-      camera.up.set(0, 0, 1);
-      break;
-    case "front":
-      camera.position.set(center.x, center.y + radius * 0.3, center.z + distance);
-      camera.up.set(0, 1, 0);
-      break;
-    case "back":
-      camera.position.set(center.x, center.y + radius * 0.3, center.z - distance);
-      camera.up.set(0, 1, 0);
-      break;
-    case "left":
-      camera.position.set(center.x - distance, center.y + radius * 0.3, center.z);
-      camera.up.set(0, 1, 0);
-      break;
-    case "right":
-      camera.position.set(center.x + distance, center.y + radius * 0.3, center.z);
-      camera.up.set(0, 1, 0);
-      break;
-    case "iso":
-    default:
-      camera.position.set(center.x + distance * 0.75, center.y + distance * 0.7, center.z + distance * 0.75);
-      camera.up.set(0, 1, 0);
-      break;
-  }
-
-  camera.near = Math.max(0.1, distance / 1000);
-  camera.far = Math.max(distance * 10, camera.near + 10);
-  camera.updateProjectionMatrix();
-
-  if (controls?.target) {
-    controls.target.copy(center);
-    controls.update();
-  }
-
-  camera.lookAt(center);
-}
-
-function retargetControlsToGroup(
-  group: THREE.Group,
-  controls: OrbitControlsImpl | null
-) {
-  if (!controls) return;
-  const sphere = getGroupBoundingSphere(group);
-  if (sphere) {
-    tempTarget.copy(sphere.center ?? group.position);
-  } else {
-    tempTarget.copy(group.position);
-  }
-  controls.target.copy(tempTarget);
-  controls.update();
 }
 
 function rotateGroup(group: THREE.Group, axis: "x" | "y" | "z", degrees: number) {
@@ -411,6 +334,7 @@ function Scene({
   facePickMode = false,
   onFacePickRequest,
   overhangThreshold = 45,
+  registerAnalysisRunner,
 }: {
   url: string;
   filename?: string;
@@ -425,6 +349,7 @@ function Scene({
   facePickMode?: boolean;
   onFacePickRequest?: (normal: THREE.Vector3) => void;
   overhangThreshold?: number;
+  registerAnalysisRunner?: (fn: (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => void) => void;
 }) {
   const { camera, gl } = useThree();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
@@ -434,7 +359,7 @@ function Scene({
   );
   const supportEnabled = useOrientationStore((state) => state.supportEnabled);
   const setOrientationState = useOrientationStore((state) => state.setOrientation);
-  const setOverhangData = useOrientationStore((state) => state.setOverhangData);
+  const setOverhangFaces = useOrientationStore((state) => state.setOverhangFaces);
   const setAnalysisStatus = useOrientationStore((state) => state.setAnalysisStatus);
   const setAutoOrientStatus = useOrientationStore((state) => state.setAutoOrientStatus);
   const setInteractionLock = useOrientationStore((state) => state.setInteractionLock);
@@ -484,28 +409,32 @@ function Scene({
   }, [addWarning, largeModel]);
 
 const performOverhangAnalysis = useCallback(
-  (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
-    const geometry = analysisGeometryRef.current;
-    if (!geometry) {
-      return;
-    }
-    try {
-      const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45, translation ?? null);
-      useOrientationStore.getState().setSupportEstimates({
-        supportVolume: data.supportVolume,
-        supportWeight: data.supportWeight,
-      });
-    } catch (err) {
-      browserLogger.error({
-        scope: "browser.overhang.analysis",
-        message: "[ModelViewer] overhang analysis failed",
-        error: err,
-      });
-      addWarning("Overhang preview failed. Estimates may be outdated.");
-    }
-  },
-  [addWarning]
-);
+    (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
+      const geometry = analysisGeometryRef.current;
+      if (!geometry) {
+        return;
+      }
+      try {
+        setAnalysisStatus("running");
+        const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45, translation ?? null);
+        setOverhangFaces(data.overhangFaceIndices ?? []);
+        useOrientationStore.getState().setSupportEstimates({
+          supportVolume: data.supportVolume,
+          supportWeight: data.supportWeight,
+        });
+        setAnalysisStatus("idle");
+      } catch (err) {
+        browserLogger.error({
+          scope: "browser.overhang.analysis",
+          message: "[ModelViewer] overhang analysis failed",
+          error: err,
+        });
+        setAnalysisStatus("error", "Overhang preview failed");
+        addWarning("Overhang preview failed. Estimates may be outdated.");
+      }
+    },
+    [addWarning, setAnalysisStatus, setOverhangFaces]
+  );
 
   const dispatchOverhangAnalysis = useCallback(
   (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
@@ -524,6 +453,7 @@ const performOverhangAnalysis = useCallback(
     const translationTuple = translation
       ? ([translation.x, translation.y, translation.z] as [number, number, number])
       : null;
+      setAnalysisStatus("running");
       if (worker && serialized && !workerFailedRef.current && !largeModel) {
         worker.postMessage({
           positions: serialized.positions.slice(0),
@@ -552,6 +482,11 @@ const performOverhangAnalysis = useCallback(
   },
   [fileSizeBytes, largeModel, performOverhangAnalysis]
 );
+
+  useEffect(() => {
+    if (!registerAnalysisRunner) return;
+    registerAnalysisRunner((quat, translation) => dispatchOverhangAnalysis(quat, translation ?? null));
+  }, [dispatchOverhangAnalysis, registerAnalysisRunner]);
 
   const cloneGeometryForWorker = useCallback((geometry: THREE.BufferGeometry | null) => {
     if (!geometry) {
@@ -603,33 +538,6 @@ const performOverhangAnalysis = useCallback(
     },
     [setBoundsStatus, setInteractionLock]
   );
-  const clampGroupToBuildVolume = useCallback((group: THREE.Group) => {
-    tempBox.setFromObject(group);
-    if (tempBox.isEmpty()) return;
-    let deltaX = 0;
-    if (tempBox.min.x < -HALF_PLATE_MM) {
-      deltaX = -HALF_PLATE_MM - tempBox.min.x;
-    } else if (tempBox.max.x > HALF_PLATE_MM) {
-      deltaX = HALF_PLATE_MM - tempBox.max.x;
-    }
-    let deltaZ = 0;
-    if (tempBox.min.z < -HALF_PLATE_MM) {
-      deltaZ = -HALF_PLATE_MM - tempBox.min.z;
-    } else if (tempBox.max.z > HALF_PLATE_MM) {
-      deltaZ = HALF_PLATE_MM - tempBox.max.z;
-    }
-    let deltaY = 0;
-    if (tempBox.min.y < 0) {
-      deltaY = -tempBox.min.y;
-    }
-    if (deltaX !== 0 || deltaY !== 0 || deltaZ !== 0) {
-      group.position.x += deltaX;
-      group.position.y += deltaY;
-      group.position.z += deltaZ;
-      group.updateMatrixWorld(true);
-    }
-  }, []);
-
   const runOverhangAnalysis = useCallback(
     (quaternion?: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
       if (!analysisGeometryRef.current) {
@@ -743,7 +651,9 @@ const performOverhangAnalysis = useCallback(
         return;
       }
       const { faces, supportVolume, supportWeight } = data as OverhangWorkerResponse;
+      setOverhangFaces(faces ?? []);
       useOrientationStore.getState().setSupportEstimates({ supportVolume, supportWeight });
+      setAnalysisStatus("idle");
     };
     worker.onerror = (error) => {
       browserLogger.error({
@@ -760,7 +670,7 @@ const performOverhangAnalysis = useCallback(
       worker.terminate();
       workerRef.current = null;
     };
-  }, [addWarning, setAnalysisStatus, setOverhangData]);
+  }, [addWarning, setAnalysisStatus, setOverhangFaces]);
 
   useEffect(() => {
     if (!facePickMode || !objectRef.current) return;
@@ -985,6 +895,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const [renderer, setRenderer] = useState<THREE.WebGLRenderer | null>(null);
+  const runAnalysisRef = useRef<(q: THREE.Quaternion, t?: THREE.Vector3 | null) => void | null>(null);
 
   useWebGLContext(renderer);
   const helpersVisible = useOrientationStore((state) => state.helpersVisible);
@@ -1092,7 +1003,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
           retargetControlsToGroup(group, controlsRef.current);
         }
         updateBoundsStatus(group);
-        runOverhangAnalysis(group.quaternion.clone(), group.position.clone());
+        runAnalysisRef.current?.(group.quaternion.clone(), group.position.clone());
         syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1302,6 +1213,9 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               facePickMode={facePickMode}
               onFacePickRequest={handleFacePickRequest}
               overhangThreshold={overhangThreshold}
+              registerAnalysisRunner={(fn) => {
+                runAnalysisRef.current = fn;
+              }}
             />
           </Suspense>
         </Canvas>

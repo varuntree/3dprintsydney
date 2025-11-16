@@ -22,10 +22,12 @@ interface OrientationState {
   position: OrientationPosition;
   supportVolume: number;
   supportWeight: number;
+  overhangFaces: number[];
   supportEnabled: boolean;
   isAutoOriented: boolean;
   autoOrientStatus: LoadingState;
   autoOrientMessage?: string;
+  analysisStatus?: LoadingState;
   interactionDisabled: boolean;
   interactionMessage?: string;
   warnings: string[];
@@ -42,9 +44,11 @@ interface OrientationActions {
     options?: { auto?: boolean }
   ) => void;
   setSupportEstimates: (params: { supportVolume: number; supportWeight: number }) => void;
+  setOverhangFaces: (faces: number[]) => void;
   toggleSupports: (nextState?: boolean) => void;
   setSupportsEnabled: (enabled: boolean) => void;
   setAutoOrientStatus: (status: LoadingState, message?: string) => void;
+  setAnalysisStatus: (status: LoadingState, message?: string) => void;
   setInteractionLock: (disabled: boolean, message?: string) => void;
   addWarning: (message: string) => void;
   clearWarnings: () => void;
@@ -64,9 +68,11 @@ const initialState: OrientationState = {
   position: initialPosition,
   supportVolume: 0,
   supportWeight: 0,
+  overhangFaces: [],
   supportEnabled: true,
   isAutoOriented: false,
   autoOrientStatus: "idle",
+  analysisStatus: "idle",
   interactionDisabled: false,
   warnings: [],
   boundsStatus: null,
@@ -163,11 +169,17 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
       supportVolume,
       supportWeight,
     })),
+  setOverhangFaces: (faces) =>
+    set(() => ({
+      overhangFaces: faces,
+    })),
   toggleSupports: (nextState) =>
     set((state) => ({ supportEnabled: nextState ?? !state.supportEnabled })),
   setSupportsEnabled: (enabled) => set(() => ({ supportEnabled: enabled })),
   setAutoOrientStatus: (status, message) =>
     set(() => ({ autoOrientStatus: status, autoOrientMessage: message })),
+  setAnalysisStatus: (status, message) =>
+    set(() => ({ analysisStatus: status, autoOrientMessage: message })),
   setInteractionLock: (disabled, message) =>
     set(() => ({ interactionDisabled: disabled, interactionMessage: message })),
   addWarning: (message) =>
@@ -207,9 +219,11 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
       position: initialPosition,
       supportVolume: 0,
       supportWeight: 0,
+      overhangFaces: [],
       isAutoOriented: false,
       autoOrientStatus: "idle",
       autoOrientMessage: undefined,
+      analysisStatus: "idle",
       interactionDisabled: false,
       interactionMessage: undefined,
       warnings: [],
@@ -244,8 +258,10 @@ export const useSupports = () =>
       supportEnabled: state.supportEnabled,
       supportVolume: state.supportVolume,
       supportWeight: state.supportWeight,
+      overhangFaces: state.overhangFaces,
       autoOrientStatus: state.autoOrientStatus,
       autoOrientMessage: state.autoOrientMessage,
+      analysisStatus: state.analysisStatus,
       interactionDisabled: state.interactionDisabled,
       interactionMessage: state.interactionMessage,
       warnings: state.warnings,

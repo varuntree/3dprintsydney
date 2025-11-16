@@ -57,9 +57,9 @@ export default function OrientationGizmo({
         commitTransform();
       }
     };
-    controls.addEventListener("dragging-changed", handleDraggingChanged);
+    (controls as any).addEventListener("dragging-changed", handleDraggingChanged);
     return () => {
-      controls.removeEventListener("dragging-changed", handleDraggingChanged);
+      (controls as any).removeEventListener("dragging-changed", handleDraggingChanged);
     };
   }, [commitTransform, onDraggingChange]);
 

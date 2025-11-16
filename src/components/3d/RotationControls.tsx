@@ -104,14 +104,16 @@ export default function RotationControls({
   const {
     supportVolume,
     supportWeight,
-    overhangStatus,
-    overhangMessage,
     autoOrientStatus,
     autoOrientMessage,
+    analysisStatus,
     interactionDisabled,
     interactionMessage,
     warnings,
   } = useSupports();
+
+  const overhangStatus = analysisStatus;
+  const overhangMessage = warnings[0] ?? interactionMessage ?? autoOrientMessage;
 
   const quaternion = useMemo(() => new THREE.Quaternion(...quaternionTuple), [quaternionTuple]);
   const currentEuler = useMemo(() => {

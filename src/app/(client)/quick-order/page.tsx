@@ -119,6 +119,8 @@ type OrientationSnapshot = {
   helpersVisible?: boolean;
   gizmoEnabled?: boolean;
   gizmoMode?: GizmoMode;
+  supportVolume?: number;
+  supportWeight?: number;
 };
 
 type SliceResult = { grams: number; timeSec: number; fallback?: boolean; error?: string };
