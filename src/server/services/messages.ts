@@ -668,7 +668,7 @@ export async function markConversationSeen(
   messageId?: number | null,
 ): Promise<void> {
   const supabase = getServiceSupabase();
-  
+
   const { error } = await supabase
     .from("conversation_last_seen")
     .upsert({
@@ -683,7 +683,7 @@ export async function markConversationSeen(
   if (error) {
     const message = error.message ?? "";
     // If table doesn't exist yet (migration not run), fail silently
-    if (message.toLowerCase().includes("conversation_last_seen") && 
+    if (message.toLowerCase().includes("conversation_last_seen") &&
         message.toLowerCase().includes("does not exist")) {
       logger.warn({
         scope: "messages.conversation",
@@ -702,6 +702,50 @@ export async function markConversationSeen(
     scope: "messages.conversation",
     message: "Conversation marked as seen",
     data: { userId, conversationUserId, timestamp: timestampIso },
+  });
+}
+
+/**
+ * Mark ALL conversations as seen for a user up to a timestamp
+ * Used when marking all notifications as read without specific conversation context
+ * Updates all existing conversation_last_seen records to the new timestamp
+ * @param userId - The user marking all conversations as seen
+ * @param timestampIso - ISO timestamp to mark all conversations as seen up to
+ */
+export async function markAllConversationsSeen(
+  userId: number,
+  timestampIso: string,
+): Promise<void> {
+  const supabase = getServiceSupabase();
+
+  // Update all existing conversation tracking records for this user
+  const { error } = await supabase
+    .from("conversation_last_seen")
+    .update({ last_seen_at: timestampIso })
+    .eq("user_id", userId);
+
+  if (error) {
+    const message = error.message ?? "";
+    // If table doesn't exist yet (migration not run), fail silently
+    if (message.toLowerCase().includes("conversation_last_seen") &&
+        message.toLowerCase().includes("does not exist")) {
+      logger.warn({
+        scope: "messages.conversation",
+        message: "conversation_last_seen table not found; skipping granular tracking",
+      });
+      return;
+    }
+    throw new AppError(
+      `Failed to mark all conversations as seen: ${error.message}`,
+      "MESSAGE_ERROR",
+      500,
+    );
+  }
+
+  logger.info({
+    scope: "messages.conversation",
+    message: "All conversations marked as seen",
+    data: { userId, timestamp: timestampIso },
   });
 }
 

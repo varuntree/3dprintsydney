@@ -10,6 +10,7 @@ import {
   useState,
   useCallback,
 } from "react";
+import { useShallow } from "zustand/react/shallow";
 import * as THREE from "three";
 import { Canvas, useLoader, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, Html, OrbitControls } from "@react-three/drei";
@@ -30,7 +31,6 @@ import {
 } from "@/stores/orientation-store";
 import { describeBuildVolume, HALF_PLATE_MM } from "@/lib/3d/build-volume";
 import BuildPlate from "./BuildPlate";
-import OverhangHighlight from "./OverhangHighlight";
 import OrientationGizmo, { type GizmoMode } from "./OrientationGizmo";
 import { browserLogger } from "@/lib/logging/browser-logger";
 import { useWebGLContext } from "@/hooks/use-webgl-context";
@@ -81,12 +81,14 @@ interface ModelViewerProps {
 function mergeObjectGeometries(root: THREE.Object3D): THREE.BufferGeometry | null {
   const geoms: THREE.BufferGeometry[] = [];
   root.updateMatrixWorld(true);
+  const inverseRoot = root.matrixWorld.clone().invert();
+
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (mesh.isMesh && mesh.geometry) {
       const cloned = mesh.geometry.clone();
-      const world = mesh.matrixWorld.clone();
-      cloned.applyMatrix4(world);
+      const toLocal = mesh.matrixWorld.clone().premultiply(inverseRoot); // world → root-local
+      cloned.applyMatrix4(toLocal);
       geoms.push(cloned);
     }
   });
@@ -137,6 +139,8 @@ const tempSphere = new THREE.Sphere();
 const tempDir = new THREE.Vector3();
 const tempTranslation = new THREE.Vector3();
 const DEFAULT_BOUNDS_MESSAGE = "Model exceeds the 240mm build volume. Reposition before locking orientation.";
+const tempTarget = new THREE.Vector3();
+const tempCenter = new THREE.Vector3();
 
 function computeBoundsStatusFromObject(object: THREE.Object3D | null): OrientationBoundsStatus | null {
   if (!object) return null;
@@ -161,17 +165,18 @@ function fitCameraToGroup(
   if (tempBox.isEmpty()) return;
   tempBox.getBoundingSphere(tempSphere);
   const radius = tempSphere.radius || 1;
+  tempCenter.copy(tempSphere.center ?? new THREE.Vector3());
   const fov = THREE.MathUtils.degToRad(camera.fov);
   const distance = (radius / Math.tan(fov / 2)) * 1.4;
-  camera.position.set(0, radius * 0.6, distance);
+  camera.position.set(tempCenter.x, tempCenter.y + radius * 0.6, tempCenter.z + distance);
   camera.near = Math.max(0.1, distance / 1000);
   camera.far = Math.max(distance * 10, camera.near + 10);
   camera.updateProjectionMatrix();
   if (controls?.target) {
-    controls.target.set(0, 0, 0);
+    controls.target.copy(tempCenter);
     controls.update();
   } else {
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(tempCenter);
   }
 }
 
@@ -196,37 +201,39 @@ function positionCameraForPreset(
   controls: OrbitControlsImpl | null,
   preset: ViewPreset
 ) {
-  const radius = getGroupRadius(group);
+  const sphere = getGroupBoundingSphere(group);
+  const center = sphere?.center ?? tempTarget.set(0, 0, 0);
+  const radius = sphere?.radius ?? getGroupRadius(group);
   const distance = Math.max(radius * 2, 25);
 
   switch (preset) {
     case "top":
-      camera.position.set(0, distance, 0.001);
+      camera.position.set(center.x, center.y + distance, center.z + 0.001);
       camera.up.set(0, 0, -1);
       break;
     case "bottom":
-      camera.position.set(0, -distance, -0.001);
+      camera.position.set(center.x, center.y - distance, center.z - 0.001);
       camera.up.set(0, 0, 1);
       break;
     case "front":
-      camera.position.set(0, radius * 0.3, distance);
+      camera.position.set(center.x, center.y + radius * 0.3, center.z + distance);
       camera.up.set(0, 1, 0);
       break;
     case "back":
-      camera.position.set(0, radius * 0.3, -distance);
+      camera.position.set(center.x, center.y + radius * 0.3, center.z - distance);
       camera.up.set(0, 1, 0);
       break;
     case "left":
-      camera.position.set(-distance, radius * 0.3, 0);
+      camera.position.set(center.x - distance, center.y + radius * 0.3, center.z);
       camera.up.set(0, 1, 0);
       break;
     case "right":
-      camera.position.set(distance, radius * 0.3, 0);
+      camera.position.set(center.x + distance, center.y + radius * 0.3, center.z);
       camera.up.set(0, 1, 0);
       break;
     case "iso":
     default:
-      camera.position.set(distance * 0.75, distance * 0.7, distance * 0.75);
+      camera.position.set(center.x + distance * 0.75, center.y + distance * 0.7, center.z + distance * 0.75);
       camera.up.set(0, 1, 0);
       break;
   }
@@ -236,11 +243,26 @@ function positionCameraForPreset(
   camera.updateProjectionMatrix();
 
   if (controls?.target) {
-    controls.target.set(0, 0, 0);
+    controls.target.copy(center);
     controls.update();
   }
 
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(center);
+}
+
+function retargetControlsToGroup(
+  group: THREE.Group,
+  controls: OrbitControlsImpl | null
+) {
+  if (!controls) return;
+  const sphere = getGroupBoundingSphere(group);
+  if (sphere) {
+    tempTarget.copy(sphere.center ?? group.position);
+  } else {
+    tempTarget.copy(group.position);
+  }
+  controls.target.copy(tempTarget);
+  controls.update();
 }
 
 function rotateGroup(group: THREE.Group, axis: "x" | "y" | "z", degrees: number) {
@@ -407,9 +429,9 @@ function Scene({
   const { camera, gl } = useThree();
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const objectRef = useRef<THREE.Group | null>(null);
-  const storeQuaternion = useOrientationStore((state) => state.quaternion);
-  const storePosition = useOrientationStore((state) => state.position);
-  const overhangFaces = useOrientationStore((state) => state.overhangFaces);
+  const { storeQuaternion, storePosition } = useOrientationStore(
+    useShallow((state) => ({ storeQuaternion: state.quaternion, storePosition: state.position }))
+  );
   const supportEnabled = useOrientationStore((state) => state.supportEnabled);
   const setOrientationState = useOrientationStore((state) => state.setOrientation);
   const setOverhangData = useOrientationStore((state) => state.setOverhangData);
@@ -422,12 +444,14 @@ function Scene({
   const analysisGeometryRef = useRef<THREE.BufferGeometry | null>(null);
   const serializedGeometryRef = useRef<{ positions: Float32Array; index: Uint32Array | null } | null>(null);
   const thresholdRef = useRef(overhangThreshold);
+  // analysisGeometry retained for worker/calcs; no longer rendered
   const [analysisGeometry, setAnalysisGeometry] = useState<THREE.BufferGeometry | null>(null);
   const [gizmoDragging, setGizmoDragging] = useState(false);
   const [modelVersion, setModelVersion] = useState(0);
   const overhangTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const workerFailedRef = useRef(false);
+  const geometryMissingLoggedRef = useRef(false);
   const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
   const boundsLockRef = useRef<{ active: boolean; message: string | null }>({ active: false, message: null });
 
@@ -459,41 +483,47 @@ function Scene({
     }
   }, [addWarning, largeModel]);
 
-  const performOverhangAnalysis = useCallback(
-    (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
-      const geometry = analysisGeometryRef.current;
-      if (!geometry) {
-        setAnalysisStatus("error", "No geometry available for overhang analysis.");
-        return;
-      }
-      try {
-        const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45, translation ?? null);
-        setOverhangData({
-          faces: data.overhangFaceIndices,
-          supportVolume: data.supportVolume,
-          supportWeight: data.supportWeight,
-        });
-  } catch (err) {
-    browserLogger.error({
-      scope: "browser.overhang.analysis",
-      message: "[ModelViewer] overhang analysis failed",
-      error: err,
-    });
-    setAnalysisStatus("error", "Overhang preview failed. Using last known estimate.");
-    addWarning("Overhang preview failed. Estimates may be outdated.");
-  }
-    },
-    [addWarning, setAnalysisStatus, setOverhangData]
-  );
+const performOverhangAnalysis = useCallback(
+  (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
+    const geometry = analysisGeometryRef.current;
+    if (!geometry) {
+      return;
+    }
+    try {
+      const data = detectOverhangs(geometry, quaternion, thresholdRef.current ?? 45, translation ?? null);
+      useOrientationStore.getState().setSupportEstimates({
+        supportVolume: data.supportVolume,
+        supportWeight: data.supportWeight,
+      });
+    } catch (err) {
+      browserLogger.error({
+        scope: "browser.overhang.analysis",
+        message: "[ModelViewer] overhang analysis failed",
+        error: err,
+      });
+      addWarning("Overhang preview failed. Estimates may be outdated.");
+    }
+  },
+  [addWarning]
+);
 
   const dispatchOverhangAnalysis = useCallback(
-    (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
-      const worker = workerRef.current;
-      const serialized = serializedGeometryRef.current;
-      setAnalysisStatus("running", "Detecting overhangs…");
-      const translationTuple = translation
-        ? ([translation.x, translation.y, translation.z] as [number, number, number])
-        : null;
+  (quaternion: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
+    if (!analysisGeometryRef.current) {
+      if (!geometryMissingLoggedRef.current) {
+        browserLogger.info({
+          scope: "browser.overhang.analysis",
+          message: "Skipping overhang analysis; geometry not ready",
+        });
+        geometryMissingLoggedRef.current = true;
+      }
+      return;
+    }
+    const worker = workerRef.current;
+    const serialized = serializedGeometryRef.current;
+    const translationTuple = translation
+      ? ([translation.x, translation.y, translation.z] as [number, number, number])
+      : null;
       if (worker && serialized && !workerFailedRef.current && !largeModel) {
         worker.postMessage({
           positions: serialized.positions.slice(0),
@@ -519,9 +549,9 @@ function Scene({
         },
       });
       performOverhangAnalysis(quaternion, translation);
-    },
-    [fileSizeBytes, largeModel, performOverhangAnalysis, setAnalysisStatus]
-  );
+  },
+  [fileSizeBytes, largeModel, performOverhangAnalysis]
+);
 
   const cloneGeometryForWorker = useCallback((geometry: THREE.BufferGeometry | null) => {
     if (!geometry) {
@@ -554,6 +584,11 @@ function Scene({
       setBoundsStatus(status);
       if (status && !status.inBounds) {
         const message = formatBoundsMessage(status);
+        browserLogger.warn({
+          scope: "browser.orientation.bounds",
+          message,
+          data: { ...status },
+        });
         if (!boundsLockRef.current.active || boundsLockRef.current.message !== message) {
           boundsLockRef.current = { active: true, message };
           setInteractionLock(true, message);
@@ -597,6 +632,9 @@ function Scene({
 
   const runOverhangAnalysis = useCallback(
     (quaternion?: THREE.Quaternion, translation?: THREE.Vector3 | null) => {
+      if (!analysisGeometryRef.current) {
+        return;
+      }
       if (overhangTimeoutRef.current) {
         clearTimeout(overhangTimeoutRef.current);
       }
@@ -617,8 +655,12 @@ function Scene({
       const group = obj as THREE.Group;
       if (gizmoMode === "translate") {
         clampGroupToBuildVolume(group);
+      } else {
+        recenterObjectToGround(group);
+        clampGroupToBuildVolume(group);
       }
       updateBoundsStatus(group);
+      retargetControlsToGroup(group, controlsRef.current);
       if (onTransformChange) {
         onTransformChange(group.matrixWorld.clone());
       }
@@ -631,13 +673,26 @@ function Scene({
       const group = obj as THREE.Group;
       if (gizmoMode === "translate") {
         clampGroupToBuildVolume(group);
+      } else {
+        recenterObjectToGround(group);
+        clampGroupToBuildVolume(group);
       }
       updateBoundsStatus(group);
+      retargetControlsToGroup(group, controlsRef.current);
+      runOverhangAnalysis(group.quaternion.clone(), group.position.clone());
+      browserLogger.info({
+        scope: "browser.orientation.gizmo",
+        message: "Gizmo transform complete",
+        data: {
+          mode: gizmoMode,
+          position: { x: group.position.x, y: group.position.y, z: group.position.z },
+        },
+      });
       if (onTransformChange) {
         onTransformChange(group.matrixWorld.clone());
       }
     },
-    [clampGroupToBuildVolume, gizmoMode, onTransformChange, updateBoundsStatus]
+    [clampGroupToBuildVolume, gizmoMode, onTransformChange, runOverhangAnalysis, updateBoundsStatus]
   );
 
   const handleModelLoaded = useCallback(() => {
@@ -688,8 +743,7 @@ function Scene({
         return;
       }
       const { faces, supportVolume, supportWeight } = data as OverhangWorkerResponse;
-      setOverhangData({ faces, supportVolume, supportWeight });
-      setAnalysisStatus("idle");
+      useOrientationStore.getState().setSupportEstimates({ supportVolume, supportWeight });
     };
     worker.onerror = (error) => {
       browserLogger.error({
@@ -697,7 +751,6 @@ function Scene({
         message: "[ModelViewer] overhang worker error",
         error,
       });
-      setAnalysisStatus("error", "Overhang worker failed. Falling back to slower estimation.");
       addWarning("Overhang worker failed. Falling back to slower estimation.");
       workerFailedRef.current = true;
       workerRef.current = null;
@@ -731,13 +784,17 @@ function Scene({
 
   useEffect(() => {
     if (!objectRef.current) return;
+    if (preparedForKeyRef.current !== urlKey) return;
     const quaternion = tupleToQuaternion(storeQuaternion);
     const [px, py, pz] = storePosition;
     objectRef.current.quaternion.copy(quaternion);
     objectRef.current.position.set(px, py, pz);
     objectRef.current.updateMatrixWorld(true);
+    // keep model seated and within bounds after orientation changes from external inputs
+    recenterObjectToGround(objectRef.current);
+    clampGroupToBuildVolume(objectRef.current);
     tempTranslation.set(px, py, pz);
-    runOverhangAnalysis(quaternion, tempTranslation);
+    runOverhangAnalysis(objectRef.current.quaternion.clone(), objectRef.current.position.clone());
     updateBoundsStatus(objectRef.current);
   }, [storePosition, storeQuaternion, runOverhangAnalysis, updateBoundsStatus]);
 
@@ -766,6 +823,7 @@ function Scene({
         analysisGeometryRef.current = merged ?? null;
         setAnalysisGeometry(merged ?? null);
         cloneGeometryForWorker(merged ?? null);
+        geometryMissingLoggedRef.current = false;
 
         const storeState = useOrientationStore.getState();
         let appliedQuaternion: THREE.Quaternion | null = null;
@@ -876,9 +934,6 @@ function Scene({
         ) : (
           <STLObject url={url} onLoaded={handleModelLoaded} />
         )}
-        {analysisGeometry && supportEnabled && overhangFaces.length > 0 ? (
-          <OverhangHighlight geometry={analysisGeometry} overhangFaces={overhangFaces} />
-        ) : null}
       </group>
 
       {gizmoEnabled && objectRef.current ? (
@@ -989,10 +1044,6 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       [applyFaceAlignment, onFacePickComplete]
     );
 
-    useEffect(() => {
-    useOrientationStore.getState().reset();
-  }, [url]);
-
   useEffect(() => {
     if (!gizmoEnabled && gizmoMode !== "rotate") {
       setGizmoModeState("rotate");
@@ -1015,6 +1066,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        retargetControlsToGroup(group, controlsRef.current);
         syncOrientationFromGroup({ auto: true });
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1026,6 +1078,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        retargetControlsToGroup(group, controlsRef.current);
         syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1033,10 +1086,13 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
         rotateGroup(group, axis, degrees);
+        recenterObjectToGround(group);
+        clampGroupToBuildVolume(group);
         if (controlsRef.current) {
-          controlsRef.current.target.set(0, 0, 0);
-          controlsRef.current.update();
+          retargetControlsToGroup(group, controlsRef.current);
         }
+        updateBoundsStatus(group);
+        runOverhangAnalysis(group.quaternion.clone(), group.position.clone());
         syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1059,6 +1115,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (cameraRef.current) {
           fitCameraToGroup(group, cameraRef.current, controlsRef.current);
         }
+        retargetControlsToGroup(group, controlsRef.current);
         syncOrientationFromGroup({ auto: true });
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1126,6 +1183,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       setView: (preset) => {
         if (!sceneObject || !cameraRef.current || !controlsRef.current) return;
         positionCameraForPreset(sceneObject as THREE.Group, cameraRef.current, controlsRef.current, preset);
+        retargetControlsToGroup(sceneObject as THREE.Group, controlsRef.current);
         if (onTransformChange) onTransformChange((sceneObject as THREE.Group).matrixWorld.clone());
       },
       setHelpersVisible: (visible) => {
@@ -1153,6 +1211,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         }
         group.updateMatrixWorld(true);
         updateBoundsStatus(group);
+        retargetControlsToGroup(group, controlsRef.current);
         setOrientationState(quaternionTuple, positionTuple ?? vectorToTuple(group.position));
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
@@ -1209,12 +1268,9 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       );
     }
 
-    const urlKey = `${url}|${filename ?? ""}`;
-
     return (
       <div className="h-[480px] w-full overflow-hidden rounded-lg border border-border bg-surface-muted">
         <Canvas
-        key={urlKey}
         dpr={[1, 2]}
         camera={{ position: [120, 160, 220], fov: 45, near: 0.1, far: 1000 }}
         gl={{ preserveDrawingBuffer: true, antialias: true, powerPreference: "high-performance" }}

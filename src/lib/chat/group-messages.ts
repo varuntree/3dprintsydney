@@ -32,36 +32,36 @@ function getCachedDate(message: Message): Date {
 }
 
 /**
- * Groups messages by date and sender with time-based clustering
- *
- * Message grouping features:
- * - Group messages by date (Today, Yesterday, or formatted date)
- * - Within each date, group consecutive messages from same sender
- * - Messages within 5 minutes are clustered together
- * 
- * Performance: Uses date caching to avoid repeated parsing (~70% faster)
+ * Groups messages by date and sender with time-based clustering.
+ * Accepts order hint to render newest-first while still grouping chronologically.
  */
-export function groupMessages(messages: Message[]): MessageGroup[] {
+export function groupMessages(
+  messages: Message[],
+  order: "asc" | "desc" = "asc",
+): MessageGroup[] {
   if (messages.length === 0) return [];
+
+  // Always build groups in chronological order to preserve clustering logic
+  const chronological = [...messages].sort(
+    (a, b) => getCachedDate(a).getTime() - getCachedDate(b).getTime(),
+  );
 
   const groups: MessageGroup[] = [];
   let currentGroup: MessageGroup | null = null;
   let lastMessageDate: Date | null = null;
 
-  messages.forEach((message) => {
+  chronological.forEach((message) => {
     const messageDate = getCachedDate(message);
     const dateLabel = getDateLabel(messageDate);
 
-    // Check if we need a new group
     const needsNewGroup =
       !currentGroup ||
       !lastMessageDate ||
       !isSameDay(messageDate, lastMessageDate) ||
       currentGroup.sender !== message.sender ||
-      differenceInMinutes(messageDate, lastMessageDate) > 5;
+      Math.abs(differenceInMinutes(messageDate, lastMessageDate)) > 5;
 
     if (needsNewGroup) {
-      // Start a new group
       currentGroup = {
         date: dateLabel,
         sender: message.sender,
@@ -69,12 +69,21 @@ export function groupMessages(messages: Message[]): MessageGroup[] {
       };
       groups.push(currentGroup);
     } else if (currentGroup) {
-      // Add to current group (null check to satisfy TypeScript)
       currentGroup.messages.push(message);
     }
 
     lastMessageDate = messageDate;
   });
+
+  if (order === "desc") {
+    // Reverse groups and messages to render newest first
+    return groups
+      .map((group) => ({
+        ...group,
+        messages: [...group.messages].reverse(),
+      }))
+      .reverse();
+  }
 
   return groups;
 }

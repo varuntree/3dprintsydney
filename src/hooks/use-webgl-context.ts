@@ -18,16 +18,15 @@ export function useWebGLContext(renderer: THREE.WebGLRenderer | null) {
       () => {
         browserLogger.info({
           scope: "browser.webgl",
-          message: "WebGL context restored; reloading for stability",
+          message: "WebGL context restored; continuing without reload",
         });
         browserLogger.error({
           scope: "bug.34.preview-crash",
           message: "WebGL context restored after loss",
           data: { renderer: renderer.domElement?.id ?? null },
         });
-        if (typeof window !== "undefined") {
-          window.location.reload();
-        }
+        // Let three/r3f attempt graceful recovery; avoid reload loops
+        renderer.resetState();
       },
     );
 

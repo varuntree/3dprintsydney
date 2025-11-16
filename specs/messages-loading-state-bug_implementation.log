@@ -1,0 +1,65 @@
+# Implementation Log: Messages Loading State Bug Fix
+
+## Date
+2025-11-16
+
+## Summary
+Fixed the bug where the messages conversation UI was showing the empty state ("No messages yet") immediately instead of showing a loading skeleton during initial data fetch.
+
+## Root Cause
+The loading skeleton condition included `!emptyReady` as part of its check:
+```tsx
+{messages.length === 0 && (loading || !hasLoadedInitial || !emptyReady) && (
+```
+
+This created a timing dependency where the loading skeleton's visibility was tied to the `emptyReady` debounce state (800ms delay). This caused rendering gaps where neither the loading skeleton nor the empty state would show, resulting in the empty state appearing prematurely.
+
+## Solution Implemented
+Removed `!emptyReady` from the loading skeleton condition:
+```tsx
+// Before
+{messages.length === 0 && (loading || !hasLoadedInitial || !emptyReady) && (
+
+// After
+{messages.length === 0 && (loading || !hasLoadedInitial) && (
+```
+
+This separates concerns:
+- **Loading state**: Purely driven by fetch status (`loading` or `!hasLoadedInitial`)
+- **Empty state**: Still uses debounced `emptyReady` to prevent flashing during race conditions
+
+## Changes Made
+
+### src/components/messages/conversation.tsx:742
+- Removed `|| !emptyReady` from loading skeleton condition
+- Loading skeleton now shows immediately when `loading=true` OR `!hasLoadedInitial=true`
+- Empty state condition remains unchanged with debounce protection
+
+## Files Modified
+- `src/components/messages/conversation.tsx` (1 line changed)
+
+## Testing
+- ✅ TypeScript compilation: No errors (`npx tsc --noEmit`)
+- ✅ Linting: Passed with pre-existing warnings only (`npm run lint`)
+
+## Validation
+The fix ensures:
+1. Loading skeleton displays immediately on conversation open
+2. After loading completes, messages display (if any exist)
+3. If no messages, empty state shows after 800ms debounce
+4. No "flash" of empty state before messages load
+
+## Behavior Flow
+**Before Fix:**
+1. Open conversation → Shows "No messages yet" immediately
+2. Wait 1-2s → Messages appear (if any)
+
+**After Fix:**
+1. Open conversation → Shows loading skeleton
+2. Wait for fetch → Shows messages OR empty state (if truly empty)
+
+## Notes
+- The 800ms `emptyReady` debounce is preserved for the empty state to prevent flashing during fetch race conditions
+- This is a minimal, surgical fix that addresses only the loading skeleton condition
+- No new dependencies or major refactoring needed
+- The fix applies to both admin (specific user conversations) and client (root conversation) message pages

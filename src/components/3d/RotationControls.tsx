@@ -126,7 +126,12 @@ export default function RotationControls({
 
   const [angleInputs, setAngleInputs] = useState(currentEuler);
   useEffect(() => {
-    setAngleInputs(currentEuler);
+    setAngleInputs((prev) => {
+      if (prev.x === currentEuler.x && prev.y === currentEuler.y && prev.z === currentEuler.z) {
+        return prev;
+      }
+      return currentEuler;
+    });
   }, [currentEuler]);
 
   const normalizeAngle = (value: number) => {

@@ -6,21 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, User, Loader2, ArrowLeft } from "lucide-react";
-import { Conversation } from "@/components/messages/conversation";
+import { ConversationV2 } from "@/components/messages/conversation-v2";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
-type ConversationRow = {
-  id: string;
-  email: string;
-  role: string;
-  clientId: number | null;
-  createdAt: string;
-  lastMessageAt: string | null;
-  lastMessageSender: "ADMIN" | "CLIENT" | null;
-  lastMessagePreview: string | null;
-  totalMessages: number;
-  hasUnread: boolean;
-};
+import { useAdminConversationsV2, type ConversationSummary } from "@/hooks/use-admin-conversations-v2";
 
 /**
  * Admin Messages Page
@@ -31,11 +19,9 @@ type ConversationRow = {
  * - Search functionality
  */
 export default function AdminMessagesPage() {
-  const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { items: conversations, loading, error, reload } = useAdminConversationsV2(q);
 
   const router = useRouter();
   const pathname = usePathname();

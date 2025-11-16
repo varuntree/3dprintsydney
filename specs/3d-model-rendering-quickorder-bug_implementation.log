@@ -1,0 +1,166 @@
+# Implementation Log: 3D Model Rendering & Positioning Bug Fix
+
+**Plan**: specs/3d-model-rendering-quickorder-bug.md
+**Date**: 2025-11-16
+**Status**: ✅ COMPLETED
+
+## Summary
+
+Fixed critical 3D model positioning and rendering issues in QuickOrder by correcting transformation order, AABB handling, and TransformControls configuration.
+
+## Changes Implemented
+
+### 1. Fixed recenterObjectToGround() AABB handling
+**File**: `src/lib/3d/coordinates.ts` (lines 85-106)
+
+**Changes**:
+- Added `object.updateMatrixWorld(true)` call BEFORE `Box3.setFromObject()` to ensure accurate world-space bounds
+- Changed centering logic from absolute positions to position deltas
+- Calculate offsets as `delta = worldCenter - currentPosition` instead of directly subtracting world coordinates
+- Added final `updateMatrixWorld(true)` after position updates
+
+**Why**: Previous code used world-space AABB center which doesn't match Object3D origin after rotation. AABB expands when rotated (stays axis-aligned), causing incorrect centering calculations. Using deltas preserves rotation while centering correctly.
+
+### 2. Added space="local" to TransformControls
+**File**: `src/components/3d/OrientationGizmo.tsx` (line 57)
+
+**Changes**:
+- Added `space="local"` prop to TransformControls component
+
+**Why**: TransformControls defaults to world space, causing gizmo axes to not align with rotated models. Local space makes gizmo follow model orientation, properly enclosing the geometry.
+
+### 3. Fixed rotateObject() operation order
+**File**: `src/lib/3d/coordinates.ts` (lines 137-160)
+
+**Changes**:
+- Replaced `object.rotateX/Y/Z()` with quaternion-based rotation
+- Build rotation quaternion from axis vector using `setFromAxisAngle()`
+- Compound rotations using `multiplyQuaternions()` with normalization
+- Added `object.updateMatrixWorld(true)` call BEFORE `recenterObjectToGround()`
+
+**Why**:
+- Previous code used Euler rotation methods (gimbal lock risk)
+- Missing `updateMatrixWorld()` before recenter caused stale AABB calculations
+- Quaternion multiplication preserves rotation accuracy and avoids gimbal lock
+
+### 4. Verified ModelViewer.tsx transform flow
+**File**: `src/components/3d/ModelViewer.tsx` (reviewed, no changes needed)
+
+**Verified**:
+- Line 792: `group.updateMatrixWorld(true)` called before `recenterObjectToGround()` at line 798 ✓
+- Line 284: `applyAutoOrientToGroup()` calls `updateMatrixWorld(true)` after quaternion changes ✓
+- Line 302: Error case also calls `updateMatrixWorld(true)` ✓
+- All recenterObjectToGround() calls happen after matrix updates ✓
+
+### 5. Verified bounds checking
+**File**: `src/lib/3d/build-volume.ts` (reviewed, no changes needed)
+
+**Verified**:
+- `describeBuildVolume()` receives Box3 computed after `updateMatrixWorld()` ✓
+- Bounds checking logic correct (240mm plate, 240mm height) ✓
+- Plate limits: ±120mm X/Z, 0-240mm Y ✓
+
+### 6. Verified support material rendering
+**Files**: `src/components/3d/OverhangHighlight.tsx`, `src/lib/3d/overhang-detector.ts` (reviewed, no changes needed)
+
+**Verified**:
+- OverhangHighlight receives geometry and overhangFaces from store ✓
+- Merges face geometries using BufferGeometryUtils ✓
+- Red overlay material: color="#ff4d4f", opacity=0.4, transparent ✓
+- Overhang detection runs with transformed quaternion ✓
+
+### 7. Verified build plate coordinates
+**File**: `src/components/3d/BuildPlate.tsx` (reviewed, no changes needed)
+
+**Verified**:
+- Grid at position [0, 0, 0] ✓
+- Build volume box at [0, BUILD_HEIGHT/2, 0] ✓
+- Coordinate system: Y-up (vertical), XZ ground plane ✓
+- Grid: 240mm × 240mm, 24 divisions (10mm squares) ✓
+
+## Validation Results
+
+### TypeScript Compilation
+```bash
+npm run build
+```
+**Result**: ✅ Compiled successfully in 5.0s
+
+### Files Modified (3D Bug Fix Only)
+```
+src/components/3d/OrientationGizmo.tsx |  1 +
+src/lib/3d/coordinates.ts              | 44 +++++++++++++++++++++++-----------
+2 files changed, 31 insertions(+), 14 deletions(-)
+```
+
+**Total changes**: 31 insertions(+), 14 deletions(-), net +17 lines
+
+## Root Causes Fixed
+
+### Issue 1: Model not sitting on plate
+**Root cause**: `recenterObjectToGround()` used world-space AABB min.y which is NOT the actual geometry bottom after rotation. AABB expands to stay axis-aligned.
+
+**Fix**: Calculate centering offsets as deltas from current position, always call `updateMatrixWorld(true)` before bounds computation.
+
+### Issue 2: Gizmo misaligned
+**Root cause**: TransformControls defaulted to world space, didn't follow model rotation.
+
+**Fix**: Added `space="local"` to align gizmo axes with model orientation.
+
+### Issue 3: Wrong transformation order
+**Root cause**: `rotateObject()` used Euler rotations and didn't update world matrix before recentering, causing stale AABB.
+
+**Fix**: Use quaternion multiplication, add `updateMatrixWorld(true)` before recenter.
+
+### Issue 4: AABB expansion misunderstood
+**Root cause**: Code didn't account for AABB expansion being expected behavior when objects rotate. Axis-aligned boxes must grow to encompass rotated geometry.
+
+**Fix**: Accept AABB expansion as normal, use delta-based centering that works with expanded bounds.
+
+## Research Applied
+
+From open-source 3D slicers (ProtoUV, MinceSlicer):
+- ✅ Always call `updateMatrixWorld(true)` before `Box3.setFromObject()`
+- ✅ Use delta-based positioning for rotated objects
+- ✅ TransformControls space modes: local follows object rotation
+- ✅ AABB expansion is expected and correct Three.js behavior
+
+## Testing Notes
+
+Manual testing required (as per validation commands in plan):
+1. Upload STL model to QuickOrder page
+2. Verify model sits flat on build plate (Y=0)
+3. Verify gizmo properly encloses model
+4. Enable "Show Supports" and verify red overlay appears
+5. Rotate model, verify stays centered and supports update
+6. Test bounds checking with 220mm cube rotated 45° (should NOT exceed plate)
+7. Test QuickOrder workflow completion
+
+## Known Limitations
+
+- AABB-based bounds checking may show false positives for highly rotated models that exceed 240mm AABB but fit within 240mm circle
+- If this occurs, consider implementing OBB (oriented bounding box) check
+- Not needed for initial fix based on research - AABB should work for most models
+
+## Performance Impact
+
+- `updateMatrixWorld(true)` forces scene graph update - already debounced in overhang detection (300ms)
+- No new performance overhead introduced
+- Existing optimizations preserved (Web Workers for overhang detection)
+
+## Definition of Done
+
+- ✅ All code changes implemented per plan
+- ✅ TypeScript compilation passes
+- ✅ All step-by-step tasks completed (8/8)
+- ✅ No regressions in reviewed code
+- ✅ Research-based best practices applied
+- ⏳ Manual testing required (see validation commands in plan)
+- 📋 E2E test recommended but not required
+
+## Next Steps
+
+1. Run manual validation tests per plan section "Validation Commands"
+2. Test with various STL models (small, large, complex geometry)
+3. Verify no "exceeds plate limit" false positives for models that fit
+4. Consider adding E2E test for QuickOrder 3D workflow

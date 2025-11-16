@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { TransformControls } from "@react-three/drei";
+import { TransformControls as TransformControlsImpl } from "three-stdlib";
 import * as THREE from "three";
 import { useOrientationStore } from "@/stores/orientation-store";
 
@@ -26,22 +28,18 @@ export default function OrientationGizmo({
   onTransformComplete,
 }: OrientationGizmoProps) {
   const setOrientation = useOrientationStore((state) => state.setOrientation);
+  const controlsRef = useRef<TransformControlsImpl | null>(null);
 
   if (!target || !enabled) {
     return null;
   }
-
-  const handleMouseDown = () => {
-    onDraggingChange?.(true);
-  };
 
   const handleObjectChange = () => {
     if (!target) return;
     onTransform?.(target);
   };
 
-  const handleMouseUp = () => {
-    onDraggingChange?.(false);
+  const commitTransform = () => {
     if (!target) return;
     const q = target.quaternion.clone();
     const p = target.position.clone();
@@ -49,17 +47,33 @@ export default function OrientationGizmo({
     onTransformComplete?.(target);
   };
 
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return undefined;
+    const handleDraggingChanged = (event: THREE.Event) => {
+      const dragging = (event as { value?: boolean }).value ?? false;
+      onDraggingChange?.(dragging);
+      if (!dragging) {
+        commitTransform();
+      }
+    };
+    controls.addEventListener("dragging-changed", handleDraggingChanged);
+    return () => {
+      controls.removeEventListener("dragging-changed", handleDraggingChanged);
+    };
+  }, [commitTransform, onDraggingChange]);
+
   return (
     <TransformControls
+      ref={controlsRef}
       object={target}
       enabled={enabled}
       mode={mode}
+      space="local"
       translationSnap={mode === "translate" ? translationSnap ?? 1 : undefined}
       showX
       showY
       showZ
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
       onObjectChange={handleObjectChange}
     />
   );

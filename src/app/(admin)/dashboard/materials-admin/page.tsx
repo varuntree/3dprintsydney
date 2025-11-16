@@ -4,6 +4,8 @@ import {
 } from "@/components/materials/materials-view";
 import { listMaterials } from "@/server/services/materials";
 
+export const dynamic = "force-dynamic";
+
 export default async function MaterialsPage() {
   const materials = await listMaterials();
   const initial: MaterialRecord[] = materials.map((material) => ({

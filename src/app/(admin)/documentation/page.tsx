@@ -4,6 +4,8 @@ import { getSettings } from "@/server/services/settings";
 import { listMaterials } from "@/server/services/materials";
 import type { SettingsPayload } from "@/components/settings/settings-form";
 
+export const dynamic = "force-dynamic";
+
 function serializeSettings(settings: Awaited<ReturnType<typeof getSettings>>): SettingsPayload | null {
   if (!settings) return null;
   return {

@@ -88,13 +88,14 @@ export default function LoginPage() {
 
       if (!res.ok) {
         const message =
-          (payload &&
-            typeof payload === "object" &&
-            payload !== null &&
-            "error" in payload &&
-            (payload as any).error) ||
-          "Login failed";
-        setError(typeof message === "string" ? message : "Login failed");
+          payload &&
+          typeof payload === "object" &&
+          payload !== null &&
+          "error" in payload &&
+          typeof (payload as { error?: unknown }).error === "string"
+            ? (payload as { error?: string }).error ?? "Login failed"
+            : "Login failed";
+        setError(message);
         return;
       }
 

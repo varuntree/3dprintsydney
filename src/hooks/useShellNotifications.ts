@@ -5,7 +5,9 @@ import type { LegacyUser } from "@/lib/types/user";
 import type { NotificationItem } from "@/lib/notifications/types";
 
 const MAX_NOTIFICATIONS = 15;
-const POLL_INTERVAL_MS = 5_000;
+// Reduced from 5s to 30s to cut database queries from 720/hr to 120/hr (83% reduction)
+// Free plan budget constraint - notifications not time-critical
+const POLL_INTERVAL_MS = 30_000;
 
 interface NotificationState {
   items: NotificationItem[];
@@ -98,6 +100,7 @@ export function useShellNotifications(
   const fetchInFlightRef = useRef(false);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pollingActiveRef = useRef(false); // Guard against double polling
+  const markingSeenRef = useRef(false); // Prevent polling during mark-as-read
 
   const mapNotifications = useCallback(
     (payload: NotificationsResponse): NotificationItem[] => {
@@ -180,7 +183,24 @@ export function useShellNotifications(
       force = false,
     }: { background?: boolean; force?: boolean } = {}) => {
       if (!userId) return;
+
+      // When on messages route, return empty notifications immediately (no fetch needed)
+      if (isMessagesRoute && !force) {
+        setState({
+          items: [],
+          loading: false,
+          error: null,
+          lastSeenAt: null,
+          newestMessageTimestamp: null,
+        });
+        return;
+      }
+
       if (fetchInFlightRef.current && !force) {
+        return;
+      }
+      // Prevent polling during mark-as-read to avoid race condition
+      if (markingSeenRef.current && !force) {
         return;
       }
 
@@ -240,7 +260,7 @@ export function useShellNotifications(
         fetchInFlightRef.current = false;
       }
     },
-    [mapNotifications, openConversationUserId, userId],
+    [isMessagesRoute, mapNotifications, openConversationUserId, userId],
   );
 
   useEffect(() => {
@@ -257,13 +277,14 @@ export function useShellNotifications(
     if (!userId || typeof window === "undefined") return;
 
     let debounceTimeout: NodeJS.Timeout;
-    
-    // Debounced handler prevents multiple rapid calls (e.g., 3 events in 100ms → 1 fetch)
+
+    // Debounced handler prevents multiple rapid calls (e.g., 3 events in 300ms → 1 fetch)
+    // Increased from 150ms to 300ms to further reduce duplicate fetches
     const debouncedFetch = () => {
       clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
         void fetchNotifications({ force: true, background: true });
-      }, 150); // 150ms debounce
+      }, 300);
     };
 
     // Single handler for all notification-triggering events
@@ -295,8 +316,9 @@ export function useShellNotifications(
   }, [openConversationUserId, fetchNotifications, userId]);
 
   // Polling loop with guard to prevent double activation
+  // Disabled entirely when on messages route to reduce cost further
   useEffect(() => {
-    if (!userId || pollingActiveRef.current) return;
+    if (!userId || pollingActiveRef.current || isMessagesRoute) return;
 
     pollingActiveRef.current = true;
     let cancelled = false;
@@ -311,7 +333,7 @@ export function useShellNotifications(
             schedule();
           }
         },
-        isMessagesRoute ? POLL_INTERVAL_MS * 2 : POLL_INTERVAL_MS,
+        POLL_INTERVAL_MS,
       );
     };
 
@@ -336,6 +358,9 @@ export function useShellNotifications(
     const conversationUserId = openConversationUserId;
 
     try {
+      // Set flag to prevent concurrent polling during mark-as-read
+      markingSeenRef.current = true;
+
       const response = await fetch(`/api/notifications`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -384,6 +409,9 @@ export function useShellNotifications(
             ? err.message
             : "Unexpected error updating notifications",
       }));
+    } finally {
+      // Clear flag to allow polling to resume
+      markingSeenRef.current = false;
     }
   }, [newestMessageTimestamp, openConversationUserId, userId]);
 

@@ -83,14 +83,25 @@ export function normalizeGeometry(geometry: THREE.BufferGeometry): void {
 }
 
 export function recenterObjectToGround(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true); // CRITICAL: update before setFromObject
+
   workingBox.setFromObject(object);
   if (!isFinite(workingBox.min.x) || !isFinite(workingBox.min.y) || !isFinite(workingBox.min.z)) {
     return;
   }
+
   workingBox.getCenter(workingCenter);
-  object.position.x -= workingCenter.x;
-  object.position.z -= workingCenter.z;
-  object.position.y -= workingBox.min.y;
+
+  // Calculate offsets as deltas from current position
+  const offsetX = workingCenter.x - object.position.x;
+  const offsetY = workingBox.min.y - object.position.y;
+  const offsetZ = workingCenter.z - object.position.z;
+
+  // Apply deltas (not absolute positions)
+  object.position.x -= offsetX;
+  object.position.y -= offsetY;
+  object.position.z -= offsetZ;
+
   object.updateMatrixWorld(true);
 }
 
@@ -129,17 +140,22 @@ export function rotateObject(
   degrees: number
 ): void {
   const radians = THREE.MathUtils.degToRad(degrees);
-  switch (axis) {
-    case "x":
-      object.rotateX(radians);
-      break;
-    case "y":
-      object.rotateY(radians);
-      break;
-    case "z":
-      object.rotateZ(radians);
-      break;
-  }
+
+  // Build rotation quaternion for this increment
+  const rotQuat = new THREE.Quaternion();
+  const axisVec =
+    axis === "x" ? new THREE.Vector3(1, 0, 0) :
+    axis === "y" ? new THREE.Vector3(0, 1, 0) :
+                   new THREE.Vector3(0, 0, 1);
+  rotQuat.setFromAxisAngle(axisVec, radians);
+
+  // Apply to current quaternion (compound rotation)
+  object.quaternion.multiplyQuaternions(rotQuat, object.quaternion).normalize();
+
+  // CRITICAL: update world matrix before recentering
+  object.updateMatrixWorld(true);
+
+  // Now recenter using updated AABB
   recenterObjectToGround(object);
 }
 

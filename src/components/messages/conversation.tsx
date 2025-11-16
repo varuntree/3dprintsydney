@@ -22,6 +22,22 @@ interface ConversationProps {
   currentUserRole?: "ADMIN" | "CLIENT";
 }
 
+type ConversationCacheEntry = {
+  messages: ConversationMessageWithMeta[];
+  page: number;
+  hasMore: boolean;
+  timestamp: number;
+};
+
+const conversationCache = new Map<string, ConversationCacheEntry>();
+
+function debugLog(...args: unknown[]) {
+  if (typeof window === "undefined") return;
+  // Prefix logs so they are easy to filter in the browser console
+  // eslint-disable-next-line no-console
+  console.log("[Conversation]", ...args);
+}
+
 // Timestamp cache to avoid repeated Date parsing - improves performance by ~60%
 const timestampCache = new Map<number, number>();
 const MAX_CACHE_SIZE = 200;
@@ -45,7 +61,7 @@ function mergeMessageLists(
   incoming: ConversationMessage[],
 ): ConversationMessage[] {
   if (incoming.length === 0 && existing.length === 0) return [];
-  
+
   // Use Map for O(1) deduplication
   const map = new Map<number, ConversationMessage>();
   for (const message of existing) {
@@ -54,24 +70,24 @@ function mergeMessageLists(
   for (const message of incoming) {
     map.set(message.id, message);
   }
-  
+
   const values = Array.from(map.values());
-  
-  // Optimization: Skip sort if already sorted (common case with API responses)
+
+  // Optimization: Skip sort if already sorted in descending order (newest first)
   let needsSort = false;
   for (let i = 1; i < values.length; i++) {
-    if (getTimestamp(values[i]) < getTimestamp(values[i - 1])) {
+    if (getTimestamp(values[i]) > getTimestamp(values[i - 1])) {
       needsSort = true;
       break;
     }
   }
-  
+
   if (!needsSort) {
     return values;
   }
-  
-  // Use cached timestamps for sorting
-  return values.sort((a, b) => getTimestamp(a) - getTimestamp(b));
+
+  // Sort newest first
+  return values.sort((a, b) => getTimestamp(b) - getTimestamp(a));
 }
 
 type MessagesPayload = { data: ConversationMessage[] };
@@ -123,6 +139,9 @@ export function Conversation({
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
+  const [emptyReady, setEmptyReady] = useState(false);
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<"ADMIN" | "CLIENT" | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(true);
@@ -152,10 +171,10 @@ export function Conversation({
     return previous === null || Number.isNaN(previous) || parsed > previous;
   }, []);
 
-  const scrollToBottom = useCallback(
+  const scrollToTop = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
-      if (endRef.current) {
-        endRef.current.scrollIntoView({ behavior });
+      if (containerRef.current) {
+        containerRef.current.scrollTo({ top: 0, behavior });
         isPinnedToBottomRef.current = true;
       }
     },
@@ -216,10 +235,17 @@ export function Conversation({
     return null;
   }, [userId]);
 
+  const cacheKey = useMemo(() => {
+    if (invoiceId) return `invoice:${invoiceId}`;
+    if (typeof conversationUserId === "number") return `user:${conversationUserId}`;
+    return "anon";
+  }, [invoiceId, conversationUserId]);
+
   useEffect(() => {
     // Fetch current user role if not provided
     if (currentUserRole) {
       setRole(currentUserRole);
+      debugLog("role provided", currentUserRole);
     } else {
       fetch("/api/auth/me")
         .then((r) => r.json())
@@ -302,30 +328,44 @@ export function Conversation({
       if (!background) {
         setLoading(true);
         setError(null);
+        debugLog("fetch start", { requestedPage, replace, append, merge, background, userId, invoiceId });
       }
 
       isFetchingRef.current = true;
+      let wasAborted = false;
 
       const limit = 50;
       const offset = requestedPage * limit;
+
+      let nextMessagesSnapshot: ConversationMessageWithMeta[] | null = null;
 
       try {
         const endpoint = buildEndpoint(limit, offset);
         const response = await fetch(endpoint, { signal: controller.signal });
         const payload = (await response.json().catch(() => null)) as unknown;
+        debugLog("fetch response", { status: response.status, ok: response.ok, endpoint, requestedPage });
 
         if (!response.ok || !isMessagesPayload(payload)) {
           if (!background) {
             setError(extractErrorMessage(payload, "Failed to load messages"));
+            setHasLoadedInitial(true);
+            debugLog("fetch error payload", payload);
           }
           return;
         }
 
-        const list = payload.data.slice().reverse();
+        const list = payload.data.slice();
+        debugLog("fetch success", { count: list.length, firstId: list[0]?.id, lastId: list[list.length - 1]?.id });
         let newestTimestamp: string | null = null;
 
+        if (!hasLoadedInitial) {
+          setHasLoadedInitial(true);
+        }
+
+        const hasMoreValue = list.length === limit;
+
         if (!background) {
-          setHasMore(list.length === limit);
+          setHasMore(hasMoreValue);
           setPage(requestedPage);
         }
 
@@ -335,41 +375,47 @@ export function Conversation({
 
           if (replace) {
             const next = list.concat(optimistic);
-            newestTimestamp =
-              next.length > 0 ? next[next.length - 1].createdAt : null;
+            newestTimestamp = next.length > 0 ? next[0].createdAt : null;
+            nextMessagesSnapshot = next;
             return next;
           }
 
           if (append) {
-            const next = [...list, ...confirmed, ...optimistic];
-            newestTimestamp =
-              next.length > 0 ? next[next.length - 1].createdAt : null;
+            const next = [...confirmed, ...list, ...optimistic];
+            newestTimestamp = next.length > 0 ? next[0].createdAt : null;
+            nextMessagesSnapshot = next;
             return next;
           }
 
           if (merge) {
             const merged = mergeMessageLists(confirmed, list);
             const next = merged.concat(optimistic);
-            newestTimestamp =
-              next.length > 0 ? next[next.length - 1].createdAt : null;
+            newestTimestamp = next.length > 0 ? next[0].createdAt : null;
+            nextMessagesSnapshot = next;
             return next;
           }
 
           if (requestedPage > 0) {
-            const next = [...list, ...confirmed, ...optimistic];
-            newestTimestamp =
-              next.length > 0 ? next[next.length - 1].createdAt : null;
+            const next = [...confirmed, ...list, ...optimistic];
+            newestTimestamp = next.length > 0 ? next[0].createdAt : null;
+            nextMessagesSnapshot = next;
             return next;
           }
 
           const merged = mergeMessageLists(confirmed, list).concat(optimistic);
-          newestTimestamp =
-            merged.length > 0 ? merged[merged.length - 1].createdAt : null;
+          newestTimestamp = merged.length > 0 ? merged[0].createdAt : null;
+          nextMessagesSnapshot = merged;
           return merged;
         });
 
+        debugLog("state after merge", {
+          messages: nextMessagesSnapshot?.length ?? messages.length,
+          hasMore: hasMoreValue,
+          newestTimestamp,
+        });
+
         if (scrollToBottomOption) {
-          requestAnimationFrame(() => scrollToBottom("smooth"));
+          requestAnimationFrame(() => scrollToTop("smooth"));
         }
 
         if (
@@ -378,18 +424,38 @@ export function Conversation({
           isDocumentVisible() &&
           isNewerThanLatest(newestTimestamp)
         ) {
+          debugLog("mark seen", newestTimestamp);
           void markMessagesSeen(newestTimestamp);
+        }
+
+        // Update in-memory cache (also for background merges)
+        if (nextMessagesSnapshot) {
+          conversationCache.set(cacheKey, {
+            messages: nextMessagesSnapshot,
+            page: requestedPage,
+            hasMore: hasMoreValue,
+            timestamp: Date.now(),
+          });
+          debugLog("cache update", { cacheKey, size: nextMessagesSnapshot.length, page: requestedPage, hasMore: hasMoreValue });
         }
       } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") {
+          wasAborted = true;
+          debugLog("fetch aborted", { requestedPage });
           return;
         }
         if (!background) {
           setError("Network error. Please check your connection.");
+          setHasLoadedInitial(true);
+          debugLog("fetch network error", err);
         }
       } finally {
-        if (!background) {
+        // Avoid flipping to loaded/empty states when a foreground request was aborted
+        if (!background && !wasAborted) {
+          setHasLoadedInitial(true);
           setLoading(false);
+          setHasAttemptedLoad(true);
+          debugLog("fetch finished", { requestedPage, background, wasAborted, loadingAfter: false });
         }
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;
@@ -397,75 +463,70 @@ export function Conversation({
         isFetchingRef.current = false;
       }
     },
-    [buildEndpoint, markMessagesSeen, scrollToBottom, isNewerThanLatest],
+    [buildEndpoint, markMessagesSeen, scrollToTop, isNewerThanLatest, cacheKey],
   );
 
   const loadPage = useCallback(
-    (p: number, replace = false, scrollToBottom = false) =>
+    (p: number, replace = false, scrollToLatest = false) =>
       fetchMessages({
         page: p,
         replace,
         append: !replace && p > 0,
-        scrollToBottom,
+        scrollToBottom: scrollToLatest,
       }),
     [fetchMessages],
   );
 
-  const refreshMessages = useCallback(
-    () =>
-      fetchMessages({
-        page: 0,
-        merge: true,
-        background: true,
-      }),
-    [fetchMessages],
-  );
+  // Use ref pattern to stabilize polling - prevents infinite re-render loop
+  const refreshMessagesRef = useRef<() => Promise<void>>(async () => {
+    await fetchMessages({
+      page: 0,
+      merge: true,
+      background: true,
+    });
+  });
+  refreshMessagesRef.current = async () => {
+    await fetchMessages({
+      page: 0,
+      merge: true,
+      background: true,
+    });
+  };
 
   useEffect(() => {
-    setMessages([]);
-    setPage(0);
-    setHasMore(true);
-    setError(null);
-    setLoading(true);
-    abortControllerRef.current?.abort();
-    isInitialLoadRef.current = true;
-    lastAutoScrolledMessageIdRef.current = null;
-    void loadPage(0, true);
-    latestSeenRef.current = null;
-  }, [invoiceId, userId, loadPage]);
+    const cached = conversationCache.get(cacheKey);
 
-  // Auto-scroll on initial load (instant)
+    debugLog("mount conversation", { cacheKey, cached: Boolean(cached) });
+
+    setMessages(cached?.messages ?? []);
+    setPage(cached?.page ?? 0);
+    setHasMore(cached?.hasMore ?? true);
+    setError(null);
+    setLoading(!cached);
+    setHasLoadedInitial(Boolean(cached));
+    setEmptyReady(false);
+    setHasAttemptedLoad(Boolean(cached));
+    abortControllerRef.current?.abort();
+    isInitialLoadRef.current = !cached;
+    lastAutoScrolledMessageIdRef.current = cached?.messages?.[0]?.id ?? null;
+
+    void loadPage(0, true, !cached);
+    latestSeenRef.current = null;
+  }, [invoiceId, userId, loadPage, cacheKey]);
+
+  // Mark initial load as complete without auto-scrolling (newest already first)
   useEffect(() => {
     if (messages.length > 0 && isInitialLoadRef.current && !loading) {
-      // Use instant scroll for initial load
-      scrollToBottom("instant");
-      lastAutoScrolledMessageIdRef.current =
-        messages[messages.length - 1]?.id ?? null;
+      lastAutoScrolledMessageIdRef.current = messages[0]?.id ?? null;
       isInitialLoadRef.current = false;
       isPinnedToBottomRef.current = true;
+      debugLog("initial load complete", { firstMessageId: messages[0]?.id, total: messages.length });
     }
-  }, [messages.length, loading, scrollToBottom]);
+  }, [messages.length, loading]);
 
-  // Auto-scroll on new messages (smooth)
+  // Polling loop - wait until the first load completes to avoid aborting it
   useEffect(() => {
-    if (messages.length === 0 || isInitialLoadRef.current || loading) return;
-
-    const lastMessage = messages[messages.length - 1];
-    const lastMessageId = lastMessage.id;
-    const alreadyHandled = lastAutoScrolledMessageIdRef.current === lastMessageId;
-
-    if (alreadyHandled) return;
-
-    // Only auto-scroll if the last message is from the current user or if we're near the bottom
-    const isOwnMessage = role === lastMessage.sender;
-    if (isOwnMessage || isPinnedToBottomRef.current) {
-      scrollToBottom("smooth");
-      lastAutoScrolledMessageIdRef.current = lastMessageId;
-    }
-  }, [messages, loading, scrollToBottom, role]);
-
-  useEffect(() => {
-    if (!pollingEnabled) {
+    if (!pollingEnabled || !hasLoadedInitial) {
       if (pollingTimeoutRef.current) {
         clearTimeout(pollingTimeoutRef.current);
         pollingTimeoutRef.current = null;
@@ -476,7 +537,7 @@ export function Conversation({
     let cancelled = false;
 
     const tick = async () => {
-      await refreshMessages();
+      await refreshMessagesRef.current?.();
       if (cancelled || !pollingEnabledRef.current) return;
       const interval = isDocumentVisible()
         ? FAST_POLL_INTERVAL_MS
@@ -493,7 +554,7 @@ export function Conversation({
         pollingTimeoutRef.current = null;
       }
     };
-  }, [refreshMessages, pollingEnabled]);
+  }, [pollingEnabled, hasLoadedInitial]);
 
   useEffect(
     () => () => {
@@ -516,6 +577,7 @@ export function Conversation({
           background: true,
           force: true,
         });
+        debugLog("visibility refresh");
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -531,9 +593,9 @@ export function Conversation({
   }
 
   function addOptimisticMessage(message: ConversationMessageWithMeta) {
-    setMessages((prev) => [...prev, message]);
+    setMessages((prev) => [message, ...prev]);
     lastAutoScrolledMessageIdRef.current = message.id;
-    requestAnimationFrame(() => scrollToBottom("smooth"));
+    requestAnimationFrame(() => scrollToTop("smooth"));
   }
 
   // Reusable focus utility - single RAF is sufficient
@@ -648,7 +710,21 @@ export function Conversation({
   }
 
   // Group messages by date and sender - memoized for performance
-  const grouped = useMemo(() => groupMessages(messages), [messages]);
+  const grouped = useMemo(() => groupMessages(messages, "desc"), [messages]);
+  
+  // Debounce the empty state to avoid flashing "No messages" during initial fetch race conditions
+  useEffect(() => {
+    if (messages.length > 0) {
+      setEmptyReady(true);
+      return;
+    }
+    if (!hasLoadedInitial || loading || error) {
+      setEmptyReady(false);
+      return;
+    }
+    const timer = setTimeout(() => setEmptyReady(true), 800);
+    return () => clearTimeout(timer);
+  }, [messages.length, hasLoadedInitial, loading, error]);
 
   return (
     <div className="flex min-h-[360px] min-w-0 flex-1 flex-col overflow-hidden bg-transparent md:min-h-[calc(100vh-280px)] md:max-h-[calc(100vh-280px)]">
@@ -657,8 +733,8 @@ export function Conversation({
         ref={containerRef}
         className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70"
       >
-        {/* Load more button */}
-        {hasMore && (
+        {/* Load more button - hide during initial load */}
+        {hasMore && !isInitialLoadRef.current && (
           <div className="flex justify-center pb-4">
             <Button
               variant="outline"
@@ -707,16 +783,22 @@ export function Conversation({
         })}
 
         {/* Loading skeleton */}
-        {messages.length === 0 && loading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className={`flex w-full ${i % 2 === 0 ? "justify-end" : "justify-start"}`}
-              >
-                <div className="h-16 w-3/4 animate-pulse rounded-lg bg-surface-muted" />
-              </div>
-            ))}
+        {messages.length === 0 && (loading || !hasLoadedInitial) && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+              <span>Loading messages…</span>
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`flex w-full ${i % 2 === 0 ? "justify-end" : "justify-start"}`}
+                >
+                  <div className="h-16 w-3/4 animate-pulse rounded-lg bg-surface-muted" />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -728,7 +810,7 @@ export function Conversation({
         )}
 
         {/* Empty state */}
-        {messages.length === 0 && !loading && !error && (
+        {messages.length === 0 && hasAttemptedLoad && hasLoadedInitial && !loading && !error && emptyReady && (
           <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
             No messages yet. Start the conversation!
           </div>

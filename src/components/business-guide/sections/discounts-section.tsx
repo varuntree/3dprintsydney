@@ -279,7 +279,7 @@ export function DiscountsSection({
             <h4 className="font-semibold mb-2 text-sm">How It Works</h4>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
               <li>
-                System checks the client's email address when creating quotes/invoices
+                System checks the client&apos;s email address when creating quotes/invoices
               </li>
               <li>
                 If email domain contains &quot;.edu&quot; (case-insensitive), client is marked as eligible

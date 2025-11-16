@@ -81,10 +81,6 @@ type FileSettings = {
   infill: number;
   quantity: number;
   supportsEnabled: boolean;
-  supportPattern: "normal" | "tree";
-  supportAngle: number;
-  supportStyle: "grid" | "organic";
-  supportInterfaceLayers: number;
 };
 
 type FileStatus = "idle" | "running" | "success" | "fallback" | "error";
@@ -120,8 +116,6 @@ type OrientationSnapshot = {
   quaternion: OrientationQuaternion;
   position: OrientationPosition;
   autoOriented?: boolean;
-  supportVolume?: number;
-  supportWeight?: number;
   helpersVisible?: boolean;
   gizmoEnabled?: boolean;
   gizmoMode?: GizmoMode;
@@ -338,17 +332,7 @@ export default function QuickOrderPage() {
       let changed = false;
       const next = { ...prev } as Record<string, FileSettings>;
       Object.entries(next).forEach(([key, config]) => {
-        const style = config.supportStyle ?? (config.supportPattern === "tree" ? "organic" : "grid");
-        const interfaceLayers = config.supportInterfaceLayers ?? 3;
-        if (style !== config.supportStyle || interfaceLayers !== config.supportInterfaceLayers) {
-          next[key] = {
-            ...config,
-            supportStyle: style,
-            supportInterfaceLayers: interfaceLayers,
-          };
-          changed = true;
-        }
-      });
+              });
       return changed ? next : prev;
     });
   }, []);
@@ -370,10 +354,7 @@ export default function QuickOrderPage() {
         });
         useOrientationStore.setState((state) => ({
           ...state,
-          supportVolume: snapshot.supportVolume ?? 0,
-          supportWeight: snapshot.supportWeight ?? snapshot.supportVolume ?? 0,
-          overhangFaces: [],
-          helpersVisible: snapshot.helpersVisible ?? false,
+                    helpersVisible: snapshot.helpersVisible ?? false,
           gizmoEnabled: snapshot.gizmoEnabled ?? false,
           gizmoMode: snapshot.gizmoMode ?? "rotate",
         }));
@@ -665,11 +646,7 @@ export default function QuickOrderPage() {
           infill: 20,
           quantity: 1,
           supportsEnabled: true,
-          supportPattern: "normal",
-          supportAngle: 45,
-          supportStyle: "grid",
-          supportInterfaceLayers: 3,
-        };
+                  };
         baselineSettingsRef.current[it.id] = { ...next[it.id] };
       });
       return next;
@@ -872,6 +849,15 @@ export default function QuickOrderPage() {
       setError(boundsViolationMessage);
       return;
     }
+    if (interactionDisabled && interactionMessage) {
+      browserLogger.warn({
+        scope: "browser.quick-print.orientation",
+        message: "Lock blocked due to interaction lock",
+        data: { fileId: currentlyOrienting },
+      });
+      setError(interactionMessage);
+      return;
+    }
 
     try {
       setIsLocking(true);
@@ -1006,11 +992,7 @@ export default function QuickOrderPage() {
                   typeof supportsEnabledOverride === "boolean"
                     ? supportsEnabledOverride
                     : fileSettings.supportsEnabled,
-                pattern: fileSettings.supportPattern,
-                angle: fileSettings.supportAngle,
-                style: fileSettings.supportStyle,
-                interfaceLayers: fileSettings.supportInterfaceLayers,
-              },
+                              },
             },
           }),
         });
@@ -1125,11 +1107,7 @@ export default function QuickOrderPage() {
         orientation: orientationState[u.id],
         supports: {
           enabled: fileSettings.supportsEnabled,
-          pattern: fileSettings.supportPattern,
-          angle: fileSettings.supportAngle,
-          style: fileSettings.supportStyle,
-          interfaceLayers: fileSettings.supportInterfaceLayers,
-          acceptedFallback: acceptedFallbacks.has(u.id),
+                    acceptedFallback: acceptedFallbacks.has(u.id),
         },
         metrics:
           metrics[u.id] ?? {
@@ -1231,11 +1209,7 @@ export default function QuickOrderPage() {
         orientation: orientationState[u.id],
         supports: {
           enabled: fileSettings.supportsEnabled,
-          pattern: fileSettings.supportPattern,
-          angle: fileSettings.supportAngle,
-          style: fileSettings.supportStyle,
-          interfaceLayers: fileSettings.supportInterfaceLayers,
-          acceptedFallback: acceptedFallbacks.has(u.id),
+                    acceptedFallback: acceptedFallbacks.has(u.id),
         },
         metrics:
           metrics[u.id] ?? {
@@ -1363,7 +1337,7 @@ export default function QuickOrderPage() {
   const viewerErrorActive = currentlyOrienting ? Boolean(viewerErrors[currentlyOrienting]) : false;
 
   return (
-    <div className="space-y-4 pb-24 sm:space-y-6">
+    <div className="space-y-6 pb-24 sm:space-y-8">
       {/* Resume Draft Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent>
@@ -1407,7 +1381,7 @@ export default function QuickOrderPage() {
       )}
 
       {/* Workflow Steps - Sticky compact progress */}
-      <div className="sticky top-[calc(env(safe-area-inset-top)+0.5rem)] z-30 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-3 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-4">
+      <div className="sticky top-[calc(env(safe-area-inset-top)+5.5rem)] z-20 mb-3 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-2 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:mb-4 sm:p-3">
         <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground sm:text-xs">
           <span>
             Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
@@ -1532,13 +1506,13 @@ export default function QuickOrderPage() {
       )}
 
       {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on lg+ */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 pt-3 sm:gap-6 sm:pt-4 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
         <div className="space-y-4 sm:space-y-6 lg:col-span-2">
           {(isUploadStep || isConfigureStep) && (
             <>
           {/* Upload & File List - Mobile optimized: Stack on mobile */}
-          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
+          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold sm:text-lg">
@@ -1895,17 +1869,16 @@ export default function QuickOrderPage() {
                             <div>
                               <Label className="text-xs">Support pattern</Label>
                               <Select
-                                value={settings[u.id]?.supportPattern ?? "normal"}
+                                value={"normal"}
                                 onValueChange={(value) =>
                                   setSettings((s) => ({
                                     ...s,
                                     [u.id]: {
                                       ...s[u.id],
-                                      supportPattern: value as "normal" | "tree",
-                                    },
+                                                                          },
                                   }))
                                 }
-                                disabled={!settings[u.id]?.supportsEnabled}
+                                disabled
                               >
                                 <SelectTrigger className="h-9">
                                   <SelectValue />
@@ -1919,17 +1892,16 @@ export default function QuickOrderPage() {
                             <div>
                               <Label className="text-xs">Support style</Label>
                               <Select
-                                value={settings[u.id]?.supportStyle ?? "grid"}
+                                value={"grid"}
                                 onValueChange={(value) =>
                                   setSettings((s) => ({
                                     ...s,
                                     [u.id]: {
                                       ...s[u.id],
-                                      supportStyle: value as "grid" | "organic",
-                                    },
+                                                                          },
                                   }))
                                 }
-                                disabled={!settings[u.id]?.supportsEnabled}
+                                disabled
                               >
                                 <SelectTrigger className="h-9">
                                   <SelectValue />
@@ -1947,17 +1919,16 @@ export default function QuickOrderPage() {
                                 min={1}
                                 max={89}
                                 step="1"
-                                value={settings[u.id]?.supportAngle ?? 45}
+                                value={45}
                                 onChange={(e) =>
                                   setSettings((s) => ({
                                     ...s,
                                     [u.id]: {
                                       ...s[u.id],
-                                      supportAngle: Number(e.target.value) || 45,
-                                    },
+                                                                          },
                                   }))
                                 }
-                                disabled={!settings[u.id]?.supportsEnabled}
+                                disabled
                                 className="h-9"
                               />
                             </div>
@@ -1968,17 +1939,16 @@ export default function QuickOrderPage() {
                                 min={1}
                                 max={6}
                                 step="1"
-                                value={settings[u.id]?.supportInterfaceLayers ?? 3}
+                                value={3}
                                 onChange={(e) =>
                                   setSettings((s) => ({
                                     ...s,
                                     [u.id]: {
                                       ...s[u.id],
-                                      supportInterfaceLayers: Number(e.target.value) || 3,
-                                    },
+                                                                          },
                                   }))
                                 }
-                                disabled={!settings[u.id]?.supportsEnabled}
+                                disabled
                                 className="h-9"
                               />
                             </div>
@@ -2061,7 +2031,7 @@ export default function QuickOrderPage() {
 
           {/* Orientation Step - Mobile optimized */}
           {currentStep === "orient" && uploads.length > 0 && (
-            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6">
+            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <Box className="h-5 w-5 text-muted-foreground" />
@@ -2136,7 +2106,7 @@ export default function QuickOrderPage() {
                       onError={(err) => handleViewerError(currentlyOrienting, err)}
                       facePickMode={facePickMode}
                       onFacePickComplete={() => setFacePickMode(false)}
-                      overhangThreshold={settings[currentlyOrienting]?.supportAngle ?? 45}
+                      overhangThreshold={45}
                     />
                   </div>
                   {viewerErrorActive && currentlyOrienting ? (

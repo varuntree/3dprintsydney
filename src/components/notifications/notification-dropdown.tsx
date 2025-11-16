@@ -81,9 +81,8 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
         setOpen(next);
         if (next) {
           void refetch();
-        } else {
-          void markAllSeen();
         }
+        // Removed auto-mark on close - users must explicitly click "Mark all read"
       }}
     >
       <PopoverTrigger asChild>

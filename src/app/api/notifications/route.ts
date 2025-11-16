@@ -5,6 +5,7 @@ import {
   listNotificationsForUser,
   updateMessageLastSeenAt,
   markConversationSeen,
+  markAllConversationsSeen,
 } from "@/server/services/messages";
 
 function parseLimit(searchParams: URLSearchParams): number {
@@ -68,7 +69,10 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
+    // Mark all notifications as read: update both global AND all conversation timestamps
+    // This ensures notifications don't reappear after reload on non-messages pages
     await updateMessageLastSeenAt(user.id, iso);
+    await markAllConversationsSeen(user.id, iso);
     return okAuth(request, { lastSeenAt: iso });
   } catch (error) {
     return handleErrorAuth(request, error, "notifications.patch");

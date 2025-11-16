@@ -10,7 +10,12 @@ export default async function ClientHome() {
   if (!user) redirect("/login");
   if (user.role !== "CLIENT") redirect("/dashboard");
 
-  const stats = await getClientDashboardStats(user.clientId);
+  const clientId = user.clientId;
+  if (clientId == null) {
+    redirect("/dashboard");
+  }
+
+  const stats = await getClientDashboardStats(clientId);
 
   return <ClientDashboard initial={stats} userEmail={user.email} />;
 }

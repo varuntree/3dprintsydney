@@ -20,13 +20,10 @@ type LoadingState = "idle" | "running" | "error" | "timeout";
 interface OrientationState {
   quaternion: OrientationQuaternion;
   position: OrientationPosition;
-  overhangFaces: number[];
   supportVolume: number;
   supportWeight: number;
   supportEnabled: boolean;
   isAutoOriented: boolean;
-  overhangStatus: LoadingState;
-  overhangMessage?: string;
   autoOrientStatus: LoadingState;
   autoOrientMessage?: string;
   interactionDisabled: boolean;
@@ -44,10 +41,9 @@ interface OrientationActions {
     position?: OrientationPosition,
     options?: { auto?: boolean }
   ) => void;
-  setOverhangData: (params: { faces: number[]; supportVolume: number; supportWeight: number }) => void;
+  setSupportEstimates: (params: { supportVolume: number; supportWeight: number }) => void;
   toggleSupports: (nextState?: boolean) => void;
   setSupportsEnabled: (enabled: boolean) => void;
-  setAnalysisStatus: (status: LoadingState, message?: string) => void;
   setAutoOrientStatus: (status: LoadingState, message?: string) => void;
   setInteractionLock: (disabled: boolean, message?: string) => void;
   addWarning: (message: string) => void;
@@ -57,6 +53,7 @@ interface OrientationActions {
   setGizmoEnabledState: (enabled: boolean) => void;
   setGizmoMode: (mode: OrientationGizmoMode) => void;
   reset: () => void;
+  resetForNewFile: () => void;
 }
 
 const initialQuaternion: OrientationQuaternion = [0, 0, 0, 1];
@@ -65,12 +62,10 @@ const initialPosition: OrientationPosition = [0, 0, 0];
 const initialState: OrientationState = {
   quaternion: initialQuaternion,
   position: initialPosition,
-  overhangFaces: [],
   supportVolume: 0,
   supportWeight: 0,
   supportEnabled: true,
   isAutoOriented: false,
-  overhangStatus: "idle",
   autoOrientStatus: "idle",
   interactionDisabled: false,
   warnings: [],
@@ -141,23 +136,36 @@ export function clearOrientationPersistence() {
 const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
   ...initialState,
   setOrientation: (quaternion, position = initialPosition, options) =>
-    set((state) => ({
-      quaternion: normalizeQuaternion(quaternion),
-      position: [...position] as OrientationPosition,
-      isAutoOriented: options?.auto ?? state.isAutoOriented,
-    })),
-  setOverhangData: ({ faces, supportVolume, supportWeight }) =>
+    set((state) => {
+      const nextQuat = normalizeQuaternion(quaternion);
+      const nextPos: OrientationPosition = [...position] as OrientationPosition;
+      const unchangedQuat =
+        state.quaternion[0] === nextQuat[0] &&
+        state.quaternion[1] === nextQuat[1] &&
+        state.quaternion[2] === nextQuat[2] &&
+        state.quaternion[3] === nextQuat[3];
+      const unchangedPos =
+        state.position[0] === nextPos[0] &&
+        state.position[1] === nextPos[1] &&
+        state.position[2] === nextPos[2];
+      const nextAuto = options?.auto ?? state.isAutoOriented;
+      if (unchangedQuat && unchangedPos && nextAuto === state.isAutoOriented) {
+        return state;
+      }
+      return {
+        quaternion: nextQuat,
+        position: nextPos,
+        isAutoOriented: nextAuto,
+      };
+    }),
+  setSupportEstimates: ({ supportVolume, supportWeight }) =>
     set(() => ({
-      overhangFaces: faces,
       supportVolume,
       supportWeight,
-      overhangStatus: "idle",
-      overhangMessage: undefined,
     })),
   toggleSupports: (nextState) =>
     set((state) => ({ supportEnabled: nextState ?? !state.supportEnabled })),
   setSupportsEnabled: (enabled) => set(() => ({ supportEnabled: enabled })),
-  setAnalysisStatus: (status, message) => set(() => ({ overhangStatus: status, overhangMessage: message })),
   setAutoOrientStatus: (status, message) =>
     set(() => ({ autoOrientStatus: status, autoOrientMessage: message })),
   setInteractionLock: (disabled, message) =>
@@ -170,7 +178,21 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
       return { warnings: [...state.warnings, message] };
     }),
   clearWarnings: () => set(() => ({ warnings: [] })),
-  setBoundsStatus: (status) => set(() => ({ boundsStatus: status })),
+  setBoundsStatus: (status) =>
+    set((state) => {
+      const prev = state.boundsStatus;
+      const same =
+        (!prev && !status) ||
+        (prev &&
+          status &&
+          prev.inBounds === status.inBounds &&
+          prev.width === status.width &&
+          prev.depth === status.depth &&
+          prev.height === status.height &&
+          prev.violations.length === status.violations.length &&
+          prev.violations.every((v, i) => v === status.violations[i]));
+      return same ? state : { boundsStatus: status };
+    }),
   setHelpersVisible: (visible) => set(() => ({ helpersVisible: visible })),
   setGizmoEnabledState: (enabled) => set(() => ({ gizmoEnabled: enabled })),
   setGizmoMode: (mode) => set(() => ({ gizmoMode: mode })),
@@ -178,6 +200,26 @@ const createOrientationStore: StateCreator<OrientationStore> = (set) => ({
     clearOrientationPersistence();
     set({ ...initialState });
   },
+  resetForNewFile: () =>
+    set((state) => ({
+      // reset orientation + analysis data while keeping UI toggles
+      quaternion: initialQuaternion,
+      position: initialPosition,
+      supportVolume: 0,
+      supportWeight: 0,
+      isAutoOriented: false,
+      autoOrientStatus: "idle",
+      autoOrientMessage: undefined,
+      interactionDisabled: false,
+      interactionMessage: undefined,
+      warnings: [],
+      boundsStatus: null,
+      // preserve toggle-able UI bits
+      supportEnabled: state.supportEnabled,
+      helpersVisible: state.helpersVisible,
+      gizmoEnabled: state.gizmoEnabled,
+      gizmoMode: state.gizmoMode,
+    })),
 });
 
 export const useOrientationStore = create<OrientationStore>()(
@@ -202,9 +244,6 @@ export const useSupports = () =>
       supportEnabled: state.supportEnabled,
       supportVolume: state.supportVolume,
       supportWeight: state.supportWeight,
-      overhangFaces: state.overhangFaces,
-      overhangStatus: state.overhangStatus,
-      overhangMessage: state.overhangMessage,
       autoOrientStatus: state.autoOrientStatus,
       autoOrientMessage: state.autoOrientMessage,
       interactionDisabled: state.interactionDisabled,
