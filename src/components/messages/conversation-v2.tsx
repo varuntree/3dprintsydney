@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageBubble } from "@/components/messages/message-bubble";
@@ -47,11 +47,33 @@ export function ConversationV2({ userId, invoiceId, currentUserRole }: Props) {
     await send(value);
   };
 
-  const grouped = useMemo(() => groupMessages(messages, "desc"), [messages]);
+  const grouped = useMemo(() => groupMessages(messages, "asc"), [messages]);
+
+  // Auto-scroll to newest message (bottom) after initial load and when sending
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const hasAutoScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (messages.length === 0) return;
+    if (loading && !hasAutoScrolledRef.current) return;
+    requestAnimationFrame(() => {
+      containerRef.current?.scrollTo({ top: containerRef.current.scrollHeight, behavior: hasAutoScrolledRef.current ? "smooth" : "auto" });
+      hasAutoScrolledRef.current = true;
+    });
+  }, [messages.length, loading]);
 
   return (
     <div className="flex min-h-[360px] min-w-0 flex-1 flex-col overflow-hidden bg-transparent md:min-h-[calc(100vh-280px)] md:max-h-[calc(100vh-280px)]">
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70">
+      <div ref={containerRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5 sm:py-6 [scrollbar-width:thin] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border/70">
+        {nextCursor && (
+          <div className="flex justify-center pb-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => loadMore()} disabled={revalidating || loading}>
+              {revalidating ? "Loading…" : "Load older messages"}
+            </Button>
+          </div>
+        )}
+
         {grouped.map((group, idx) => {
           const isFirstGroupWithDate = idx === 0 || grouped[idx - 1].date !== group.date;
           return (
@@ -93,13 +115,6 @@ export function ConversationV2({ userId, invoiceId, currentUserRole }: Props) {
           </div>
         )}
 
-        {nextCursor && (
-          <div className="flex justify-center pb-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => loadMore()} disabled={revalidating || loading}>
-              {revalidating ? "Loading…" : "Load older messages"}
-            </Button>
-          </div>
-        )}
       </div>
 
       <div className="border-t border-border/70 bg-surface-overlay/90 px-4 py-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)] sm:px-5 sm:py-4">

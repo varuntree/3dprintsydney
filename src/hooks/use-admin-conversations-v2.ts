@@ -29,15 +29,23 @@ export function useAdminConversationsV2(search: string) {
     abortRef.current = ctrl;
     const qs = new URLSearchParams();
     if (search.trim()) qs.set("search", search.trim());
-    const res = await fetch(`/api/v2/admin/conversations${qs.toString() ? `?${qs.toString()}` : ""}`, { signal: ctrl.signal });
-    if (!res.ok) {
+
+    try {
+      const res = await fetch(`/api/v2/admin/conversations${qs.toString() ? `?${qs.toString()}` : ""}`, { signal: ctrl.signal });
+      if (!res.ok) {
+        setError("Failed to load conversations");
+        return;
+      }
+      const payload = (await res.json()) as { data: { conversations: ConversationSummary[] } };
+      setItems(payload.data.conversations);
+    } catch (err) {
+      if ((err as { name?: string })?.name === "AbortError") {
+        return;
+      }
       setError("Failed to load conversations");
+    } finally {
       setLoading(false);
-      return;
     }
-    const payload = (await res.json()) as { data: { conversations: ConversationSummary[] } };
-    setItems(payload.data.conversations);
-    setLoading(false);
   }, [search]);
 
   useEffect(() => {

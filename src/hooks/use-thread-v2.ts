@@ -69,15 +69,17 @@ export function useThreadV2(options: {
       }
       const payload = (await res.json()) as { data: ThreadResponse };
       const data = payload.data;
+      // Normalize to oldest-first for natural scroll (top = oldest, bottom = newest)
+      const normalized = data.messages.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
       setNextCursor(data.nextCursor);
       setMessages((prev) => {
-        if (replace) return data.messages;
-        // newest-first
-        const merged = [...prev, ...data.messages].reduce<Message[]>((acc, msg) => {
+        if (replace) return normalized;
+        const merged = [...prev, ...normalized].reduce<Message[]>((acc, msg) => {
           if (!acc.find((m) => m.id === msg.id)) acc.push(msg);
           return acc;
         }, []);
-        merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
         return merged;
       });
       setLoading(false);
@@ -92,7 +94,7 @@ export function useThreadV2(options: {
     return load(nextCursor, false);
   }, [load, nextCursor]);
 
-  const latest = messages[0]?.createdAt ?? null;
+  const latest = messages[messages.length - 1]?.createdAt ?? null;
 
   useEffect(() => {
     setMessages([]);
