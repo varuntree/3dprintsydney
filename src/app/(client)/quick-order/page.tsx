@@ -329,15 +329,7 @@ export default function QuickOrderPage() {
     handleToggleGizmo(false);
   }, [currentlyOrienting, handleToggleGizmo]);
 
-  useEffect(() => {
-    setSettings((prev) => {
-      let changed = false;
-      const next = { ...prev } as Record<string, FileSettings>;
-      Object.entries(next).forEach(([key, config]) => {
-              });
-      return changed ? next : prev;
-    });
-  }, []);
+
 
   useEffect(() => {
     if (currentStep !== "orient") {
@@ -345,7 +337,13 @@ export default function QuickOrderPage() {
     }
   }, [currentStep]);
 
+  const lastHydratedFileRef = useRef<string | null>(null);
+
   useEffect(() => {
+    // Only hydrate the orientation store when the active file changes.
+    if (currentlyOrienting === lastHydratedFileRef.current) return;
+    lastHydratedFileRef.current = currentlyOrienting;
+
     orientationHydratingRef.current = true;
     const store = useOrientationStore.getState();
     if (currentlyOrienting) {
@@ -356,7 +354,7 @@ export default function QuickOrderPage() {
         });
         useOrientationStore.setState((state) => ({
           ...state,
-                    helpersVisible: snapshot.helpersVisible ?? false,
+          helpersVisible: snapshot.helpersVisible ?? false,
           gizmoEnabled: snapshot.gizmoEnabled ?? false,
           gizmoMode: snapshot.gizmoMode ?? "rotate",
         }));
@@ -1339,7 +1337,7 @@ export default function QuickOrderPage() {
   const viewerErrorActive = currentlyOrienting ? Boolean(viewerErrors[currentlyOrienting]) : false;
 
   return (
-    <div className="space-y-6 pb-24 sm:space-y-8">
+    <div className="space-y-4 pb-24 sm:space-y-5">
       {/* Resume Draft Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent>
@@ -1383,7 +1381,7 @@ export default function QuickOrderPage() {
       )}
 
       {/* Workflow Steps - Sticky compact progress */}
-      <div className="sticky top-[calc(env(safe-area-inset-top)+5.5rem)] z-20 mb-3 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-2 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:mb-4 sm:p-3">
+      <div className="sticky top-[calc(env(safe-area-inset-top)+5.5rem)] z-20 mb-6 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-2 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:mb-7 sm:p-3">
         <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground sm:text-xs">
           <span>
             Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
@@ -1508,7 +1506,7 @@ export default function QuickOrderPage() {
       )}
 
       {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on lg+ */}
-      <div className="grid grid-cols-1 gap-4 pt-3 sm:gap-6 sm:pt-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
         <div className="space-y-4 sm:space-y-6 lg:col-span-2">
           {(isUploadStep || isConfigureStep) && (
@@ -1872,14 +1870,6 @@ export default function QuickOrderPage() {
                               <Label className="text-xs">Support pattern</Label>
                               <Select
                                 value={"normal"}
-                                onValueChange={(value) =>
-                                  setSettings((s) => ({
-                                    ...s,
-                                    [u.id]: {
-                                      ...s[u.id],
-                                                                          },
-                                  }))
-                                }
                                 disabled
                               >
                                 <SelectTrigger className="h-9">
@@ -1895,14 +1885,6 @@ export default function QuickOrderPage() {
                               <Label className="text-xs">Support style</Label>
                               <Select
                                 value={"grid"}
-                                onValueChange={(value) =>
-                                  setSettings((s) => ({
-                                    ...s,
-                                    [u.id]: {
-                                      ...s[u.id],
-                                                                          },
-                                  }))
-                                }
                                 disabled
                               >
                                 <SelectTrigger className="h-9">
@@ -1922,38 +1904,20 @@ export default function QuickOrderPage() {
                                 max={89}
                                 step="1"
                                 value={45}
-                                onChange={(e) =>
-                                  setSettings((s) => ({
-                                    ...s,
-                                    [u.id]: {
-                                      ...s[u.id],
-                                                                          },
-                                  }))
-                                }
                                 disabled
                                 className="h-9"
                               />
                             </div>
                             <div>
                               <Label className="text-xs">Interface layers</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                max={6}
-                                step="1"
-                                value={3}
-                                onChange={(e) =>
-                                  setSettings((s) => ({
-                                    ...s,
-                                    [u.id]: {
-                                      ...s[u.id],
-                                                                          },
-                                  }))
-                                }
-                                disabled
-                                className="h-9"
-                              />
-                            </div>
+                                                            <Input
+                                                              type="number"
+                                                              min={1}
+                                                              max={6}
+                                                              step="1"
+                                                              disabled
+                                                              className="h-9"
+                                                            />                            </div>
                           </div>
 
                           {(status === "error" || statusMessage) && (
