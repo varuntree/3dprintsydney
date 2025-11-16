@@ -22,7 +22,12 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
 import { detectOverhangs } from "@/lib/3d/overhang-detector";
 import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
-import { recenterObjectToGround, seatObjectOnGround } from "@/lib/3d/coordinates";
+import { 
+  recenterObjectToGround, 
+  seatObjectOnGround, 
+  clampGroupToBuildVolume, 
+  applyAllConstraints 
+} from "@/lib/3d/model-constraints";
 import {
   fitCameraToGroup,
   positionCameraForPreset,
@@ -146,33 +151,6 @@ const tempSphere = new THREE.Sphere();
 const tempDir = new THREE.Vector3();
 const tempTranslation = new THREE.Vector3();
 const DEFAULT_BOUNDS_MESSAGE = "Model exceeds the 240mm build volume. Reposition before locking orientation.";
-
-function clampGroupToBuildVolume(group: THREE.Group) {
-  tempBox.setFromObject(group);
-  if (tempBox.isEmpty()) return;
-  let deltaX = 0;
-  if (tempBox.min.x < -HALF_PLATE_MM) {
-    deltaX = -HALF_PLATE_MM - tempBox.min.x;
-  } else if (tempBox.max.x > HALF_PLATE_MM) {
-    deltaX = HALF_PLATE_MM - tempBox.max.x;
-  }
-  let deltaZ = 0;
-  if (tempBox.min.z < -HALF_PLATE_MM) {
-    deltaZ = -HALF_PLATE_MM - tempBox.min.z;
-  } else if (tempBox.max.z > HALF_PLATE_MM) {
-    deltaZ = HALF_PLATE_MM - tempBox.max.z;
-  }
-  let deltaY = 0;
-  if (tempBox.min.y < 0) {
-    deltaY = -tempBox.min.y;
-  }
-  if (deltaX !== 0 || deltaY !== 0 || deltaZ !== 0) {
-    group.position.x += deltaX;
-    group.position.y += deltaY;
-    group.position.z += deltaZ;
-    group.updateMatrixWorld(true);
-  }
-}
 
 function computeBoundsStatusFromObject(object: THREE.Object3D | null): OrientationBoundsStatus | null {
   if (!object) return null;
@@ -381,6 +359,7 @@ function Scene({
   const geometryMissingLoggedRef = useRef(false);
   const largeModel = (fileSizeBytes ?? 0) > LARGE_MODEL_BYTES;
   const boundsLockRef = useRef<{ active: boolean; message: string | null }>({ active: false, message: null });
+  const lastAppliedStateRef = useRef<string | null>(null);
 
   const ext = extFromFilename(filename) ?? "stl";
   const urlKey = `${url}|${filename ?? ""}`;
@@ -563,33 +542,30 @@ const performOverhangAnalysis = useCallback(
   const handleGizmoTransform = useCallback(
     (obj: THREE.Object3D) => {
       const group = obj as THREE.Group;
-      if (gizmoMode === "translate") {
-        clampGroupToBuildVolume(group);
-      } else {
-        seatObjectOnGround(group);
-        clampGroupToBuildVolume(group);
-      }
+      // Don't apply constraints during drag - let gizmo move freely
+      // This prevents the object from jumping and keeps gizmo properly attached
+      
+      // Only update bounds status for visual feedback
       updateBoundsStatus(group);
-      retargetControlsToGroup(group, controlsRef.current);
+      
       if (onTransformChange) {
         onTransformChange(group.matrixWorld.clone());
       }
     },
-    [clampGroupToBuildVolume, gizmoMode, onTransformChange, updateBoundsStatus]
+    [onTransformChange, updateBoundsStatus]
   );
 
   const handleGizmoTransformComplete = useCallback(
     (obj: THREE.Object3D) => {
       const group = obj as THREE.Group;
-      if (gizmoMode === "translate") {
-        clampGroupToBuildVolume(group);
-      } else {
-        seatObjectOnGround(group);
-        clampGroupToBuildVolume(group);
-      }
+      
+      // Apply all constraints after user releases gizmo
+      applyAllConstraints(group, gizmoMode);
       updateBoundsStatus(group);
-      retargetControlsToGroup(group, controlsRef.current);
+      
+      // Run overhang analysis only after transform completes (not during drag)
       runOverhangAnalysis(group.quaternion.clone(), group.position.clone());
+      
       browserLogger.info({
         scope: "browser.orientation.gizmo",
         message: "Gizmo transform complete",
@@ -598,11 +574,12 @@ const performOverhangAnalysis = useCallback(
           position: { x: group.position.x, y: group.position.y, z: group.position.z },
         },
       });
+      
       if (onTransformChange) {
         onTransformChange(group.matrixWorld.clone());
       }
     },
-    [clampGroupToBuildVolume, gizmoMode, onTransformChange, runOverhangAnalysis, updateBoundsStatus]
+    [gizmoMode, onTransformChange, runOverhangAnalysis, updateBoundsStatus]
   );
 
   const handleModelLoaded = useCallback(() => {
@@ -694,21 +671,44 @@ const performOverhangAnalysis = useCallback(
     return () => domElement.removeEventListener("pointerdown", handlePointerDown);
   }, [facePickMode, gl, camera, onFacePickRequest]);
 
+  // Apply stored orientation only on initial load or file change (not continuously)
+  // This prevents circular state sync that causes position resets, while still
+  // healing any stale persisted positions by re-deriving them from constraints.
   useEffect(() => {
-    if (!objectRef.current) return;
-    if (preparedForKeyRef.current !== urlKey) return;
-    const quaternion = tupleToQuaternion(storeQuaternion);
-    const [px, py, pz] = storePosition;
-    objectRef.current.quaternion.copy(quaternion);
-    objectRef.current.position.set(px, py, pz);
-    objectRef.current.updateMatrixWorld(true);
-    // keep model seated on build plate while preserving user translation
-    seatObjectOnGround(objectRef.current);
-    clampGroupToBuildVolume(objectRef.current);
-    tempTranslation.set(px, py, pz);
-    runOverhangAnalysis(objectRef.current.quaternion.clone(), objectRef.current.position.clone());
-    updateBoundsStatus(objectRef.current);
-  }, [storePosition, storeQuaternion, runOverhangAnalysis, updateBoundsStatus]);
+    if (!objectRef.current || !preparedForKeyRef.current) return;
+    
+    const isInitialLoad = !lastAppliedStateRef.current;
+    const isFileChange = lastAppliedStateRef.current !== urlKey;
+    
+    // Only apply stored state when loading a file, not on every store update
+    if (isInitialLoad || isFileChange) {
+      const quaternion = tupleToQuaternion(storeQuaternion);
+      const group = objectRef.current;
+
+      // Apply stored rotation but keep the position established by prepareGroup.
+      // This keeps the model anchored to the build plate while preserving user
+      // orientation, even if an older session persisted a bad translation.
+      group.quaternion.copy(quaternion);
+      group.updateMatrixWorld(true);
+
+      // Apply constraints to ensure the model is valid and tightly coupled to the build volume
+      seatObjectOnGround(group);
+      clampGroupToBuildVolume(group);
+      group.updateMatrixWorld(true);
+
+      // Heal any stale persisted position by syncing the store to the constrained transform
+      setOrientationState(quaternionToTuple(group.quaternion), vectorToTuple(group.position), {
+        auto: useOrientationStore.getState().isAutoOriented,
+      });
+
+      // Update analysis
+      runOverhangAnalysis(group.quaternion.clone(), group.position.clone());
+      updateBoundsStatus(group);
+
+      // Mark this state as applied so future store changes don't keep re-applying it
+      lastAppliedStateRef.current = urlKey;
+    }
+  }, [urlKey, storeQuaternion, runOverhangAnalysis, updateBoundsStatus, setOrientationState]);
 
   useEffect(() => {
     thresholdRef.current = overhangThreshold;
@@ -999,12 +999,11 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
         rotateGroup(group, axis, degrees);
-        seatObjectOnGround(group);
-        clampGroupToBuildVolume(group);
-        if (controlsRef.current) {
-          retargetControlsToGroup(group, controlsRef.current);
-        }
+        
+        // Apply constraints after rotation
+        applyAllConstraints(group, "rotate");
         updateBoundsStatus(group);
+        
         runAnalysisRef.current?.(group.quaternion.clone(), group.position.clone());
         syncOrientationFromGroup();
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
@@ -1124,7 +1123,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         }
         group.updateMatrixWorld(true);
         updateBoundsStatus(group);
-        retargetControlsToGroup(group, controlsRef.current);
+        // Don't retarget - programmatic orientation changes should not move camera
         setOrientationState(quaternionTuple, positionTuple ?? vectorToTuple(group.position));
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },

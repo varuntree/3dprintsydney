@@ -186,6 +186,58 @@ export default function RotationControls({
   };
 
   const controlsDisabled = disabled || interactionDisabled;
+  const actionButtonClasses =
+    "flex w-full items-center justify-center gap-1.5 whitespace-normal break-words text-center sm:gap-2";
+  const rotationGridClasses = "grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2";
+  const utilityGridClasses = "grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-2";
+
+  const utilityActions = useMemo(
+    () => [
+      {
+        key: "recenter",
+        label: "Recenter",
+        icon: <Square className="h-4 w-4 flex-shrink-0" />,
+        onClick: onRecenter,
+        variant: "secondary" as const,
+      },
+      {
+        key: "fit-view",
+        label: "Fit View",
+        icon: <Maximize2 className="h-4 w-4 flex-shrink-0" />,
+        onClick: onFitView,
+        variant: "secondary" as const,
+      },
+      {
+        key: "auto-orient",
+        label: "Auto Orient",
+        icon: <Sparkles className="h-4 w-4 flex-shrink-0" />,
+        onClick: onAutoOrient,
+        variant: "secondary" as const,
+      },
+      {
+        key: "face-select",
+        label: faceSelectionEnabled ? "Click model face" : "Orient to Face",
+        icon: <Pointer className="h-4 w-4 flex-shrink-0" />,
+        onClick: toggleFaceSelection,
+        variant: faceSelectionEnabled ? "default" : "outline",
+      },
+      {
+        key: "reset",
+        label: "Reset",
+        icon: <RefreshCcw className="h-4 w-4 flex-shrink-0" />,
+        onClick: onReset,
+        variant: "outline" as const,
+      },
+    ],
+    [
+      faceSelectionEnabled,
+      onRecenter,
+      onFitView,
+      onAutoOrient,
+      toggleFaceSelection,
+      onReset,
+    ]
+  );
 
   useEffect(() => {
     if (!controlsDisabled || !faceSelectionEnabled) return;
@@ -199,7 +251,7 @@ export default function RotationControls({
   const supportCost = supportGrams * supportCostPerGram;
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-surface-overlay/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/70">
+    <div className="w-full min-w-0 space-y-3 rounded-xl border border-border bg-surface-overlay/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/70">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Axis3D className="h-4 w-4" />
@@ -211,14 +263,14 @@ export default function RotationControls({
         Fine tune orientation before locking it in.
       </p>
 
-      <div className="grid gap-2 sm:grid-cols-5">
+      <div className={rotationGridClasses}>
         {primaryActions.map((action) => (
           <Button
             key={`${action.axis}-${action.degrees}`}
             type="button"
             variant="outline"
             disabled={controlsDisabled}
-            className="flex w-full items-center justify-center gap-2"
+            className={actionButtonClasses}
             onClick={() => onRotate(action.axis, action.degrees)}
           >
             {action.icon}
@@ -260,7 +312,7 @@ export default function RotationControls({
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {(Object.keys(angleInputs) as AxisKey[]).map((axis) => (
           <label key={axis} className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
             {axis.toUpperCase()} Rotation
@@ -279,7 +331,7 @@ export default function RotationControls({
           </label>
         ))}
       </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>Current rotation</span>
         <span className="font-medium text-foreground">
           X {currentEuler.x.toFixed(1)}° · Y {currentEuler.y.toFixed(1)}° · Z {currentEuler.z.toFixed(1)}°
@@ -288,72 +340,35 @@ export default function RotationControls({
 
       <Separator className="bg-border/60" />
 
-      <div className="grid gap-2 sm:grid-cols-6">
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={controlsDisabled}
-          className="flex w-full items-center justify-center gap-2"
-          onClick={onRecenter}
-        >
-          <Square className="h-4 w-4" />
-          Recenter
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={controlsDisabled}
-          className="flex w-full items-center justify-center gap-2"
-          onClick={onFitView}
-        >
-          <Maximize2 className="h-4 w-4" />
-          Fit View
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={controlsDisabled}
-          className="flex w-full items-center justify-center gap-2"
-          onClick={onAutoOrient}
-        >
-          <Sparkles className="h-4 w-4" />
-          Auto Orient
-        </Button>
-        <Button
-          type="button"
-          variant={faceSelectionEnabled ? "default" : "outline"}
-          disabled={controlsDisabled}
-          className="flex w-full items-center justify-center gap-2"
-          onClick={toggleFaceSelection}
-        >
-          <Pointer className="h-4 w-4" />
-          {faceSelectionEnabled ? "Click model face" : "Orient to Face"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={controlsDisabled}
-          className="flex w-full items-center justify-center gap-2"
-          onClick={onReset}
-        >
-          <RefreshCcw className="h-4 w-4" />
-          Reset
-        </Button>
+      <div className={utilityGridClasses}>
+        {utilityActions.map((action) => (
+          <Button
+            key={action.key}
+            type="button"
+            variant={action.variant}
+            disabled={controlsDisabled}
+            className={actionButtonClasses}
+            onClick={action.onClick}
+          >
+            {action.icon}
+            <span className="text-xs sm:text-sm">{action.label}</span>
+          </Button>
+        ))}
         <Button
           type="button"
           disabled={disabled || isLocking || interactionDisabled || Boolean(lockGuardReason)}
-          className="flex w-full items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-500 sm:col-span-2"
+          className="flex w-full items-center justify-center gap-1.5 bg-black text-white hover:bg-black/90"
           onClick={onLock}
         >
           {isLocking ? (
             <>
-              <Compass className="h-4 w-4 animate-spin" />
-              Saving…
+              <Compass className="h-4 w-4 flex-shrink-0 animate-spin" />
+              <span className="text-xs sm:text-sm">Saving…</span>
             </>
           ) : (
             <>
-              <Compass className="h-4 w-4" />
-              Lock Orientation
+              <Compass className="h-4 w-4 flex-shrink-0" />
+              <span className="text-xs sm:text-sm">Lock Orientation</span>
             </>
           )}
         </Button>

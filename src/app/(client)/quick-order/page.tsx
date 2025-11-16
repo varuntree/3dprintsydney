@@ -220,6 +220,16 @@ export default function QuickOrderPage() {
   const interactionDisabled = useOrientationStore((state) => state.interactionDisabled);
   const interactionMessage = useOrientationStore((state) => state.interactionMessage);
   const orientationHydratingRef = useRef(false);
+
+  // Ensure each Quick Order session starts from a clean orientation baseline.
+  // Draft restore will explicitly rehydrate any saved orientation per project,
+  // so cross-session drift in the WebGL orientation store can't desync the
+  // model, build plate, and gizmo.
+  useEffect(() => {
+    const store = useOrientationStore.getState();
+    store.resetForNewFile();
+    clearOrientationPersistence();
+  }, []);
   const handleViewerReset = useCallback(() => {
     setViewHelpersVisible(false);
     viewerRef.current?.resetView();
@@ -1337,7 +1347,7 @@ export default function QuickOrderPage() {
   const viewerErrorActive = currentlyOrienting ? Boolean(viewerErrors[currentlyOrienting]) : false;
 
   return (
-    <div className="-mt-5 pb-24 sm:-mt-8">
+    <div className="pb-24">
       {/* Resume Draft Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent>
@@ -1380,37 +1390,42 @@ export default function QuickOrderPage() {
         </div>
       )}
 
-      {/* Workflow Steps - Sticky compact progress */}
-      <div className="sticky top-[calc(env(safe-area-inset-top)+5.5rem)] z-20 mb-6 overflow-x-auto rounded-xl border border-border/70 bg-surface-overlay/95 p-2 shadow-sm shadow-black/10 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:mb-7 sm:p-3">
-        <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground sm:text-xs">
-          <span>
-            Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
-          </span>
-          <div className="flex items-center gap-1.5">
+      {/* Workflow Steps - Clean flow implementation */}
+      <div className="mb-6 overflow-x-auto rounded-xl border border-border bg-card p-3 shadow-sm sm:mb-8 sm:p-4">
+        <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="text-xs font-semibold text-foreground sm:text-sm">
+              Step {currentStepIndex + 1} of {STEP_META.length}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {STEP_META[currentStepIndex]?.label ?? ""}
+            </span>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => previousStepId && goToStep(previousStepId)}
               disabled={!previousStepId}
-              className="h-8 px-2 text-[11px] sm:h-8 sm:text-xs"
+              className="h-8 gap-1 px-3 text-xs"
             >
-              <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Previous</span>
             </Button>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => nextStepId && goToStep(nextStepId)}
               disabled={!nextStepId || !isStepUnlocked(nextStepId)}
               title={orientationLockBlocked ? "Lock orientation to continue" : undefined}
-              className="h-8 px-2 text-[11px] sm:h-8 sm:text-xs"
+              className="h-8 gap-1 px-3 text-xs"
             >
               <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
-        <div className="flex min-w-max items-center justify-between gap-1 sm:gap-2">
+        <div className="flex w-full items-center gap-1 overflow-x-auto sm:gap-2">
           {STEP_META.map((step, index) => {
             const Icon = step.icon;
             const isActive = step.id === currentStep;
@@ -1425,48 +1440,50 @@ export default function QuickOrderPage() {
               : "Locked";
 
             return (
-              <div key={step.id} className="flex flex-1 items-center">
+              <div key={step.id} className="flex min-w-0 flex-1 items-center sm:min-w-fit">
                 <button
                   type="button"
                   onClick={() => (canNavigate ? goToStep(step.id) : null)}
                   disabled={!canNavigate}
                   aria-current={isActive ? "step" : undefined}
                   className={cn(
-                    "flex flex-1 flex-col items-center gap-1 rounded-lg p-1 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex-row sm:gap-2",
-                    canNavigate ? "cursor-pointer" : "cursor-not-allowed",
+                    "flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-lg p-2 transition-all hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-w-fit sm:flex-row sm:gap-2 sm:p-2.5",
+                    canNavigate ? "cursor-pointer" : "cursor-not-allowed opacity-60",
                   )}
                 >
                   <span
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors sm:h-10 sm:w-10",
+                      "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition-all sm:h-11 sm:w-11",
                       isComplete
-                        ? "border-success bg-success text-white"
+                        ? "border-success bg-success text-white shadow-sm"
                         : isActive
-                        ? "border-primary bg-primary text-primary-foreground"
+                        ? "border-primary bg-primary text-primary-foreground shadow-md"
                         : canNavigate
-                        ? "border-border bg-card text-muted-foreground"
-                        : "border-border/60 bg-muted text-muted-foreground",
+                        ? "border-border bg-background text-muted-foreground"
+                        : "border-border/50 bg-muted/50 text-muted-foreground/50",
                     )}
                   >
-                    {isComplete ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Icon className="h-4 w-4 sm:h-5 sm:w-5" />}
+                    {isComplete ? <Check className="h-5 w-5 sm:h-5 sm:w-5" /> : <Icon className="h-5 w-5 sm:h-5 sm:w-5" />}
                   </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium sm:text-sm",
-                      isActive ? "text-foreground" : "text-muted-foreground",
-                    )}
-                  >
-                    {step.label}
-                    <span className="ml-1 hidden text-[10px] font-normal uppercase tracking-wide text-muted-foreground sm:inline">
+                  <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+                    <span
+                      className={cn(
+                        "text-xs font-semibold sm:text-sm",
+                        isActive ? "text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                    <span className="hidden text-[10px] font-normal uppercase tracking-wider text-muted-foreground/80 sm:inline">
                       {statusLabel}
                     </span>
-                  </span>
+                  </div>
                 </button>
                 {index < STEP_META.length - 1 && (
                   <div
                     className={cn(
-                      "mx-1 h-0.5 flex-1 bg-border/60 sm:mx-2",
-                      isComplete && "bg-primary"
+                      "mx-1.5 h-0.5 flex-1 rounded-full transition-all sm:mx-2",
+                      isComplete ? "bg-success" : "bg-border/50"
                     )}
                   />
                 )}
@@ -1505,14 +1522,14 @@ export default function QuickOrderPage() {
         </div>
       )}
 
-      {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on lg+ */}
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:mt-5 sm:gap-6 lg:grid-cols-3">
+      {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on md+ */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
         {/* Left Column - Upload & Files */}
-        <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+        <div className="space-y-4 sm:space-y-6 md:col-span-2">
           {(isUploadStep || isConfigureStep) && (
             <>
           {/* Upload & File List - Mobile optimized: Stack on mobile */}
-          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
+          <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 md:scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-semibold sm:text-lg">
@@ -1526,7 +1543,7 @@ export default function QuickOrderPage() {
                 <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">{uploads.length} file{uploads.length === 1 ? "" : "s"}</span>
               ) : null}
             </div>
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div
                 className={cn(
                   "relative flex min-h-[260px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/70 bg-surface-muted text-center transition",
@@ -1997,7 +2014,7 @@ export default function QuickOrderPage() {
 
           {/* Orientation Step - Mobile optimized */}
           {currentStep === "orient" && uploads.length > 0 && (
-            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
+            <section className="rounded-2xl border border-border bg-surface-overlay/90 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 sm:p-6 md:scroll-mt-[8.5rem] lg:scroll-mt-[9.5rem]">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <Box className="h-5 w-5 text-muted-foreground" />
@@ -2033,7 +2050,7 @@ export default function QuickOrderPage() {
 
               {/* File Selection - Mobile optimized: Horizontal scroll on mobile */}
               <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                <div className="flex min-w-max gap-2 sm:flex-wrap">
+                <div className="flex w-full gap-2 sm:flex-wrap sm:w-auto">
                 {uploads.map((u) => {
                   const isOriented = !!orientationLocked[u.id];
                   const isCurrent = currentlyOrienting === u.id;
@@ -2133,7 +2150,7 @@ export default function QuickOrderPage() {
                       onGizmoModeChange={handleGizmoModeChange}
                       gizmoMode={gizmoMode}
                     />
-                    <div className="overflow-x-auto rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
+                    <div className="w-full rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
                       <RotationControls
                         onReset={handleViewerReset}
                         onRecenter={() => viewerRef.current?.recenter()}
@@ -2288,7 +2305,7 @@ export default function QuickOrderPage() {
                         </span>
                       </div>
                       {item.breakdown ? (
-                        <dl className="mt-2 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                        <dl className="mt-2 grid grid-cols-1 gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
                           <div className="flex items-center justify-between">
                             <dt>Model weight</dt>
                             <dd>{(item.breakdown.modelWeight ?? item.breakdown.grams ?? 0).toFixed(1)} g</dd>
@@ -2408,7 +2425,7 @@ export default function QuickOrderPage() {
                       className="h-9"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
                       <Label className="text-xs">City</Label>
                       <Input
@@ -2464,45 +2481,6 @@ export default function QuickOrderPage() {
               </ol>
               </section>
             )}
-        </div>
-        <div className="sticky bottom-3 z-20 mt-8 rounded-2xl border border-border/70 bg-surface-overlay/95 p-4 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground/70">Step navigation</p>
-              <p className="text-sm font-medium text-foreground">
-                Step {currentStepIndex + 1} of {STEP_META.length}: {STEP_META[currentStepIndex]?.label ?? ""}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              {orientationLockBlocked ? (
-                <span className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                  <Lock className="h-3 w-3" /> Lock orientation to continue
-                </span>
-              ) : null}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => previousStepId && goToStep(previousStepId)}
-                  disabled={!previousStepId}
-                  className="gap-2 rounded-full px-5"
-                >
-                  <ChevronLeft className="h-4 w-4" /> Previous
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => nextStepId && goToStep(nextStepId)}
-                  disabled={!nextStepId || !isStepUnlocked(nextStepId)}
-                  title={orientationLockBlocked ? "Lock orientation to continue" : undefined}
-                  className="gap-2 rounded-full px-5"
-                >
-                  Next <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
         </div>
         <Dialog
           open={Boolean(resetCandidate)}
