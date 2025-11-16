@@ -21,5 +21,5 @@ export default async function DashboardPage() {
     projectCounters: snapshot.projectCounters,
   };
 
-  return <DashboardView initial={initial} user={user} />;
+  return <DashboardView initial={initial} userEmail={user.email} />;
 }

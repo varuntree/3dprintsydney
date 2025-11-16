@@ -34,9 +34,11 @@ export type DashboardSnapshot = {
     revenue30: number;
     revenue30Prev: number;
     outstandingBalance: number;
+    availableCredit: number;
     pendingQuotes: number;
     jobsQueued: number;
     jobsPrinting: number;
+    jobsCompleted: number;
   };
   revenueTrend: { month: string; value: number }[];
   quoteStatus: { status: QuoteStatus; count: number }[];
@@ -235,8 +237,7 @@ export async function getDashboardSnapshot(options?: {
     printersRes,
     activityRes,
     paymentsTrendRes,
-    clientsWalletRes,
-    pendingPaymentCountRes,
+    clientsRes,
   ] = await Promise.all([
     supabase
       .from("payments")
@@ -261,10 +262,6 @@ export async function getDashboardSnapshot(options?: {
       .select("amount, paid_at")
       .gte("paid_at", trendStart.toISOString()),
     supabase.from("clients").select("wallet_balance"),
-    supabase
-      .from("invoices")
-      .select("id", { count: "exact", head: true })
-      .in("status", [InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]),
   ]);
 
   if (paymentsLast60Res.error) {
@@ -289,15 +286,8 @@ export async function getDashboardSnapshot(options?: {
   if (paymentsTrendRes.error) {
     throw new AppError(`Failed to load revenue trend: ${paymentsTrendRes.error.message}`, 'DATABASE_ERROR', 500);
   }
-  if (clientsWalletRes.error) {
-    throw new AppError(`Failed to load client balances: ${clientsWalletRes.error.message}`, 'DATABASE_ERROR', 500);
-  }
-  if (pendingPaymentCountRes.error) {
-    throw new AppError(
-      `Failed to count pending invoices: ${pendingPaymentCountRes.error.message}`,
-      'DATABASE_ERROR',
-      500,
-    );
+  if (clientsRes.error) {
+    throw new AppError(`Failed to load client wallet balances: ${clientsRes.error.message}`, 'DATABASE_ERROR', 500);
   }
 
   const paymentsLast60 = (paymentsLast60Res.data ?? []) as PaymentRow[];
@@ -306,6 +296,7 @@ export async function getDashboardSnapshot(options?: {
   const jobs = (jobsRes.data ?? []) as JobGroupRow[];
   const printers = (printersRes.data ?? []) as PrinterRow[];
   const paymentsTrendRows = (paymentsTrendRes.data ?? []) as PaymentRow[];
+  const clients = (clientsRes.data ?? []) as { wallet_balance: unknown }[];
 
   const revenue30 = paymentsLast60
     .filter((payment) => payment.paid_at && new Date(payment.paid_at) >= rangeStart30)
@@ -323,6 +314,10 @@ export async function getDashboardSnapshot(options?: {
     (acc, invoice) => acc + decimalToNumber(invoice.balance_due),
     0,
   );
+  const availableCredit = clients.reduce(
+    (sum, client) => sum + decimalToNumber(client.wallet_balance),
+    0,
+  );
 
   const pendingQuotes = quotes.filter(
     (quote) => quote.status === QuoteStatus.PENDING,
@@ -333,7 +328,12 @@ export async function getDashboardSnapshot(options?: {
       const status = (row.status ?? JobStatus.QUEUED) as JobStatus;
       if (status === JobStatus.QUEUED) acc.queued += 1;
       if (status === JobStatus.PRINTING) acc.printing += 1;
-      if (status === JobStatus.COMPLETED) acc.completed += 1;
+      if (
+        status === JobStatus.COMPLETED ||
+        status === JobStatus.PRINTING_COMPLETE
+      ) {
+        acc.completed += 1;
+      }
       return acc;
     },
     { queued: 0, printing: 0, completed: 0 },
@@ -407,14 +407,9 @@ export async function getDashboardSnapshot(options?: {
 
   const { items: recentActivity, nextOffset: recentActivityNextOffset } = activityRes;
 
-  const availableCredit = (clientsWalletRes.data ?? []).reduce(
-    (sum, row) => sum + decimalToNumber((row as { wallet_balance: unknown }).wallet_balance),
-    0,
-  );
-
   const projectCounters: ClientProjectCounters = {
     availableCredit,
-    pendingPayment: pendingPaymentCountRes.count ?? 0,
+    pendingPayment: outstandingInvoices.length,
     pendingPrint: jobCounts.queued + jobCounts.printing,
     completed: jobCounts.completed,
   };
@@ -424,9 +419,11 @@ export async function getDashboardSnapshot(options?: {
       revenue30,
       revenue30Prev,
       outstandingBalance,
+      availableCredit,
       pendingQuotes,
       jobsQueued: jobCounts.queued,
       jobsPrinting: jobCounts.printing,
+      jobsCompleted: jobCounts.completed,
     },
     revenueTrend,
     quoteStatus,

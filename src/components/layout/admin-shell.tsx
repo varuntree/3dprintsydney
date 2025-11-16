@@ -44,7 +44,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
       {/* Desktop Sidebar */}
       <aside className="sticky top-0 z-30 hidden h-[100svh] supports-[height:100dvh]:h-[100dvh] w-[280px] border-r border-border bg-sidebar/95 text-sidebar-foreground backdrop-blur lg:block">
         <div className="flex h-full flex-col">
-          <div className="border-b border-border/70 bg-sidebar/90 px-6 pb-6 pt-[calc(1.75rem+env(safe-area-inset-top))]">
+          <div className="flex min-h-[92px] items-center border-b border-border/70 bg-sidebar/90 px-6 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] md:pb-5">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-surface-overlay text-foreground">
                 <AnimatedCubeLogo className="h-6 w-6 text-foreground" />
@@ -93,7 +93,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
 
       <div className="flex min-h-svh flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-border/80 bg-surface-overlay backdrop-blur">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 md:px-8 md:pb-4">
+          <div className="mx-auto flex min-h-[92px] w-full max-w-[1440px] items-center justify-between gap-3 px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 md:px-8 md:pb-5">
             <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
               <NavigationDrawer />
               <div className="min-w-0 flex-1 space-y-1">

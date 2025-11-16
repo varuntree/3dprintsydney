@@ -1,25 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { PiggyBank, CreditCard, Printer, BadgeCheck, ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  BadgeDollarSign,
+  CheckCircle2,
+  CreditCard,
+  Printer,
+} from "lucide-react";
 
-import { getJson } from "@/lib/http";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/currency";
+import { getJson } from "@/lib/http";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ClientProjectCounters } from "@/lib/types/dashboard";
-import type { LegacyUser } from "@/lib/types/user";
 
 export type DashboardClientSnapshot = {
   metrics: {
     revenue30: number;
     revenue30Prev: number;
     outstandingBalance: number;
+    availableCredit: number;
     pendingQuotes: number;
     jobsQueued: number;
     jobsPrinting: number;
+    jobsCompleted: number;
   };
   revenueTrend: { month: string; value: number }[];
   quoteStatus: { status: string; count: number }[];
@@ -47,52 +54,14 @@ export type DashboardClientSnapshot = {
   projectCounters: ClientProjectCounters;
 };
 
+type DashboardViewProps = {
+  initial: DashboardClientSnapshot;
+  userEmail?: string;
+};
+
 const DEFAULT_RANGE = "30d" as const;
 
-const COUNTER_CONFIG: Array<{
-  key: keyof ClientProjectCounters;
-  label: string;
-  helper: string;
-  icon: typeof PiggyBank;
-  format: (value: number) => string;
-}> = [
-  {
-    key: "availableCredit",
-    label: "Available Credit",
-    helper: "Total client wallet balance ready to spend",
-    icon: PiggyBank,
-    format: (value) => formatCurrency(value),
-  },
-  {
-    key: "pendingPayment",
-    label: "Pending Payment",
-    helper: "Projects waiting on funds",
-    icon: CreditCard,
-    format: (value) => `${value.toLocaleString()} projects`,
-  },
-  {
-    key: "pendingPrint",
-    label: "Pending Print",
-    helper: "Jobs queued or on printers",
-    icon: Printer,
-    format: (value) => `${value.toLocaleString()} jobs`,
-  },
-  {
-    key: "completed",
-    label: "Total Completed",
-    helper: "Projects delivered via QuickPrint",
-    icon: BadgeCheck,
-    format: (value) => `${value.toLocaleString()}`,
-  },
-];
-
-export function DashboardView({
-  initial,
-  user,
-}: {
-  initial: DashboardClientSnapshot;
-  user: LegacyUser;
-}) {
+export function DashboardView({ initial, userEmail }: DashboardViewProps) {
   const { data: snapshot = initial, isLoading } = useQuery({
     queryKey: ["dashboard", DEFAULT_RANGE],
     queryFn: () =>
@@ -103,51 +72,85 @@ export function DashboardView({
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
-  const [isFirstVisit, setIsFirstVisit] = useState(true);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    if (typeof window === "undefined") return;
-    const key = `quickprint-admin-welcomed-${user.id}`;
-    const seen = window.localStorage.getItem(key);
-    setIsFirstVisit(!seen);
-    if (!seen) {
-      window.localStorage.setItem(key, "1");
-    }
-  }, [user?.id]);
+  const counters = snapshot.projectCounters ?? {
+    availableCredit: snapshot.metrics.availableCredit ?? 0,
+    pendingPayment: snapshot.outstandingInvoices.length,
+    pendingPrint: snapshot.metrics.jobsQueued + snapshot.metrics.jobsPrinting,
+    completed: snapshot.metrics.jobsCompleted ?? 0,
+  };
 
-  const greeting = useMemo(() => {
-    const displayName = user?.name || user?.email || "there";
-    return isFirstVisit ? "Welcome to QuickPrint" : `Welcome back to QuickPrint, ${displayName}`;
-  }, [isFirstVisit, user?.email, user?.name]);
+  const stats = [
+    {
+      label: "Available Credit",
+      helper: "Total client wallet balance ready to spend",
+      value: formatCurrency(counters.availableCredit ?? 0),
+      icon: BadgeDollarSign,
+    },
+    {
+      label: "Pending Payment",
+      helper: "Projects waiting on funds",
+      value: `${(counters.pendingPayment ?? 0).toLocaleString()} project${counters.pendingPayment === 1 ? "" : "s"}`,
+      icon: CreditCard,
+    },
+    {
+      label: "Pending Print",
+      helper: "Jobs queued or on printers",
+      value: `${(counters.pendingPrint ?? 0).toLocaleString()} job${counters.pendingPrint === 1 ? "" : "s"}`,
+      icon: Printer,
+    },
+    {
+      label: "Total Completed",
+      helper: "Projects delivered via QuickPrint",
+      value: `${(counters.completed ?? 0).toLocaleString()}`,
+      icon: CheckCircle2,
+    },
+  ];
+
+  const quickLinks = [
+    { label: "Projects", href: "/jobs", variant: "default" as const },
+    { label: "Quotes", href: "/quotes", variant: "outline" as const },
+    { label: "Invoices", href: "/invoices", variant: "outline" as const },
+  ];
+
+  const greeting = userEmail ? `Welcome back to QuickPrint, ${userEmail}` : "Welcome back to QuickPrint";
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground/70">
+      <header className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground/70">
           Admin Dashboard
         </p>
-        <h1 className="text-3xl font-bold text-foreground">{greeting}</h1>
-        <p className="text-sm text-muted-foreground">Start a new project or track progress.</p>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            {greeting}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Start a new project or track progress.
+          </p>
+        </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {COUNTER_CONFIG.map(({ key, label, helper, icon: Icon, format }) => {
-          const value = snapshot.projectCounters[key];
+        {stats.map((stat) => {
+          const Icon = stat.icon;
           return (
-            <Card key={key} className="rounded-3xl border border-border/70 bg-card/90">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <div>
-                  <CardTitle className="text-sm font-semibold text-muted-foreground">{label}</CardTitle>
-                  <p className="text-xs text-muted-foreground/70">{helper}</p>
-                </div>
-                <span className="rounded-2xl bg-primary/10 p-3 text-primary">
+            <Card
+              key={stat.label}
+              className="rounded-3xl border border-border/70 bg-card/90 shadow-sm shadow-black/5"
+            >
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <CardTitle className="space-y-1">
+                  <p className="text-sm font-semibold text-muted-foreground">{stat.label}</p>
+                  <p className="text-xs text-muted-foreground/80">{stat.helper}</p>
+                </CardTitle>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-muted-foreground">
                   <Icon className="h-5 w-5" />
-                </span>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-semibold text-foreground">
-                  {isLoading ? "…" : format(value)}
+                  {isLoading ? "…" : stat.value}
                 </p>
               </CardContent>
             </Card>
@@ -155,23 +158,25 @@ export function DashboardView({
         })}
       </section>
 
-      <section className="flex flex-wrap gap-3">
-        <Button asChild size="lg" className="gap-2 rounded-2xl">
-          <Link href="/clients">
-            <ArrowRight className="h-4 w-4" /> Projects
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="lg" className="gap-2 rounded-2xl">
-          <Link href="/quotes">
-            <ArrowRight className="h-4 w-4" /> Quotes
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="lg" className="gap-2 rounded-2xl">
-          <Link href="/invoices">
-            <ArrowRight className="h-4 w-4" /> Invoices
-          </Link>
-        </Button>
-      </section>
+      <div className="flex flex-wrap gap-2">
+        {quickLinks.map((link) => (
+          <Button
+            key={link.href}
+            asChild
+            variant={link.variant}
+            size="lg"
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-semibold",
+              link.variant === "outline" && "bg-surface-overlay/80",
+            )}
+          >
+            <Link href={link.href}>
+              <ArrowRight className="-ml-0.5 mr-2 inline h-4 w-4" />
+              {link.label}
+            </Link>
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }

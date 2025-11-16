@@ -1,137 +1,142 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Rocket, Clock, Repeat2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, BadgeDollarSign, CheckCircle2, CreditCard, Printer } from "lucide-react";
 
-import type { LegacyUser } from "@/lib/types/user";
-import type { ClientDashboardStats } from "@/lib/types/dashboard";
 import { formatCurrency } from "@/lib/currency";
+import { getJson } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+type ClientDashboardStats = {
+  totalOrders: number;
+  pendingCount: number;
+  paidCount: number;
+  totalSpent: number;
+  walletBalance: number;
+  projectCounters: {
+    pendingPrint: number;
+    pendingPayment: number;
+    completed: number;
+    availableCredit: number;
+  };
+};
 
 type ClientDashboardProps = {
-  user: LegacyUser;
+  initial: ClientDashboardStats;
+  userEmail: string;
 };
 
-type CtaConfig = {
-  key: string;
-  title: string;
-  description: string;
-  href: string;
-  icon: typeof Rocket;
-  badge: (stats: ClientDashboardStats | null) => string | null;
-};
-
-const CTA_ITEMS: CtaConfig[] = [
-  {
-    key: "new",
-    title: "New Project",
-    description: "Start a QuickPrint project with fresh files.",
-    href: "/quick-order",
-    icon: Rocket,
-    badge: (stats) =>
-      stats ? formatCurrency(stats.projectCounters.availableCredit ?? 0) : null,
-  },
-  {
-    key: "active",
-    title: "Active Projects",
-    description: "Track progress across everything in flight.",
-    href: "/client/projects/active",
-    icon: Clock,
-    badge: (stats) =>
-      stats ? `${stats.projectCounters.pendingPrint ?? 0} in progress` : null,
-  },
-  {
-    key: "again",
-    title: "Print Again",
-    description: "Reprint a finished project in one tap.",
-    href: "/client/projects/history",
-    icon: Repeat2,
-    badge: (stats) =>
-      stats ? `${stats.projectCounters.completed ?? 0} completed` : null,
-  },
+const ACTIONS: Array<{ label: string; href: string; variant: "default" | "outline" }> = [
+  { label: "Projects", href: "/client/projects/active", variant: "default" },
+  { label: "Quotes", href: "/client/messages", variant: "outline" },
+  { label: "Invoices", href: "/client/orders", variant: "outline" },
 ];
 
-export function ClientDashboard({ user }: ClientDashboardProps) {
-  const [stats, setStats] = useState<ClientDashboardStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [isFirstVisit, setIsFirstVisit] = useState(true);
+export function ClientDashboard({ initial, userEmail }: ClientDashboardProps) {
+  const { data: stats = initial, isLoading } = useQuery({
+    queryKey: ["client-dashboard"],
+    queryFn: () => getJson<ClientDashboardStats>("/api/client/dashboard"),
+    initialData: initial,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    let active = true;
-    async function loadStats() {
-      try {
-        const response = await fetch("/api/client/dashboard");
-        if (!response.ok) throw new Error("Failed to load dashboard stats");
-        const payload = (await response.json()) as { data: ClientDashboardStats };
-        if (!active) return;
-        setStats(payload.data);
-      } catch (error) {
-        console.error("client-dashboard.stats", error);
-      } finally {
-        if (active) setLoadingStats(false);
-      }
-    }
+  const pendingPayment = stats.projectCounters.pendingPayment;
+  const pendingPrint = stats.projectCounters.pendingPrint;
+  const completed = stats.projectCounters.completed;
+  const availableCredit = formatCurrency(stats.projectCounters.availableCredit ?? stats.walletBalance ?? 0);
 
-    loadStats();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    if (typeof window === "undefined") return;
-    const storageKey = `quickprint-client-welcomed-${user.id}`;
-    const seen = window.localStorage.getItem(storageKey);
-    setIsFirstVisit(!seen);
-    if (!seen) {
-      window.localStorage.setItem(storageKey, "1");
-    }
-  }, [user?.id]);
-
-  const greeting = useMemo(() => {
-    const displayName = user?.name || user?.email || "there";
-    return isFirstVisit ? "Welcome to QuickPrint" : `Welcome back to QuickPrint, ${displayName}`;
-  }, [isFirstVisit, user?.email, user?.name]);
+  const cards = [
+    {
+      label: "Available Credit",
+      helper: "Total client wallet balance ready to spend",
+      value: availableCredit,
+      icon: BadgeDollarSign,
+    },
+    {
+      label: "Pending Payment",
+      helper: "Projects waiting on funds",
+      value: `${pendingPayment.toLocaleString()} project${pendingPayment === 1 ? "" : "s"}`,
+      icon: CreditCard,
+    },
+    {
+      label: "Pending Print",
+      helper: "Jobs queued or on printers",
+      value: `${pendingPrint.toLocaleString()} job${pendingPrint === 1 ? "" : "s"}`,
+      icon: Printer,
+    },
+    {
+      label: "Total Completed",
+      helper: "Projects delivered via QuickPrint",
+      value: `${completed.toLocaleString()}`,
+      icon: CheckCircle2,
+    },
+  ];
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-foreground">{greeting}</h1>
-        <p className="text-sm text-muted-foreground">Start a new project or track progress.</p>
-      </div>
+      <header className="space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground/70">
+          Client Dashboard
+        </p>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Welcome back, {userEmail}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Start a new project or track progress.
+          </p>
+        </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {CTA_ITEMS.map(({ key, title, description, href, icon: Icon, badge }) => {
-          const badgeValue = badge(stats);
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => {
+          const Icon = card.icon;
           return (
-            <Link
-              key={key}
-              href={href}
-              className={cn(
-                "group flex h-full flex-col justify-between rounded-3xl border border-border/70 bg-surface-overlay/95 p-5",
-                "shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
-              )}
+            <Card
+              key={card.label}
+              className="rounded-3xl border border-border/70 bg-card/90 shadow-sm shadow-black/5"
             >
-              <div className="flex items-center justify-between gap-4">
-                <span className="rounded-2xl bg-primary/10 p-3 text-primary">
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <CardTitle className="space-y-1">
+                  <p className="text-sm font-semibold text-muted-foreground">{card.label}</p>
+                  <p className="text-xs text-muted-foreground/80">{card.helper}</p>
+                </CardTitle>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-muted-foreground">
                   <Icon className="h-5 w-5" />
-                </span>
-                {badgeValue ? (
-                  <span className="text-sm font-semibold text-muted-foreground group-hover:text-primary">
-                    {badgeValue}
-                  </span>
-                ) : null}
-              </div>
-              <div className="space-y-2 pt-6">
-                <h3 className="text-xl font-semibold text-foreground">{title}</h3>
-                <p className="text-sm text-muted-foreground">{description}</p>
-              </div>
-              <span className="pt-6 text-sm font-semibold text-primary">{loadingStats ? "Loading…" : "Open"}</span>
-            </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold text-foreground">
+                  {isLoading ? "…" : card.value}
+                </p>
+              </CardContent>
+            </Card>
           );
         })}
+      </section>
+
+      <div className="flex flex-wrap gap-2">
+        {ACTIONS.map((action) => (
+          <Button
+            key={action.href}
+            asChild
+            variant={action.variant}
+            size="lg"
+            className={cn(
+              "rounded-full px-4 py-2 text-sm font-semibold",
+              action.variant === "outline" && "bg-surface-overlay/80",
+            )}
+          >
+            <Link href={action.href}>
+              <ArrowRight className="-ml-0.5 mr-2 inline h-4 w-4" />
+              {action.label}
+            </Link>
+          </Button>
+        ))}
       </div>
     </div>
   );
