@@ -82,6 +82,17 @@ export function normalizeGeometry(geometry: THREE.BufferGeometry): void {
   geometry.computeBoundingSphere();
 }
 
+// Keep the model's horizontal translation intact but make sure it sits on the ground plane (Y >= 0).
+export function seatObjectOnGround(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true);
+  workingBox.setFromObject(object);
+  if (!isFinite(workingBox.min.y)) return;
+  const deltaY = workingBox.min.y - object.position.y;
+  // Move upward by negative delta to bring min.y to 0
+  object.position.y -= deltaY;
+  object.updateMatrixWorld(true);
+}
+
 export function recenterObjectToGround(object: THREE.Object3D): void {
   object.updateMatrixWorld(true); // CRITICAL: update before setFromObject
 

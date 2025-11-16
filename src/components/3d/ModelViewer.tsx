@@ -22,7 +22,7 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { computeAutoOrientQuaternion } from "@/lib/3d/orientation";
 import { detectOverhangs } from "@/lib/3d/overhang-detector";
 import { calculateFaceToGroundQuaternion, raycastFace } from "@/lib/3d/face-alignment";
-import { recenterObjectToGround } from "@/lib/3d/coordinates";
+import { recenterObjectToGround, seatObjectOnGround } from "@/lib/3d/coordinates";
 import {
   fitCameraToGroup,
   positionCameraForPreset,
@@ -202,6 +202,8 @@ function rotateGroup(group: THREE.Group, axis: "x" | "y" | "z", degrees: number)
       break;
   }
   group.updateMatrixWorld(true);
+  // Keep vertical grounding but preserve user-set translation on X/Z
+  seatObjectOnGround(group);
 }
 
 type AutoOrientStatusSetter = (status: "idle" | "running" | "error" | "timeout", message?: string) => void;
@@ -564,7 +566,7 @@ const performOverhangAnalysis = useCallback(
       if (gizmoMode === "translate") {
         clampGroupToBuildVolume(group);
       } else {
-        recenterObjectToGround(group);
+        seatObjectOnGround(group);
         clampGroupToBuildVolume(group);
       }
       updateBoundsStatus(group);
@@ -582,7 +584,7 @@ const performOverhangAnalysis = useCallback(
       if (gizmoMode === "translate") {
         clampGroupToBuildVolume(group);
       } else {
-        recenterObjectToGround(group);
+        seatObjectOnGround(group);
         clampGroupToBuildVolume(group);
       }
       updateBoundsStatus(group);
@@ -700,8 +702,8 @@ const performOverhangAnalysis = useCallback(
     objectRef.current.quaternion.copy(quaternion);
     objectRef.current.position.set(px, py, pz);
     objectRef.current.updateMatrixWorld(true);
-    // keep model seated and within bounds after orientation changes from external inputs
-    recenterObjectToGround(objectRef.current);
+    // keep model seated on build plate while preserving user translation
+    seatObjectOnGround(objectRef.current);
     clampGroupToBuildVolume(objectRef.current);
     tempTranslation.set(px, py, pz);
     runOverhangAnalysis(objectRef.current.quaternion.clone(), objectRef.current.position.clone());
@@ -997,7 +999,7 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         if (!sceneObject) return;
         const group = sceneObject as THREE.Group;
         rotateGroup(group, axis, degrees);
-        recenterObjectToGround(group);
+        seatObjectOnGround(group);
         clampGroupToBuildVolume(group);
         if (controlsRef.current) {
           retargetControlsToGroup(group, controlsRef.current);

@@ -1,6 +1,0 @@
-[2025-11-07T00:00:00Z] Started implementation following plan.
-[2025-11-07T00:05:00Z] Added migration for payment preferences and account deletion tables.
-[2025-11-07T01:15:00Z] Updated quick-order checkout flow: added wallet-based payment review dialog, live postcode shipping recalculation, and credit amount selection.
-[2025-11-07T01:18:00Z] Refreshed PaymentMethodModal to allow manual credit amounts and fine-grained card-only paths.
-[2025-11-07T01:20:00Z] Added invoice fields, migration, and credit application helpers to support explicit credit requests on quick orders.
-[2025-11-07T01:25:00Z] Ran npm run lint; existing lint failures (pre-existing files) block completion.

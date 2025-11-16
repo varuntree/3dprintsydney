@@ -1,4 +1,0 @@
-2025-11-12 15:00:00 - Client Portal UX plan reviewed under filtered scope; shipping estimation and 3D preview tasks deferred.
-2025-11-12 15:15:00 - Added Active Projects view/page with filters, created Print Again history list with search/pagination, and linked both routes via the nav bar.
-2025-11-12 15:25:00 - npm run build failed (pre-existing email syntax error and missing @/lib/utils/formatters); please re-run after addressing those issues.
-2025-11-12 15:30:00 - Filtered scope features implemented; ready for review and local push only.

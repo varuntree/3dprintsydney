@@ -1337,7 +1337,7 @@ export default function QuickOrderPage() {
   const viewerErrorActive = currentlyOrienting ? Boolean(viewerErrors[currentlyOrienting]) : false;
 
   return (
-    <div className="space-y-4 pb-24 sm:space-y-5">
+    <div className="-mt-5 pb-24 sm:-mt-8">
       {/* Resume Draft Dialog */}
       <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
         <DialogContent>
@@ -1477,13 +1477,13 @@ export default function QuickOrderPage() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+        <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 sm:mt-5">
           {error}
         </div>
       )}
 
       {hasFallbacks && (
-        <div className="rounded-lg border border-amber-300 bg-yellow-50 p-3 text-xs text-amber-800">
+        <div className="mt-4 rounded-lg border border-amber-300 bg-yellow-50 p-3 text-xs text-amber-800 sm:mt-5">
           {fallbackNeedsAttention
             ? "One or more files are using estimated metrics. Accept the estimate or adjust settings and prepare again before pricing."
             : "You’re using estimated metrics for at least one file. You can proceed, but re-run Prepare later for exact figures."}
@@ -1491,7 +1491,7 @@ export default function QuickOrderPage() {
       )}
 
       {studentDiscountEligible && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+        <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mt-5">
           <div className="flex items-start gap-2">
             <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <div>
@@ -1506,7 +1506,7 @@ export default function QuickOrderPage() {
       )}
 
       {/* Two-Column Layout - Mobile optimized: Full width on mobile, 3-column grid on lg+ */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:mt-5 sm:gap-6 lg:grid-cols-3">
         {/* Left Column - Upload & Files */}
         <div className="space-y-4 sm:space-y-6 lg:col-span-2">
           {(isUploadStep || isConfigureStep) && (

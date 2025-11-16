@@ -1,2 +1,0 @@
-2025-11-12T03:40:00Z Started TypeScript cleanup attempt (Invoice/quote UI + API routes).
-2025-11-12T03:50:00Z `npx tsc --noEmit` surfaces dozens of pre-existing errors (quotes, jobs, materials, tmp-files) that exceed this cleanup scope.
