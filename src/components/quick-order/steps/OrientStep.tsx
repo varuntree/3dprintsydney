@@ -7,7 +7,6 @@ import RotationControls from "@/components/3d/RotationControls";
 import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
 import { useOrientationStore } from "@/stores/orientation-store";
 import { useQuickOrder } from "../context/QuickOrderContext";
-import { type GizmoMode } from "../types";
 
 export function OrientStep() {
   const {
@@ -35,10 +34,6 @@ export function OrientStep() {
 
   const viewHelpersVisible = useOrientationStore((state) => state.helpersVisible);
   const setViewHelpersVisible = useOrientationStore((state) => state.setHelpersVisible);
-  const gizmoEnabled = useOrientationStore((state) => state.gizmoEnabled);
-  const setGizmoEnabledState = useOrientationStore((state) => state.setGizmoEnabledState);
-  const gizmoMode = useOrientationStore((state) => state.gizmoMode);
-  const setGizmoModeStore = useOrientationStore((state) => state.setGizmoMode);
   const interactionDisabled = useOrientationStore((state) => state.interactionDisabled);
   const interactionMessage = useOrientationStore((state) => state.interactionMessage);
 
@@ -47,32 +42,9 @@ export function OrientStep() {
     viewerRef.current?.resetView();
   }, [setViewHelpersVisible]);
 
-  const handleToggleGizmo = useCallback(
-    (enabled: boolean) => {
-      setGizmoEnabledState(enabled);
-      if (!enabled) {
-        setGizmoModeStore("rotate");
-      }
-      viewerRef.current?.setGizmoEnabled(enabled);
-      if (!enabled) {
-        viewerRef.current?.setGizmoMode?.("rotate");
-      }
-    },
-    [setGizmoEnabledState, setGizmoModeStore]
-  );
-
-  const handleGizmoModeChange = useCallback(
-    (mode: GizmoMode) => {
-      setGizmoModeStore(mode);
-      viewerRef.current?.setGizmoMode?.(mode);
-    },
-    [setGizmoModeStore]
-  );
-
   useEffect(() => {
     setFacePickMode(false);
-    handleToggleGizmo(false);
-  }, [currentlyOrienting, handleToggleGizmo]);
+  }, [currentlyOrienting]);
 
   const currentFileMeta = useMemo(
     () => (currentlyOrienting ? uploads.find((u) => u.id === currentlyOrienting) ?? null : null),
@@ -245,10 +217,6 @@ export function OrientStep() {
               onFit={() => viewerRef.current?.fit()}
               onReset={handleViewerReset}
               onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
-              onToggleGizmo={handleToggleGizmo}
-              gizmoEnabled={gizmoEnabled}
-              onGizmoModeChange={handleGizmoModeChange}
-              gizmoMode={gizmoMode}
             />
             <div className="w-full rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
               <RotationControls
@@ -263,9 +231,6 @@ export function OrientStep() {
                 onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
                 onOrientToFaceToggle={(enabled) => {
                   setFacePickMode(enabled);
-                  if (enabled) {
-                    handleToggleGizmo(false);
-                  }
                 }}
                 orientToFaceActive={facePickMode}
                 isLocking={isLocking}

@@ -44,7 +44,6 @@ import {
 } from "@/stores/orientation-store";
 import { describeBuildVolume, HALF_PLATE_MM } from "@/lib/3d/build-volume";
 import BuildPlate from "./BuildPlate";
-import OrientationGizmo, { type GizmoMode } from "./OrientationGizmo";
 import { browserLogger } from "@/lib/logging/browser-logger";
 import { useWebGLContext } from "@/hooks/use-webgl-context";
 
@@ -75,8 +74,6 @@ export interface ModelViewerHandle {
   orientToFace: (faceNormal: THREE.Vector3) => void;
   getOrientation: () => { quaternion: OrientationQuaternion; position: OrientationPosition };
   setOrientation: (quaternion: OrientationQuaternion, position?: OrientationPosition) => void;
-  setGizmoEnabled: (enabled: boolean) => void;
-  setGizmoMode: (mode: GizmoMode) => void;
 }
 
 interface ModelViewerProps {
@@ -324,8 +321,6 @@ function Scene({
   onTransformChange,
   onCameraReady,
   helpersVisible = false,
-  gizmoEnabled = false,
-  gizmoMode = "rotate",
   facePickMode = false,
   onFacePickRequest,
   overhangThreshold = 45,
@@ -339,8 +334,6 @@ function Scene({
   onTransformChange?: (matrix: THREE.Matrix4) => void;
   onCameraReady?: (camera: THREE.PerspectiveCamera, controls: OrbitControlsImpl | null) => void;
   helpersVisible?: boolean;
-  gizmoEnabled?: boolean;
-  gizmoMode?: GizmoMode;
   facePickMode?: boolean;
   onFacePickRequest?: (normal: THREE.Vector3) => void;
   overhangThreshold?: number;
@@ -366,7 +359,6 @@ function Scene({
   const thresholdRef = useRef(overhangThreshold);
   // analysisGeometry retained for worker/calcs; no longer rendered
   const [analysisGeometry, setAnalysisGeometry] = useState<THREE.BufferGeometry | null>(null);
-  const [gizmoDragging, setGizmoDragging] = useState(false);
   const [modelVersion, setModelVersion] = useState(0);
   const overhangTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -863,21 +855,9 @@ function Scene({
         )}
       </group>
 
-      {gizmoEnabled && objectRef.current ? (
-        <OrientationGizmo
-          target={objectRef.current}
-          enabled={gizmoEnabled}
-          mode={gizmoMode}
-          translationSnap={1}
-          onDraggingChange={setGizmoDragging}
-          onTransform={handleGizmoTransform}
-          onTransformComplete={handleGizmoTransformComplete}
-        />
-      ) : null}
-
       <ObjectRotationControls
         objectRef={objectRef}
-        enabled={!gizmoDragging && !facePickMode}
+        enabled={!facePickMode}
         onRotate={() => {
           if (objectRef.current) {
             updateBoundsStatus(objectRef.current);
@@ -907,7 +887,7 @@ function Scene({
         maxPolarAngle={Math.PI - 0.001}
         maxDistance={800}
         minDistance={10}
-        enabled={!gizmoDragging && !facePickMode}
+        enabled={!facePickMode}
         makeDefault
       />
 
@@ -936,7 +916,7 @@ function ObjectRotationControls({
 
     const handlePointerDown = (e: PointerEvent) => {
       if (!enabled || e.button !== 0) return; // Only left click
-      e.stopPropagation(); // Prevent OrbitControls from seeing this
+      e.stopImmediatePropagation(); // Prevent OrbitControls from seeing this
       e.preventDefault();
       isDragging.current = true;
       previousPointer.current = { x: e.clientX, y: e.clientY };
@@ -945,7 +925,7 @@ function ObjectRotationControls({
 
     const handlePointerMove = (e: PointerEvent) => {
       if (!isDragging.current || !objectRef.current) return;
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       e.preventDefault();
 
       const deltaX = e.clientX - previousPointer.current.x;
@@ -1023,10 +1003,6 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
     useWebGLContext(renderer);
     const helpersVisible = useOrientationStore((state) => state.helpersVisible);
     const setHelpersVisible = useOrientationStore((state) => state.setHelpersVisible);
-    const gizmoEnabled = useOrientationStore((state) => state.gizmoEnabled);
-    const setGizmoEnabledState = useOrientationStore((state) => state.setGizmoEnabledState);
-    const gizmoMode = useOrientationStore((state) => state.gizmoMode);
-    const setGizmoModeState = useOrientationStore((state) => state.setGizmoMode);
     const setBoundsStatusGlobal = useOrientationStore((state) => state.setBoundsStatus);
     const updateBoundsStatus = useCallback(
       (target?: THREE.Object3D | null) => {
@@ -1078,11 +1054,13 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
       [applyFaceAlignment, onFacePickComplete]
     );
 
-    useEffect(() => {
-      if (!gizmoEnabled && gizmoMode !== "rotate") {
-        setGizmoModeState("rotate");
+    const handleCameraReady = useCallback((cam: THREE.PerspectiveCamera, controls: OrbitControlsImpl | null) => {
+      cameraRef.current = cam;
+      controlsRef.current = controls;
+      if (sceneObject) {
+        fitCameraToGroup(sceneObject as THREE.Group, cam, controls);
       }
-    }, [gizmoEnabled, gizmoMode, setGizmoModeState]);
+    }, [sceneObject]);
 
     useImperativeHandle(ref, () => ({
       getObject: () => sceneObject,
@@ -1248,12 +1226,6 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         setOrientationState(quaternionTuple, positionTuple ?? vectorToTuple(group.position));
         if (onTransformChange) onTransformChange(group.matrixWorld.clone());
       },
-      setGizmoEnabled: (enabled) => {
-        setGizmoEnabledState(enabled);
-      },
-      setGizmoMode: (mode) => {
-        setGizmoModeState(mode);
-      },
     }),
       [
         addWarning,
@@ -1262,8 +1234,6 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
         onTransformChange,
         sceneObject,
         setAutoOrientStatus,
-        setGizmoEnabledState,
-        setGizmoModeState,
         setHelpersVisible,
         setOrientationState,
         syncOrientationFromGroup,
@@ -1322,16 +1292,8 @@ const ModelViewer = forwardRef<ModelViewerHandle, ModelViewerProps>(
               onReady={handleReady}
               onError={handleError}
               onTransformChange={onTransformChange}
-              onCameraReady={(cam, controls) => {
-                cameraRef.current = cam;
-                controlsRef.current = controls;
-                if (sceneObject) {
-                  fitCameraToGroup(sceneObject as THREE.Group, cam, controls);
-                }
-              }}
+              onCameraReady={handleCameraReady}
               helpersVisible={helpersVisible}
-              gizmoEnabled={gizmoEnabled}
-              gizmoMode={gizmoMode}
               facePickMode={facePickMode}
               onFacePickRequest={handleFacePickRequest}
               overhangThreshold={overhangThreshold}
