@@ -129,12 +129,17 @@ export async function archiveReadNotifications(userId: number) {
     // Current usage: metadata is optional.
     // Let's try to do it safely: fetch IDs of read notifications that aren't archived.
 
-    const { data: notifications } = await supabase
+    const { data: notifications, error } = await supabase
         .from("notifications")
         .select("id, metadata")
         .eq("user_id", userId)
         .not("read_at", "is", null)
-        .or("metadata.is.null,metadata->>archived.neq.true");
+        .or("metadata.is.null,metadata->>archived.is.null,metadata->>archived.neq.true");
+
+    if (error) {
+        console.error(`[Notifications] Failed to load read notifications for archiving for user ${userId}:`, error);
+        throw error;
+    }
 
     if (!notifications || notifications.length === 0) {
         console.log(`[Notifications] No notifications to archive for user ${userId}`);
@@ -154,13 +159,17 @@ export async function archiveReadNotifications(userId: number) {
     // or use a raw query if performance matters. Given the likely low volume of "clear read", iteration is fine.
     // Actually, let's use Promise.all for parallel updates.
 
-    await Promise.all(notifications.map(n => {
-        const newMetadata = { ...(n.metadata as object), archived: "true" };
-        return supabase
-            .from("notifications")
-            .update({ metadata: newMetadata })
-            .eq("id", n.id);
-    }));
+    await Promise.all(
+        notifications.map((n) => {
+            const baseMetadata =
+                n.metadata && typeof n.metadata === "object" ? n.metadata : {};
+            const newMetadata = { ...baseMetadata, archived: "true" };
+            return supabase
+                .from("notifications")
+                .update({ metadata: newMetadata })
+                .eq("id", n.id);
+        })
+    );
     
     console.log(`[Notifications] Successfully archived ${notifications.length} notifications`);
 }
