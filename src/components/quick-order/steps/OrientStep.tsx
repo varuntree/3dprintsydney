@@ -1,6 +1,13 @@
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
-import { Box, Lock, Check, RotateCcw, AlertTriangle } from "lucide-react";
+import { Box, Lock, Check, RotateCcw, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
 import OrientationControls from "./OrientationControls";
@@ -145,30 +152,68 @@ export function OrientStep() {
               overhangThreshold={45}
             />
             
-            {/* Mobile Controls Overlay */}
-            <div className="lg:hidden absolute bottom-0 left-0 right-0 p-2 z-10 pointer-events-none">
-              <div className="pointer-events-auto">
-                 <OrientationControls
-                    onReset={handleViewerReset}
-                    onRecenter={() => viewerRef.current?.recenter()}
-                    onFitView={() => viewerRef.current?.fit()}
-                    onAutoOrient={() => {
-                      setFacePickMode(false);
-                      viewerRef.current?.autoOrient();
-                    }}
-                    onLock={handleLockOrientation}
-                    onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
-                    onOrientToFaceToggle={(enabled) => setFacePickMode(enabled)}
-                    orientToFaceActive={facePickMode}
-                    onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
-                    helpersVisible={viewHelpersVisible}
-                    isLocking={isLocking}
-                    disabled={isLocking || viewerErrorActive}
-                    lockGuardReason={boundsViolationMessage}
-                    supportCostPerGram={currentOrientationMaterialCost}
-                  />
-              </div>
+            {/* Mobile Controls Trigger (Drawer) */}
+            <div className="lg:hidden absolute top-4 right-4 z-10">
+               <Sheet>
+                <SheetTrigger asChild>
+                  <Button 
+                    variant="secondary" 
+                    size="icon" 
+                    className="h-10 w-10 rounded-full shadow-md bg-white/90 backdrop-blur-sm border border-black/10 hover:bg-white"
+                    disabled={!currentlyOrienting || viewerErrorActive}
+                  >
+                    <SlidersHorizontal className="h-5 w-5" />
+                    <span className="sr-only">Open Controls</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-xl p-0">
+                  <SheetHeader className="p-4 pb-2 border-b">
+                    <SheetTitle>Orientation Controls</SheetTitle>
+                  </SheetHeader>
+                  <div className="p-1">
+                     <OrientationControls
+                        onReset={handleViewerReset}
+                        onRecenter={() => viewerRef.current?.recenter()}
+                        onFitView={() => viewerRef.current?.fit()}
+                        onAutoOrient={() => {
+                          setFacePickMode(false);
+                          viewerRef.current?.autoOrient();
+                        }}
+                        onLock={handleLockOrientation}
+                        onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
+                        onOrientToFaceToggle={(enabled) => setFacePickMode(enabled)}
+                        orientToFaceActive={facePickMode}
+                        onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
+                        helpersVisible={viewHelpersVisible}
+                        isLocking={isLocking}
+                        disabled={isLocking || viewerErrorActive}
+                        lockGuardReason={boundsViolationMessage}
+                        supportCostPerGram={currentOrientationMaterialCost}
+                        className="border-none shadow-none bg-transparent p-3"
+                      />
+                      <div className="px-4 pb-6 pt-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2 text-muted-foreground border-dashed"
+                          disabled={!currentlyOrienting}
+                          onClick={() => {
+                            if (currentlyOrienting) setResetCandidate(currentlyOrienting);
+                            // Optional: close sheet? Usually reset confirmation dialog opens.
+                          }}
+                        >
+                          <RotateCcw className="h-4 w-4" /> Reset file to import state
+                        </Button>
+                      </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
+
+            {/* Mobile Controls Overlay - Removed in favor of Drawer */}
+            {/* <div className="lg:hidden absolute bottom-0 left-0 right-0 p-2 z-10 pointer-events-none">...</div> */}
+
 
             {viewerErrorActive && currentlyOrienting ? (
               <div className="absolute top-4 left-4 right-4 z-20 rounded-lg border border-destructive/40 bg-destructive/90 text-white p-3 text-sm shadow-md backdrop-blur-sm">

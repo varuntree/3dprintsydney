@@ -210,7 +210,7 @@ export default function OrientationControls({
     <div className={cn("flex flex-col gap-4 p-4 bg-surface-overlay/90 backdrop-blur rounded-xl border border-border shadow-lg", className)}>
       
       {/* Top Row: View Controls & Auto Orient */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1">
            <Button
             type="button"
@@ -244,17 +244,18 @@ export default function OrientationControls({
           </Button>
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex gap-1">
             <Button
                 type="button"
                 variant={faceSelectionEnabled ? "default" : "outline"}
                 size="sm"
                 onClick={toggleFaceSelection}
                 disabled={controlsDisabled}
-                className="h-8 text-xs gap-1.5"
+                className="h-8 text-xs gap-1.5 px-2"
+                title="Orient to Face"
             >
                 <Pointer className="h-3.5 w-3.5" />
-                {faceSelectionEnabled ? "Pick Face" : "Orient to Face"}
+                <span className="hidden sm:inline">Face</span>
             </Button>
              <Button
                 type="button"
@@ -262,10 +263,11 @@ export default function OrientationControls({
                 size="sm"
                 onClick={onAutoOrient}
                 disabled={controlsDisabled}
-                className="h-8 text-xs gap-1.5"
+                className="h-8 text-xs gap-1.5 px-2"
+                title="Auto Orient"
             >
                 <Sparkles className="h-3.5 w-3.5" />
-                Auto Orient
+                <span className="hidden sm:inline">Auto</span>
             </Button>
         </div>
       </div>
