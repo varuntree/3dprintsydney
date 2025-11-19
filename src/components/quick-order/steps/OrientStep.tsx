@@ -156,18 +156,21 @@ export function OrientStep() {
             <div className="lg:hidden absolute top-4 right-4 z-10">
                <Sheet>
                 <SheetTrigger asChild>
-                  <Button 
-                    variant="secondary" 
-                    size="icon" 
-                    className="h-10 w-10 rounded-full shadow-md bg-white/90 backdrop-blur-sm border border-black/10 hover:bg-white"
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    className="h-10 w-10 rounded-full border border-black/10 bg-white/90 shadow-md backdrop-blur-sm hover:bg-white"
                     disabled={!currentlyOrienting || viewerErrorActive}
                   >
                     <SlidersHorizontal className="h-5 w-5" />
-                    <span className="sr-only">Open Controls</span>
+                    <span className="sr-only">Open controls</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-xl p-0">
-                  <SheetHeader className="p-4 pb-2 border-b">
+                <SheetContent
+                  side="bottom"
+                  className="max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-border/70 bg-surface-overlay/90 p-0 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/80 shadow-[0_-12px_35px_-28px_rgba(0,0,0,0.45)]"
+                >
+                  <SheetHeader className="border-b p-4 pb-2">
                     <SheetTitle>Orientation Controls</SheetTitle>
                   </SheetHeader>
                   <div className="p-1">
@@ -189,7 +192,7 @@ export function OrientStep() {
                         disabled={isLocking || viewerErrorActive}
                         lockGuardReason={boundsViolationMessage}
                         supportCostPerGram={currentOrientationMaterialCost}
-                        className="border-none shadow-none bg-transparent p-3"
+                        className="bg-surface-overlay/80 p-3 backdrop-blur supports-[backdrop-filter]:bg-surface-overlay/70"
                       />
                       <div className="px-4 pb-6 pt-0">
                         <Button
@@ -337,4 +340,3 @@ export function OrientStep() {
     </section>
   );
 }
-

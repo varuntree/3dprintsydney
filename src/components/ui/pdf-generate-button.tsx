@@ -6,18 +6,22 @@ import { FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getUserMessage } from "@/lib/errors/user-messages";
+import { buildInvoicePdfDocument, buildQuotePdfDocument } from "@/lib/pdf/data";
+import { generateInvoicePdf, generateQuotePdf } from "@/lib/pdf/generator";
+import type { InvoiceViewModel } from "@/components/invoices/invoice-view";
+import type { QuoteViewModel } from "@/components/quotes/quote-view";
 
 interface PdfGenerateButtonProps {
   documentType: "invoice" | "quote";
-  documentId: number;
   documentNumber: string;
+  data: InvoiceViewModel | QuoteViewModel;
   className?: string;
 }
 
 export function PdfGenerateButton({
   documentType,
-  documentId,
   documentNumber,
+  data,
   className,
 }: PdfGenerateButtonProps) {
   const [loading, setLoading] = useState(false);
@@ -26,17 +30,16 @@ export function PdfGenerateButton({
     if (loading) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/${documentType}s/${documentId}/pdf`);
-      if (!response.ok) {
-        throw new Error(`Failed to generate ${documentType} PDF`);
+      const filename = `${documentType}-${documentNumber}.pdf`;
+
+      if (documentType === "invoice") {
+        const pdfDoc = buildInvoicePdfDocument(data as InvoiceViewModel);
+        generateInvoicePdf(pdfDoc, filename);
+      } else {
+        const pdfDoc = buildQuotePdfDocument(data as QuoteViewModel);
+        generateQuotePdf(pdfDoc, filename);
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${documentType}-${documentNumber}.pdf`;
-      anchor.click();
-      window.URL.revokeObjectURL(url);
+
       toast.success(`${documentType.charAt(0).toUpperCase() + documentType.slice(1)} PDF generated`);
     } catch (error) {
       toast.error(getUserMessage(error));

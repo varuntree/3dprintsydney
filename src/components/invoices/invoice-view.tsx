@@ -289,8 +289,8 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                 </NavigationLink>
                 <PdfGenerateButton
                   documentType="invoice"
-                  documentId={invoice.id}
                   documentNumber={invoice.number}
+                  data={invoice}
                 />
               </ActionButtonGroup>
 

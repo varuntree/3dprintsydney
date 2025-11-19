@@ -248,8 +248,8 @@ export function QuoteView({ quote }: QuoteViewProps) {
               </ActionButton>
             <PdfGenerateButton
               documentType="quote"
-              documentId={quote.id}
               documentNumber={quote.number}
+              data={quote}
             />
             </ActionButtonGroup>
 
