@@ -3,8 +3,7 @@ import { Box, Lock, Check, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ModelViewerWrapper, { type ModelViewerRef } from "@/components/3d/ModelViewerWrapper";
-import RotationControls from "@/components/3d/RotationControls";
-import ViewNavigationControls from "@/components/3d/ViewNavigationControls";
+import OrientationControls from "./OrientationControls";
 import { useOrientationStore } from "@/stores/orientation-store";
 import { useQuickOrder } from "../context/QuickOrderContext";
 
@@ -63,17 +62,7 @@ export function OrientStep() {
 
   // Helper for re-upload input
   const onReUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Re-upload logic is complex, page.tsx reused main upload. 
-    // Ideally we should call processFiles.
-    // But "Re-upload" here means replacing the specific file? 
-    // The original code just did `fileInputRef.current?.click()` which triggered `onUpload` -> `processFiles`.
-    // This adds NEW files. It doesn't replace.
-    // If the user wants to replace, they remove and add.
-    // The UI text says "Re-upload file", but effectively it's "Upload a new copy".
-    // I'll use context's onUpload if I can expose the ref or just trigger the same file input logic.
-    // I'll just define a local input for now.
-    // But I need `onUpload` from context.
-    // Wait, `onUpload` is exposed.
+    // This functionality is handled by the main uploader
   };
   const { onUpload } = useQuickOrder();
 
@@ -142,9 +131,9 @@ export function OrientStep() {
       </div>
 
       {currentlyOrienting ? (
-        <div className="space-y-4">
-          {/* 3D Viewer */}
-          <div className="relative">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 lg:items-start">
+          {/* 3D Viewer Column */}
+          <div className="relative flex-1 min-h-[400px] lg:min-h-[600px] bg-surface-muted rounded-xl border border-border overflow-hidden">
             <ModelViewerWrapper
               ref={viewerRef}
               url={`/api/tmp-file/${currentlyOrienting}`}
@@ -155,71 +144,101 @@ export function OrientStep() {
               onFacePickComplete={() => setFacePickMode(false)}
               overhangThreshold={45}
             />
-          </div>
-          {viewerErrorActive && currentlyOrienting ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              <div className="flex items-center gap-2 font-semibold">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{viewerErrors[currentlyOrienting]}</span>
+            
+            {/* Mobile Controls Overlay */}
+            <div className="lg:hidden absolute bottom-0 left-0 right-0 p-2 z-10 pointer-events-none">
+              <div className="pointer-events-auto">
+                 <OrientationControls
+                    onReset={handleViewerReset}
+                    onRecenter={() => viewerRef.current?.recenter()}
+                    onFitView={() => viewerRef.current?.fit()}
+                    onAutoOrient={() => {
+                      setFacePickMode(false);
+                      viewerRef.current?.autoOrient();
+                    }}
+                    onLock={handleLockOrientation}
+                    onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
+                    onOrientToFaceToggle={(enabled) => setFacePickMode(enabled)}
+                    orientToFaceActive={facePickMode}
+                    onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
+                    helpersVisible={viewHelpersVisible}
+                    isLocking={isLocking}
+                    disabled={isLocking || viewerErrorActive}
+                    lockGuardReason={boundsViolationMessage}
+                    supportCostPerGram={currentOrientationMaterialCost}
+                  />
               </div>
-              <p className="mt-2 text-xs text-destructive/80">
-                Remove the file or upload a clean copy to continue. Orientation controls stay disabled until a valid model loads.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  Re-upload file
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:bg-destructive/10"
-                  onClick={() => removeUpload(currentlyOrienting)}
-                >
-                  Remove file
-                </Button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".stl,.3mf"
-                onChange={onUpload}
-                className="hidden"
-              />
             </div>
-          ) : null}
 
-          {(boundsViolationMessage || (interactionDisabled && interactionMessage)) ? (
-            <div className="absolute bottom-4 left-4 right-4 z-10 rounded-lg border border-amber-200 bg-amber-50/95 p-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <div className="space-y-1">
-                  {boundsViolationMessage ? <p>{boundsViolationMessage}</p> : null}
-                  {interactionDisabled && interactionMessage ? <p>{interactionMessage}</p> : null}
+            {viewerErrorActive && currentlyOrienting ? (
+              <div className="absolute top-4 left-4 right-4 z-20 rounded-lg border border-destructive/40 bg-destructive/90 text-white p-3 text-sm shadow-md backdrop-blur-sm">
+                <div className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{viewerErrors[currentlyOrienting]}</span>
+                </div>
+                <p className="mt-2 text-xs opacity-90">
+                  Remove the file or upload a clean copy to continue.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Re-upload
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20"
+                    onClick={() => removeUpload(currentlyOrienting)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".stl,.3mf"
+                  onChange={onUpload}
+                  className="hidden"
+                />
+              </div>
+            ) : null}
+
+             {/* Bounds / Interaction alerts (Overlay on Viewer) */}
+             {(!viewerErrorActive && (boundsViolationMessage || (interactionDisabled && interactionMessage))) ? (
+              <div className="absolute top-4 left-4 right-4 z-20 rounded-lg border border-amber-200 bg-amber-50/95 p-3 text-sm text-amber-900 shadow-sm backdrop-blur-sm">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="space-y-1">
+                    {boundsViolationMessage ? <p>{boundsViolationMessage}</p> : null}
+                    {interactionDisabled && interactionMessage ? <p>{interactionMessage}</p> : null}
+                  </div>
                 </div>
               </div>
+            ) : null}
+            
+            <div className="hidden lg:block absolute top-4 right-4 z-10">
+               <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-2 opacity-80 hover:opacity-100 shadow-sm"
+                disabled={!currentlyOrienting}
+                onClick={() => currentlyOrienting && setResetCandidate(currentlyOrienting)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Reset to import
+              </Button>
             </div>
-          ) : null}
-
-          <div className="space-y-3">
-            <ViewNavigationControls
-              helpersVisible={viewHelpersVisible}
-              disabled={isLocking || viewerErrorActive}
-              onPan={(direction) => viewerRef.current?.pan(direction)}
-              onZoom={(direction) => viewerRef.current?.zoom(direction)}
-              onPreset={(preset) => viewerRef.current?.setView(preset)}
-              onFit={() => viewerRef.current?.fit()}
-              onReset={handleViewerReset}
-              onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
-            />
-            <div className="w-full rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm">
-              <RotationControls
+          </div>
+          
+          {/* Desktop Controls Column */}
+          <div className="hidden lg:block w-80 shrink-0 sticky top-4">
+             <OrientationControls
                 onReset={handleViewerReset}
                 onRecenter={() => viewerRef.current?.recenter()}
                 onFitView={() => viewerRef.current?.fit()}
@@ -229,30 +248,16 @@ export function OrientStep() {
                 }}
                 onLock={handleLockOrientation}
                 onRotate={(axis, degrees) => viewerRef.current?.rotate(axis, degrees)}
-                onOrientToFaceToggle={(enabled) => {
-                  setFacePickMode(enabled);
-                }}
+                onOrientToFaceToggle={(enabled) => setFacePickMode(enabled)}
                 orientToFaceActive={facePickMode}
+                onToggleHelpers={() => setViewHelpersVisible(!viewHelpersVisible)}
+                helpersVisible={viewHelpersVisible}
                 isLocking={isLocking}
                 disabled={isLocking || viewerErrorActive}
                 lockGuardReason={boundsViolationMessage}
                 supportCostPerGram={currentOrientationMaterialCost}
               />
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-muted-foreground"
-                disabled={!currentlyOrienting}
-                onClick={() => currentlyOrienting && setResetCandidate(currentlyOrienting)}
-              >
-                <RotateCcw className="h-4 w-4" /> Reset to import
-              </Button>
-            </div>
           </div>
-
         </div>
       ) : allOrientationsLocked ? (
         <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center">
@@ -287,3 +292,4 @@ export function OrientStep() {
     </section>
   );
 }
+
