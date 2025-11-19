@@ -137,7 +137,7 @@ export default function ReportsPage() {
                 range={quickRange}
                 options={rangeOptions}
                 onChange={handleQuickRangeChange}
-                className="w-full overflow-x-auto"
+                className="w-full overflow-x-auto no-scrollbar"
               />
             </div>
           </CardContent>

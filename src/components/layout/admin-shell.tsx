@@ -134,7 +134,7 @@ export function AdminShell({ children, user }: AdminShellProps) {
             </div>
           </div>
             <div className="md:hidden">
-              <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6" role="list">
+              <div className="flex w-full gap-2 overflow-x-auto px-4 pb-3 pt-1 sm:px-6 no-scrollbar" role="list">
                 <div className="flex-shrink-0">
                   <NotificationDropdown user={user} />
                 </div>

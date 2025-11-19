@@ -30,7 +30,7 @@ function TabsList({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
-    <div className="w-full overflow-x-auto -webkit-overflow-scrolling-touch scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+    <div className="w-full overflow-x-auto -webkit-overflow-scrolling-touch scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent no-scrollbar">
       <TabsPrimitive.List
         data-slot="tabs-list"
         className={cn(
