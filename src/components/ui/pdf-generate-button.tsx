@@ -34,10 +34,10 @@ export function PdfGenerateButton({
 
       if (documentType === "invoice") {
         const pdfDoc = buildInvoicePdfDocument(data as InvoiceViewModel);
-        generateInvoicePdf(pdfDoc, filename);
+        await generateInvoicePdf(pdfDoc, filename);
       } else {
         const pdfDoc = buildQuotePdfDocument(data as QuoteViewModel);
-        generateQuotePdf(pdfDoc, filename);
+        await generateQuotePdf(pdfDoc, filename);
       }
 
       toast.success(`${documentType.charAt(0).toUpperCase() + documentType.slice(1)} PDF generated`);

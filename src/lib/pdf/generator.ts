@@ -1,46 +1,110 @@
-import jsPDF from "jspdf";
 import type { InvoicePdfDocument, QuotePdfDocument } from "./types";
-import { renderInvoiceTemplate } from "./templates/invoice";
-import { renderQuoteTemplate } from "./templates/quote";
+import { renderInvoiceHtml, renderQuoteHtml } from "./templates/html-renderer";
 
 /**
  * Generate and download an invoice PDF
  */
-export function generateInvoicePdf(
+export async function generateInvoicePdf(
   doc: InvoicePdfDocument,
   filename: string
-): void {
-  // Initialize jsPDF with A4 portrait settings
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+): Promise<void> {
+  // Dynamic imports for client-side only
+  const html2canvas = (await import("html2canvas")).default;
+  const { jsPDF } = await import("jspdf");
 
-  // Render the invoice template
-  renderInvoiceTemplate(pdf, doc);
+  // Render HTML template
+  const htmlContent = await renderInvoiceHtml(doc);
 
-  // Trigger download
-  pdf.save(filename);
+  // Create temporary container - must be visible for proper layout calculation
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.top = "0";
+  container.style.left = "0";
+  container.style.width = "793px"; // A4 width (210mm at 96dpi)
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+
+  // Wait for browser to complete layout calculation and image loading
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  try {
+    // Render to canvas with html2canvas
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: 793,
+      height: container.scrollHeight,
+      windowWidth: 793,
+      windowHeight: container.scrollHeight,
+    });
+
+    // Convert canvas to PDF
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+    const pdf = new jsPDF({
+      unit: "px",
+      format: [793, container.scrollHeight],
+      orientation: container.scrollHeight > 793 ? "portrait" : "landscape",
+    });
+
+    pdf.addImage(imgData, "JPEG", 0, 0, 793, container.scrollHeight);
+    pdf.save(filename);
+  } finally {
+    // Cleanup
+    document.body.removeChild(container);
+  }
 }
 
 /**
  * Generate and download a quote PDF
  */
-export function generateQuotePdf(
+export async function generateQuotePdf(
   doc: QuotePdfDocument,
   filename: string
-): void {
-  // Initialize jsPDF with A4 portrait settings
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
-  });
+): Promise<void> {
+  // Dynamic imports for client-side only
+  const html2canvas = (await import("html2canvas")).default;
+  const { jsPDF } = await import("jspdf");
 
-  // Render the quote template
-  renderQuoteTemplate(pdf, doc);
+  // Render HTML template
+  const htmlContent = await renderQuoteHtml(doc);
 
-  // Trigger download
-  pdf.save(filename);
+  // Create temporary container - must be visible for proper layout calculation
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.top = "0";
+  container.style.left = "0";
+  container.style.width = "793px"; // A4 width (210mm at 96dpi)
+  container.innerHTML = htmlContent;
+  document.body.appendChild(container);
+
+  // Wait for browser to complete layout calculation and image loading
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  try {
+    // Render to canvas with html2canvas
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: 793,
+      height: container.scrollHeight,
+      windowWidth: 793,
+      windowHeight: container.scrollHeight,
+    });
+
+    // Convert canvas to PDF
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+    const pdf = new jsPDF({
+      unit: "px",
+      format: [793, container.scrollHeight],
+      orientation: container.scrollHeight > 793 ? "portrait" : "landscape",
+    });
+
+    pdf.addImage(imgData, "JPEG", 0, 0, 793, container.scrollHeight);
+    pdf.save(filename);
+  } finally {
+    // Cleanup
+    document.body.removeChild(container);
+  }
 }
