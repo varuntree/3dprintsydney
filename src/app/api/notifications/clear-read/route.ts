@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
     try {
         const user = await requireAuth(request);
+        console.log(`[API] POST /notifications/clear-read - User ${user.id}`);
         await archiveReadNotifications(user.id);
         return okAuth(request, { success: true });
     } catch (error) {

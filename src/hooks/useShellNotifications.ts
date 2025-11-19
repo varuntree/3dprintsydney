@@ -42,6 +42,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
         qs.set("limit", "20");
         if (after) qs.set("after", after);
 
+        console.log(`[Notifications] Fetching. background=${background}, after=${after}, version=${currentVersion}`);
+
         const response = await fetch(`/api/notifications?${qs.toString()}`, {
           cache: "no-store",
           headers: {
@@ -54,7 +56,12 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
         const payload = await response.json();
         const fetchedItems = payload.data?.items ?? [];
 
-        if (stateVersionRef.current !== currentVersion) return;
+        console.log(`[Notifications] Fetched ${fetchedItems.length} items. version=${currentVersion} vs current=${stateVersionRef.current}`);
+
+        if (stateVersionRef.current !== currentVersion) {
+            console.log(`[Notifications] Version mismatch, ignoring fetch results.`);
+            return;
+        }
 
         setState((prev) => {
           if (after) {
@@ -183,6 +190,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
     refetch: () => fetchNotifications({ background: false }),
     clearRead: useCallback(async () => {
       stateVersionRef.current++;
+      const version = stateVersionRef.current;
+      console.log(`[Notifications] Clearing read. New version=${version}`);
 
       // Optimistic update
       setState((prev) => ({
@@ -194,6 +203,9 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
         await fetch("/api/notifications/clear-read", {
           method: "POST",
         });
+        
+        console.log(`[Notifications] Clear read success. Version is ${stateVersionRef.current} (started at ${version})`);
+        
         // No need to refetch immediately if optimistic update is correct, 
         // but good practice to ensure sync eventually. 
         // However, since we just hid them, refetching might bring them back if API failed?
@@ -202,7 +214,7 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
         // We trust the optimistic update. 
         // Don't refetch immediately to avoid race conditions where the DB update isn't visible yet.
         // The next poll will pick up any *new* notifications.
-        void fetchNotifications({ background: true });
+        // void fetchNotifications({ background: true });
       } catch (err) {
         console.error("Failed to clear read notifications", err);
         // Revert? Or just refetch.

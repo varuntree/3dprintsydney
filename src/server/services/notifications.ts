@@ -136,7 +136,12 @@ export async function archiveReadNotifications(userId: number) {
         .not("read_at", "is", null)
         .or("metadata.is.null,metadata->>archived.neq.true");
 
-    if (!notifications || notifications.length === 0) return;
+    if (!notifications || notifications.length === 0) {
+        console.log(`[Notifications] No notifications to archive for user ${userId}`);
+        return;
+    }
+
+    console.log(`[Notifications] Archiving ${notifications.length} notifications for user ${userId}`);
 
     // Now update them.
     // Since we want to update multiple rows with potentially different metadata (if we were merging),
@@ -156,4 +161,6 @@ export async function archiveReadNotifications(userId: number) {
             .update({ metadata: newMetadata })
             .eq("id", n.id);
     }));
+    
+    console.log(`[Notifications] Successfully archived ${notifications.length} notifications`);
 }
