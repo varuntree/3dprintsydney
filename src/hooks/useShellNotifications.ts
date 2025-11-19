@@ -24,12 +24,14 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
 
   const userId = user?.id ?? null;
   const fetchInFlightRef = useRef(false);
+  const stateVersionRef = useRef(0);
 
   const fetchNotifications = useCallback(
     async ({ background = false, after = undefined }: { background?: boolean; after?: string } = {}) => {
       if (!userId) return;
       if (fetchInFlightRef.current) return;
 
+      const currentVersion = stateVersionRef.current;
       fetchInFlightRef.current = true;
       if (!background) {
         setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -51,6 +53,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
 
         const payload = await response.json();
         const fetchedItems = payload.data?.items ?? [];
+
+        if (stateVersionRef.current !== currentVersion) return;
 
         setState((prev) => {
           if (after) {
@@ -116,6 +120,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
   const markAllSeen = useCallback(async () => {
     if (!userId) return;
 
+    stateVersionRef.current++;
+
     // Optimistic update
     setState((prev) => ({
       ...prev,
@@ -141,6 +147,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
 
   const markAsRead = useCallback(async (id: number) => {
     if (!userId) return;
+
+    stateVersionRef.current++;
 
     // Optimistic update
     setState((prev) => ({
@@ -174,6 +182,8 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
     markAsRead,
     refetch: () => fetchNotifications({ background: false }),
     clearRead: useCallback(async () => {
+      stateVersionRef.current++;
+
       // Optimistic update
       setState((prev) => ({
         ...prev,
@@ -192,7 +202,7 @@ export function useShellNotifications(user: LegacyUser | null | undefined) {
         // We trust the optimistic update. 
         // Don't refetch immediately to avoid race conditions where the DB update isn't visible yet.
         // The next poll will pick up any *new* notifications.
-        // void fetchNotifications({ background: true });
+        void fetchNotifications({ background: true });
       } catch (err) {
         console.error("Failed to clear read notifications", err);
         // Revert? Or just refetch.
