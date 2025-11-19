@@ -567,7 +567,7 @@ function Scene({
       const group = obj as THREE.Group;
 
       // Apply all constraints after user releases gizmo
-      applyAllConstraints(group, gizmoMode);
+      applyAllConstraints(group, "rotate");
       updateBoundsStatus(group);
 
       // Run overhang analysis only after transform completes (not during drag)
@@ -577,7 +577,7 @@ function Scene({
         scope: "browser.orientation.gizmo",
         message: "Gizmo transform complete",
         data: {
-          mode: gizmoMode,
+          mode: "rotate",
           position: { x: group.position.x, y: group.position.y, z: group.position.z },
         },
       });
@@ -586,7 +586,7 @@ function Scene({
         onTransformChange(group.matrixWorld.clone());
       }
     },
-    [gizmoMode, onTransformChange, runOverhangAnalysis, updateBoundsStatus]
+    [onTransformChange, runOverhangAnalysis, updateBoundsStatus]
   );
 
   const handleModelLoaded = useCallback(() => {
