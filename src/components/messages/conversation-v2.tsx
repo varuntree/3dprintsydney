@@ -27,6 +27,7 @@ export function ConversationV2({ userId, invoiceId, currentUserRole }: Props) {
     revalidating,
     loadMore,
     latest,
+    addMessage,
   } = useThreadV2({ userId, invoiceId, role: currentUserRole });
 
   const { send, sending, error: sendError } = useSendMessageV2({
@@ -34,7 +35,7 @@ export function ConversationV2({ userId, invoiceId, currentUserRole }: Props) {
     role: currentUserRole,
     invoiceId,
     onSuccess: (msg) => {
-      // optimistic already handled via refetch timer
+      addMessage(msg);
     },
   });
 
@@ -125,6 +126,12 @@ export function ConversationV2({ userId, invoiceId, currentUserRole }: Props) {
             placeholder="Type a message..."
             className="min-h-[56px] max-h-[120px] min-w-0 flex-1 resize-none border-0 bg-transparent px-2.5 py-2.5 text-sm leading-relaxed focus-visible:border-transparent focus-visible:ring-0 sm:min-h-[60px] sm:max-h-[140px] sm:px-3 sm:py-3"
             rows={2}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
             disabled={sending}
           />
           <Button onClick={handleSend} disabled={!content.trim() || sending} size="icon" className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-sm shadow-black/15 transition hover:bg-foreground/90 disabled:bg-foreground/60 sm:h-12 sm:w-12" aria-label="Send message">

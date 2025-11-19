@@ -16,11 +16,15 @@ export type ThreadResponse = {
   nextCursor: { createdAt: string; id: number } | null;
 };
 
-function buildCursorParams(cursor: { createdAt: string; id: number } | null) {
-  if (!cursor) return "";
+function buildCursorParams(cursor: { createdAt: string; id: number } | null, after?: string | null) {
   const params = new URLSearchParams();
-  params.set("cursorAt", cursor.createdAt);
-  params.set("cursorId", String(cursor.id));
+  if (cursor) {
+    params.set("cursorAt", cursor.createdAt);
+    params.set("cursorId", String(cursor.id));
+  }
+  if (after) {
+    params.set("after", after);
+  }
   return params.toString();
 }
 
@@ -45,11 +49,11 @@ export function useThreadV2(options: {
   }, [role, userId]);
 
   const load = useCallback(
-    async (cursor: ThreadResponse["nextCursor"] = null, replace = false) => {
+    async (cursor: ThreadResponse["nextCursor"] = null, replace = false, after: string | null = null) => {
       if (!threadEndpoint) return;
       const qs = new URLSearchParams();
       if (invoiceId) qs.set("invoiceId", String(invoiceId));
-      const cursorParams = buildCursorParams(cursor);
+      const cursorParams = buildCursorParams(cursor, after);
       const url = cursorParams
         ? `${threadEndpoint}?${cursorParams}&${qs.toString()}`
         : qs.toString()
@@ -57,33 +61,47 @@ export function useThreadV2(options: {
           : threadEndpoint;
 
       setError(null);
-      setLoading(!cursor && replace);
-      setRevalidating(Boolean(cursor));
+      // Only set loading if we are replacing the list (initial load)
+      if (replace && !after) setLoading(true);
+      if (cursor) setRevalidating(true);
 
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) {
-        setError("Failed to load messages");
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          // Don't set error on background poll to avoid flashing error state
+          if (replace && !after) setError("Failed to load messages");
+          return;
+        }
+        const payload = (await res.json()) as { data: ThreadResponse };
+        const data = payload.data;
+
+        // Normalize to oldest-first for natural scroll (top = oldest, bottom = newest)
+        const normalized = data.messages.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        if (!after) {
+          setNextCursor(data.nextCursor);
+        }
+
+        setMessages((prev) => {
+          if (replace && !after) return normalized;
+
+          // If polling (after), append new messages
+          // If loading more (cursor), prepend old messages (handled by merge logic below)
+
+          const merged = [...prev, ...normalized].reduce<Message[]>((acc, msg) => {
+            if (!acc.find((m) => m.id === msg.id)) acc.push(msg);
+            return acc;
+          }, []);
+          merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          return merged;
+        });
+      } catch (err) {
+        console.error(err);
+        if (replace && !after) setError("Failed to load messages");
+      } finally {
         setLoading(false);
         setRevalidating(false);
-        return;
       }
-      const payload = (await res.json()) as { data: ThreadResponse };
-      const data = payload.data;
-      // Normalize to oldest-first for natural scroll (top = oldest, bottom = newest)
-      const normalized = data.messages.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-      setNextCursor(data.nextCursor);
-      setMessages((prev) => {
-        if (replace) return normalized;
-        const merged = [...prev, ...normalized].reduce<Message[]>((acc, msg) => {
-          if (!acc.find((m) => m.id === msg.id)) acc.push(msg);
-          return acc;
-        }, []);
-        merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        return merged;
-      });
-      setLoading(false);
-      setRevalidating(false);
     },
     [threadEndpoint, invoiceId],
   );
@@ -103,17 +121,24 @@ export function useThreadV2(options: {
     loadInitial();
   }, [threadEndpoint, loadInitial]);
 
-  // background revalidate every 8s
+  // background revalidate every 5s
   useEffect(() => {
     if (!threadEndpoint) return;
     intervalRef.current && clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
-      void load(null, true);
-    }, 8000);
+      // Poll for new messages
+      const lastMsg = messages[messages.length - 1];
+      const after = lastMsg ? lastMsg.createdAt : null;
+      void load(null, false, after);
+    }, 5000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [threadEndpoint, load]);
+  }, [threadEndpoint, load, messages]);
+
+  const addMessage = useCallback((msg: Message) => {
+    setMessages((prev) => [...prev, msg]);
+  }, []);
 
   return {
     messages,
@@ -123,5 +148,6 @@ export function useThreadV2(options: {
     revalidating,
     loadMore,
     latest,
+    addMessage,
   };
 }

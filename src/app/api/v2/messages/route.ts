@@ -10,6 +10,7 @@ const querySchema = z.object({
   cursorId: z.coerce.number().int().positive().optional(),
   cursorAt: z.string().optional(),
   invoiceId: z.coerce.number().int().positive().optional(),
+  after: z.string().optional(),
 });
 
 const bodySchema = z.object({
@@ -24,9 +25,9 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) {
       throw parsed.error;
     }
-    const { limit, cursorAt, cursorId, invoiceId } = parsed.data;
+    const { limit, cursorAt, cursorId, invoiceId, after } = parsed.data;
     const cursor: Cursor = cursorAt && cursorId ? { createdAt: cursorAt, id: cursorId } : null;
-    const result = await fetchThread(user.id, { limit, cursor, invoiceId });
+    const result = await fetchThread(user.id, { limit, cursor, invoiceId, after });
     return okAuth(req, result);
   } catch (error) {
     if (error instanceof ZodError) {

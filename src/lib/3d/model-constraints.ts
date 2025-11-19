@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { HALF_PLATE_MM, BUILD_HEIGHT_MM } from "./build-volume";
+import { HALF_PLATE_MM } from "./build-volume";
 
 /**
  * Unified model constraint system for 3D viewer
@@ -7,19 +7,63 @@ import { HALF_PLATE_MM, BUILD_HEIGHT_MM } from "./build-volume";
  */
 
 const tempBox = new THREE.Box3();
+const tempVector = new THREE.Vector3();
 
 /**
- * Ensure model sits on the ground plane (Y >= 0) while preserving XZ translation
+ * Center the geometry of an object around (0,0,0)
+ * This modifies the geometry in place!
+ */
+export function centerGeometry(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true);
+
+  // If it's a mesh, center its geometry
+  object.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      if (mesh.geometry) {
+        mesh.geometry.computeBoundingBox();
+        const bbox = mesh.geometry.boundingBox;
+        if (bbox) {
+          const center = new THREE.Vector3();
+          bbox.getCenter(center);
+          // Translate geometry so its center is at (0,0,0)
+          mesh.geometry.translate(-center.x, -center.y, -center.z);
+          mesh.geometry.computeBoundingBox(); // Recompute after translate
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Ensure model sits on the ground plane (Y >= 0)
+ * Assumes the object's origin is at its visual center (due to centerGeometry)
  */
 export function seatObjectOnGround(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
   tempBox.setFromObject(object);
-  
+
   if (!isFinite(tempBox.min.y)) return;
-  
-  const deltaY = tempBox.min.y - object.position.y;
-  // Move upward by negative delta to bring min.y to 0
-  object.position.y -= deltaY;
+
+  // We want min.y to be 0
+  // Current min.y is some value. We need to move the object up/down.
+  // The object's position.y controls the group's vertical placement.
+
+  const bottomY = tempBox.min.y;
+  const currentY = object.position.y;
+
+  // If bottomY is at 10, we need to move down by 10.
+  // New position = currentPosition - bottomY
+  // Wait, if we move the object, tempBox changes.
+
+  // Let's calculate the offset needed.
+  // We want the world-space bottom to be 0.
+  // WorldBottom = ObjectPosition.y + LocalBottom (roughly, if no rotation)
+  // Actually, simpler:
+  // The distance from the current bottom to 0 is -bottomY.
+  // So we add -bottomY to the current position.
+
+  object.position.y -= bottomY;
   object.updateMatrixWorld(true);
 }
 
@@ -28,7 +72,7 @@ export function seatObjectOnGround(object: THREE.Object3D): void {
  */
 export function clampGroupToBuildVolume(group: THREE.Group): void {
   tempBox.setFromObject(group);
-  
+
   if (tempBox.isEmpty()) return;
 
   let deltaX = 0;
@@ -45,8 +89,11 @@ export function clampGroupToBuildVolume(group: THREE.Group): void {
     deltaZ = HALF_PLATE_MM - tempBox.max.z;
   }
 
+  // We don't clamp Y here because seatObjectOnGround handles it, 
+  // and we generally don't want to force it down if the user lifted it (unless we do?)
+  // For now, let's enforce positive Y only if it goes below ground.
   let deltaY = 0;
-  if (tempBox.min.y < 0) {
+  if (tempBox.min.y < -0.01) { // Epsilon
     deltaY = -tempBox.min.y;
   }
 
@@ -66,38 +113,18 @@ export function applyAllConstraints(
   object: THREE.Object3D,
   mode: "rotate" | "translate"
 ): void {
-  if (mode === "translate") {
-    clampGroupToBuildVolume(object as THREE.Group);
-  } else {
-    seatObjectOnGround(object);
-    clampGroupToBuildVolume(object as THREE.Group);
-  }
+  // Always ensure it's on ground and in bounds
+  seatObjectOnGround(object);
+  clampGroupToBuildVolume(object as THREE.Group);
 }
 
 /**
- * Recenter model on the build plate
+ * Recenter model on the build plate (0,0,0)
  */
 export function recenterObjectToGround(object: THREE.Object3D): void {
+  // Reset X/Z to 0, then seat on ground
+  object.position.x = 0;
+  object.position.z = 0;
   object.updateMatrixWorld(true);
-  
-  tempBox.setFromObject(object);
-  
-  if (!isFinite(tempBox.min.x) || !isFinite(tempBox.min.y) || !isFinite(tempBox.min.z)) {
-    return;
-  }
-
-  const center = new THREE.Vector3();
-  tempBox.getCenter(center);
-
-  // Calculate offsets as deltas from current position
-  const offsetX = center.x - object.position.x;
-  const offsetY = tempBox.min.y - object.position.y;
-  const offsetZ = center.z - object.position.z;
-
-  // Apply deltas
-  object.position.x -= offsetX;
-  object.position.y -= offsetY;
-  object.position.z -= offsetZ;
-
-  object.updateMatrixWorld(true);
+  seatObjectOnGround(object);
 }

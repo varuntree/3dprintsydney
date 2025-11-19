@@ -71,6 +71,7 @@ export default function OrientationGizmo({
       mode={mode}
       space="local"
       translationSnap={mode === "translate" ? translationSnap ?? 1 : undefined}
+      size={2.5}
       showX
       showY
       showZ

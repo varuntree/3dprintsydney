@@ -26,7 +26,7 @@ function mapRow(row: any): MessageDTO {
 
 export async function fetchThread(
   targetUserId: number,
-  opts: { limit?: number; cursor?: Cursor; invoiceId?: number | null } = {},
+  opts: { limit?: number; cursor?: Cursor; invoiceId?: number | null; after?: string } = {},
 ): Promise<{ messages: MessageDTO[]; nextCursor: Cursor }> {
   const supabase = getServiceSupabase();
   const limit = opts.limit && opts.limit > 0 ? Math.min(opts.limit, 100) : 40;
@@ -43,7 +43,9 @@ export async function fetchThread(
     query = query.eq("invoice_id", opts.invoiceId);
   }
 
-  if (opts.cursor) {
+  if (opts.after) {
+    query = query.gt("created_at", opts.after);
+  } else if (opts.cursor) {
     query = query.lt("created_at", opts.cursor.createdAt).lt("id", opts.cursor.id);
   }
 
@@ -85,6 +87,41 @@ export async function sendMessageV2(
 
   if (error || !data) {
     throw new AppError(error?.message ?? "Failed to create message", "MESSAGE_CREATE_ERROR", 500);
+  }
+
+  // Create notification for the recipient
+  const { createNotification } = await import("./notifications");
+
+  if (sender === "ADMIN") {
+    // Admin sending to Client -> Notify Client (targetUserId)
+    await createNotification(
+      targetUserId,
+      "MESSAGE",
+      "New message from Support",
+      content.slice(0, 100),
+      "/client/messages",
+      { messageId: data.id, invoiceId }
+    );
+  } else {
+    // Client sending to Admin -> Notify all Admins
+    // Fetch all admin users
+    const { data: admins } = await supabase
+      .from("users")
+      .select("id")
+      .eq("role", "ADMIN");
+
+    if (admins && admins.length > 0) {
+      await Promise.all(admins.map(admin =>
+        createNotification(
+          admin.id,
+          "MESSAGE",
+          `New message from ${actor.email ?? "Client"}`,
+          content.slice(0, 100),
+          `/admin/messages/${actor.id}`, // Admin link to conversation
+          { messageId: data.id, invoiceId, senderId: actor.id }
+        )
+      ));
+    }
   }
 
   return mapRow(data);
@@ -179,7 +216,7 @@ export async function listAdminConversationsV2(
       ? Number(row.user_messages[0].count)
       : 0;
     const lastSeen = seenMap.get(row.id) ?? null;
-    const hasUnread = last && last.createdAt && (!lastSeen || new Date(last.createdAt) > new Date(lastSeen));
+    const hasUnread = Boolean(last && last.createdAt && (!lastSeen || new Date(last.createdAt) > new Date(lastSeen)));
     return {
       userId: row.id,
       email: row.email,

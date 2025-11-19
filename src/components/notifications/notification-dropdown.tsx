@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 import { Bell, Loader2, AlertCircle, RefreshCcw } from "lucide-react";
 import {
   Popover,
@@ -10,45 +9,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { LegacyUser } from "@/lib/types/user";
 import { useShellNotifications } from "@/hooks/useShellNotifications";
 
 interface NotificationDropdownProps {
   user: LegacyUser;
-  openConversationUserId?: number | null;
 }
 
-export function NotificationDropdown({ user, openConversationUserId }: NotificationDropdownProps) {
+export function NotificationDropdown({ user }: NotificationDropdownProps) {
   const [open, setOpen] = useState(false);
-  const messagesHref = user.role === "ADMIN" ? "/messages" : "/client/messages";
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const isMessagesRoute = pathname ? pathname.startsWith(messagesHref) : false;
 
-  const activeConversationId = useMemo(() => {
-    if (
-      typeof openConversationUserId === "number" &&
-      Number.isFinite(openConversationUserId)
-    ) {
-      return openConversationUserId;
-    }
-    if (!isMessagesRoute) {
-      return null;
-    }
-    const param = searchParams?.get("user");
-    if (!param) return null;
-    const parsed = Number(param);
-    return Number.isFinite(parsed) ? parsed : null;
-  }, [openConversationUserId, searchParams, isMessagesRoute]);
-
-  const { notifications, unseenCount, loading, error, markAllSeen, refetch } =
-    useShellNotifications(user, {
-      messagesHref,
-      isMessagesRoute,
-      openConversationUserId: activeConversationId,
-    });
+  const { notifications, unseenCount, loading, error, markAllSeen, markAsRead, refetch, clearRead } =
+    useShellNotifications(user);
 
   const bellBadge = useMemo(() => {
     if (unseenCount > 9) return "9+";
@@ -82,7 +55,6 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
         if (next) {
           void refetch();
         }
-        // Removed auto-mark on close - users must explicitly click "Mark all read"
       }}
     >
       <PopoverTrigger asChild>
@@ -111,7 +83,7 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Notifications</p>
               <p className="text-xs text-muted-foreground">
-                Stay on top of new client conversations.
+                Stay on top of updates.
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -129,7 +101,7 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
                   <RefreshCcw className="h-4 w-4" />
                 )}
               </Button>
-              {hasNotifications ? (
+              {hasNotifications && unseenCount > 0 ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -139,10 +111,20 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
                   Mark all read
                 </Button>
               ) : null}
+              {hasNotifications && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-full px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => clearRead()}
+                >
+                  Clear read
+                </Button>
+              )}
             </div>
           </div>
 
-          {loading ? (
+          {loading && notifications.length === 0 ? (
             <div className="space-y-3 px-5 py-6">
               {[0, 1, 2].map((item) => (
                 <div
@@ -181,48 +163,49 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
                 {notifications.map((notification) => (
                   <li key={notification.id}>
                     <Link
-                      href={notification.href ?? messagesHref}
-                      className="block rounded-2xl border border-border/60 bg-background/95 px-4 py-3 transition hover:border-border hover:bg-background"
+                      href={notification.link ?? "#"}
+                      onClick={() => {
+                        if (!notification.readAt) {
+                          void markAsRead(notification.id);
+                        }
+                        setOpen(false);
+                      }}
+                      className={cn(
+                        "block rounded-2xl border px-4 py-3 transition hover:border-border hover:bg-background",
+                        !notification.readAt
+                          ? "border-primary/20 bg-primary/5"
+                          : "border-border/60 bg-background/95"
+                      )}
                     >
                       <div className="flex gap-3">
-                        <div className="relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/60 bg-surface-muted text-xs font-semibold uppercase text-muted-foreground">
-                          {notification.senderRole === "ADMIN"
-                            ? "AD"
-                            : (
-                                notification.userName ??
-                                notification.userEmail ??
-                                "CL"
-                              )
-                                .slice(0, 2)
-                                .toUpperCase()}
-                          <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                        <div className={cn(
+                          "relative mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs font-semibold uppercase",
+                          !notification.readAt
+                            ? "border-primary/30 bg-primary/10 text-primary"
+                            : "border-border/60 bg-surface-muted text-muted-foreground"
+                        )}>
+                          {notification.type === "MESSAGE" ? "MSG" : "SYS"}
+                          {!notification.readAt && (
+                            <span className="absolute -right-1 -top-1 inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="truncate text-sm font-semibold text-foreground">
+                            <p className={cn(
+                              "truncate text-sm",
+                              !notification.readAt ? "font-bold text-foreground" : "font-medium text-foreground/80"
+                            )}>
                               {notification.title}
                             </p>
                             <span className="shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">
                               {formatTimestamp(notification.createdAt)}
                             </span>
                           </div>
-                          {notification.description ? (
+                          {notification.content ? (
                             <p className="line-clamp-2 text-sm text-muted-foreground">
-                              {notification.description}
+                              {notification.content}
                             </p>
                           ) : null}
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground/80">
-                            {notification.userName || notification.userEmail ? (
-                              <span className="uppercase tracking-[0.22em]">
-                                {notification.userName ?? notification.userEmail}
-                              </span>
-                            ) : null}
-                            {notification.invoiceId ? (
-                              <Badge variant="outline" className="rounded-full border-border/60 bg-surface-overlay px-2 py-0.5 text-[10px] uppercase tracking-[0.25em]">
-                                Invoice #{notification.invoiceId}
-                              </Badge>
-                            ) : null}
-                          </div>
                         </div>
                       </div>
                     </Link>
@@ -231,12 +214,6 @@ export function NotificationDropdown({ user, openConversationUserId }: Notificat
               </ul>
             </div>
           )}
-
-          <div className="border-t border-border/70 px-5 py-3">
-            <Button asChild className="w-full rounded-full">
-              <Link href={messagesHref}>Open Messages</Link>
-            </Button>
-          </div>
         </div>
       </PopoverContent>
     </Popover>
