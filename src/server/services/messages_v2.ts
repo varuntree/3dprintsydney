@@ -117,7 +117,7 @@ export async function sendMessageV2(
           "MESSAGE",
           `New message from ${actor.email ?? "Client"}`,
           content.slice(0, 100),
-          `/admin/messages/${actor.id}`, // Admin link to conversation
+          `/admin/messages?user=${actor.id}`, // Admin link to conversation
           { messageId: data.id, invoiceId, senderId: actor.id }
         )
       ));
@@ -133,6 +133,21 @@ export async function markSeenV2(
   lastSeenAt: string,
 ) {
   const supabase = getServiceSupabase();
+
+  // If no conversationUserId is provided, it means the user is a Client viewing their own inbox.
+  // In this case, we update the user's global message_last_seen_at timestamp.
+  if (conversationUserId === null) {
+    const { error } = await supabase
+      .from("users")
+      .update({ message_last_seen_at: lastSeenAt })
+      .eq("id", viewerId);
+
+    if (error) {
+      throw new AppError(error.message, "MESSAGE_SEEN_ERROR", 500);
+    }
+    return;
+  }
+
   const payload = {
     user_id: viewerId,
     conversation_user_id: conversationUserId,

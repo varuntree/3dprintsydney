@@ -18,6 +18,8 @@ interface PdfGenerateButtonProps {
   className?: string;
 }
 
+import { ensureInvoiceStripeCheckoutUrl } from "@/lib/pdf/stripe";
+
 export function PdfGenerateButton({
   documentType,
   documentNumber,
@@ -33,7 +35,20 @@ export function PdfGenerateButton({
       const filename = `${documentType}-${documentNumber}.pdf`;
 
       if (documentType === "invoice") {
-        const pdfDoc = buildInvoicePdfDocument(data as InvoiceViewModel);
+        let invoiceData = data as InvoiceViewModel;
+
+        // Ensure Stripe URL exists for unpaid invoices
+        if (invoiceData.balanceDue > 0 && !invoiceData.stripeCheckoutUrl) {
+          const url = await ensureInvoiceStripeCheckoutUrl(
+            invoiceData.id,
+            invoiceData.stripeCheckoutUrl
+          );
+          if (url) {
+            invoiceData = { ...invoiceData, stripeCheckoutUrl: url };
+          }
+        }
+
+        const pdfDoc = buildInvoicePdfDocument(invoiceData);
         await generateInvoicePdf(pdfDoc, filename);
       } else {
         const pdfDoc = buildQuotePdfDocument(data as QuoteViewModel);

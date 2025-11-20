@@ -73,18 +73,20 @@ export const InvoiceDocument: React.FC<InvoiceDocumentProps> = ({ doc, logoUrl }
 
         <PdfLineItems lines={doc.lines} />
 
-        <PdfTotalsBlock totals={doc.totals} isPaid={isPaid} />
+        <View wrap={false}>
+          <PdfTotalsBlock totals={doc.totals} isPaid={isPaid} />
 
-        {isPaid && doc.document.paidAt ? (
-          <PdfPaymentConfirmation paidAt={doc.document.paidAt} total={doc.totals.total} />
-        ) : (
-          <PdfPaymentSection
-            bankDetails={doc.bankDetails}
-            stripeCheckoutUrl={doc.stripeCheckoutUrl}
-            invoiceNumber={doc.document.number}
-            balanceDue={doc.totals.balanceDue}
-          />
-        )}
+          {isPaid && doc.document.paidAt ? (
+            <PdfPaymentConfirmation paidAt={doc.document.paidAt} total={doc.totals.total} />
+          ) : (
+            <PdfPaymentSection
+              bankDetails={doc.bankDetails}
+              stripeCheckoutUrl={doc.stripeCheckoutUrl}
+              invoiceNumber={doc.document.number}
+              balanceDue={doc.totals.balanceDue}
+            />
+          )}
+        </View>
 
         {doc.notes && doc.notes.trim().length > 0 && (
           <View style={styles.notesSection}>

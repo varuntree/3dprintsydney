@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
-import { getUserFromCookies } from "@/server/auth/session";
+import { getUserFromCookies } from "@/server/auth/server-session";
 import { getInvoiceDetail } from "@/server/services/invoices";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

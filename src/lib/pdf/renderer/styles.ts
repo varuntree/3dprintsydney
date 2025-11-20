@@ -97,7 +97,7 @@ export const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: COLORS.darkText,
-    textAlign: "right",
+    textAlign: "left",
     marginTop: 10,
     marginBottom: 20,
   },

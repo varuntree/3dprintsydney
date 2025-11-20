@@ -46,7 +46,9 @@ export const QuoteDocument: React.FC<QuoteDocumentProps> = ({ doc, logoUrl }) =>
 
         <PdfLineItems lines={doc.lines} />
 
-        <PdfTotalsBlock totals={doc.totals} isPaid={false} />
+        <View wrap={false}>
+          <PdfTotalsBlock totals={doc.totals} isPaid={false} />
+        </View>
 
         {doc.notes && doc.notes.trim().length > 0 && (
           <View style={styles.notesSection}>

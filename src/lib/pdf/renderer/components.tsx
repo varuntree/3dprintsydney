@@ -171,7 +171,7 @@ interface PdfTotalsProps {
 
 export const PdfTotalsBlock: React.FC<PdfTotalsProps> = ({ totals, isPaid }) => {
   return (
-    <View style={styles.totalsSection}>
+    <View style={styles.totalsSection} wrap={false}>
       <View style={styles.totalRow}>
         <Text style={styles.totalLabel}>Subtotal</Text>
         <Text style={styles.totalValue}>{formatCurrency(totals.subtotal)}</Text>
@@ -236,7 +236,7 @@ export const PdfPaymentSection: React.FC<PdfPaymentSectionProps> = ({
   if (!bankDetails && !stripeCheckoutUrl) return null;
 
   return (
-    <View style={styles.paymentSection}>
+    <View style={styles.paymentSection} wrap={false}>
       <Text style={styles.makePaymentHeader}>MAKE PAYMENT</Text>
 
       {bankDetails && (

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { getUserFromCookies } from "@/server/auth/session";
+import { getUserFromCookies } from "@/server/auth/server-session";
 
 export default async function MeRedirect() {
   const user = await getUserFromCookies();

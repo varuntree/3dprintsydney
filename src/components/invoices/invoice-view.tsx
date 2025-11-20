@@ -316,7 +316,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                   {hasStripeLink ? "Open payment link" : "Generate payment link"}
                 </LoadingButton>
                 <LoadingButton
-                  variant="subtle"
+                  variant="outline"
                   size="sm"
                   className="rounded-full"
                   onClick={() => handleStripeAction(true)}
@@ -328,7 +328,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                   Refresh link
                 </LoadingButton>
                 <LoadingButton
-                  variant="subtle"
+                  variant="outline"
                   size="sm"
                   className="rounded-full"
                   onClick={() => {
@@ -353,7 +353,7 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
                   Mark paid
                 </LoadingButton>
                 <LoadingButton
-                  variant="subtle"
+                  variant="outline"
                   size="sm"
                   className="rounded-full"
                   onClick={() => markUnpaidMutation.mutate()}

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { DashboardView, type DashboardClientSnapshot } from "@/components/dashboard/dashboard-view";
 import { getDashboardSnapshot } from "@/server/services/dashboard";
-import { getUserFromCookies } from "@/server/auth/session";
+import { getUserFromCookies } from "@/server/auth/server-session";
 
 export default async function DashboardPage() {
   const user = await getUserFromCookies();

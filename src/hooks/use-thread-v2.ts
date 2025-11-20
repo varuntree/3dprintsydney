@@ -89,7 +89,7 @@ export function useThreadV2(options: {
           // If loading more (cursor), prepend old messages (handled by merge logic below)
 
           const merged = [...prev, ...normalized].reduce<Message[]>((acc, msg) => {
-            if (!acc.find((m) => m.id === msg.id)) acc.push(msg);
+            if (!acc.find((m) => String(m.id) === String(msg.id))) acc.push(msg);
             return acc;
           }, []);
           merged.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());

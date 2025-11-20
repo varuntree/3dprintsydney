@@ -129,8 +129,13 @@ export function validateOrderFile(
     'application/vnd.3cl',
   ];
 
-  // Also allow by file extension if MIME type is generic
-  if (file.type === 'application/octet-stream') {
+  // Also allow by file extension if MIME type is generic, missing, or text/plain (ASCII STL)
+  const isGenericType =
+    !file.type ||
+    file.type === 'application/octet-stream' ||
+    file.type === 'text/plain';
+
+  if (isGenericType) {
     const ext = file.name.toLowerCase().split('.').pop();
     const allowedExtensions = new Set(['stl', '3mf', '3dcl', '3cl', 'cl']);
     if (!ext || !allowedExtensions.has(ext)) {

@@ -46,7 +46,7 @@ export function UploadStep() {
             Upload Files
           </h2>
           <span className="text-xs text-muted-foreground">
-            Upload STL or 3MF
+            Upload STL or 3MF · max 50 MB per file
           </span>
         </div>
         {hasUploads ? (

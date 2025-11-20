@@ -413,7 +413,16 @@ export function useQuickOrderLogic() {
     const res = await fetch("/api/quick-order/upload", { method: "POST", body: fd });
     setLoading(false);
     if (!res.ok) {
-      setError("Upload failed");
+      try {
+        const payload = await res.json();
+        const message =
+          payload?.error?.userMessage ||
+          payload?.error?.message ||
+          "Upload failed. Please check file type and size (max 50 MB).";
+        setError(message);
+      } catch {
+        setError("Upload failed. Please check file type and size (max 50 MB).");
+      }
       return;
     }
     const { data } = await res.json();
