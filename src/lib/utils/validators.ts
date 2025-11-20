@@ -116,10 +116,22 @@ export function validateOrderFile(
   validateFileSize(file.size, maxSizeBytes);
 
   // Validate type - 3D model files
+  // We prioritize file extensions for STL files because browsers/OSs report inconsistent MIME types
+  // (e.g., application/vnd.ms-pki.stl, application/sla, text/plain, application/octet-stream)
+  const ext = file.name.toLowerCase().split('.').pop();
+  const isStlExtension = ext === 'stl' || ext === 'stla';
+
+  if (isStlExtension) {
+    // If it looks like an STL, we trust it.
+    // We can check for obviously wrong MIME types if needed, but generally 3D file uploads rely on extensions.
+    return;
+  }
+
   const allowedTypes = [
     'application/sla', // STL
     'model/stl',
     'application/octet-stream', // Generic binary (for STL files)
+    'application/vnd.ms-pki.stl', // Windows STL
     'model/3mf', // 3MF
     'application/vnd.ms-package.3dmanufacturing-3dmodel+xml', // 3MF
     'application/vnd.3dcl',
@@ -129,19 +141,21 @@ export function validateOrderFile(
     'application/vnd.3cl',
   ];
 
-  // Also allow by file extension if MIME type is generic, missing, or text/plain (ASCII STL)
+  // Also allow by file extension if MIME type is generic, missing, or text/plain
   const isGenericType =
     !file.type ||
     file.type === 'application/octet-stream' ||
     file.type === 'text/plain';
 
   if (isGenericType) {
-    const ext = file.name.toLowerCase().split('.').pop();
     const allowedExtensions = new Set(['stl', '3mf', '3dcl', '3cl', 'cl']);
     if (!ext || !allowedExtensions.has(ext)) {
-      throw new Error('File must be a 3D model file (.stl, .3mf, .3dcl)');
+      throw new Error('Unsupported file type. Please upload a valid 3D model (STL, 3MF).');
     }
   } else {
-    validateFileType(file.type, allowedTypes);
+    // Check specific MIME types for non-STL files (like 3MF) or if extension check failed
+    if (!allowedTypes.includes(file.type)) {
+       throw new Error('Unsupported file type. Please upload a valid 3D model (STL, 3MF).');
+    }
   }
 }
