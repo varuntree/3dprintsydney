@@ -311,5 +311,20 @@ export const styles = StyleSheet.create({
     textDecoration: "underline",
     fontWeight: "bold",
   },
+  // Payment Confirmation Styles
+  paymentColumn: {
+    flexDirection: "column",
+  },
+  paymentTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: COLORS.darkText,
+    marginBottom: 8,
+  },
+  paymentMethodContent: {
+    fontSize: 10,
+    color: COLORS.mediumText,
+    marginBottom: 4,
+  },
 });
 

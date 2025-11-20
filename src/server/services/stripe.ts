@@ -281,8 +281,6 @@ export async function handleStripeEvent(event: Stripe.Event) {
       note: "Stripe Checkout payment",
     });
 
-    const supabase = getServiceSupabase();
-
     const { error: clearError } = await supabase
       .from("invoices")
       .update({

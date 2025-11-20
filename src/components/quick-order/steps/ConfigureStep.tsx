@@ -7,31 +7,20 @@ import { ConfigurationFileList } from "../shared/ConfigurationFileList";
 export function ConfigureStep() {
   const {
     uploads,
-    canPrepare,
     preparing,
-    hasPreparedAll,
     prepareFiles,
     computePrice,
     loading,
     pricing,
     allOrientationsLocked,
     currentStep,
-    hasUploads,
+    metrics,
   } = useQuickOrder();
 
-  // Additional helpers derived from hook state if not exposed directly, 
-  // but hook exposes most.
-  // canPrepare is not exposed directly, let's check hook.
-  // I didn't expose `canPrepare` in hook return. I exposed `allOrientationsLocked`.
-  // `canPrepare` = uploads.length > 0 && allOrientationsLocked.
-  
+  // Additional helpers derived from hook state if not exposed directly
   const canPrepareCalc = uploads.length > 0 && allOrientationsLocked;
-  // `hasPreparedAll` = uploads.every(u => metrics[u.id])
-  // I didn't expose `hasPreparedAll`.
-  // I'll calculate locally.
-  
-  const { metrics } = useQuickOrder();
   const hasPreparedAllCalc = uploads.every((u) => metrics[u.id]);
+  const hasUploads = uploads.length > 0;
 
   // Check if we are in configure step? The parent decides rendering.
   // But the list might be used elsewhere.

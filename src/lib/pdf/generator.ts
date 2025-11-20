@@ -1,5 +1,6 @@
-import { pdf } from "@react-pdf/renderer";
+import { pdf, type DocumentProps } from "@react-pdf/renderer";
 import { createElement } from "react";
+import type React from "react";
 import type { InvoicePdfDocument, QuotePdfDocument } from "./types";
 import { InvoiceDocument } from "./renderer/InvoiceDocument";
 import { QuoteDocument } from "./renderer/QuoteDocument";
@@ -24,14 +25,14 @@ async function saveBlob(blob: Blob, filename: string) {
 
 export async function generateInvoicePdf(doc: InvoicePdfDocument, filename: string): Promise<void> {
   const logoUrl = getLogoUrl();
-  const element = createElement(InvoiceDocument, { doc, logoUrl });
+  const element = createElement(InvoiceDocument, { doc, logoUrl }) as React.ReactElement<DocumentProps>;
   const blob = await pdf(element).toBlob();
   await saveBlob(blob, filename);
 }
 
 export async function generateQuotePdf(doc: QuotePdfDocument, filename: string): Promise<void> {
   const logoUrl = getLogoUrl();
-  const element = createElement(QuoteDocument, { doc, logoUrl });
+  const element = createElement(QuoteDocument, { doc, logoUrl }) as React.ReactElement<DocumentProps>;
   const blob = await pdf(element).toBlob();
   await saveBlob(blob, filename);
 }
