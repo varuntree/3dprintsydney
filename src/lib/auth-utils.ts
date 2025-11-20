@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUserFromCookies } from "@/server/auth/session";
+import { getUserFromCookies } from "@/server/auth/server-session";
 import type { LegacyUser } from "@/lib/types/user";
 
 /**

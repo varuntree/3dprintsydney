@@ -105,7 +105,12 @@ export default async function QuoteDetailPage({ params, searchParams }: QuotePag
       id: detail.id,
       number: detail.number,
       status: detail.status,
-      client: detail.client,
+      client: {
+        ...detail.client,
+        email: detail.client.email,
+        phone: detail.client.phone,
+        address: detail.client.address,
+      },
       businessName: settings.businessName ?? "",
       businessEmail: settings.businessEmail ?? "",
       businessPhone: settings.businessPhone ?? "",

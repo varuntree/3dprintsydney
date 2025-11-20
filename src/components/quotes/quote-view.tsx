@@ -67,7 +67,13 @@ export interface QuoteViewModel {
   id: number;
   number: string;
   status: QuoteStatusValue;
-  client: { id: number; name: string };
+  client: { 
+    id: number; 
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  };
   businessName: string;
   businessEmail: string;
   businessPhone: string;

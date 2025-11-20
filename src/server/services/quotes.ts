@@ -11,7 +11,7 @@ import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
 import { resolvePaymentTermsOptions, getSettings } from "@/server/services/settings";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-// import { emailService } from "@/server/services/email";
+import { emailService } from '@/lib/email/service';
 import { getAppUrl } from "@/lib/env";
 import {
   DiscountType as DiscountTypeEnum,
@@ -931,8 +931,6 @@ export async function sendQuote(id: number) {
   }
 
   // Send email notification to client
-  // TODO: Re-enable with new email service
-  /*
   const { data: client } = await supabase
     .from("clients")
     .select("email, business_name, contact_name")
@@ -941,18 +939,21 @@ export async function sendQuote(id: number) {
 
   if (client?.email) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    if (settings) {
+      emailService.sendQuoteSent(client.email, {
+        clientName: client.business_name || client.contact_name,
+        quoteNumber: quote.number,
+        businessName: settings.businessName,
+        viewUrl: `${getAppUrl()}/client/quotes/${quote.id}`,
+        customMessage: settings.emailTemplates?.quote_sent?.body || "Your quote is ready for review.",
+        // Metadata for logging
+        clientId: quote.client_id,
+        quoteId: quote.id
+      }).catch(err => {
+        logger.error({ scope: 'quotes.send.email', message: 'Failed to send quote email', error: err });
+      });
     }
-    await emailService.sendQuoteSent(client.email, {
-      clientName: client.business_name || client.contact_name,
-      quoteNumber: quote.number,
-      businessName: settings.businessName,
-      viewUrl: `${getAppUrl()}/client/quotes/${quote.id}`,
-      customMessage: settings.emailTemplates?.quote_sent?.body || "Your quote is ready for review.",
-    });
   }
-  */
 
   logger.info({ scope: "quotes.send", data: { id } });
   return loadQuoteDetail(id);
@@ -1000,8 +1001,6 @@ export async function acceptQuote(id: number, note?: string) {
   }
 
   // Send email notification to admin
-  // TODO: Re-enable with new email service
-  /*
   const { data: client } = await supabase
     .from("clients")
     .select("business_name, contact_name")
@@ -1010,20 +1009,21 @@ export async function acceptQuote(id: number, note?: string) {
 
   if (client) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (settings.businessEmail) {
-      await emailService.sendQuoteAccepted(settings.businessEmail, {
+    if (settings && settings.businessEmail) {
+      emailService.sendQuoteAccepted(settings.businessEmail, {
         quoteNumber: quote.number,
         clientName: client.business_name || client.contact_name,
         businessName: settings.businessName,
         viewUrl: `${getAppUrl()}/quotes/${quote.id}`,
         customMessage: settings.emailTemplates?.quote_accepted?.body || "Client accepted quote.",
+        // Metadata
+        clientId: quote.client_id,
+        quoteId: quote.id
+      }).catch(err => {
+        logger.error({ scope: 'quotes.accept.email', message: 'Failed to send acceptance email', error: err });
       });
     }
   }
-  */
 
   logger.info({ scope: "quotes.accept", data: { id } });
   return loadQuoteDetail(id);
@@ -1079,16 +1079,18 @@ export async function declineQuote(id: number, note?: string) {
 
   if (client) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (settings.businessEmail) {
-      await emailService.sendQuoteDeclined(settings.businessEmail, {
+    if (settings && settings.businessEmail) {
+      emailService.sendQuoteDeclined(settings.businessEmail, {
         quoteNumber: quote.number,
         clientName: client.business_name || client.contact_name,
         businessName: settings.businessName,
         viewUrl: `${getAppUrl()}/quotes/${quote.id}`,
         customMessage: settings.emailTemplates?.quote_declined?.body || "Client declined quote.",
+        // Metadata
+        clientId: quote.client_id,
+        quoteId: quote.id
+      }).catch(err => {
+        logger.error({ scope: 'quotes.decline.email', message: 'Failed to send declined email', error: err });
       });
     }
   }

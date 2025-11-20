@@ -10,7 +10,7 @@ import { getSupabaseUrl, getSupabaseAnonKey, getAppUrl } from '@/lib/env';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { validatePasswordChange } from '@/lib/utils/validators';
-// import { emailService } from '@/server/services/email';
+import { emailService } from '@/lib/email/service';
 import { getSettings } from '@/server/services/settings';
 
 /**
@@ -151,19 +151,18 @@ export async function signupClient(
   });
 
   // Send welcome email
-  // TODO: Re-enable with new email service
-  /*
+  // Non-blocking email send
   const settings = await getSettings();
-  if (!settings) {
-    throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+  if (settings) {
+    emailService.sendWelcome(email, {
+      firstName: firstName || email.split('@')[0],
+      businessName: settings.businessName,
+      loginUrl: `${getAppUrl()}/login`,
+      customMessage: settings.emailTemplates?.welcome?.body || "Thanks for signing up!",
+    }).catch(err => {
+      logger.error({ scope: 'auth.signup.email', message: 'Failed to send welcome email', error: err });
+    });
   }
-  await emailService.sendWelcome(email, {
-    firstName: firstName || email.split('@')[0],
-    businessName: settings.businessName,
-    loginUrl: `${getAppUrl()}/login`,
-    customMessage: settings.emailTemplates?.welcome?.body || "Thanks for signing up!",
-  });
-  */
 
   return {
     userId: profile.id,

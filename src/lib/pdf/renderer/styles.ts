@@ -73,12 +73,13 @@ export const styles = StyleSheet.create({
 
   // Business & Client Info
   infoSection: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
+    justifyContent: "flex-start",
     marginBottom: 30,
   },
   infoBlock: {
-    width: "45%",
+    width: "100%",
+    marginBottom: 20,
   },
   infoLabel: {
     fontSize: 10,
@@ -203,56 +204,59 @@ export const styles = StyleSheet.create({
 
   // Payment Section
   paymentSection: {
-    marginTop: 20,
+    marginTop: 30,
     borderTopWidth: 1,
     borderTopColor: COLORS.borderGray,
     paddingTop: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
+    flexDirection: "column",
   },
-  paymentColumn: {
-    width: "48%",
+  makePaymentHeader: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.darkText,
+    marginBottom: 15,
+    textTransform: "uppercase",
   },
-  paymentTitle: {
+  paymentSubHeader: {
     fontSize: 11,
     fontWeight: "bold",
     color: COLORS.darkText,
     marginBottom: 8,
+    marginTop: 10,
   },
-  stripeBox: {
-    backgroundColor: "#f7faff", // Light blue-ish
-    padding: 10,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#dbeafe",
-  },
-  stripeLink: {
-    color: "#2563eb",
-    fontSize: 12,
-    fontWeight: "bold",
-    textDecoration: "none",
-    marginBottom: 4,
-    display: "block",
-  },
-  stripeNote: {
-    fontSize: 8,
-    color: COLORS.lightText,
-  },
-  paymentMethodTitle: {
-    fontWeight: "bold",
+  paymentText: {
     fontSize: 10,
-    marginBottom: 4,
-    color: COLORS.darkText,
-  },
-  paymentMethodContent: {
-    fontSize: 9,
     color: COLORS.mediumText,
+    marginBottom: 4,
     lineHeight: 1.4,
   },
   paymentImportant: {
-    marginTop: 6,
+    marginTop: 8,
+    fontSize: 10,
+    color: COLORS.darkText,
+    fontWeight: "bold",
+  },
+  stripeContainer: {
+    marginTop: 15,
+  },
+  stripeButton: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 4,
+    alignSelf: "flex-start",
+    marginBottom: 5,
+    textDecoration: "none",
+  },
+  stripeButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  stripePoweredBy: {
     fontSize: 9,
-    color: "#dc2626", // Red
+    color: COLORS.lightText,
+    marginTop: 4,
     fontStyle: "italic",
   },
 

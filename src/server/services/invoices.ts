@@ -13,7 +13,7 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 import { nextDocumentNumber } from '@/server/services/numbering';
 import { getJobCreationPolicy, ensureJobForInvoice } from '@/server/services/jobs';
 import { resolvePaymentTermsOptions, getSettings } from '@/server/services/settings';
-import { emailService } from '@/server/services/email';
+import { emailService } from '@/lib/email/service';
 import { getAppUrl } from '@/lib/env';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { uploadInvoiceAttachment as uploadToStorage, deleteInvoiceAttachment, getAttachmentSignedUrl, deleteFromStorage } from '@/server/storage/supabase';
@@ -576,36 +576,22 @@ export async function createInvoice(input: InvoiceInput) {
 
   if (client?.email) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    if (settings) {
+      emailService.sendInvoiceCreated(client.email, {
+        clientName: client.business_name || client.contact_name,
+        invoiceNumber: number,
+        businessName: settings.businessName,
+        total: formatCurrency(totals.total, settings.defaultCurrency || 'AUD'),
+        dueDate: dueDate ? format(dueDate, 'PPP') : 'N/A',
+        viewUrl: `${getAppUrl()}/client/orders/${invoiceId}`,
+        customMessage: settings.emailTemplates?.invoice_created?.body || "Your invoice is ready.",
+        // Metadata
+        clientId: payload.clientId,
+        invoiceId: invoiceId
+      }).catch(err => {
+        logger.error({ scope: 'invoices.create.email', message: 'Failed to send invoice email', error: err });
+      });
     }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
-    }
-    await emailService.sendInvoiceCreated(client.email, {
-      clientName: client.business_name || client.contact_name,
-      invoiceNumber: number,
-      businessName: settings.businessName,
-      total: formatCurrency(totals.total, settings.defaultCurrency || 'AUD'),
-      dueDate: dueDate ? format(dueDate, 'PPP') : 'N/A',
-      viewUrl: `${getAppUrl()}/client/orders/${invoiceId}`,
-      customMessage: settings.emailTemplates?.invoice_created?.body || "Your invoice is ready.",
-    });
   }
 
   logger.info({ scope: 'invoices.create', data: { id: invoiceId } });
@@ -855,17 +841,21 @@ export async function addManualPayment(invoiceId: number, input: PaymentInput) {
 
   if (client?.email) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    if (settings) {
+      emailService.sendPaymentConfirmation(client.email, {
+        clientName: client.business_name || client.contact_name,
+        invoiceNumber: updatedInvoice.number,
+        businessName: settings.businessName,
+        amount: formatCurrency(input.amount, settings.defaultCurrency || 'AUD'),
+        paymentMethod: input.method,
+        customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
+        // Metadata
+        clientId: updatedInvoice.client_id,
+        invoiceId: invoiceId
+      }).catch(err => {
+        logger.error({ scope: 'invoices.payment.email', message: 'Failed to send payment confirmation', error: err });
+      });
     }
-    await emailService.sendPaymentConfirmation(client.email, {
-      clientName: client.business_name || client.contact_name,
-      invoiceNumber: updatedInvoice.number,
-      businessName: settings.businessName,
-      amount: formatCurrency(input.amount, settings.defaultCurrency || 'AUD'),
-      paymentMethod: input.method,
-      customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
-    });
   }
 
   return payment;
@@ -1174,17 +1164,21 @@ export async function markInvoicePaid(invoiceId: number, options?: {
 
   if (client?.email) {
     const settings = await getSettings();
-    if (!settings) {
-      throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
+    if (settings) {
+      emailService.sendPaymentConfirmation(client.email, {
+        clientName: client.business_name || client.contact_name,
+        invoiceNumber: invoice.number,
+        businessName: settings.businessName,
+        amount: formatCurrency(0, settings.defaultCurrency || 'AUD'),
+        paymentMethod: options?.method || 'OTHER',
+        customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
+        // Metadata
+        clientId: invoice.client_id,
+        invoiceId: invoiceId
+      }).catch(err => {
+        logger.error({ scope: 'invoices.paid.email', message: 'Failed to send payment confirmation', error: err });
+      });
     }
-    await emailService.sendPaymentConfirmation(client.email, {
-      clientName: client.business_name || client.contact_name,
-      invoiceNumber: invoice.number,
-      businessName: settings.businessName,
-      amount: formatCurrency(0, settings.defaultCurrency || 'AUD'),
-      paymentMethod: options?.method || 'OTHER',
-      customMessage: settings.emailTemplates?.payment_confirmation?.body || "Thank you for your payment.",
-    });
   }
 
   logger.info({ scope: 'invoices.markPaid', data: { invoiceId, amount: 0 } });

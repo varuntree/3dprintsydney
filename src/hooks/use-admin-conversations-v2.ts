@@ -17,7 +17,7 @@ export type ConversationSummary = {
 
 export function useAdminConversationsV2(search: string) {
   const [items, setItems] = useState<ConversationSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -44,7 +44,9 @@ export function useAdminConversationsV2(search: string) {
       }
       setError("Failed to load conversations");
     } finally {
-      setLoading(false);
+      if (!ctrl.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [search]);
 

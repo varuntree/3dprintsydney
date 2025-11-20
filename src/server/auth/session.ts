@@ -1,5 +1,7 @@
+// This file handles logic that is SHARED between NextRequest (API) and cookies (Server Components).
+// We do NOT import 'next/headers' here to avoids build errors in API routes context.
+
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createClient, type Session } from "@supabase/supabase-js";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/env";
 import { getServiceSupabase } from "@/server/supabase/service-client";
@@ -12,6 +14,11 @@ import { buildAuthCookieOptions, type CookieOptions } from "@/lib/utils/auth-coo
 const ACCESS_COOKIE = "sb:token";
 const REFRESH_COOKIE = "sb:refresh-token";
 
+export type CookieStore = {
+  set(name: string, value: string, options?: CookieOptions): void;
+  get(name: string): { value: string } | undefined;
+};
+
 const pendingSessions = new WeakMap<NextRequest, Session>();
 
 function storePendingSession(req: NextRequest, session: Session | null) {
@@ -19,12 +26,7 @@ function storePendingSession(req: NextRequest, session: Session | null) {
   pendingSessions.set(req, session);
 }
 
-type CookieStore = {
-  set(name: string, value: string, options?: CookieOptions): void;
-  get(name: string): { value: string } | undefined;
-};
-
-function applySessionCookies(target: CookieStore, session: Session) {
+export function applySessionCookies(target: CookieStore, session: Session) {
   try {
     target.set(ACCESS_COOKIE, session.access_token, buildAuthCookieOptions(session.expires_at ?? undefined));
     if (session.refresh_token) {
@@ -42,7 +44,7 @@ function applySessionCookies(target: CookieStore, session: Session) {
   }
 }
 
-function clearSessionCookies(target: CookieStore) {
+export function clearSessionCookies(target: CookieStore) {
   const expired = buildAuthCookieOptions();
   expired.expires = new Date(0);
   try {
@@ -65,7 +67,7 @@ function createAuthClient() {
   });
 }
 
-async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
+export async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
     .from("users")
@@ -93,7 +95,7 @@ async function loadLegacyUser(authUserId: string): Promise<LegacyUser | null> {
   };
 }
 
-async function getAuthUserFromTokens(accessToken?: string, refreshToken?: string) {
+export async function getAuthUserFromTokens(accessToken?: string, refreshToken?: string) {
   if (!accessToken && !refreshToken) {
     return { user: null, session: null as Session | null };
   }
@@ -178,35 +180,6 @@ export async function requireUser(req: NextRequest): Promise<LegacyUser> {
   return user;
 }
 
-/**
- * Get authenticated user from cookies (Server Component helper)
- *
- * **Internal use only** - Prefer using helpers from @/lib/auth-utils for Server Components.
- * This is a low-level function that extracts user from cookies in Server Components.
- *
- * @internal
- * @returns User if authenticated, null otherwise
- */
-export async function getUserFromCookies(): Promise<LegacyUser | null> {
-  const cookieStore = (await cookies()) as CookieStore;
-  const accessToken = cookieStore.get(ACCESS_COOKIE)?.value;
-  const refreshToken = cookieStore.get(REFRESH_COOKIE)?.value;
-  const { user: authUser, session } = await getAuthUserFromTokens(accessToken, refreshToken);
-
-  if (!authUser) {
-    if (accessToken || refreshToken) {
-      clearSessionCookies(cookieStore);
-    }
-    return null;
-  }
-
-  if (session) {
-    applySessionCookies(cookieStore, session);
-  }
-
-  return loadLegacyUser(authUser.id);
-}
-
 export function attachSessionCookies(
   req: NextRequest,
   response: NextResponse,
@@ -230,3 +203,4 @@ export function attachSessionCookies(
   }
   return response;
 }
+

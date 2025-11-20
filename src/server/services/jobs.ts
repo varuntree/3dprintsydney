@@ -11,7 +11,7 @@ import { ClientProjectStatus } from "@/lib/constants/client-project-status";
 import { getServiceSupabase } from "@/server/supabase/service-client";
 import { getOrderFilesByInvoice } from "@/server/services/order-files";
 import { AppError, NotFoundError, BadRequestError, ConflictError } from "@/lib/errors";
-import { emailService } from "@/server/services/email";
+import { emailService } from '@/lib/email/service';
 import { getAppUrl } from "@/lib/env";
 import type {
   JobCardDTO,
@@ -1194,13 +1194,18 @@ async function maybeNotifyJobStatusChange(
     };
     const jobNumber = job.job_number ?? `#${job.id}`;
 
-    await emailService.sendJobStatusUpdate(client.email, {
+    emailService.sendJobStatusUpdate(client.email, {
       clientName: client.name || 'Client',
       jobNumber,
       businessName: settings.businessName,
       status: currentStatus,
       statusMessage: statusMessages[currentStatus] ?? "Job status has been updated.",
       customMessage: settings.emailTemplates?.job_status?.body || "Your job status has changed.",
+      // Metadata
+      clientId: job.client_id,
+      jobId: job.id
+    }).catch(err => {
+      logger.error({ scope: 'jobs.notify.email', message: 'Failed to send job status email', error: err });
     });
   }
 }

@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Add new client",
 };
 
+// This seems to be a static page mostly, but ClientCreateForm is client-side
 export default function ClientNewPage() {
   return (
     <div className="space-y-6">
@@ -36,3 +37,4 @@ export default function ClientNewPage() {
     </div>
   );
 }
+

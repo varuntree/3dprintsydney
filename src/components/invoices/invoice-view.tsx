@@ -41,6 +41,9 @@ export interface InvoiceViewModel {
   dueDate: string | null;
   paidAt: string | null;
   clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientAddress?: string;
   businessName: string;
   businessEmail: string;
   businessPhone: string;

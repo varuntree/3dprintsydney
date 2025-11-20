@@ -70,6 +70,9 @@ export const PdfAddressBlock: React.FC<PdfAddressBlockProps> = ({
       <View style={styles.infoBlock}>
         <Text style={styles.infoLabel}>{isQuote ? "Quote for:" : "Bill to:"}</Text>
         <Text style={styles.itemTitle}>{client.name}</Text>
+        {client.email && <Text style={styles.infoText}>{client.email}</Text>}
+        {client.phone && <Text style={styles.infoText}>{client.phone}</Text>}
+        {client.address && <Text style={styles.infoText}>{client.address}</Text>}
       </View>
     </View>
   );
@@ -234,31 +237,37 @@ export const PdfPaymentSection: React.FC<PdfPaymentSectionProps> = ({
 
   return (
     <View style={styles.paymentSection}>
-      <View style={styles.paymentColumn}>
-        {bankDetails && (
-          <>
-            <Text style={styles.paymentTitle}>Bank Transfer</Text>
-            <Text style={styles.paymentMethodContent}>{bankDetails}</Text>
-            <Text style={styles.paymentImportant}>
-               ⚠️ You MUST include invoice number {invoiceNumber} as reference
-            </Text>
-          </>
-        )}
-      </View>
+      <Text style={styles.makePaymentHeader}>MAKE PAYMENT</Text>
 
-      <View style={styles.paymentColumn}>
-        {stripeCheckoutUrl && (
-          <>
-            <Text style={styles.paymentTitle}>Pay Online with Stripe</Text>
-            <View style={styles.stripeBox}>
-              <Link src={stripeCheckoutUrl} style={styles.stripeLink}>
-                Pay {formatCurrency(balanceDue)} Online
-              </Link>
-              <Text style={styles.stripeNote}>Secure payment via Stripe</Text>
-            </View>
-          </>
-        )}
-      </View>
+      {bankDetails && (
+        <View>
+          <Text style={styles.paymentSubHeader}>Pay with bank transfer</Text>
+          <Text style={styles.paymentText}>Please transfer payment to:</Text>
+          {bankDetails.split("\n").map((line, i) => (
+            <Text key={i} style={styles.paymentText}>
+              {line}
+            </Text>
+          ))}
+          <Text style={styles.paymentImportant}>
+            IMPORTANT: You MUST include the invoice number as the payment reference.
+          </Text>
+        </View>
+      )}
+
+      {stripeCheckoutUrl && (
+        <View style={styles.stripeContainer}>
+          <Text style={styles.paymentSubHeader}>Pay online with card</Text>
+          <Text style={styles.paymentText}>
+            Click the link below to pay securely with your credit or debit card:
+          </Text>
+          <Link src={stripeCheckoutUrl} style={styles.stripeButton}>
+            <Text style={styles.stripeButtonText}>
+              Pay {formatCurrency(balanceDue)} Online
+            </Text>
+          </Link>
+          <Text style={styles.stripePoweredBy}>Secure payment powered by Stripe</Text>
+        </View>
+      )}
     </View>
   );
 };

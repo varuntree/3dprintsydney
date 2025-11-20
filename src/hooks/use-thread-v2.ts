@@ -36,7 +36,7 @@ export function useThreadV2(options: {
   const { userId, invoiceId, role } = options;
   const [messages, setMessages] = useState<Message[]>([]);
   const [nextCursor, setNextCursor] = useState<ThreadResponse["nextCursor"]>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revalidating, setRevalidating] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -117,7 +117,10 @@ export function useThreadV2(options: {
   useEffect(() => {
     setMessages([]);
     setNextCursor(null);
-    if (!threadEndpoint) return;
+    if (!threadEndpoint) {
+      setLoading(false);
+      return;
+    }
     loadInitial();
   }, [threadEndpoint, loadInitial]);
 

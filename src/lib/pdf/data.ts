@@ -52,6 +52,9 @@ export function buildInvoicePdfDocument(invoice: InvoiceViewModel): InvoicePdfDo
     },
     client: {
       name: invoice.clientName,
+      email: invoice.clientEmail,
+      phone: invoice.clientPhone,
+      address: invoice.clientAddress,
     },
     document: {
       number: invoice.number,
@@ -92,6 +95,9 @@ export function buildQuotePdfDocument(quote: QuoteViewModel): QuotePdfDocument {
     },
     client: {
       name: quote.client.name,
+      email: quote.client.email,
+      phone: quote.client.phone,
+      address: quote.client.address,
     },
     document: {
       number: quote.number,
