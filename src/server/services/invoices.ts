@@ -603,7 +603,7 @@ export async function createInvoice(input: InvoiceInput) {
       businessName: settings.businessName,
       total: formatCurrency(totals.total, settings.defaultCurrency || 'AUD'),
       dueDate: dueDate ? format(dueDate, 'PPP') : 'N/A',
-      viewUrl: `${getAppUrl()}/client/invoices/${invoiceId}`,
+      viewUrl: `${getAppUrl()}/client/orders/${invoiceId}`,
       customMessage: settings.emailTemplates?.invoice_created?.body || "Your invoice is ready.",
     });
   }

@@ -24,7 +24,7 @@ import {
   ActionGroupContainer,
 } from "@/components/ui/action-button-group";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { NavigationLink } from "@/components/ui/navigation-link";
+import { ActionButton } from "@/components/ui/action-button";
 import { useNavigation } from "@/hooks/useNavigation";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { InlineLoader } from "@/components/ui/loader";
@@ -281,12 +281,12 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
             </Badge>
             <ActionGroupContainer>
               <ActionButtonGroup title="Primary" variant="primary">
-                <NavigationLink
+                <ActionButton
                   href={`/invoices/${invoice.id}?mode=edit`}
-                  className="inline-flex h-9 items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/85 hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  className="gap-2 rounded-full"
                 >
                   Edit
-                </NavigationLink>
+                </ActionButton>
                 <PdfGenerateButton
                   documentType="invoice"
                   documentNumber={invoice.number}
@@ -364,9 +364,9 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
 
               <ActionButtonGroup title="Administrative" variant="destructive">
                 <LoadingButton
-                  variant="subtle"
+                  variant="outline"
                   size="sm"
-                  className="rounded-full border-rose-200/80 text-rose-700 hover:bg-rose-600 hover:text-white"
+                  className="rounded-full border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 hover:border-rose-400 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-900/50 dark:hover:text-rose-200"
                   onClick={() => {
                     if (
                       !window.confirm(

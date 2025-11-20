@@ -50,7 +50,7 @@ export function PdfGenerateButton({
 
   return (
     <Button
-      variant="secondary"
+      variant="outline"
       className={cn("gap-2 rounded-full", className)}
       disabled={loading}
       onClick={handleDownload}

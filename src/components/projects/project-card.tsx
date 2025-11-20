@@ -37,7 +37,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
         </div>
         {project.clientStatus === ClientProjectStatus.PENDING_PAYMENT && project.invoiceId ? (
           <Button variant="outline" size="sm" className="mt-4 w-full" asChild>
-            <Link href={`/client/invoices/${project.invoiceId}`}>Pay Now</Link>
+            <Link href={`/client/orders/${project.invoiceId}`}>Pay Now</Link>
           </Button>
         ) : null}
       </CardContent>

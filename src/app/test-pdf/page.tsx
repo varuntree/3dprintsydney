@@ -118,20 +118,6 @@ export default function TestPdfPage() {
     }
   }
 
-  async function debugHtml() {
-    try {
-      const { renderInvoiceHtml } = await import("@/lib/pdf/templates/html-renderer");
-      const pdfDoc = buildInvoicePdfDocument(testInvoice);
-      const html = await renderInvoiceHtml(pdfDoc);
-      console.log("Generated HTML length:", html.length);
-      console.log("HTML Preview:", html.substring(0, 1000));
-      setStatus(`✅ HTML generated: ${html.length} characters. Check console for preview.`);
-    } catch (error) {
-      console.error("HTML generation failed:", error);
-      setStatus(`❌ HTML Error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
   async function testQuotePdf() {
     setLoading(true);
     setStatus("Generating quote PDF...");
@@ -176,20 +162,6 @@ export default function TestPdfPage() {
             }}
           >
             {loading ? "Generating..." : "Generate Invoice PDF"}
-          </button>
-          <button
-            onClick={debugHtml}
-            style={{
-              padding: "12px 24px",
-              fontSize: "16px",
-              background: "#666",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-            }}
-          >
-            Debug HTML
           </button>
         </div>
       </div>

@@ -11,7 +11,7 @@ import { nextDocumentNumber } from "@/server/services/numbering";
 import { ensureJobForInvoice, getJobCreationPolicy } from "@/server/services/jobs";
 import { resolvePaymentTermsOptions, getSettings } from "@/server/services/settings";
 import { getServiceSupabase } from "@/server/supabase/service-client";
-import { emailService } from "@/server/services/email";
+// import { emailService } from "@/server/services/email";
 import { getAppUrl } from "@/lib/env";
 import {
   DiscountType as DiscountTypeEnum,
@@ -931,6 +931,8 @@ export async function sendQuote(id: number) {
   }
 
   // Send email notification to client
+  // TODO: Re-enable with new email service
+  /*
   const { data: client } = await supabase
     .from("clients")
     .select("email, business_name, contact_name")
@@ -950,6 +952,7 @@ export async function sendQuote(id: number) {
       customMessage: settings.emailTemplates?.quote_sent?.body || "Your quote is ready for review.",
     });
   }
+  */
 
   logger.info({ scope: "quotes.send", data: { id } });
   return loadQuoteDetail(id);
@@ -997,6 +1000,8 @@ export async function acceptQuote(id: number, note?: string) {
   }
 
   // Send email notification to admin
+  // TODO: Re-enable with new email service
+  /*
   const { data: client } = await supabase
     .from("clients")
     .select("business_name, contact_name")
@@ -1018,6 +1023,7 @@ export async function acceptQuote(id: number, note?: string) {
       });
     }
   }
+  */
 
   logger.info({ scope: "quotes.accept", data: { id } });
   return loadQuoteDetail(id);

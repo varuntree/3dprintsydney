@@ -103,12 +103,12 @@ export function validateInvoiceAttachment(
 /**
  * Validate order file (3D model file)
  * @param file - File to validate
- * @param maxSizeMB - Maximum file size in megabytes (default: 100MB)
+ * @param maxSizeMB - Maximum file size in megabytes (default: 50MB, matches Supabase upload limit)
  * @throws Error if file validation fails
  */
 export function validateOrderFile(
   file: { size: number; type: string; name: string },
-  maxSizeMB: number = 100
+  maxSizeMB: number = 50
 ): void {
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 

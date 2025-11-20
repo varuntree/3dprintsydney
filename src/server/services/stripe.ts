@@ -238,6 +238,34 @@ export async function handleStripeEvent(event: Stripe.Event) {
       return;
     }
 
+    // Avoid double-processing if invoice is already paid
+    const { data: invoiceRow, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("id, status")
+      .eq("id", invoiceId)
+      .maybeSingle();
+    if (invoiceError) {
+      logger.error({
+        scope: "stripe.webhook",
+        error: invoiceError,
+        data: { eventId: event.id, invoiceId, message: "Failed to load invoice for webhook" },
+      });
+      return;
+    }
+    if (invoiceRow?.status === InvoiceStatus.PAID) {
+      logger.info({
+        scope: "stripe.webhook",
+        message: "Invoice already paid; skipping duplicate webhook processing",
+        data: { eventId: event.id, invoiceId },
+      });
+      await supabase.from("webhook_events").insert({
+        stripe_event_id: event.id,
+        event_type: event.type,
+        metadata: { invoiceId, sessionId: session.id, note: "already_paid" },
+      });
+      return;
+    }
+
     const amountTotal = session.amount_total ?? 0;
     const amount = amountTotal / 100;
 

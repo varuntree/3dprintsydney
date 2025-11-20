@@ -10,7 +10,7 @@ import { getSupabaseUrl, getSupabaseAnonKey, getAppUrl } from '@/lib/env';
 import { AppError, NotFoundError } from '@/lib/errors';
 import { logger } from '@/lib/logger';
 import { validatePasswordChange } from '@/lib/utils/validators';
-import { emailService } from '@/server/services/email';
+// import { emailService } from '@/server/services/email';
 import { getSettings } from '@/server/services/settings';
 
 /**
@@ -151,6 +151,8 @@ export async function signupClient(
   });
 
   // Send welcome email
+  // TODO: Re-enable with new email service
+  /*
   const settings = await getSettings();
   if (!settings) {
     throw new AppError("System settings are not configured", "CONFIG_ERROR", 500);
@@ -161,6 +163,7 @@ export async function signupClient(
     loginUrl: `${getAppUrl()}/login`,
     customMessage: settings.emailTemplates?.welcome?.body || "Thanks for signing up!",
   });
+  */
 
   return {
     userId: profile.id,
