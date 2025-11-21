@@ -5,6 +5,17 @@ import { getServiceSupabase } from '@/server/supabase/service-client';
 const ATTACHMENTS_BUCKET = 'attachments';
 const TMP_BUCKET = 'tmp';
 const ORDER_FILES_BUCKET = 'order-files';
+const SIGNED_URL_DEFAULTS = {
+  tmp: Number(process.env.TMP_SIGNED_URL_TTL ?? 90),
+  order: Number(process.env.ORDER_SIGNED_URL_TTL ?? 180),
+  attachment: Number(process.env.ATTACHMENT_SIGNED_URL_TTL ?? 120),
+};
+const MIN_SIGNED_URL_SECONDS = 30;
+
+function normalizeSignedUrlTtl(value: number, fallback: number) {
+  if (!Number.isFinite(value) || value < MIN_SIGNED_URL_SECONDS) return fallback;
+  return value;
+}
 
 type BinaryPayload = Buffer | ArrayBuffer | Uint8Array;
 
@@ -112,7 +123,10 @@ export async function deleteInvoiceAttachments(paths: string[]) {
   await removeObjects(ATTACHMENTS_BUCKET, paths);
 }
 
-export async function getAttachmentSignedUrl(path: string, expiresIn = 60) {
+export async function getAttachmentSignedUrl(
+  path: string,
+  expiresIn = normalizeSignedUrlTtl(SIGNED_URL_DEFAULTS.attachment, SIGNED_URL_DEFAULTS.attachment),
+) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.storage.from(ATTACHMENTS_BUCKET).createSignedUrl(path, expiresIn);
   if (error || !data?.signedUrl) {
@@ -150,7 +164,10 @@ export async function deleteTmpFiles(paths: string[]) {
   await removeObjects(TMP_BUCKET, paths);
 }
 
-export async function getTmpFileSignedUrl(path: string, expiresIn = 60) {
+export async function getTmpFileSignedUrl(
+  path: string,
+  expiresIn = normalizeSignedUrlTtl(SIGNED_URL_DEFAULTS.tmp, SIGNED_URL_DEFAULTS.tmp),
+) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.storage.from(TMP_BUCKET).createSignedUrl(path, expiresIn);
   if (error || !data?.signedUrl) {
@@ -195,7 +212,10 @@ export async function uploadOrderFile(
   return key;
 }
 
-export async function getOrderFileSignedUrl(path: string, expiresIn = 300) {
+export async function getOrderFileSignedUrl(
+  path: string,
+  expiresIn = normalizeSignedUrlTtl(SIGNED_URL_DEFAULTS.order, SIGNED_URL_DEFAULTS.order),
+) {
   const supabase = getServiceSupabase();
   const { data, error } = await supabase.storage.from(ORDER_FILES_BUCKET).createSignedUrl(path, expiresIn);
   if (error || !data?.signedUrl) {

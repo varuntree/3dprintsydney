@@ -170,6 +170,7 @@ export async function saveTmpFile(
   const key = await uploadToStorage(String(userId), filename, contents, contentType);
   const supabase = getServiceSupabase();
   const includeOrientation = await supportsOrientationDataColumn("tmp_files");
+  const payloadMetadata = metadata ? { ...metadata } : null;
   const insertPayload: Record<string, unknown> = {
     user_id: userId,
     storage_key: key,
@@ -181,7 +182,7 @@ export async function saveTmpFile(
       : contents.byteLength,
     mime_type: contentType ?? null,
     status: "idle",
-    metadata: metadata ?? null,
+    metadata: payloadMetadata,
   };
   if (includeOrientation) {
     insertPayload.orientation_data = null;
@@ -211,6 +212,35 @@ export async function saveTmpFile(
     record,
     tmpId: record.storage_key,
   };
+}
+
+export async function findTmpFileByHash(
+  userId: number,
+  hash: string,
+  sizeBytes: number,
+): Promise<TmpFileRecord | null> {
+  const supabase = getServiceSupabase();
+  const includeOrientation = await supportsOrientationDataColumn("tmp_files");
+  const selectColumns = getTmpFileSelectColumns(includeOrientation);
+  const { data, error } = await supabase
+    .from("tmp_files")
+    .select(selectColumns)
+    .eq("user_id", userId)
+    .eq("size_bytes", sizeBytes)
+    .neq("status", "failed")
+    .contains("metadata", { hash })
+    .order("created_at", { ascending: false })
+    .maybeSingle();
+
+  if (error) {
+    const message = getSupabaseErrorMessage(error);
+    throw new AppError(`Failed to search for duplicate tmp file: ${message}`, "DATABASE_ERROR", 500);
+  }
+  if (!data) {
+    return null;
+  }
+  assertRawTmpFileRow(data);
+  return mapTmpFileRow(data, includeOrientation);
 }
 
 /**
