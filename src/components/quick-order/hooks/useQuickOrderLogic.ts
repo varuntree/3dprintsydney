@@ -60,6 +60,9 @@ export function useQuickOrderLogic() {
   const baselineSettingsRef = useRef<Record<string, FileSettings>>({});
   const [resetCandidate, setResetCandidate] = useState<string | null>(null);
   const [acceptedFallbacks, setAcceptedFallbacks] = useState<Set<string>>(new Set<string>());
+  const [uploadQueue, setUploadQueue] = useState<
+    Record<string, { filename: string; progress: number; status: "uploading" | "verifying" | "error"; error?: string }>
+  >({});
   
   const boundsStatus = useOrientationStore((state) => state.boundsStatus);
   const interactionDisabled = useOrientationStore((state) => state.interactionDisabled);
@@ -403,59 +406,119 @@ export function useQuickOrderLogic() {
     }
   }, [currentStep, stepCompletion]);
 
+  function addUploadQueueItem(localId: string, filename: string) {
+    setUploadQueue((prev) => ({
+      ...prev,
+      [localId]: { filename, progress: 0, status: "uploading" },
+    }));
+  }
+
+  function updateUploadQueueItem(
+    localId: string,
+    patch: Partial<{ progress: number; status: "uploading" | "verifying" | "error"; error?: string }>,
+  ) {
+    setUploadQueue((prev) => {
+      const existing = prev[localId];
+      if (!existing) return prev;
+      return {
+        ...prev,
+        [localId]: { ...existing, ...patch },
+      };
+    });
+  }
+
+  function removeUploadQueueItem(localId: string) {
+    setUploadQueue((prev) => {
+      const next = { ...prev };
+      delete next[localId];
+      return next;
+    });
+  }
+
   async function processFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList);
     if (files.length === 0) return;
-    const fd = new FormData();
-    files.forEach((file) => fd.append("files", file));
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/quick-order/upload", { method: "POST", body: fd });
-    setLoading(false);
-    if (!res.ok) {
+
+    for (const file of files) {
+      const localId = crypto.randomUUID();
+      addUploadQueueItem(localId, file.name);
       try {
-        const payload = await res.json();
-        const message =
-          payload?.error?.userMessage ||
-          payload?.error?.message ||
-          "Upload failed. Please check file type and size (max 50 MB).";
+        const uploaded = await new Promise<Upload[]>((resolve, reject) => {
+          const formData = new FormData();
+          formData.append("files", file);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/quick-order/upload");
+          xhr.responseType = "json";
+          xhr.upload.onprogress = (event) => {
+            if (!event.lengthComputable) return;
+            const progress = Math.min(100, Math.round((event.loaded / event.total) * 100));
+            updateUploadQueueItem(localId, { progress });
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              const payload = xhr.response ?? {};
+              const data = (payload as { data?: Upload[] }).data;
+              if (!data) {
+                reject(new Error("Upload response missing payload"));
+                return;
+              }
+              resolve(data);
+            } else {
+              const payload = xhr.response ?? {};
+              const message =
+                (payload as { error?: { userMessage?: string; message?: string } }).error?.userMessage ||
+                (payload as { error?: { userMessage?: string; message?: string } }).error?.message ||
+                "Upload failed. Please check file type and size (max 50 MB).";
+              reject(new Error(message));
+            }
+          };
+          xhr.onerror = () => reject(new Error("Network error while uploading. Please retry."));
+          xhr.send(formData);
+        });
+
+        updateUploadQueueItem(localId, { progress: 100, status: "verifying" });
+        setUploads((prev) => {
+          const next = [...prev, ...uploaded];
+          if (prev.length === 0 && uploaded.length > 0) {
+            goToStep("orient");
+            setCurrentlyOrienting(uploaded[0].id);
+          }
+          return next;
+        });
+
+        const defaultMat = materials[0]?.id ?? 0;
+        setSettings((prev) => {
+          const next = { ...prev } as Record<string, FileSettings>;
+          uploaded.forEach((it) => {
+            next[it.id] = {
+              materialId: defaultMat,
+              layerHeight: 0.2,
+              infill: 20,
+              quantity: 1,
+              supportsEnabled: true,
+            };
+            baselineSettingsRef.current[it.id] = { ...next[it.id] };
+          });
+          return next;
+        });
+        setFileStatuses((prev) => {
+          const next = { ...prev } as Record<string, FileStatusState>;
+          uploaded.forEach((it) => {
+            next[it.id] = { state: it.duplicate ? "success" : "idle" };
+          });
+          return next;
+        });
+        removeUploadQueueItem(localId);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed. Please try again.";
+        updateUploadQueueItem(localId, { status: "error", error: message });
         setError(message);
-      } catch {
-        setError("Upload failed. Please check file type and size (max 50 MB).");
-      }
-      return;
-    }
-    const { data } = await res.json();
-    const uploaded = data as Upload[];
-    setUploads((prev) => [...prev, ...uploaded]);
-    const defaultMat = materials[0]?.id ?? 0;
-    setSettings((prev) => {
-      const next = { ...prev } as Record<string, FileSettings>;
-      uploaded.forEach((it) => {
-        next[it.id] = {
-          materialId: defaultMat,
-          layerHeight: 0.2,
-          infill: 20,
-          quantity: 1,
-          supportsEnabled: true,
-        };
-        baselineSettingsRef.current[it.id] = { ...next[it.id] };
-      });
-      return next;
-    });
-    setFileStatuses((prev) => {
-      const next = { ...prev } as Record<string, FileStatusState>;
-      uploaded.forEach((it) => {
-        next[it.id] = { state: "idle" };
-      });
-      return next;
-    });
-    if (uploads.length === 0) {
-      goToStep("orient");
-      if (uploaded.length > 0) {
-        setCurrentlyOrienting(uploaded[0].id);
       }
     }
+
+    setLoading(false);
   }
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1066,6 +1129,7 @@ export function useQuickOrderLogic() {
     preparing,
     error,
     walletBalance,
+    uploadQueue,
     orientationState,
     orientationLocked,
     currentlyOrienting,

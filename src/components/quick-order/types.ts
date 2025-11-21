@@ -1,6 +1,14 @@
 import type { OrientationQuaternion, OrientationPosition } from "@/stores/orientation-store";
 
-export type Upload = { id: string; filename: string; size: number };
+export type Upload = {
+  id: string;
+  filename: string;
+  size: number;
+  type?: string;
+  hash?: string;
+  duplicate?: boolean;
+  verified?: boolean;
+};
 export type Material = { id: number; name: string; costPerGram: number };
 
 export type Step = "upload" | "orient" | "configure" | "price" | "checkout";
@@ -67,7 +75,7 @@ export type SliceResult = { grams: number; timeSec: number; fallback?: boolean; 
 export type DraftState = {
   timestamp: number;
   step: Step;
-  uploads: Array<{ id: string; filename: string; size: number }>;
+  uploads: Array<{ id: string; filename: string; size: number; type?: string; hash?: string; duplicate?: boolean; verified?: boolean }>;
   settings: Record<string, FileSettings>;
   orientationState: Record<string, OrientationSnapshot>;
   orientationLocked: Record<string, boolean>;
