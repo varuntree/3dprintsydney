@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type Resolver } from "react-hook-form";
@@ -64,6 +64,21 @@ type PaymentFormValues = {
 export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  const [entries, setEntries] = useState<InvoicePaymentRecord[]>(payments);
+
+  const defaultDate = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  function normalizePayment(payment: PaymentInput & { id: number; paid_at?: string; method: string }) {
+    const paidAtIso = payment.paid_at ?? payment.paidAt ?? new Date().toISOString();
+    return {
+      id: payment.id,
+      amount: Number(payment.amount),
+      method: payment.method as InvoicePaymentRecord["method"],
+      reference: payment.reference ?? "",
+      notes: payment.notes ?? "",
+      paidAt: new Date(paidAtIso).toISOString(),
+    } satisfies InvoicePaymentRecord;
+  }
 
   const resolver = zodResolver(
     paymentInputSchema,
@@ -72,20 +87,21 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
   const form = useForm<PaymentFormValues>({
     resolver,
     defaultValues: {
-      amount: 0,
+      amount: 0.01,
       method: "OTHER",
       reference: "",
       processor: "",
       processorId: "",
       notes: "",
-      paidAt: new Date().toISOString().slice(0, 10),
+      paidAt: defaultDate,
     },
   });
 
   const addMutation = useMutation({
     mutationFn: (values: PaymentFormValues) => {
+      const roundedAmount = Number((Math.round(values.amount * 100) / 100).toFixed(2));
       const payload: PaymentInput = {
-        amount: values.amount,
+        amount: roundedAmount,
         method: values.method,
         reference: values.reference ?? "",
         processor: values.processor ?? "",
@@ -98,18 +114,22 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
         body: JSON.stringify(payload),
       });
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
       toast.success("Payment added");
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      if (created) {
+        const mapped = normalizePayment(created as PaymentInput & { id: number; paid_at?: string; method: string });
+        setEntries((prev) => [...prev, mapped]);
+      }
       form.reset({
-        amount: 0,
+        amount: 0.01,
         method: "OTHER",
         reference: "",
         processor: "",
         processorId: "",
         notes: "",
-        paidAt: new Date().toISOString().slice(0, 10),
+        paidAt: defaultDate,
       });
       setIsAdding(false);
     },
@@ -123,10 +143,11 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
       mutateJson(`/api/invoices/${invoiceId}/payments/${paymentId}`, {
         method: "DELETE",
       }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast.success("Payment removed");
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      setEntries((prev) => prev.filter((payment) => payment.id !== variables));
     },
     onError: (error: unknown) => {
       toast.error(getUserMessage(error));
@@ -144,7 +165,7 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
-        {payments.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="text-sm text-zinc-500">No payments recorded yet.</p>
         ) : (
           <Table>
@@ -158,7 +179,7 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payments.map((payment) => (
+              {entries.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell>
                     {new Date(payment.paidAt).toLocaleDateString()}
@@ -201,11 +222,19 @@ export function InvoicePayments({ invoiceId, payments }: InvoicePaymentsProps) {
                     <FormControl>
                       <Input
                         type="number"
-                        step="0.1"
-                        min={0}
-                        value={field.value}
+                        step="0.01"
+                        min={0.01}
+                        inputMode="decimal"
+                        value={Number.isFinite(field.value) ? field.value : ""}
+                        onBlur={(event) => {
+                          const value = event.target.valueAsNumber;
+                          if (Number.isFinite(value)) {
+                            const rounded = Number((Math.round(value * 100) / 100).toFixed(2));
+                            field.onChange(rounded);
+                          }
+                        }}
                         onChange={(event) =>
-                          field.onChange(event.target.valueAsNumber)
+                          field.onChange(Number.isFinite(event.target.valueAsNumber) ? event.target.valueAsNumber : 0)
                         }
                       />
                     </FormControl>

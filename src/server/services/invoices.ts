@@ -1,4 +1,4 @@
-import { addDays, format } from 'date-fns';
+import { addDays, endOfDay, format, isAfter } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { DiscountType, InvoiceStatus, JobStatus, PaymentMethod } from '@/lib/constants/enums';
 import {
@@ -29,7 +29,8 @@ import type {
 
 function toDecimal(value: number | undefined | null) {
   if (value === undefined || value === null) return null;
-  return Number.isFinite(value) ? String(value) : '0';
+  if (!Number.isFinite(value)) return '0';
+  return (Math.round(Number(value) * 100) / 100).toFixed(2);
 }
 
 function decimalToNumber(value: unknown): number {
@@ -138,6 +139,19 @@ type InvoiceRow = {
   updated_at?: string;
   clients?: InvoiceClientRecord | InvoiceClientRecord[] | null;
 };
+
+function resolveDerivedStatus(status: string | null, dueDate: string | null, balanceDue: number) {
+  const baseStatus = (status ?? InvoiceStatus.PENDING) as InvoiceStatus;
+  if (baseStatus === InvoiceStatus.PAID) return baseStatus;
+  const parsedDue = dueDate ? new Date(dueDate) : null;
+  if (parsedDue && balanceDue > 0) {
+    const now = new Date();
+    if (isAfter(now, endOfDay(parsedDue))) {
+      return InvoiceStatus.OVERDUE;
+    }
+  }
+  return baseStatus;
+}
 
 type InvoiceDetailRow = InvoiceRow & {
   notes: string | null;
@@ -270,15 +284,18 @@ type InvoiceRevertRow = {
 
 function mapInvoiceSummary(row: InvoiceRow): InvoiceSummaryDTO {
   const client = extractClientRecord(row);
+  const balanceDue = Number(row.balance_due ?? 0);
+  const dueDate = row.due_date ? new Date(row.due_date) : null;
+  const status = resolveDerivedStatus(row.status, row.due_date, balanceDue);
   return {
     id: row.id,
     number: row.number,
     clientName: client?.name ?? '',
-    status: (row.status ?? 'PENDING') as InvoiceStatus,
+    status,
     total: Number(row.total ?? 0),
-    balanceDue: Number(row.balance_due ?? 0),
+    balanceDue,
     issueDate: new Date(row.issue_date),
-    dueDate: row.due_date ? new Date(row.due_date) : null,
+    dueDate,
     hasStripeLink: Boolean(row.stripe_checkout_url),
   };
 }
@@ -323,15 +340,18 @@ export async function listInvoices(options?: InvoiceFilters) {
 
 function mapInvoiceDetail(row: InvoiceDetailRow, paymentTerm: ResolvedPaymentTerm | null): InvoiceDetailDTO {
   const client = extractClientRecord(row);
+  const balanceDue = Number(row.balance_due ?? 0);
+  const dueDate = row.due_date ? new Date(row.due_date) : null;
+  const status = resolveDerivedStatus(row.status, row.due_date, balanceDue);
   return {
     id: row.id,
     number: row.number,
-    status: (row.status ?? 'PENDING') as InvoiceStatus,
+    status,
     total: Number(row.total ?? 0),
-    balanceDue: Number(row.balance_due ?? 0),
+    balanceDue,
     creditApplied: Number(row.credit_applied ?? 0),
     issueDate: new Date(row.issue_date),
-    dueDate: row.due_date ? new Date(row.due_date) : null,
+    dueDate,
     notes: row.notes ?? '',
     terms: row.terms ?? '',
     taxRate: row.tax_rate ? Number(row.tax_rate) : undefined,
@@ -792,8 +812,27 @@ export async function deleteInvoice(id: number) {
 export async function addManualPayment(invoiceId: number, input: PaymentInput) {
   const supabase = getServiceSupabase();
 
+  if (input.processorId) {
+    const { data: existing, error: existingError } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('processor_id', input.processorId)
+      .maybeSingle();
+    if (existingError) {
+      throw new AppError(`Failed to validate payment uniqueness: ${existingError.message}`, 'DATABASE_ERROR', 500);
+    }
+    if (existing) {
+      throw new BadRequestError(`Payment ${input.processorId} has already been recorded`);
+    }
+  }
+
+  const roundedAmount = Number.isFinite(input.amount) ? Number((Math.round(input.amount * 100) / 100).toFixed(2)) : 0;
+  if (!Number.isFinite(roundedAmount) || roundedAmount <= 0) {
+    throw new BadRequestError('Payment amount must be greater than zero');
+  }
+
   const paymentPayload = {
-    amount: String(input.amount),
+    amount: String(roundedAmount),
     method: input.method,
     reference: input.reference ?? '',
     processor: input.processor ?? '',

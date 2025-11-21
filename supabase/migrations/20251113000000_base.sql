@@ -570,20 +570,20 @@ begin
     coalesce(invoice_data->>'status', 'PENDING')::invoice_status,
     (invoice_data->>'issue_date')::timestamptz,
     nullif(invoice_data->>'due_date', '')::timestamptz,
-    nullif(invoice_data->>'tax_rate', '')::numeric,
+    nullif(round((invoice_data->>'tax_rate')::numeric, 2)::text, '')::numeric,
     coalesce(invoice_data->>'discount_type', 'NONE')::discount_type,
-    nullif(invoice_data->>'discount_value', '')::numeric,
-    nullif(invoice_data->>'shipping_cost', '')::numeric,
+    nullif(round((invoice_data->>'discount_value')::numeric, 2)::text, '')::numeric,
+    nullif(round((invoice_data->>'shipping_cost')::numeric, 2)::text, '')::numeric,
     nullif(invoice_data->>'shipping_label', ''),
     nullif(invoice_data->>'notes', ''),
     nullif(invoice_data->>'terms', ''),
     nullif(invoice_data->>'po_number', ''),
-    (invoice_data->>'subtotal')::numeric,
-    (invoice_data->>'total')::numeric,
-    (invoice_data->>'tax_total')::numeric,
-    (invoice_data->>'balance_due')::numeric,
-    nullif(invoice_data->>'credit_applied', '')::numeric,
-    nullif(invoice_data->>'original_total', '')::numeric
+    round((invoice_data->>'subtotal')::numeric, 2),
+    round((invoice_data->>'total')::numeric, 2),
+    round((invoice_data->>'tax_total')::numeric, 2),
+    round((invoice_data->>'balance_due')::numeric, 2),
+    nullif(round((invoice_data->>'credit_applied')::numeric, 2)::text, '')::numeric,
+    nullif(round((invoice_data->>'original_total')::numeric, 2)::text, '')::numeric
   )
   returning * into invoice_row;
 
@@ -607,12 +607,12 @@ begin
       nullif(elem.value->>'product_template_id', '')::bigint,
       elem.value->>'name',
       nullif(elem.value->>'description', ''),
-      (elem.value->>'quantity')::numeric,
+      round((elem.value->>'quantity')::numeric, 4),
       nullif(elem.value->>'unit', ''),
-      (elem.value->>'unit_price')::numeric,
+      round((elem.value->>'unit_price')::numeric, 4),
       coalesce(elem.value->>'discount_type', 'NONE')::discount_type,
-      nullif(elem.value->>'discount_value', '')::numeric,
-      (elem.value->>'total')::numeric,
+      nullif(round((elem.value->>'discount_value')::numeric, 2)::text, '')::numeric,
+      round((elem.value->>'total')::numeric, 2),
       coalesce((elem.value->>'order_index')::integer, (elem.ord - 1)),
       elem.value->'calculator_breakdown'
     from jsonb_array_elements(line_data) with ordinality as elem(value, ord);
@@ -643,20 +643,20 @@ begin
     client_id = (invoice_data->>'client_id')::bigint,
     issue_date = (invoice_data->>'issue_date')::timestamptz,
     due_date = nullif(invoice_data->>'due_date', '')::timestamptz,
-    tax_rate = nullif(invoice_data->>'tax_rate', '')::numeric,
+    tax_rate = nullif(round((invoice_data->>'tax_rate')::numeric, 2)::text, '')::numeric,
     discount_type = coalesce(invoice_data->>'discount_type', discount_type)::discount_type,
-    discount_value = nullif(invoice_data->>'discount_value', '')::numeric,
-    shipping_cost = nullif(invoice_data->>'shipping_cost', '')::numeric,
+    discount_value = nullif(round((invoice_data->>'discount_value')::numeric, 2)::text, '')::numeric,
+    shipping_cost = nullif(round((invoice_data->>'shipping_cost')::numeric, 2)::text, '')::numeric,
     shipping_label = nullif(invoice_data->>'shipping_label', ''),
     notes = nullif(invoice_data->>'notes', ''),
     terms = nullif(invoice_data->>'terms', ''),
     po_number = nullif(invoice_data->>'po_number', ''),
-    subtotal = (invoice_data->>'subtotal')::numeric,
-    total = (invoice_data->>'total')::numeric,
-    tax_total = (invoice_data->>'tax_total')::numeric,
-    balance_due = (invoice_data->>'balance_due')::numeric,
-    credit_applied = nullif(invoice_data->>'credit_applied', '')::numeric,
-    original_total = nullif(invoice_data->>'original_total', '')::numeric,
+    subtotal = round((invoice_data->>'subtotal')::numeric, 2),
+    total = round((invoice_data->>'total')::numeric, 2),
+    tax_total = round((invoice_data->>'tax_total')::numeric, 2),
+    balance_due = round((invoice_data->>'balance_due')::numeric, 2),
+    credit_applied = nullif(round((invoice_data->>'credit_applied')::numeric, 2)::text, '')::numeric,
+    original_total = nullif(round((invoice_data->>'original_total')::numeric, 2)::text, '')::numeric,
     updated_at = now()
   where id = p_invoice_id
   returning * into invoice_row;
@@ -687,12 +687,12 @@ begin
       nullif(elem.value->>'product_template_id', '')::bigint,
       elem.value->>'name',
       nullif(elem.value->>'description', ''),
-      (elem.value->>'quantity')::numeric,
+      round((elem.value->>'quantity')::numeric, 4),
       nullif(elem.value->>'unit', ''),
-      (elem.value->>'unit_price')::numeric,
+      round((elem.value->>'unit_price')::numeric, 4),
       coalesce(elem.value->>'discount_type', 'NONE')::discount_type,
-      nullif(elem.value->>'discount_value', '')::numeric,
-      (elem.value->>'total')::numeric,
+      nullif(round((elem.value->>'discount_value')::numeric, 2)::text, '')::numeric,
+      round((elem.value->>'total')::numeric, 2),
       coalesce((elem.value->>'order_index')::integer, (elem.ord - 1)),
       elem.value->'calculator_breakdown'
     from jsonb_array_elements(line_data) with ordinality as elem(value, ord);
@@ -727,6 +727,12 @@ begin
     raise exception 'Invoice % not found', invoice_id;
   end if;
 
+  if coalesce(payment_data->>'processor_id', '') <> '' then
+    if exists(select 1 from payments where processor_id = payment_data->>'processor_id') then
+      raise exception 'Payment with processor id % already exists', payment_data->>'processor_id';
+    end if;
+  end if;
+
   insert into payments (
     invoice_id,
     amount,
@@ -740,7 +746,7 @@ begin
     metadata
   ) values (
     invoice_id,
-    (payment_data->>'amount')::numeric,
+    round((payment_data->>'amount')::numeric, 2),
     coalesce(payment_data->>'method', 'OTHER'),
     coalesce(payment_data->>'currency', 'AUD'),
     nullif(payment_data->>'reference', ''),
@@ -751,8 +757,8 @@ begin
     payment_data->'metadata'
   ) returning * into payment_row;
 
-  select coalesce(sum(amount), 0) into paid_amount from payments where invoice_id = invoice_row.id;
-  balance := greatest(invoice_row.total - paid_amount, 0);
+  select round(coalesce(sum(amount), 0), 2) into paid_amount from payments where invoice_id = invoice_row.id;
+  balance := greatest(round(invoice_row.total - paid_amount, 2), 0);
   is_paid := balance <= 0.000001;
 
   update invoices
